@@ -2,20 +2,22 @@
 FROM node:18-alpine AS builder
 WORKDIR /app
 
-# Install semua dependency (termasuk express, pg, dll)
+# PENTING: set development dulu agar devDependencies (vite) ikut terinstall
+ENV NODE_ENV=development
+
 COPY package*.json ./
 RUN npm ci
 
-# Copy source dan build
 COPY . .
 RUN npm run build
 # Hasil build ada di /app/dist
 
-# ── Stage 2: Production (Express serve everything) ─────────────────────────
+# ── Stage 2: Production - Express serve everything ─────────────────────────
 FROM node:18-alpine
 WORKDIR /app
 
-# Copy package.json dan install HANYA production dependencies
+ENV NODE_ENV=production
+
 COPY package*.json ./
 RUN npm ci --omit=dev
 
@@ -25,7 +27,5 @@ COPY --from=builder /app/dist ./dist
 # Copy Express server
 COPY server/ ./server/
 
-ENV NODE_ENV=production
 EXPOSE 3000
-
 CMD ["node", "server/index.js"]
