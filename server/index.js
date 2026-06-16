@@ -2,7 +2,7 @@ import express from 'express';
 import cors    from 'cors';
 import dotenv  from 'dotenv';
 import pg      from 'pg';
-import bcrypt  from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import path    from 'path';
 import { fileURLToPath } from 'url';
 
