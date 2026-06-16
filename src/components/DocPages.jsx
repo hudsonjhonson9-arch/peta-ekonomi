@@ -102,7 +102,7 @@ export function DocList({ docs, onView, categories = [] }) {
 }
 
 // ─── DETAIL DOKUMEN ───────────────────────────────────────────────────────────
-export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, user }) {
+export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPreview, user }) {
   const [catatan, setCatatan] = useState("");
 
   const canApprove =
@@ -211,6 +211,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, user }
               <Icon name="download" size={14} /> Unduh Dokumen
             </button>
             <button
+              onClick={() => onPreview && onPreview(doc)}
               style={{ width: "100%", padding: "10px 12px", background: "#f5f5f5", color: "#444", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}
             >
               <Icon name="eye" size={14} /> Preview Online
