@@ -197,6 +197,7 @@ app.get('/api/users', async (_, res) => {
              TO_CHAR(c.last_login, 'DD Mon YYYY, HH24:MI') AS "lastLogin"
       FROM user_list u
       LEFT JOIN user_credentials c ON u."NIP" = c.nip
+      WHERE u.bidang = 'Bidang Ekonomi dan SDA'
       ORDER BY u.no ASC
     `);
     
