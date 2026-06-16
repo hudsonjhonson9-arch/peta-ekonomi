@@ -59,6 +59,11 @@ app.post('/api/auth/login', async (req, res) => {
     if (!match)
       return res.status(401).json({ error: 'NIP atau password salah' });
 
+    // Update last_login
+    await pool.query(
+      'UPDATE user_credentials SET last_login = NOW() WHERE nip = $1', [nip]
+    );
+
     // Ambil data user dari user_list
     const userResult = await pool.query(
       'SELECT * FROM user_list WHERE "NIP" = $1', [nip]
@@ -164,21 +169,231 @@ app.post('/api/logs', async (req, res) => {
   }
 });
 
-// ── Users: dari user_list ─────────────────────────────────────────────────
+// ── Role Mapping Helpers ──────────────────────────────────────────────────
+const mapRoleToFrontend = (dbRole) => {
+  if (!dbRole) return 'Staf';
+  const r = dbRole.toUpperCase();
+  if (r === 'ADMIN') return 'Admin';
+  if (r === 'KABID' || r === 'REVIEWER') return 'Reviewer';
+  return 'Staf';
+};
+
+const mapRoleToDb = (feRole) => {
+  if (feRole === 'Admin') return 'ADMIN';
+  if (feRole === 'Reviewer') return 'KABID';
+  return 'USER';
+};
+
+// ── Users: dari user_list & user_credentials ──────────────────────────────
 app.get('/api/users', async (_, res) => {
   try {
     const users = await queryDB(`
-      SELECT id,
-             username  AS name,
-             role,
-             bidang    AS unit,
-             "Status"  AS status,
-             "NIP"     AS nip
-      FROM user_list
+      SELECT u.id,
+             u.username  AS name,
+             u.bidang    AS unit,
+             u."Status"  AS status,
+             u."NIP"     AS nip,
+             c.role      AS cred_role,
+             TO_CHAR(c.last_login, 'DD Mon YYYY, HH24:MI') AS "lastLogin"
+      FROM user_list u
+      LEFT JOIN user_credentials c ON u."NIP" = c.nip
+      ORDER BY u.no ASC
     `);
-    res.json(users);
+    
+    const mapped = users.map(u => ({
+      id: u.id,
+      name: u.name,
+      role: mapRoleToFrontend(u.cred_role || u.role),
+      unit: u.unit || '—',
+      status: u.status || 'Aktif',
+      nip: u.nip,
+      lastLogin: u.lastLogin || '—'
+    }));
+    
+    res.json(mapped);
   } catch (err) {
+    console.error('Get users error:', err);
     res.status(500).json({ error: 'Gagal mengambil data pengguna' });
+  }
+});
+
+app.post('/api/users', async (req, res) => {
+  const { nip, name, role, unit, status, password } = req.body;
+  if (!nip || !name || !role || !password) {
+    return res.status(400).json({ error: 'NIP, Nama, Peran, dan Password wajib diisi' });
+  }
+  
+  try {
+    const checkUser = await pool.query('SELECT 1 FROM user_list WHERE "NIP" = $1', [nip]);
+    if (checkUser.rows.length) {
+      return res.status(400).json({ error: 'NIP sudah digunakan' });
+    }
+    
+    const passwordHash = await bcrypt.hash(password, 10);
+    const userId = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+    const dbRole = mapRoleToDb(role);
+    
+    await pool.query(`
+      INSERT INTO user_list (id, username, "NIP", role, bidang, "Status", no)
+      VALUES ($1, $2, $3, $4, $5, $6, (SELECT COALESCE(MAX(no), 0) + 1 FROM user_list))
+    `, [userId, name, nip, dbRole, unit || '—', status || 'AKTIF']);
+    
+    await pool.query(`
+      INSERT INTO user_credentials (nip, password_hash, role)
+      VALUES ($1, $2, $3)
+    `, [nip, passwordHash, role]);
+    
+    res.json({ message: 'Pengguna berhasil ditambahkan' });
+  } catch (err) {
+    console.error('Create user error:', err);
+    res.status(500).json({ error: 'Gagal menambahkan pengguna' });
+  }
+});
+
+app.put('/api/users/:id', async (req, res) => {
+  const { id } = req.params;
+  const { nip, name, role, unit, status, password } = req.body;
+  if (!nip || !name || !role) {
+    return res.status(400).json({ error: 'NIP, Nama, dan Peran wajib diisi' });
+  }
+  
+  try {
+    const oldUserResult = await pool.query('SELECT "NIP" FROM user_list WHERE id = $1', [id]);
+    if (!oldUserResult.rows.length) {
+      return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
+    }
+    const oldNip = oldUserResult.rows[0].NIP;
+    const dbRole = mapRoleToDb(role);
+    
+    if (nip !== oldNip) {
+      const checkUser = await pool.query('SELECT 1 FROM user_list WHERE "NIP" = $1 AND id <> $2', [nip, id]);
+      if (checkUser.rows.length) {
+        return res.status(400).json({ error: 'NIP baru sudah digunakan oleh pengguna lain' });
+      }
+    }
+    
+    await pool.query(`
+      UPDATE user_list
+      SET username = $1, "NIP" = $2, role = $3, bidang = $4, "Status" = $5
+      WHERE id = $6
+    `, [name, nip, dbRole, unit || '—', status || 'AKTIF', id]);
+    
+    const credCheck = await pool.query('SELECT 1 FROM user_credentials WHERE nip = $1', [oldNip]);
+    
+    if (password) {
+      const passwordHash = await bcrypt.hash(password, 10);
+      if (credCheck.rows.length) {
+        await pool.query(`
+          UPDATE user_credentials
+          SET nip = $1, password_hash = $2, role = $3, updated_at = NOW()
+          WHERE nip = $4
+        `, [nip, passwordHash, role, oldNip]);
+      } else {
+        await pool.query(`
+          INSERT INTO user_credentials (nip, password_hash, role)
+          VALUES ($1, $2, $3)
+        `, [nip, passwordHash, role]);
+      }
+    } else {
+      if (credCheck.rows.length) {
+        await pool.query(`
+          UPDATE user_credentials
+          SET nip = $1, role = $2, updated_at = NOW()
+          WHERE nip = $3
+        `, [nip, role, oldNip]);
+      } else {
+        const defaultHash = '$2b$10$vgAo0ik8CSJ2vaoaM6Lh9OXfn3Tt2Mv/edTx1ZzdmqKD6AGvnhREq';
+        await pool.query(`
+          INSERT INTO user_credentials (nip, password_hash, role)
+          VALUES ($1, $2, $3)
+        `, [nip, defaultHash, role]);
+      }
+    }
+    
+    res.json({ message: 'Pengguna berhasil diperbarui' });
+  } catch (err) {
+    console.error('Update user error:', err);
+    res.status(500).json({ error: 'Gagal memperbarui pengguna' });
+  }
+});
+
+app.delete('/api/users/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const userResult = await pool.query('SELECT "NIP" FROM user_list WHERE id = $1', [id]);
+    if (!userResult.rows.length) {
+      return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
+    }
+    const nip = userResult.rows[0].NIP;
+    
+    await pool.query('DELETE FROM user_credentials WHERE nip = $1', [nip]);
+    await pool.query('DELETE FROM user_list WHERE id = $1', [id]);
+    
+    res.json({ message: 'Pengguna berhasil dihapus' });
+  } catch (err) {
+    console.error('Delete user error:', err);
+    res.status(500).json({ error: 'Gagal menghapus pengguna' });
+  }
+});
+
+// ── Kategori Dokumen (Tipe Dokumen) ───────────────────────────────────────
+app.get('/api/kategori-dokumen', async (_, res) => {
+  try {
+    const categories = await queryDB(`
+      SELECT id, nama
+      FROM bapperida_kategori_dokumen
+      ORDER BY nama ASC
+    `);
+    res.json(categories);
+  } catch (err) {
+    console.error('Get categories error:', err);
+    res.status(500).json({ error: 'Gagal mengambil kategori dokumen' });
+  }
+});
+
+app.post('/api/kategori-dokumen', async (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Nama kategori wajib diisi' });
+  }
+  try {
+    await pool.query(
+      'INSERT INTO bapperida_kategori_dokumen (nama) VALUES ($1) ON CONFLICT (nama) DO NOTHING',
+      [name.trim()]
+    );
+    res.json({ message: 'Kategori berhasil ditambahkan' });
+  } catch (err) {
+    console.error('Create category error:', err);
+    res.status(500).json({ error: 'Gagal menambahkan kategori' });
+  }
+});
+
+app.put('/api/kategori-dokumen/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Nama kategori wajib diisi' });
+  }
+  try {
+    await pool.query(
+      'UPDATE bapperida_kategori_dokumen SET nama = $1 WHERE id = $2',
+      [name.trim(), id]
+    );
+    res.json({ message: 'Kategori berhasil diperbarui' });
+  } catch (err) {
+    console.error('Update category error:', err);
+    res.status(500).json({ error: 'Gagal memperbarui kategori' });
+  }
+});
+
+app.delete('/api/kategori-dokumen/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM bapperida_kategori_dokumen WHERE id = $1', [id]);
+    res.json({ message: 'Kategori berhasil dihapus' });
+  } catch (err) {
+    console.error('Delete category error:', err);
+    res.status(500).json({ error: 'Gagal menghapus kategori' });
   }
 });
 

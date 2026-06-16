@@ -4,27 +4,52 @@ import Sidebar          from "./components/Sidebar.jsx";
 import Dashboard        from "./components/Dashboard.jsx";
 import { DocList, DocDetail } from "./components/DocPages.jsx";
 import UploadForm       from "./components/UploadForm.jsx";
-import { Pencarian, PortalPublik, ManajemenPengguna, AuditTrail } from "./components/Pages.jsx";
+import { Pencarian, PortalPublik, ManajemenPengguna, AuditTrail, ManajemenKategoriDokumen } from "./components/Pages.jsx";
 import { Icon, Toast }  from "./components/ui.jsx";
 import { INITIAL_DOCS, INITIAL_USERS, INITIAL_LOGS, ROLE_COLOR } from "./data.js";
 import { Badge } from "./components/ui.jsx";
 
 export default function App() {
-  const [user,      setUser]      = useState(null);
+  const [user,      setUser]      = useState(() => {
+    const saved = localStorage.getItem("user");
+    return saved ? JSON.parse(saved) : null;
+  });
   const [page,      setPage]      = useState("dashboard");
   const [docs,      setDocs]      = useState(INITIAL_DOCS);
   const [users,     setUsers]     = useState(INITIAL_USERS);
   const [logs,      setLogs]      = useState(INITIAL_LOGS);
+  const [categories, setCategories] = useState([]);
   const [viewDoc,   setViewDoc]   = useState(null);
   const [collapsed, setCollapsed] = useState(false);
   const [toast,     setToast]     = useState("");
+
+  const fetchUsers = () => {
+    fetch("/api/users").then(r => r.json()).then(setUsers).catch(console.error);
+  };
+
+  const fetchCategories = () => {
+    fetch("/api/kategori-dokumen").then(r => r.json()).then(setCategories).catch(console.error);
+  };
 
   useEffect(() => {
     if (!user) return; // Fetch data only after login
     fetch("/api/docs").then(r => r.json()).then(setDocs).catch(console.error);
     fetch("/api/logs").then(r => r.json()).then(setLogs).catch(console.error);
-    fetch("/api/users").then(r => r.json()).then(setUsers).catch(console.error);
+    fetchUsers();
+    fetchCategories();
   }, [user]);
+
+  const handleLogin = loggedUser => {
+    localStorage.setItem("user", JSON.stringify(loggedUser));
+    setUser(loggedUser);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    setUser(null);
+    setPage("dashboard");
+    setViewDoc(null);
+  };
 
   const showToast = msg => {
     setToast(msg);
@@ -88,7 +113,7 @@ export default function App() {
   };
 
   // ── Not logged in ─────────────────────────────────────────────────────────
-  if (!user) return <LoginPage onLogin={u => setUser(u)} />;
+  if (!user) return <LoginPage onLogin={handleLogin} />;
 
   // ── Pending notifications count ────────────────────────────────────────────
   const pendingCount = docs.filter(d => d.status !== "Diarsipkan" && d.status !== "Ditolak").length;
@@ -102,7 +127,7 @@ export default function App() {
         active={viewDoc ? "dokumen" : page}
         onNav={goPage}
         user={user}
-        onLogout={() => { setUser(null); setPage("dashboard"); setViewDoc(null); }}
+        onLogout={handleLogout}
         collapsed={collapsed}
       />
 
@@ -137,7 +162,7 @@ export default function App() {
             <Dashboard docs={docs} onNav={goPage} />
           )}
           {page === "dokumen" && !viewDoc && (
-            <DocList docs={docs} onView={d => setViewDoc(d)} user={user} />
+            <DocList docs={docs} onView={d => setViewDoc(d)} user={user} categories={categories} />
           )}
           {page === "dokumen" && viewDoc && (
             <DocDetail
@@ -150,7 +175,7 @@ export default function App() {
             />
           )}
           {page === "upload" && (
-            <UploadForm onSubmit={handleUpload} user={user} />
+            <UploadForm onSubmit={handleUpload} user={user} categories={categories} />
           )}
           {page === "pencarian" && (
             <Pencarian docs={docs} onView={d => { setViewDoc(d); setPage("dokumen"); }} />
@@ -159,7 +184,10 @@ export default function App() {
             <PortalPublik docs={docs} />
           )}
           {page === "pengguna" && user.role === "Admin" && (
-            <ManajemenPengguna users={users} />
+            <ManajemenPengguna users={users} onReload={fetchUsers} showToast={showToast} />
+          )}
+          {page === "kategori-dokumen" && user.role === "Admin" && (
+            <ManajemenKategoriDokumen categories={categories} onReload={fetchCategories} showToast={showToast} />
           )}
           {page === "audit" && user.role === "Admin" && (
             <AuditTrail logs={logs} />

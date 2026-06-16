@@ -1,8 +1,8 @@
 import { useState, useRef } from "react";
 import { Icon } from "./ui.jsx";
-import { DOC_TYPES, SECTORS } from "../data.js";
+import { SECTORS } from "../data.js";
 
-export default function UploadForm({ onSubmit, user }) {
+export default function UploadForm({ onSubmit, user, categories = [] }) {
   const [form, setForm] = useState({
     title: "", type: "", sector: "",
     year: new Date().getFullYear().toString(),
@@ -68,7 +68,7 @@ export default function UploadForm({ onSubmit, user }) {
             <label style={{ fontSize: 12, fontWeight: 600, color: "#444", display: "block", marginBottom: 6 }}>Jenis Dokumen *</label>
             <select value={form.type} onChange={e => set("type", e.target.value)} style={{ ...inp(errors.type), cursor: "pointer" }}>
               <option value="">— Pilih Jenis —</option>
-              {DOC_TYPES.slice(1).map(t => <option key={t}>{t}</option>)}
+              {categories.map(c => <option key={c.id} value={c.nama}>{c.nama}</option>)}
             </select>
             {errors.type && <div style={{ fontSize: 11, color: "#c62828", marginTop: 4 }}>{errors.type}</div>}
           </div>

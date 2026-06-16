@@ -1,9 +1,9 @@
 import { useState, useMemo } from "react";
 import { Icon, Badge } from "./ui.jsx";
-import { DOC_TYPES, SECTORS, YEARS, STATUS_LIST, STATUS_COLOR } from "../data.js";
+import { SECTORS, YEARS, STATUS_LIST, STATUS_COLOR } from "../data.js";
 
 // ─── DAFTAR DOKUMEN ───────────────────────────────────────────────────────────
-export function DocList({ docs, onView }) {
+export function DocList({ docs, onView, categories = [] }) {
   const [search,       setSearch]       = useState("");
   const [filterType,   setFilterType]   = useState("Semua Jenis");
   const [filterSector, setFilterSector] = useState("Semua Sektor");
@@ -49,7 +49,10 @@ export function DocList({ docs, onView }) {
               style={{ width: "100%", padding: "8px 10px 8px 30px", border: "1.5px solid #e0e0e0", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }}
             />
           </div>
-          <select value={filterType}   onChange={e => setFilterType(e.target.value)}   style={selStyle}>{DOC_TYPES.map(t  => <option key={t}>{t}</option>)}</select>
+          <select value={filterType}   onChange={e => setFilterType(e.target.value)}   style={selStyle}>
+            <option value="Semua Jenis">Semua Jenis</option>
+            {categories.map(c => <option key={c.id} value={c.nama}>{c.nama}</option>)}
+          </select>
           <select value={filterSector} onChange={e => setFilterSector(e.target.value)} style={selStyle}>{SECTORS.map(s   => <option key={s}>{s}</option>)}</select>
           <select value={filterYear}   onChange={e => setFilterYear(e.target.value)}   style={selStyle}>{YEARS.map(y     => <option key={y}>{y}</option>)}</select>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={selStyle}>{STATUS_LIST.map(s => <option key={s}>{s}</option>)}</select>

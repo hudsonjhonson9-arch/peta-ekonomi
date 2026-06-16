@@ -9,6 +9,7 @@ const NAV = [
   { key: "pencarian", label: "Pencarian",        icon: "search"  },
   { key: "publik",    label: "Portal Publik",    icon: "world"   },
   { key: "pengguna",  label: "Pengguna",         icon: "users",  adminOnly: true },
+  { key: "kategori-dokumen", label: "Tipe Dokumen", icon: "tag",   adminOnly: true },
   { key: "audit",     label: "Audit Trail",      icon: "history", adminOnly: true },
 ];
 
