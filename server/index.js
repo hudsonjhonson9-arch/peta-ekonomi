@@ -184,7 +184,7 @@ app.get('/api/users', async (_, res) => {
 
 // ── SPA fallback: semua route non-API → index.html (production only) ──────
 if (isProd) {
-  app.get('*', (_, res) => {
+ app.get('/{*path}', (_, res) => {
     res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
   });
 }
