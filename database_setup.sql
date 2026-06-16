@@ -15,15 +15,15 @@ CREATE TABLE IF NOT EXISTS user_credentials (
 
 -- ============================================================
 -- SEED DATA — User Credentials
--- Password default: "admin123" (Di-hash dengan bcrypt, salt rounds: 10)
--- Hash untuk "admin123" adalah: $2b$10$C8YQn88b90O/h4vW55iIkeFhFwL4k0j76gW9V6Q9/M/xV2W9oR89G
+-- Password default: "Bidangekonomi2026" (Di-hash dengan bcrypt, salt rounds: 10)
+-- Hash untuk "Bidangekonomi2026" adalah: $2b$10$vgAo0ik8CSJ2vaoaM6Lh9OXfn3Tt2Mv/edTx1ZzdmqKD6AGvnhREq
 -- Pastikan NIP yang dimasukkan di bawah ini benar-benar ada di tabel `user_list`.
 -- ============================================================
 
 -- Contoh insert untuk beberapa NIP (Sesuaikan dengan NIP riil di user_list):
 -- INSERT INTO user_credentials (nip, password_hash) VALUES
---     ('NIP_AGUSTINA', '$2b$10$C8YQn88b90O/h4vW55iIkeFhFwL4k0j76gW9V6Q9/M/xV2W9oR89G'),
---     ('NIP_KABID',    '$2b$10$C8YQn88b90O/h4vW55iIkeFhFwL4k0j76gW9V6Q9/M/xV2W9oR89G')
+--     ('NIP_AGUSTINA', '$2b$10$vgAo0ik8CSJ2vaoaM6Lh9OXfn3Tt2Mv/edTx1ZzdmqKD6AGvnhREq'),
+--     ('NIP_KABID',    '$2b$10$vgAo0ik8CSJ2vaoaM6Lh9OXfn3Tt2Mv/edTx1ZzdmqKD6AGvnhREq')
 -- ON CONFLICT (nip) DO NOTHING;
 
 
