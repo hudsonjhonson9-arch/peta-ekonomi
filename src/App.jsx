@@ -85,9 +85,67 @@ export default function App() {
     showToast("Dokumen ditolak dan dikembalikan ke pengupload.");
   };
 
+  const openOrDownloadDataUrl = (dataUrl, fileName, shouldDownload = false) => {
+    if (!dataUrl) {
+      alert("File tidak tersedia atau URL kosong.");
+      return;
+    }
+    
+    let base64Part = dataUrl;
+    let mimeType = "application/pdf";
+    
+    if (dataUrl.startsWith("data:")) {
+      const parts = dataUrl.split(",");
+      const meta = parts[0].split(";");
+      mimeType = meta[0].replace("data:", "");
+      base64Part = parts[1];
+    }
+    
+    try {
+      const byteCharacters = atob(base64Part);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: mimeType });
+      const blobUrl = URL.createObjectURL(blob);
+      
+      if (shouldDownload) {
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        window.open(blobUrl, "_blank");
+      }
+      
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+    } catch (error) {
+      console.error("Error processing file URL:", error);
+      window.open(dataUrl, "_blank");
+    }
+  };
+
   const handleDownload = doc => {
     addLog("Unduh dokumen", doc);
     showToast(`Mengunduh "${doc.title}"...`);
+    
+    let ext = ".pdf";
+    if (doc.url && doc.url.includes("wordprocessingml")) ext = ".docx";
+    else if (doc.url && doc.url.includes("spreadsheetml")) ext = ".xlsx";
+    else if (doc.url && doc.url.includes("image/jpeg")) ext = ".jpg";
+    else if (doc.url && doc.url.includes("image/png")) ext = ".png";
+    
+    const fileName = doc.title.toLowerCase().endsWith(ext) ? doc.title : `${doc.title}${ext}`;
+    openOrDownloadDataUrl(doc.url, fileName, true);
+  };
+
+  const handlePreview = doc => {
+    addLog("Preview dokumen", doc);
+    openOrDownloadDataUrl(doc.url, doc.title, false);
   };
 
   const handleUpload = form => {
@@ -171,6 +229,7 @@ export default function App() {
               onApprove={handleApprove}
               onReject={handleReject}
               onDownload={handleDownload}
+              onPreview={handlePreview}
               user={user}
             />
           )}
@@ -181,7 +240,7 @@ export default function App() {
             <Pencarian docs={docs} onView={d => { setViewDoc(d); setPage("dokumen"); }} />
           )}
           {page === "publik" && (
-            <PortalPublik docs={docs} />
+            <PortalPublik docs={docs} onDownload={handleDownload} />
           )}
           {page === "pengguna" && user.role === "Admin" && (
             <ManajemenPengguna users={users} onReload={fetchUsers} showToast={showToast} />
