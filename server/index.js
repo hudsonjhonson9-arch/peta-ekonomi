@@ -48,9 +48,9 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(400).json({ error: 'NIP dan Password diperlukan' });
 
   try {
-    // Ambil hash dari user_credentials
+    // Ambil hash dan role dari user_credentials
     const credResult = await pool.query(
-      'SELECT password_hash FROM user_credentials WHERE nip = $1', [nip]
+      'SELECT password_hash, role FROM user_credentials WHERE nip = $1', [nip]
     );
     if (!credResult.rows.length)
       return res.status(401).json({ error: 'NIP atau password salah' });
@@ -67,13 +67,14 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(404).json({ error: 'Data user tidak ditemukan' });
 
     const u = userResult.rows[0];
+    const cred = credResult.rows[0];
     res.json({
       message: 'Login berhasil',
       user: {
         id:     u.id,
         name:   u.username,
         nip:    u.NIP,
-        role:   u.role   || 'Staf',
+        role:   cred.role || 'Staf',
         unit:   u.bidang || '—',
         status: u.Status || 'Aktif',
       }
