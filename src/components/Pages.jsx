@@ -105,7 +105,7 @@ export function Pencarian({ docs, onView }) {
 }
 
 // ─── PORTAL PUBLIK ────────────────────────────────────────────────────────────
-export function PortalPublik({ docs }) {
+export function PortalPublik({ docs, onDownload }) {
   const publik = docs.filter(d =>
     d.status === "Diarsipkan" &&
     ["RPJMD", "Renstra", "Renja", "Data Statistik", "Kajian Ekonomi"].includes(d.type)
@@ -136,7 +136,10 @@ export function PortalPublik({ docs }) {
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#1a3a2a", marginBottom: 4, lineHeight: 1.3 }}>{d.title}</div>
                 <div style={{ fontSize: 11, color: "#888", marginBottom: 8 }}>{d.type} · {d.year} · {d.size}</div>
                 <div style={{ fontSize: 12, color: "#666", marginBottom: 10, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{d.desc}</div>
-                <button style={{ fontSize: 11, padding: "5px 12px", background: "#1a7a4a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <button
+                  onClick={() => onDownload && onDownload(d)}
+                  style={{ fontSize: 11, padding: "5px 12px", background: "#1a7a4a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}
+                >
                   <Icon name="download" size={11} /> Unduh
                 </button>
               </div>
@@ -154,13 +157,13 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
   const [isEdit, setIsEdit] = useState(false);
   const [form, setForm] = useState({
     id: "", nip: "", name: "", role: "Staf",
-    unit: "Sekretariat", status: "AKTIF", password: ""
+    unit: "Bidang Ekonomi dan SDA", status: "AKTIF", password: ""
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
   const openAdd = () => {
-    setForm({ id: "", nip: "", name: "", role: "Staf", unit: "Sekretariat", status: "AKTIF", password: "" });
+    setForm({ id: "", nip: "", name: "", role: "Staf", unit: "Bidang Ekonomi dan SDA", status: "AKTIF", password: "" });
     setErrors({});
     setIsEdit(false);
     setModalOpen(true);
@@ -369,14 +372,10 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
                 <label style={{ fontSize: 12, fontWeight: 600, color: "#555", display: "block", marginBottom: 5 }}>Unit Kerja / Bidang *</label>
                 <select
                   value={form.unit}
-                  onChange={e => setForm({ ...form, unit: e.target.value })}
-                  style={{ ...inpStyle, cursor: "pointer" }}
+                  style={{ ...inpStyle, background: "#f5f5f5", color: "#666", cursor: "not-allowed" }}
+                  disabled
                 >
-                  <option>Sekretariat</option>
-                  <option>Bidang Perencanaan</option>
                   <option>Bidang Ekonomi dan SDA</option>
-                  <option>Bidang Pemerintahan dan Pembangunan Manusia</option>
-                  <option>Bidang Riset dan Inovasi Daerah</option>
                 </select>
               </div>
 
