@@ -28,7 +28,8 @@ export default function UploadForm({ onSubmit, user, categories = [] }) {
     if (!validate()) return;
     onSubmit({
       ...form,
-      file: file?.name || "dokumen.pdf",
+      file:   file?.name || "dokumen.pdf",
+      fileObj: file,
       uploader: user.name,
     });
     setForm({ title: "", type: "", sector: "", year: new Date().getFullYear().toString(), desc: "", tags: "" });

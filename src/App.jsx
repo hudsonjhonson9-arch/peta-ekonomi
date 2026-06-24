@@ -148,26 +148,61 @@ export default function App() {
     openOrDownloadDataUrl(doc.url, doc.title, false);
   };
 
-  const handleUpload = form => {
-    const newDoc = {
-      id:         Date.now(),
-      title:      form.title,
-      type:       form.type,
-      sector:     form.sector,
-      year:       form.year,
-      status:     "Menunggu Review",
-      uploader:   user.name,
-      reviewedBy: "—",
-      size:       "—",
-      pages:      0,
-      uploadDate: new Date().toLocaleDateString("id-ID"),
-      desc:       form.desc || "—",
-      tags:       form.tags ? form.tags.split(",").map(t => t.trim()).filter(Boolean) : [],
-    };
-    setDocs(d => [newDoc, ...d]);
-    addLog("Upload dokumen", newDoc);
-    setPage("dokumen");
-    showToast("Dokumen berhasil diunggah dan dikirim untuk review.");
+  const handleUpload = async form => {
+    if (!form.fileObj) return showToast("Pilih file terlebih dahulu.");
+
+    try {
+      var gasUrl = import.meta.env.VITE_GAS_WEBAPP_URL;
+      if (!gasUrl) { showToast("GAS_URL belum dikonfigurasi"); return; }
+
+      var reader = new FileReader();
+      var base64 = await new Promise(function (resolve, reject) {
+        reader.onload  = function () { resolve(reader.result.split(",")[1]); };
+        reader.onerror = reject;
+        reader.readAsDataURL(form.fileObj);
+      });
+
+      var res = await fetch(gasUrl, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({
+          file:     base64,
+          filename: form.fileObj.name,
+          mimeType: form.fileObj.type,
+          title:    form.title,
+          type:     form.type,
+          sector:   form.sector,
+          year:     form.year,
+          uploader: user.name,
+        }),
+      });
+
+      var data = { message: "OK", fileUrl: "" };
+      try { data = await res.json(); } catch (_) {}
+
+      var newDoc = {
+        id:         Date.now(),
+        title:      form.title,
+        type:       form.type,
+        sector:     form.sector,
+        year:       form.year,
+        status:     "Menunggu Review",
+        uploader:   user.name,
+        reviewedBy: "—",
+        size:       form.fileObj.size ? (form.fileObj.size / 1048576).toFixed(1) + " MB" : "—",
+        pages:      0,
+        uploadDate: new Date().toLocaleDateString("id-ID"),
+        desc:       form.desc || "—",
+        tags:       form.tags ? form.tags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [],
+        url:        data.fileUrl || "",
+      };
+      setDocs(function (d) { return [newDoc].concat(d); });
+      addLog("Upload dokumen", newDoc);
+      setPage("dokumen");
+      showToast("Dokumen berhasil diunggah dan dikirim untuk review.");
+    } catch (err) {
+      showToast("Gagal mengunggah: " + err.message);
+    }
   };
 
   // ── Not logged in ─────────────────────────────────────────────────────────

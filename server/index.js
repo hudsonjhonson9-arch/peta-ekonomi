@@ -63,7 +63,6 @@ app.post('/api/auth/login', async (req, res) => {
     await pool.query(
       'UPDATE user_credentials SET last_login = NOW() WHERE nip = $1', [nip]
     );
-
     // Ambil data user dari user_list
     const userResult = await pool.query(
       'SELECT * FROM user_list WHERE "NIP" = $1', [nip]
@@ -120,12 +119,19 @@ app.get('/api/docs', async (_, res) => {
 });
 
 app.post('/api/docs', async (req, res) => {
-  const { title, type, sector, uploader } = req.body;
+  if (process.env.UPLOAD_API_KEY) {
+    const key = req.headers['x-upload-key'];
+    if (!key || key !== process.env.UPLOAD_API_KEY)
+      return res.status(403).json({ error: 'Forbidden: invalid upload key' });
+  }
+
+  const { title, type, sector, uploader, url, ukuran } = req.body;
   try {
     const result = await pool.query(
-      `INSERT INTO bapperida_dokumen (judul, kategori, tipe, tanggal, ukuran, created_at)
-       VALUES ($1, $2, $3, NOW(), $4, NOW()) RETURNING *`,
-      [title, type, sector, '0 MB']
+      `INSERT INTO bapperida_dokumen (judul, kategori, tipe, tanggal, ukuran, url, created_at)
+       VALUES ($1, $2, $3, NOW(), $4, $5, NOW()) RETURNING *`,
+      [title, type, sector, ukuran || '0 MB', url || '']
+
     );
     await pool.query(
       `INSERT INTO audit_logs (user_name, action, doc_title) VALUES ($1, $2, $3)`,
@@ -400,7 +406,7 @@ app.delete('/api/kategori-dokumen/:id', async (req, res) => {
 
 // ── SPA fallback: semua route non-API → index.html (production only) ──────
 if (isProd) {
- app.get('/{*path}', (_, res) => {
+  app.get('/{*path}', (_, res) => {
     res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
   });
 }
