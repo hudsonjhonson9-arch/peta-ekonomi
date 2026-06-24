@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useDocs, useUsers, useLogs, useCategories } from './hooks.js';
 import LoginPage        from "./components/LoginPage.jsx";
 import Sidebar          from "./components/Sidebar.jsx";
 import Dashboard        from "./components/Dashboard.jsx";
@@ -8,6 +10,10 @@ import { Pencarian, PortalPublik, ManajemenPengguna, AuditTrail, ManajemenKatego
 import { Icon, Toast }  from "./components/ui.jsx";
 import { ROLE_COLOR } from "./data.js";
 import { Badge } from "./components/ui.jsx";
+
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: 1, staleTime: 30_000 } }
+});
 
 export default function App() {
   const [user,      setUser]      = useState(() => {
@@ -23,21 +29,8 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [toast,     setToast]     = useState("");
 
-  const fetchUsers = () => {
-    fetch("/api/users").then(r => r.json()).then(setUsers).catch(console.error);
-  };
-
-  const fetchCategories = () => {
-    fetch("/api/kategori-dokumen").then(r => r.json()).then(setCategories).catch(console.error);
-  };
-
-  useEffect(() => {
-    if (!user) return; // Fetch data only after login
-    fetch("/api/docs").then(r => r.json()).then(setDocs).catch(console.error);
-    fetch("/api/logs").then(r => r.json()).then(setLogs).catch(console.error);
-    fetchUsers();
-    fetchCategories();
-  }, [user]);
+  const { data: serverDocs = [] } = useDocs();
+  const { data: logsData = [] } = useLogs();
 
   const handleLogin = loggedUser => {
     localStorage.setItem("user", JSON.stringify(loggedUser));
@@ -215,7 +208,8 @@ export default function App() {
   const liveDoc = viewDoc ? docs.find(d => d.id === viewDoc.id) || viewDoc : null;
 
   return (
-    <div style={{ display: "flex", width: "100%", minHeight: "100vh", fontFamily: "system-ui, -apple-system, sans-serif", background: "#f5f7f5" }}>
+      <QueryClientProvider client={queryClient}>
+        <div style={{ display: "flex", width: "100%", minHeight: "100vh", fontFamily: "system-ui, -apple-system, sans-serif", background: "#f5f7f5" }}>
       <Sidebar
         active={viewDoc ? "dokumen" : page}
         onNav={goPage}
@@ -278,10 +272,10 @@ export default function App() {
             <PortalPublik docs={docs} onDownload={handleDownload} />
           )}
           {page === "pengguna" && user.role === "Admin" && (
-            <ManajemenPengguna users={users} onReload={fetchUsers} showToast={showToast} />
+            <ManajemenPengguna users={users} onReload={() => queryClient.invalidateQueries({ queryKey: ['users'] })} showToast={showToast} />
           )}
           {page === "kategori-dokumen" && user.role === "Admin" && (
-            <ManajemenKategoriDokumen categories={categories} onReload={fetchCategories} showToast={showToast} />
+            <ManajemenKategoriDokumen categories={categories} onReload={() => queryClient.invalidateQueries({ queryKey: ['categories'] })} showToast={showToast} />
           )}
           {page === "audit" && user.role === "Admin" && (
             <AuditTrail logs={logs} />
@@ -291,5 +285,6 @@ export default function App() {
 
       <Toast msg={toast} onClose={() => setToast("")} />
     </div>
+    </QueryClientProvider>
   );
 }

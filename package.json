@@ -10,6 +10,7 @@
     "server": "node server/index.js"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.101.1",
     "bcryptjs": "^2.4.3",
     "concurrently": "^10.0.3",
     "cors": "^2.8.6",

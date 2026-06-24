@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Icon } from "./ui.jsx";
-import { INITIAL_USERS } from "../data.js";
 
 export default function LoginPage({ onLogin }) {
   const [nip, setNip] = useState("");
