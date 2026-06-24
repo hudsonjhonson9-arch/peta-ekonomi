@@ -31,6 +31,29 @@ export default function App() {
 
   const { data: serverDocs = [] } = useDocs();
   const { data: logsData = [] } = useLogs();
+  const { data: usersData = [] } = useUsers();
+  const { data: categoriesData = [] } = useCategories();
+
+  // Sync server data into local state, preserving local overrides
+  useEffect(() => {
+    if (serverDocs.length > 0) {
+      setDocs(prev => {
+        const map = new Map(serverDocs.map(d => [d.id, d]));
+        for (const d of prev) {
+          if (map.has(d.id)) {
+            map.set(d.id, { ...map.get(d.id), status: d.status });
+          } else {
+            map.set(d.id, d);
+          }
+        }
+        return [...map.values()];
+      });
+    }
+  }, [serverDocs]);
+
+  useEffect(() => { if (logsData.length > 0) setLogs(logsData); }, [logsData]);
+  useEffect(() => { if (usersData.length > 0) setUsers(usersData); }, [usersData]);
+  useEffect(() => { if (categoriesData.length > 0) setCategories(categoriesData); }, [categoriesData]);
 
   const handleLogin = loggedUser => {
     localStorage.setItem("user", JSON.stringify(loggedUser));
