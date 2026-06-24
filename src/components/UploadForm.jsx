@@ -5,7 +5,7 @@ import { SECTORS } from "../data.js";
 export default function UploadForm({ onSubmit, user, categories = [] }) {
   const [form, setForm] = useState({
     title: "", type: "", sector: "",
-    year: new Date().getFullYear().toString(),
+    year: (new Date().getFullYear() + 1).toString(),
     desc: "", tags: "",
   });
   const [file,      setFile]      = useState(null);
@@ -36,7 +36,7 @@ export default function UploadForm({ onSubmit, user, categories = [] }) {
         setTimeout(function () {
           setUploading(false);
           setFile(null);
-          setForm({ title: "", type: "", sector: "", year: new Date().getFullYear().toString(), desc: "", tags: "" });
+          setForm({ title: "", type: "", sector: "", year: (new Date().getFullYear() + 1).toString(), desc: "", tags: "" });
           setProgress(0);
           setErrors({});
         }, 600);
@@ -171,7 +171,7 @@ export default function UploadForm({ onSubmit, user, categories = [] }) {
 
         <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 16, display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <button
-            onClick={() => { setForm({ title: "", type: "", sector: "", year: "2024", desc: "", tags: "" }); setFile(null); setErrors({}); }}
+            onClick={() => { setForm({ title: "", type: "", sector: "", year: (new Date().getFullYear() + 1).toString(), desc: "", tags: "" }); setFile(null); setErrors({}); }}
             style={{ padding: "10px 20px", background: "#f5f5f5", color: "#555", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontWeight: 600 }}
             disabled={uploading}
           >
