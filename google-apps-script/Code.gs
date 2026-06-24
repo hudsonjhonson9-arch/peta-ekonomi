@@ -24,7 +24,9 @@ function doPost(e) {
   };
 
   try {
-    var params = JSON.parse(e.postData.contents);
+    var params;
+    try { params = JSON.parse(e.postData.contents); } catch (e2) { params = e.parameter; }
+    if (!params) return res(400, { error: 'Request body tidak valid' });
 
     if (!params.file || !params.title || !params.filename) {
       return res(400, { error: 'Parameter file, title, dan filename wajib diisi' });
@@ -77,6 +79,12 @@ function doPost(e) {
   } catch (err) {
     return res(500, { error: err.message });
   }
+}
+
+function doOptions() {
+  return ContentService
+    .createTextOutput('')
+    .setMimeType(ContentService.MimeType.TEXT);
 }
 
 function doGet() {

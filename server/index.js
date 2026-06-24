@@ -154,41 +154,31 @@ app.post('/api/upload-proxy', async (req, res) => {
   try {
     var body = JSON.stringify(req.body);
 
-    var doRequest = function (urlStr) {
-      return new Promise(function (resolve, reject) {
-        var parsed = urlMod.parse(urlStr);
-        var opts = {
-          hostname: parsed.hostname,
-          port: 443,
-          path: parsed.path,
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain',
-            'Content-Length': Buffer.byteLength(body),
-          },
-        };
-
-        var reqHttps = https.request(opts, function (response) {
-          if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-            resolve(doRequest(response.headers.location));
-            return;
-          }
-          var chunks = [];
-          response.on('data', function (c) { chunks.push(c); });
-          response.on('end', function () {
-            var text = Buffer.concat(chunks).toString();
-            console.log('GAS response status:', response.statusCode);
-            console.log('GAS body preview:', text.substring(0, 300));
-            resolve({ status: response.statusCode, text: text });
-          });
+    var parsed = urlMod.parse(gasUrl);
+    var proxyRes = await new Promise(function (resolve, reject) {
+      var opts = {
+        hostname: parsed.hostname,
+        port: 443,
+        path: parsed.path,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain',
+          'Content-Length': Buffer.byteLength(body),
+        },
+      };
+      var reqHttps = https.request(opts, function (response) {
+        var chunks = [];
+        response.on('data', function (c) { chunks.push(c); });
+        response.on('end', function () {
+          var text = Buffer.concat(chunks).toString();
+          console.log('GAS response status:', response.statusCode);
+          resolve({ status: response.statusCode, text: text });
         });
-        reqHttps.on('error', reject);
-        reqHttps.write(body);
-        reqHttps.end();
       });
-    };
-
-    var proxyRes = await doRequest(gasUrl);
+      reqHttps.on('error', reject);
+      reqHttps.write(body);
+      reqHttps.end();
+    });
     try {
       res.status(proxyRes.status).json(JSON.parse(proxyRes.text));
     } catch (parseErr) {

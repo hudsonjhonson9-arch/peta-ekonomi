@@ -159,9 +159,9 @@ export default function App() {
         reader.readAsDataURL(form.fileObj);
       });
 
-      var res = await fetch("/api/upload-proxy", {
+      var res = await fetch(gasUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
           file:     base64,
           filename: form.fileObj.name,
