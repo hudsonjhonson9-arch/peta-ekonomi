@@ -152,6 +152,9 @@ export default function App() {
     if (!form.fileObj) return showToast("Pilih file terlebih dahulu.");
 
     try {
+      var gasUrl = import.meta.env.VITE_GAS_WEBAPP_URL;
+      if (!gasUrl) { showToast("GAS_URL belum dikonfigurasi"); return; }
+
       var reader = new FileReader();
       var base64 = await new Promise(function (resolve, reject) {
         reader.onload  = function () { resolve(reader.result.split(",")[1]); };
