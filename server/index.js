@@ -189,7 +189,16 @@ app.post('/api/upload-proxy', async (req, res) => {
     };
 
     var proxyRes = await doRequest(gasUrl);
-    res.status(proxyRes.status).json(JSON.parse(proxyRes.text));
+    try {
+      res.status(proxyRes.status).json(JSON.parse(proxyRes.text));
+    } catch (parseErr) {
+      console.error('GAS response was not JSON. Raw text:', proxyRes.text.substring(0, 2000));
+      res.status(502).json({
+        error: 'GAS returned non-JSON response',
+        status: proxyRes.status,
+        preview: proxyRes.text.substring(0, 500),
+      });
+    }
   } catch (err) {
     console.error('GAS proxy error:', err);
     res.status(502).json({ error: 'Gagal meneruskan ke Google Apps Script: ' + err.message });
