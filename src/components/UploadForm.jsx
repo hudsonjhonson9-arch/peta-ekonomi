@@ -8,8 +8,10 @@ export default function UploadForm({ onSubmit, user, categories = [] }) {
     year: new Date().getFullYear().toString(),
     desc: "", tags: "",
   });
-  const [file,   setFile]   = useState(null);
-  const [errors, setErrors] = useState({});
+  const [file,      setFile]      = useState(null);
+  const [errors,    setErrors]    = useState({});
+  const [uploading, setUploading] = useState(false);
+  const [progress,  setProgress]  = useState(0);
   const fileRef = useRef();
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -25,16 +27,21 @@ export default function UploadForm({ onSubmit, user, categories = [] }) {
   };
 
   const handle = () => {
-    if (!validate()) return;
-    onSubmit({
-      ...form,
-      file:   file?.name || "dokumen.pdf",
-      fileObj: file,
-      uploader: user.name,
+    if (!validate() || uploading) return;
+    setUploading(true);
+    setProgress(0);
+    onSubmit({ ...form, fileObj: file, uploader: user.name }, function (pct) {
+      setProgress(pct);
+      if (pct >= 100) {
+        setTimeout(function () {
+          setUploading(false);
+          setFile(null);
+          setForm({ title: "", type: "", sector: "", year: new Date().getFullYear().toString(), desc: "", tags: "" });
+          setProgress(0);
+          setErrors({});
+        }, 600);
+      }
     });
-    setForm({ title: "", type: "", sector: "", year: new Date().getFullYear().toString(), desc: "", tags: "" });
-    setFile(null);
-    setErrors({});
   };
 
   const inp = (err) => ({
@@ -43,6 +50,12 @@ export default function UploadForm({ onSubmit, user, categories = [] }) {
     borderRadius: 8, fontSize: 13, outline: "none",
     boxSizing: "border-box", background: "#fff",
   });
+
+  const formatSize = (bytes) => {
+    if (bytes > 1048576) return (bytes / 1048576).toFixed(1) + " MB";
+    if (bytes > 1024) return (bytes / 1024).toFixed(0) + " KB";
+    return bytes + " B";
+  };
 
   return (
     <div>
@@ -60,14 +73,14 @@ export default function UploadForm({ onSubmit, user, categories = [] }) {
           <div style={{ gridColumn: "1 / -1" }}>
             <label style={{ fontSize: 12, fontWeight: 600, color: "#444", display: "block", marginBottom: 6 }}>Judul Dokumen *</label>
             <input value={form.title} onChange={e => set("title", e.target.value)} style={inp(errors.title)}
-              placeholder="Contoh: Kajian Potensi Ekonomi Sumba Barat 2024" />
+              placeholder="Contoh: Kajian Potensi Ekonomi Sumba Barat 2024" disabled={uploading} />
             {errors.title && <div style={{ fontSize: 11, color: "#c62828", marginTop: 4 }}>{errors.title}</div>}
           </div>
 
           {/* Jenis */}
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: "#444", display: "block", marginBottom: 6 }}>Jenis Dokumen *</label>
-            <select value={form.type} onChange={e => set("type", e.target.value)} style={{ ...inp(errors.type), cursor: "pointer" }}>
+            <select value={form.type} onChange={e => set("type", e.target.value)} style={{ ...inp(errors.type), cursor: "pointer" }} disabled={uploading}>
               <option value="">— Pilih Jenis —</option>
               {categories.map(c => <option key={c.id} value={c.nama}>{c.nama}</option>)}
             </select>
@@ -77,7 +90,7 @@ export default function UploadForm({ onSubmit, user, categories = [] }) {
           {/* Sektor */}
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: "#444", display: "block", marginBottom: 6 }}>Sektor *</label>
-            <select value={form.sector} onChange={e => set("sector", e.target.value)} style={{ ...inp(errors.sector), cursor: "pointer" }}>
+            <select value={form.sector} onChange={e => set("sector", e.target.value)} style={{ ...inp(errors.sector), cursor: "pointer" }} disabled={uploading}>
               <option value="">— Pilih Sektor —</option>
               {SECTORS.slice(1).map(s => <option key={s}>{s}</option>)}
             </select>
@@ -87,7 +100,7 @@ export default function UploadForm({ onSubmit, user, categories = [] }) {
           {/* Tahun */}
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: "#444", display: "block", marginBottom: 6 }}>Tahun Dokumen</label>
-            <select value={form.year} onChange={e => set("year", e.target.value)} style={{ ...inp(), cursor: "pointer" }}>
+            <select value={form.year} onChange={e => set("year", e.target.value)} style={{ ...inp(), cursor: "pointer" }} disabled={uploading}>
               {["2024", "2023", "2022", "2021", "2020", "2019"].map(y => <option key={y}>{y}</option>)}
             </select>
           </div>
@@ -96,7 +109,7 @@ export default function UploadForm({ onSubmit, user, categories = [] }) {
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: "#444", display: "block", marginBottom: 6 }}>Tag / Kata Kunci</label>
             <input value={form.tags} onChange={e => set("tags", e.target.value)} style={inp()}
-              placeholder="pertanian, kajian, 2024 (pisah koma)" />
+              placeholder="pertanian, kajian, 2024 (pisah koma)" disabled={uploading} />
           </div>
 
           {/* Deskripsi */}
@@ -104,7 +117,7 @@ export default function UploadForm({ onSubmit, user, categories = [] }) {
             <label style={{ fontSize: 12, fontWeight: 600, color: "#444", display: "block", marginBottom: 6 }}>Deskripsi Dokumen</label>
             <textarea value={form.desc} onChange={e => set("desc", e.target.value)} rows={3}
               style={{ ...inp(), resize: "vertical", lineHeight: 1.6 }}
-              placeholder="Ringkasan isi dan tujuan dokumen ini..." />
+              placeholder="Ringkasan isi dan tujuan dokumen ini..." disabled={uploading} />
           </div>
 
           {/* File */}
@@ -115,25 +128,44 @@ export default function UploadForm({ onSubmit, user, categories = [] }) {
             <input
               type="file" ref={fileRef}
               accept=".pdf,.doc,.docx,.xlsx"
-              onChange={e => setFile(e.target.files[0])}
+              onChange={e => { setFile(e.target.files[0]); setProgress(0); }}
               style={{ display: "none" }}
             />
             <div
-              onClick={() => fileRef.current.click()}
+              onClick={() => !uploading && fileRef.current.click()}
               style={{
                 border: `2px dashed ${errors.file ? "#c62828" : "#c8e6c9"}`,
                 borderRadius: 10, padding: 28, textAlign: "center",
-                cursor: "pointer", background: file ? "#f0f7f2" : "#fafafa",
+                cursor: uploading ? "not-allowed" : "pointer", background: file ? "#f0f7f2" : "#fafafa",
                 transition: "all .15s",
               }}
             >
               <Icon name="upload" size={28} style={{ color: file ? "#1a7a4a" : "#ccc", marginBottom: 8 }} />
               <div style={{ fontSize: 13, fontWeight: 600, color: file ? "#1a7a4a" : "#999" }}>
-                {file ? `✓ ${file.name}` : "Klik untuk pilih file atau seret ke sini"}
+                {file ? "✓ " + file.name : "Klik untuk pilih file atau seret ke sini"}
               </div>
+              {file && (
+                <div style={{ fontSize: 11, color: "#888", marginTop: 4, display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+                  <span>{formatSize(file.size)}</span>
+                  <span>{file.type || "unknown"}</span>
+                </div>
+              )}
               <div style={{ fontSize: 11, color: "#bbb", marginTop: 4 }}>PDF, DOCX, XLSX hingga 50 MB</div>
             </div>
             {errors.file && <div style={{ fontSize: 11, color: "#c62828", marginTop: 4 }}>{errors.file}</div>}
+
+            {/* Progress bar */}
+            {uploading && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#888", marginBottom: 4 }}>
+                  <span>Mengunggah...</span>
+                  <span>{progress}%</span>
+                </div>
+                <div style={{ height: 6, background: "#f0f0f0", borderRadius: 99, overflow: "hidden" }}>
+                  <div style={{ height: "100%", background: "#1a7a4a", borderRadius: 99, width: progress + "%", transition: "width .3s" }} />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -141,14 +173,29 @@ export default function UploadForm({ onSubmit, user, categories = [] }) {
           <button
             onClick={() => { setForm({ title: "", type: "", sector: "", year: "2024", desc: "", tags: "" }); setFile(null); setErrors({}); }}
             style={{ padding: "10px 20px", background: "#f5f5f5", color: "#555", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontWeight: 600 }}
+            disabled={uploading}
           >
             Reset
           </button>
           <button
             onClick={handle}
-            style={{ padding: "10px 24px", background: "#1a7a4a", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}
+            disabled={uploading}
+            style={{
+              padding: "10px 24px",
+              background: uploading ? "#ccc" : "#1a7a4a",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              fontSize: 13,
+              cursor: uploading ? "not-allowed" : "pointer",
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
           >
-            <Icon name="upload" size={14} /> Upload & Kirim untuk Review
+            <Icon name="upload" size={14} />
+            {uploading ? "Mengunggah " + progress + "%..." : "Upload & Kirim untuk Review"}
           </button>
         </div>
       </div>
