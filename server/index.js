@@ -4,6 +4,8 @@ import dotenv  from 'dotenv';
 import pg      from 'pg';
 import bcrypt from 'bcryptjs';
 import path    from 'path';
+import https  from 'https';
+import urlMod from 'url';
 import { fileURLToPath } from 'url';
 
 dotenv.config();
@@ -146,17 +148,48 @@ app.post('/api/docs', async (req, res) => {
 
 // ── Proxy upload ke Google Apps Script (hindari CORS) ────────────────────
 app.post('/api/upload-proxy', async (req, res) => {
-  const gasUrl = process.env.GAS_WEBAPP_URL || process.env.VITE_GAS_WEBAPP_URL;
+  var gasUrl = process.env.GAS_WEBAPP_URL || process.env.VITE_GAS_WEBAPP_URL;
   if (!gasUrl) return res.status(500).json({ error: 'GAS_WEBAPP_URL not configured' });
 
   try {
-    const gasRes = await fetch(gasUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(req.body),
-    });
-    const text = await gasRes.text();
-    res.status(gasRes.status).json(JSON.parse(text));
+    var body = JSON.stringify(req.body);
+
+    var doRequest = function (urlStr) {
+      return new Promise(function (resolve, reject) {
+        var parsed = urlMod.parse(urlStr);
+        var opts = {
+          hostname: parsed.hostname,
+          port: 443,
+          path: parsed.path,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain',
+            'Content-Length': Buffer.byteLength(body),
+          },
+        };
+
+        var reqHttps = https.request(opts, function (response) {
+          if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+            resolve(doRequest(response.headers.location));
+            return;
+          }
+          var chunks = [];
+          response.on('data', function (c) { chunks.push(c); });
+          response.on('end', function () {
+            var text = Buffer.concat(chunks).toString();
+            console.log('GAS response status:', response.statusCode);
+            console.log('GAS body preview:', text.substring(0, 300));
+            resolve({ status: response.statusCode, text: text });
+          });
+        });
+        reqHttps.on('error', reject);
+        reqHttps.write(body);
+        reqHttps.end();
+      });
+    };
+
+    var proxyRes = await doRequest(gasUrl);
+    res.status(proxyRes.status).json(JSON.parse(proxyRes.text));
   } catch (err) {
     console.error('GAS proxy error:', err);
     res.status(502).json({ error: 'Gagal meneruskan ke Google Apps Script: ' + err.message });
