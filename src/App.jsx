@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useDocs, useUsers, useLogs, useCategories } from './hooks.js';
+import { queryClient } from './main.jsx';
 import LoginPage        from "./components/LoginPage.jsx";
 import Sidebar          from "./components/Sidebar.jsx";
 import Dashboard        from "./components/Dashboard.jsx";
@@ -10,10 +10,6 @@ import { Pencarian, PortalPublik, ManajemenPengguna, AuditTrail, ManajemenKatego
 import { Icon, Toast }  from "./components/ui.jsx";
 import { ROLE_COLOR } from "./data.js";
 import { Badge } from "./components/ui.jsx";
-
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, staleTime: 30_000 } }
-});
 
 export default function App() {
   const [user,      setUser]      = useState(() => {
@@ -188,8 +184,7 @@ export default function App() {
   const liveDoc = viewDoc ? docs.find(d => d.id === viewDoc.id) || viewDoc : null;
 
   return (
-      <QueryClientProvider client={queryClient}>
-        <div style={{ display: "flex", width: "100%", minHeight: "100vh", fontFamily: "system-ui, -apple-system, sans-serif", background: "#f5f7f5" }}>
+    <div style={{ display: "flex", width: "100%", minHeight: "100vh", fontFamily: "system-ui, -apple-system, sans-serif", background: "#f5f7f5" }}>
       <Sidebar
         active={viewDoc ? "dokumen" : page}
         onNav={goPage}
@@ -265,6 +260,5 @@ export default function App() {
 
       <Toast msg={toast} onClose={() => setToast("")} />
     </div>
-    </QueryClientProvider>
   );
 }
