@@ -152,9 +152,6 @@ export default function App() {
     if (!form.fileObj) return showToast("Pilih file terlebih dahulu.");
 
     try {
-      var gasUrl = import.meta.env.VITE_GAS_WEBAPP_URL;
-      if (!gasUrl) { showToast("GAS_URL belum dikonfigurasi"); return; }
-
       var reader = new FileReader();
       var base64 = await new Promise(function (resolve, reject) {
         reader.onload  = function () { resolve(reader.result.split(",")[1]); };
@@ -162,9 +159,9 @@ export default function App() {
         reader.readAsDataURL(form.fileObj);
       });
 
-      var res = await fetch(gasUrl, {
+      var res = await fetch("/api/upload-proxy", {
         method: "POST",
-        headers: { "Content-Type": "text/plain" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           file:     base64,
           filename: form.fileObj.name,

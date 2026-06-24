@@ -144,6 +144,25 @@ app.post('/api/docs', async (req, res) => {
   }
 });
 
+// ── Proxy upload ke Google Apps Script (hindari CORS) ────────────────────
+app.post('/api/upload-proxy', async (req, res) => {
+  const gasUrl = process.env.GAS_WEBAPP_URL || process.env.VITE_GAS_WEBAPP_URL;
+  if (!gasUrl) return res.status(500).json({ error: 'GAS_WEBAPP_URL not configured' });
+
+  try {
+    const gasRes = await fetch(gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(req.body),
+    });
+    const text = await gasRes.text();
+    res.status(gasRes.status).json(JSON.parse(text));
+  } catch (err) {
+    console.error('GAS proxy error:', err);
+    res.status(502).json({ error: 'Gagal meneruskan ke Google Apps Script: ' + err.message });
+  }
+});
+
 // ── Audit Logs ────────────────────────────────────────────────────────────
 app.get('/api/logs', async (_, res) => {
   try {
