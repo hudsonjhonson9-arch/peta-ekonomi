@@ -43,6 +43,4 @@ export const ROLE_COLOR = {
   Staf:     { bg: "#e8f5e9", text: "#2e7d32" },
 };
 
-export const INITIAL_DOCS = [];
-export const INITIAL_USERS = [];
-export const INITIAL_LOGS = [];
+

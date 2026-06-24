@@ -6,7 +6,7 @@ import { DocList, DocDetail } from "./components/DocPages.jsx";
 import UploadForm       from "./components/UploadForm.jsx";
 import { Pencarian, PortalPublik, ManajemenPengguna, AuditTrail, ManajemenKategoriDokumen } from "./components/Pages.jsx";
 import { Icon, Toast }  from "./components/ui.jsx";
-import { INITIAL_DOCS, INITIAL_USERS, INITIAL_LOGS, ROLE_COLOR } from "./data.js";
+import { ROLE_COLOR } from "./data.js";
 import { Badge } from "./components/ui.jsx";
 
 export default function App() {
@@ -15,9 +15,9 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
   const [page,      setPage]      = useState("dashboard");
-  const [docs,      setDocs]      = useState(INITIAL_DOCS);
-  const [users,     setUsers]     = useState(INITIAL_USERS);
-  const [logs,      setLogs]      = useState(INITIAL_LOGS);
+  const [docs,      setDocs]      = useState([]);
+  const [users,     setUsers]     = useState([]);
+  const [logs,      setLogs]      = useState([]);
   const [categories, setCategories] = useState([]);
   const [viewDoc,   setViewDoc]   = useState(null);
   const [collapsed, setCollapsed] = useState(false);

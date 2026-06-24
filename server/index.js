@@ -4,8 +4,6 @@ import dotenv  from 'dotenv';
 import pg      from 'pg';
 import bcrypt from 'bcryptjs';
 import path    from 'path';
-import https  from 'https';
-import urlMod from 'url';
 import { fileURLToPath } from 'url';
 
 dotenv.config();
@@ -143,55 +141,6 @@ app.post('/api/docs', async (req, res) => {
   } catch (err) {
     console.error('Upload error:', err);
     res.status(500).json({ error: 'Gagal menyimpan dokumen' });
-  }
-});
-
-// ── Proxy upload ke Google Apps Script (hindari CORS) ────────────────────
-app.post('/api/upload-proxy', async (req, res) => {
-  var gasUrl = process.env.GAS_WEBAPP_URL || process.env.VITE_GAS_WEBAPP_URL;
-  if (!gasUrl) return res.status(500).json({ error: 'GAS_WEBAPP_URL not configured' });
-
-  try {
-    var body = JSON.stringify(req.body);
-
-    var parsed = urlMod.parse(gasUrl);
-    var proxyRes = await new Promise(function (resolve, reject) {
-      var opts = {
-        hostname: parsed.hostname,
-        port: 443,
-        path: parsed.path,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain',
-          'Content-Length': Buffer.byteLength(body),
-        },
-      };
-      var reqHttps = https.request(opts, function (response) {
-        var chunks = [];
-        response.on('data', function (c) { chunks.push(c); });
-        response.on('end', function () {
-          var text = Buffer.concat(chunks).toString();
-          console.log('GAS response status:', response.statusCode);
-          resolve({ status: response.statusCode, text: text });
-        });
-      });
-      reqHttps.on('error', reject);
-      reqHttps.write(body);
-      reqHttps.end();
-    });
-    try {
-      res.status(proxyRes.status).json(JSON.parse(proxyRes.text));
-    } catch (parseErr) {
-      console.error('GAS response was not JSON. Raw text:', proxyRes.text.substring(0, 2000));
-      res.status(502).json({
-        error: 'GAS returned non-JSON response',
-        status: proxyRes.status,
-        preview: proxyRes.text.substring(0, 500),
-      });
-    }
-  } catch (err) {
-    console.error('GAS proxy error:', err);
-    res.status(502).json({ error: 'Gagal meneruskan ke Google Apps Script: ' + err.message });
   }
 });
 
