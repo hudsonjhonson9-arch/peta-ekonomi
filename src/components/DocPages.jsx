@@ -116,6 +116,59 @@ export function DocList({ docs, onView, categories = [], sectors = [] }) {
 }
 
 // ─── DETAIL DOKUMEN ───────────────────────────────────────────────────────────
+// ── Shared Design Tokens ────────────────────────────────────────────────────
+const T = {
+  bg: "#F8FAFC",
+  card: "#FFFFFF",
+  border: "#E4ECFC",
+  borderHover: "#C7D7FC",
+  primary: "#2563EB",
+  primaryHover: "#1D4ED8",
+  primaryLight: "#EFF6FF",
+  primaryRing: "rgba(37,99,235,0.15)",
+  danger: "#DC2626",
+  dangerBg: "#FEF2F2",
+  dangerBorder: "#FECACA",
+  dangerHover: "#FEE2E2",
+  text: "#0F172A",
+  textSecondary: "#64748B",
+  textMuted: "#94A3B8",
+  surfaceHover: "#F8FAFC",
+  success: "#059669",
+  successBg: "#ECFDF5",
+  successBorder: "#A7F3D0",
+  successHover: "#D1FAE5",
+  focusRing: "0 0 0 3px rgba(37,99,235,0.15)",
+  shadowSm: "0 1px 2px rgba(0,0,0,0.05)",
+  shadowMd: "0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05)",
+  shadowLg: "0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.04)",
+  radius: "10px",
+  radiusLg: "14px",
+  font: "'Lexend', 'Source Sans 3', system-ui, -apple-system, sans-serif",
+};
+
+const btnBase = {
+  fontFamily: T.font,
+  fontWeight: 600,
+  borderRadius: T.radius,
+  border: "none",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
+  transition: "all 0.15s ease",
+  outline: "none",
+  whiteSpace: "nowrap",
+};
+
+const cardStyle = {
+  background: T.card,
+  borderRadius: T.radiusLg,
+  border: `1px solid ${T.border}`,
+  boxShadow: T.shadowSm,
+};
+
 export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPreview, onTogglePublik, user }) {
   const { isMobile } = useResponsive();
   const [catatan, setCatatan] = useState("");
@@ -136,41 +189,45 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
   ];
 
   return (
-    <div>
-      <button
-        onClick={onBack}
-        style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", color: "#2563EB", cursor: "pointer", fontSize: 13, fontWeight: 600, marginBottom: 20, padding: 0 }}
-      >
-        ← Kembali ke Daftar Dokumen
+    <div style={{ padding: isMobile ? 16 : "28px 36px", fontFamily: T.font, background: T.bg, minHeight: "100%" }}>
+      {/* Back Button */}
+      <button onClick={onBack} style={{ ...btnBase, background: "transparent", color: T.primary, fontSize: 13, padding: "6px 0", marginBottom: 20 }}
+        onMouseEnter={e => e.currentTarget.style.color = T.primaryHover}
+        onMouseLeave={e => e.currentTarget.style.color = T.primary}>
+        ← Kembali ke Daftar
       </button>
 
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 300px", gap: 16, alignItems: "start" }}>
-        {/* Left column */}
-        <div>
-          {/* Header */}
-          <div style={{ background: "#fff", borderRadius: 12, padding: 24, border: "1px solid #e8e8e8", marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 20, alignItems: "start" }}>
+        {/* ── Left Column ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Title Card */}
+          <div style={{ ...cardStyle, padding: isMobile ? 20 : 28 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", marginBottom: 8 }}>{doc.title}</div>
-                <Badge label={doc.status} colors={STATUS_COLOR[doc.status]} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, lineHeight: 1.3, letterSpacing: "-0.02em" }}>{doc.title}</h1>
+                <div style={{ marginTop: 10 }}>
+                  <Badge label={doc.status} colors={STATUS_COLOR[doc.status]} />
+                </div>
               </div>
-              <div style={{ width: 52, height: 52, background: "#EFF6FF", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Icon name="file" size={24} style={{ color: "#2563EB" }} />
+              <div style={{ width: 52, height: 52, background: T.primaryLight, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginLeft: 16 }}>
+                <Icon name="file" size={24} style={{ color: T.primary }} />
               </div>
             </div>
-            <div style={{ fontSize: 13, color: "#555", lineHeight: 1.7, marginBottom: 14 }}>{doc.desc}</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {doc.tags.map(t => (
-                <span key={t} style={{ fontSize: 11, color: "#2563EB", background: "#EFF6FF", padding: "3px 9px", borderRadius: 99 }}>
-                  <Icon name="tag" size={10} style={{ marginRight: 3, verticalAlign: "middle" }} />{t}
-                </span>
-              ))}
-            </div>
+            <p style={{ fontSize: 14, color: T.textSecondary, lineHeight: 1.7, margin: 0 }}>{doc.desc}</p>
+            {doc.tags.length > 0 && (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 14 }}>
+                {doc.tags.map(t => (
+                  <span key={t} style={{ fontSize: 11, fontWeight: 500, color: T.primary, background: T.primaryLight, padding: "4px 10px", borderRadius: 99 }}>
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Metadata */}
-          <div style={{ background: "#fff", borderRadius: 12, padding: 24, border: "1px solid #e8e8e8", marginBottom: 16 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", marginBottom: 16 }}>Metadata Dokumen</div>
+          {/* Metadata Card */}
+          <div style={{ ...cardStyle, padding: isMobile ? 20 : 28 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 16px" }}>Metadata Dokumen</h2>
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
               {[
                 ["Jenis Dokumen", doc.type],
@@ -182,36 +239,36 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
                 ["Diunggah oleh", doc.uploader],
                 ["Di-review oleh",doc.reviewedBy],
               ].map(([k, v]) => (
-                <div key={k} style={{ padding: "10px 12px", background: "#f9f9f9", borderRadius: 8 }}>
-                  <div style={{ fontSize: 11, color: "#888", marginBottom: 2 }}>{k}</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#333" }}>{v}</div>
+                <div key={k} style={{ padding: "12px 14px", background: T.bg, borderRadius: T.radius, border: `1px solid ${T.border}` }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>{k}</div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: T.text }}>{v}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Approval panel */}
+          {/* Approval Panel */}
           {canApprove && (
-            <div style={{ background: "#fff", borderRadius: 12, padding: 24, border: "1px solid #e8e8e8" }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", marginBottom: 12 }}>Tindakan Persetujuan</div>
+            <div style={{ ...cardStyle, padding: isMobile ? 20 : 28 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 14px" }}>Tindakan Persetujuan</h2>
               <textarea
                 value={catatan}
                 onChange={e => setCatatan(e.target.value)}
                 placeholder="Catatan review (opsional)..."
                 rows={3}
-                style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #e0e0e0", borderRadius: 8, fontSize: 13, resize: "vertical", boxSizing: "border-box", outline: "none", marginBottom: 12 }}
+                style={{ width: "100%", padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radius, fontSize: 14, fontFamily: T.font, resize: "vertical", boxSizing: "border-box", outline: "none", color: T.text }}
+                onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
+                onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
               />
-              <div style={{ display: "flex", gap: 10 }}>
-                <button
-                  onClick={() => onApprove(doc)}
-                  style={{ flex: 1, padding: 10, background: "#2563EB", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-                >
+              <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+                <button onClick={() => onApprove(doc)} style={{ ...btnBase, flex: 1, padding: "11px 16px", background: T.primary, color: "#fff", fontSize: 13, boxShadow: "0 1px 3px rgba(37,99,235,0.3)" }}
+                  onMouseEnter={e => { e.currentTarget.style.background = T.primaryHover; e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,0.35)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = T.primary; e.currentTarget.style.boxShadow = "0 1px 3px rgba(37,99,235,0.3)"; }}>
                   <Icon name="check" size={14} /> Setujui & Arsipkan
                 </button>
-                <button
-                  onClick={() => onReject(doc)}
-                  style={{ flex: 1, padding: 10, background: "#fff", color: "#c62828", border: "1.5px solid #c62828", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-                >
+                <button onClick={() => onReject(doc)} style={{ ...btnBase, flex: 1, padding: "11px 16px", background: T.dangerBg, color: T.danger, fontSize: 13, border: `1px solid ${T.dangerBorder}` }}
+                  onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = "#F87171"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; e.currentTarget.style.borderColor = T.dangerBorder; }}>
                   <Icon name="x" size={14} /> Tolak Dokumen
                 </button>
               </div>
@@ -219,47 +276,74 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
           )}
         </div>
 
-        {/* Right column */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* ── Right Column ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, position: isMobile ? "static" : "sticky", top: 20 }}>
+          {/* Image Preview */}
           {isImage && doc.url && (
-            <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e8e8e8", overflow: "hidden" }}>
-              <img src={doc.url} alt={doc.title} style={{ width: "100%", display: "block", maxHeight: 300, objectFit: "contain", background: "#f9f9f9" }} />
+            <div style={{ ...cardStyle, overflow: "hidden" }}>
+              <img src={doc.url} alt={doc.title} style={{ width: "100%", display: "block", maxHeight: 260, objectFit: "contain", background: T.bg }} />
             </div>
           )}
-          <div style={{ background: "#fff", borderRadius: 12, padding: 18, border: "1px solid #e8e8e8" }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", marginBottom: 12 }}>Aksi</div>
-            <button
-              onClick={() => onDownload(doc)}
-              style={{ width: "100%", padding: "10px 12px", background: "#2563EB", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, marginBottom: 8, justifyContent: "center" }}
-            >
-              <Icon name="download" size={14} /> Unduh Dokumen
+
+          {/* Actions Card */}
+          <div style={{ ...cardStyle, padding: 20 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Aksi</h3>
+
+            {/* Download Button */}
+            <button onClick={() => onDownload(doc)} style={{ ...btnBase, width: "100%", padding: "12px 16px", background: T.primary, color: "#fff", fontSize: 14, boxShadow: "0 1px 3px rgba(37,99,235,0.3)", marginBottom: 10 }}
+              onMouseEnter={e => { e.currentTarget.style.background = T.primaryHover; e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,0.35)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = T.primary; e.currentTarget.style.boxShadow = "0 1px 3px rgba(37,99,235,0.3)"; }}>
+              <Icon name="download" size={16} /> Unduh Dokumen
             </button>
-            <button
-              onClick={() => canEmbed ? setShowEmbed(true) : onPreview && onPreview(doc)}
-              style={{ width: "100%", padding: "10px 12px", background: canEmbed ? "#E8F5E9" : "#f5f5f5", color: canEmbed ? "#2e7d32" : "#444", border: canEmbed ? "1px solid #C8E6C9" : "none", borderRadius: 8, fontSize: 13, fontWeight: canEmbed ? 600 : 400, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, justifyContent: "center", marginBottom: 8 }}
-            >
-              <Icon name="eye" size={14} /> {canEmbed ? "Lihat Dokumen" : "Preview Online"}
-            </button>
+
+            {/* Embed / Preview Button — PROMINENT */}
+            {canEmbed && (
+              <>
+                <button onClick={() => setShowEmbed(true)} style={{ ...btnBase, width: "100%", padding: "12px 16px", background: T.success, color: "#fff", fontSize: 14, fontWeight: 700, boxShadow: "0 1px 3px rgba(5,150,105,0.3)", marginBottom: 8 }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "#047857"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(5,150,105,0.35)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = T.success; e.currentTarget.style.boxShadow = "0 1px 3px rgba(5,150,105,0.3)"; }}>
+                  <Icon name="eye" size={16} /> Lihat Dokumen
+                </button>
+                <a href={doc.url} target="_blank" rel="noopener noreferrer" style={{ ...btnBase, width: "100%", padding: "12px 16px", background: T.successBg, color: T.success, fontSize: 14, fontWeight: 600, border: `1.5px solid ${T.successBorder}`, textDecoration: "none", marginBottom: 10 }}
+                  onMouseEnter={e => { e.currentTarget.style.background = T.successHover; e.currentTarget.style.borderColor = "#6EE7B7"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = T.successBg; e.currentTarget.style.borderColor = T.successBorder; }}>
+                  <Icon name="external-link" size={15} /> Buka di Tab Baru
+                </a>
+              </>
+            )}
+
+            {!canEmbed && (
+              <button onClick={() => onPreview && onPreview(doc)} style={{ ...btnBase, width: "100%", padding: "12px 16px", background: "#F1F5F9", color: T.textSecondary, fontSize: 14, marginBottom: 10 }}>
+                <Icon name="eye" size={15} /> Preview Online
+              </button>
+            )}
+
+            {/* Publish Button */}
             {doc.status === "Diarsipkan" && (
-              <button
-                onClick={() => onTogglePublik && onTogglePublik(doc)}
-                style={{ width: "100%", padding: "10px 12px", background: doc.publik ? "#EFF6FF" : "#fff", color: doc.publik ? "#2e7d32" : "#1565c0", border: doc.publik ? "1.5px solid #2e7d32" : "1.5px solid #1565c0", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}
-              >
-                <Icon name="world" size={14} /> {doc.publik ? "✓ Dipublikasikan ke Publik" : "Publikasikan ke Publik"}
+              <button onClick={() => onTogglePublik && onTogglePublik(doc)}
+                style={{ ...btnBase, width: "100%", padding: "12px 16px", fontSize: 14, marginBottom: 0,
+                  background: doc.publik ? T.successBg : T.primaryLight,
+                  color: doc.publik ? T.success : T.primary,
+                  border: `1.5px solid ${doc.publik ? T.successBorder : T.border}`,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = doc.publik ? T.successHover : "#DBEAFE"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = doc.publik ? T.successBg : T.primaryLight; }}>
+                <Icon name="world" size={15} /> {doc.publik ? "✓ Dipublikasikan" : "Publikasikan ke Publik"}
               </button>
             )}
           </div>
 
-          <div style={{ background: "#fff", borderRadius: 12, padding: 18, border: "1px solid #e8e8e8" }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", marginBottom: 12 }}>Riwayat Status</div>
+          {/* Status History */}
+          <div style={{ ...cardStyle, padding: 20 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Riwayat Status</h3>
             {steps.map((s, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
-                <div style={{ width: 20, height: 20, borderRadius: 50, background: s.done ? "#2563EB" : "#e0e0e0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
-                  {s.done && <Icon name="check" size={10} style={{ color: "#fff" }} />}
+              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: i < steps.length - 1 ? 14 : 0 }}>
+                <div style={{ width: 22, height: 22, borderRadius: 99, background: s.done ? T.primary : T.border, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                  {s.done && <Icon name="check" size={11} style={{ color: "#fff" }} />}
                 </div>
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: s.done ? "#0F172A" : "#aaa" }}>{s.label}</div>
-                  <div style={{ fontSize: 11, color: "#bbb" }}>{s.date}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: s.done ? T.text : T.textMuted }}>{s.label}</div>
+                  <div style={{ fontSize: 12, color: T.textMuted }}>{s.date}</div>
                 </div>
               </div>
             ))}
@@ -267,6 +351,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
         </div>
       </div>
 
+      {/* Embed Modal */}
       {showEmbed && (
         <GoogleDriveEmbed
           url={doc.url}

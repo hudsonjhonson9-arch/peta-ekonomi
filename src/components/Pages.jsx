@@ -468,6 +468,105 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
 }
 
 // ─── MANAJEMEN KATEGORI DOKUMEN ──────────────────────────────────────────────
+// ── Shared Design Tokens ────────────────────────────────────────────────────
+const T = {
+  bg: "#F8FAFC",
+  card: "#FFFFFF",
+  border: "#E4ECFC",
+  borderHover: "#C7D7FC",
+  primary: "#2563EB",
+  primaryHover: "#1D4ED8",
+  primaryLight: "#EFF6FF",
+  primaryRing: "rgba(37,99,235,0.15)",
+  danger: "#DC2626",
+  dangerBg: "#FEF2F2",
+  dangerBorder: "#FECACA",
+  dangerHover: "#FEE2E2",
+  dangerRing: "rgba(220,38,38,0.15)",
+  text: "#0F172A",
+  textSecondary: "#64748B",
+  textMuted: "#94A3B8",
+  surfaceHover: "#F8FAFC",
+  success: "#059669",
+  successBg: "#ECFDF5",
+  successBorder: "#A7F3D0",
+  focusRing: "0 0 0 3px rgba(37,99,235,0.15)",
+  shadowSm: "0 1px 2px rgba(0,0,0,0.05)",
+  shadowMd: "0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05)",
+  shadowLg: "0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.04)",
+  radius: "10px",
+  radiusLg: "14px",
+  font: "'Lexend', 'Source Sans 3', system-ui, -apple-system, sans-serif",
+};
+
+const btnBase = {
+  fontFamily: T.font,
+  fontWeight: 600,
+  borderRadius: T.radius,
+  border: "none",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
+  transition: "all 0.15s ease",
+  outline: "none",
+  whiteSpace: "nowrap",
+};
+
+const btnPrimary = {
+  ...btnBase,
+  background: T.primary,
+  color: "#fff",
+  padding: "10px 18px",
+  fontSize: 13,
+  boxShadow: "0 1px 3px rgba(37,99,235,0.3)",
+};
+
+const btnGhost = {
+  ...btnBase,
+  background: "transparent",
+  color: T.textSecondary,
+  padding: "8px 12px",
+  fontSize: 12,
+};
+
+const btnDanger = {
+  ...btnBase,
+  background: T.dangerBg,
+  color: T.danger,
+  padding: "8px 12px",
+  fontSize: 12,
+  border: `1px solid ${T.dangerBorder}`,
+};
+
+const cardStyle = {
+  background: T.card,
+  borderRadius: T.radiusLg,
+  border: `1px solid ${T.border}`,
+  boxShadow: T.shadowSm,
+};
+
+const inputStyle = {
+  width: "100%",
+  padding: "10px 14px",
+  fontFamily: T.font,
+  border: `1.5px solid ${T.border}`,
+  borderRadius: T.radius,
+  fontSize: 14,
+  outline: "none",
+  boxSizing: "border-box",
+  transition: "border-color 0.15s, box-shadow 0.15s",
+  color: T.text,
+  background: "#fff",
+};
+
+const inputErrorStyle = {
+  ...inputStyle,
+  borderColor: T.danger,
+  boxShadow: `0 0 0 3px ${T.dangerRing}`,
+};
+
 export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
   const { isMobile } = useResponsive();
   const [modalOpen, setModalOpen] = useState(false);
@@ -539,136 +638,126 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
     }
   };
 
-  const inpStyle = {
-    width: "100%", padding: "9px 12px", border: "1.5px solid #e0e0e0",
-    borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box"
-  };
-
   return (
-    <div style={{ padding: isMobile ? "16px" : "24px 32px" }}>
-      {/* Header Card */}
-      <div style={{ background: "#fff", borderRadius: 16, padding: "20px 24px", border: "1px solid #e8e8e8", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ width: 44, height: 44, background: "linear-gradient(135deg, #2563EB, #1D4ED8)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon name="tag" size={20} style={{ color: "#fff" }} />
-          </div>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", letterSpacing: "-0.01em" }}>Manajemen Tipe Dokumen</div>
-            <div style={{ fontSize: 13, color: "#64748B", marginTop: 2 }}>{categories.length} tipe dokumen dikonfigurasi</div>
-          </div>
+    <div style={{ padding: isMobile ? 16 : "28px 36px", fontFamily: T.font, background: T.bg, minHeight: "100%" }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, letterSpacing: "-0.02em" }}>Tipe Dokumen</h1>
+          <p style={{ fontSize: 13, color: T.textSecondary, margin: "4px 0 0" }}>{categories.length} tipe dokumen dikonfigurasi</p>
         </div>
-        <button
-          onClick={openAdd}
-          style={{ padding: "10px 18px", background: "linear-gradient(135deg, #2563EB, #1D4ED8)", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, transition: "all 0.2s", boxShadow: "0 2px 8px rgba(37,99,235,0.3)" }}
-          onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,0.4)"; }}
-          onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(37,99,235,0.3)"; }}
-        >
-          <Icon name="plus" size={14} /> Tambah Tipe Dokumen
+        <button onClick={openAdd} style={btnPrimary}
+          onMouseEnter={e => { e.currentTarget.style.background = T.primaryHover; e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,0.35)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = T.primary; e.currentTarget.style.boxShadow = "0 1px 3px rgba(37,99,235,0.3)"; }}>
+          <Icon name="plus" size={15} /> Tambah
         </button>
       </div>
 
       {/* Table Card */}
-      <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e8e8e8", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "#F8FAFC" }}>
-              <th style={{ padding: "14px 20px", fontSize: 12, fontWeight: 700, color: "#64748B", textAlign: "left", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #e8e8e8" }}>Nama Tipe Dokumen</th>
-              <th style={{ padding: "14px 20px", fontSize: 12, fontWeight: 700, color: "#64748B", textAlign: "right", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #e8e8e8", width: 160 }}>Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {categories.map((c, i) => (
-              <tr key={c.id} style={{ borderBottom: i < categories.length - 1 ? "1px solid #F1F5F9" : "none", transition: "background 0.15s" }}
-                onMouseEnter={e => e.currentTarget.style.background = "#F8FAFC"}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                <td style={{ padding: "14px 20px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 36, height: 36, background: "#EFF6FF", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <Icon name="tag" size={16} style={{ color: "#2563EB" }} />
-                    </div>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>{c.nama}</span>
-                  </div>
-                </td>
-                <td style={{ padding: "14px 20px", textAlign: "right" }}>
-                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                    <button onClick={() => openEdit(c)}
-                      style={{ fontSize: 12, padding: "7px 12px", background: "#F1F5F9", border: "1px solid #E2E8F0", borderRadius: 8, cursor: "pointer", color: "#475569", display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 500, transition: "all 0.15s" }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "#E2E8F0"; e.currentTarget.style.borderColor = "#CBD5E1"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "#F1F5F9"; e.currentTarget.style.borderColor = "#E2E8F0"; }}
-                    >
-                      <Icon name="edit" size={12} /> Edit
-                    </button>
-                    <button onClick={() => handleDelete(c)}
-                      style={{ fontSize: 12, padding: "7px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, cursor: "pointer", color: "#DC2626", display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 500, transition: "all 0.15s" }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "#FEE2E2"; e.currentTarget.style.borderColor = "#F87171"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.borderColor = "#FECACA"; }}
-                    >
-                      <Icon name="x" size={12} /> Hapus
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {categories.length === 0 && (
-          <div style={{ padding: "48px 20px", textAlign: "center", color: "#94A3B8" }}>
-            <Icon name="tag" size={32} style={{ marginBottom: 8, opacity: 0.5 }} />
-            <div style={{ fontSize: 14 }}>Belum ada tipe dokumen</div>
+      <div style={{ ...cardStyle, overflow: "hidden" }}>
+        {/* Table Header */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", padding: "12px 20px", background: T.primaryLight, borderBottom: `1px solid ${T.border}` }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em" }}>Nama</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "right" }}>Aksi</span>
+        </div>
+
+        {/* Rows */}
+        {categories.length === 0 ? (
+          <div style={{ padding: "48px 20px", textAlign: "center" }}>
+            <div style={{ width: 48, height: 48, background: T.primaryLight, borderRadius: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+              <Icon name="tag" size={22} style={{ color: T.primary }} />
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 4 }}>Belum ada tipe dokumen</div>
+            <div style={{ fontSize: 13, color: T.textMuted }}>Klik "Tambah" untuk menambahkan tipe dokumen baru</div>
           </div>
+        ) : (
+          categories.map((c, i) => (
+            <div key={c.id}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 120px",
+                padding: "14px 20px",
+                borderBottom: i < categories.length - 1 ? `1px solid ${T.border}` : "none",
+                alignItems: "center",
+                transition: "background 0.12s",
+                cursor: "default",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = T.surfaceHover}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                <div style={{ width: 36, height: 36, background: T.primaryLight, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Icon name="tag" size={16} style={{ color: T.primary }} />
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.nama}</span>
+              </div>
+              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                <button onClick={() => openEdit(c)} style={btnGhost}
+                  onMouseEnter={e => e.currentTarget.style.background = T.primaryLight}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                  <Icon name="edit" size={13} /> Edit
+                </button>
+                <button onClick={() => handleDelete(c)} style={btnDanger}
+                  onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = "#F87171"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; e.currentTarget.style.borderColor = T.dangerBorder; }}>
+                  <Icon name="x" size={13} /> Hapus
+                </button>
+              </div>
+            </div>
+          ))
         )}
       </div>
 
-      {/* Modal Kategori Form */}
+      {/* Modal */}
       {modalOpen && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", zIndex: 1000 }}>
-          <div style={{
-            background: "#fff", borderRadius: isMobile ? "16px 16px 0 0" : 16, padding: isMobile ? 20 : 28,
-            width: isMobile ? "100%" : 380, boxShadow: "0 10px 40px rgba(0,0,0,0.15)",
-            animation: isMobile ? "slideUp .25s ease" : undefined,
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", zIndex: 50, padding: isMobile ? 0 : 20 }}
+          onClick={() => setModalOpen(false)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: T.card, borderRadius: isMobile ? "16px 16px 0 0" : T.radiusLg,
+            padding: isMobile ? "24px 20px 32px" : "28px 32px",
+            width: isMobile ? "100%" : 420, maxHeight: isMobile ? "90vh" : "auto",
+            boxShadow: T.shadowLg, animation: isMobile ? "slideUp .25s ease" : "fadeIn .15s ease",
           }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#0F172A" }}>
-                {isEdit ? "Edit Tipe Dokumen" : "Tambah Tipe Dokumen Baru"}
-              </div>
-              <button onClick={() => setModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#999" }}>
+            {/* Modal Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+              <h2 style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: 0 }}>{isEdit ? "Edit Tipe Dokumen" : "Tambah Tipe Dokumen"}</h2>
+              <button onClick={() => setModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textMuted, transition: "all 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; e.currentTarget.style.color = T.text; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.textMuted; }}>
                 <Icon name="x" size={18} />
               </button>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "#555", display: "block", marginBottom: 5 }}>Nama Tipe Dokumen *</label>
-                <input
-                  value={form.name}
-                  onChange={e => setForm({ ...form, name: e.target.value })}
-                  placeholder="Contoh: RPJMD, Renstra, Laporan, dll."
-                  style={inpStyle}
-                />
-                {errors.name && <div style={{ fontSize: 11, color: "#c62828", marginTop: 4 }}>{errors.name}</div>}
-              </div>
+            {/* Form */}
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>Nama Tipe Dokumen <span style={{ color: T.danger }}>*</span></label>
+              <input
+                value={form.name}
+                onChange={e => setForm({ ...form, name: e.target.value })}
+                placeholder="Contoh: RPJMD, Renstra, Laporan"
+                style={errors.name ? inputErrorStyle : inputStyle}
+                onFocus={e => { if (!errors.name) e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
+                onBlur={e => { if (!errors.name) e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
+                autoFocus
+              />
+              {errors.name && <div style={{ fontSize: 12, color: T.danger, marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}><Icon name="x" size={12} /> {errors.name}</div>}
+            </div>
 
-              {errors.submit && (
-                <div style={{ fontSize: 12, color: "#c62828", textAlign: "center", background: "#ffebee", padding: "8px", borderRadius: 6 }}>
-                  {errors.submit}
-                </div>
-              )}
-
-              <div style={{ borderTop: "1px solid #eee", paddingTop: 16, display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                <button
-                  onClick={() => setModalOpen(false)}
-                  style={{ padding: "8px 16px", background: "#f5f5f5", color: "#555", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontWeight: 600 }}
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading}
-                  style={{ padding: "8px 20px", background: "#2563EB", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, cursor: loading ? "not-allowed" : "pointer", fontWeight: 600 }}
-                >
-                  {loading ? "Menyimpan..." : "Simpan"}
-                </button>
+            {errors.submit && (
+              <div style={{ fontSize: 13, color: T.danger, marginTop: 12, padding: "10px 14px", background: T.dangerBg, borderRadius: T.radius, border: `1px solid ${T.dangerBorder}`, display: "flex", alignItems: "center", gap: 6 }}>
+                <Icon name="x" size={14} /> {errors.submit}
               </div>
+            )}
+
+            {/* Actions */}
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24, paddingTop: 16, borderTop: `1px solid ${T.border}` }}>
+              <button onClick={() => setModalOpen(false)} style={{ ...btnBase, padding: "10px 18px", background: "#F1F5F9", color: T.textSecondary, fontSize: 13 }}
+                onMouseEnter={e => e.currentTarget.style.background = "#E2E8F0"}
+                onMouseLeave={e => e.currentTarget.style.background = "#F1F5F9"}>
+                Batal
+              </button>
+              <button onClick={handleSubmit} disabled={loading} style={{ ...btnPrimary, opacity: loading ? 0.6 : 1, cursor: loading ? "not-allowed" : "pointer" }}>
+                {loading ? "Menyimpan..." : "Simpan"}
+              </button>
             </div>
           </div>
         </div>
@@ -791,96 +880,124 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
     }
   };
 
-  const inp = { width: "100%", padding: "10px 12px", border: "1.5px solid #ddd", borderRadius: 8, fontSize: 14, outline: "none", boxSizing: "border-box" };
-
   return (
-    <div style={{ padding: isMobile ? "16px" : "24px 32px" }}>
-      {/* Header Card */}
-      <div style={{ background: "#fff", borderRadius: 16, padding: "20px 24px", border: "1px solid #e8e8e8", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ width: 44, height: 44, background: "linear-gradient(135deg, #2563EB, #1D4ED8)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon name="layers" size={20} style={{ color: "#fff" }} />
-          </div>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", letterSpacing: "-0.01em" }}>Manajemen Sektor</div>
-            <div style={{ fontSize: 13, color: "#64748B", marginTop: 2 }}>{sectors.length} sektor dikonfigurasi</div>
-          </div>
+    <div style={{ padding: isMobile ? 16 : "28px 36px", fontFamily: T.font, background: T.bg, minHeight: "100%" }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, letterSpacing: "-0.02em" }}>Sektor</h1>
+          <p style={{ fontSize: 13, color: T.textSecondary, margin: "4px 0 0" }}>{sectors.length} sektor dikonfigurasi</p>
         </div>
-        <button
-          onClick={openAdd}
-          style={{ padding: "10px 18px", background: "linear-gradient(135deg, #2563EB, #1D4ED8)", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, transition: "all 0.2s", boxShadow: "0 2px 8px rgba(37,99,235,0.3)" }}
-          onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,0.4)"; }}
-          onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(37,99,235,0.3)"; }}
-        >
-          <Icon name="plus" size={14} /> Tambah Sektor
+        <button onClick={openAdd} style={btnPrimary}
+          onMouseEnter={e => { e.currentTarget.style.background = T.primaryHover; e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,0.35)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = T.primary; e.currentTarget.style.boxShadow = "0 1px 3px rgba(37,99,235,0.3)"; }}>
+          <Icon name="plus" size={15} /> Tambah
         </button>
       </div>
 
       {/* Table Card */}
-      <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e8e8e8", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "#F8FAFC" }}>
-              <th style={{ padding: "14px 20px", fontSize: 12, fontWeight: 700, color: "#64748B", textAlign: "left", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #e8e8e8" }}>Nama Sektor</th>
-              <th style={{ padding: "14px 20px", fontSize: 12, fontWeight: 700, color: "#64748B", textAlign: "right", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #e8e8e8", width: 160 }}>Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sectors.map((s, i) => (
-              <tr key={s.id} style={{ borderBottom: i < sectors.length - 1 ? "1px solid #F1F5F9" : "none", transition: "background 0.15s" }}
-                onMouseEnter={e => e.currentTarget.style.background = "#F8FAFC"}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                <td style={{ padding: "14px 20px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 36, height: 36, background: "#EFF6FF", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <Icon name="layers" size={16} style={{ color: "#2563EB" }} />
-                    </div>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>{s.nama}</span>
-                  </div>
-                </td>
-                <td style={{ padding: "14px 20px", textAlign: "right" }}>
-                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                    <button onClick={() => openEdit(s)}
-                      style={{ fontSize: 12, padding: "7px 12px", background: "#F1F5F9", border: "1px solid #E2E8F0", borderRadius: 8, cursor: "pointer", color: "#475569", display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 500, transition: "all 0.15s" }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "#E2E8F0"; e.currentTarget.style.borderColor = "#CBD5E1"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "#F1F5F9"; e.currentTarget.style.borderColor = "#E2E8F0"; }}
-                    >
-                      <Icon name="edit" size={12} /> Edit
-                    </button>
-                    <button onClick={() => handleDelete(s)}
-                      style={{ fontSize: 12, padding: "7px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, cursor: "pointer", color: "#DC2626", display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 500, transition: "all 0.15s" }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "#FEE2E2"; e.currentTarget.style.borderColor = "#F87171"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.borderColor = "#FECACA"; }}
-                    >
-                      <Icon name="x" size={12} /> Hapus
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {sectors.length === 0 && (
-          <div style={{ padding: "48px 20px", textAlign: "center", color: "#94A3B8" }}>
-            <Icon name="layers" size={32} style={{ marginBottom: 8, opacity: 0.5 }} />
-            <div style={{ fontSize: 14 }}>Belum ada sektor</div>
+      <div style={{ ...cardStyle, overflow: "hidden" }}>
+        {/* Table Header */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", padding: "12px 20px", background: T.primaryLight, borderBottom: `1px solid ${T.border}` }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em" }}>Nama</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "right" }}>Aksi</span>
+        </div>
+
+        {/* Rows */}
+        {sectors.length === 0 ? (
+          <div style={{ padding: "48px 20px", textAlign: "center" }}>
+            <div style={{ width: 48, height: 48, background: T.primaryLight, borderRadius: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+              <Icon name="layers" size={22} style={{ color: T.primary }} />
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 4 }}>Belum ada sektor</div>
+            <div style={{ fontSize: 13, color: T.textMuted }}>Klik "Tambah" untuk menambahkan sektor baru</div>
           </div>
+        ) : (
+          sectors.map((s, i) => (
+            <div key={s.id}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 120px",
+                padding: "14px 20px",
+                borderBottom: i < sectors.length - 1 ? `1px solid ${T.border}` : "none",
+                alignItems: "center",
+                transition: "background 0.12s",
+                cursor: "default",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = T.surfaceHover}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                <div style={{ width: 36, height: 36, background: T.primaryLight, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Icon name="layers" size={16} style={{ color: T.primary }} />
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.nama}</span>
+              </div>
+              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                <button onClick={() => openEdit(s)} style={btnGhost}
+                  onMouseEnter={e => e.currentTarget.style.background = T.primaryLight}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                  <Icon name="edit" size={13} /> Edit
+                </button>
+                <button onClick={() => handleDelete(s)} style={btnDanger}
+                  onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = "#F87171"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; e.currentTarget.style.borderColor = T.dangerBorder; }}>
+                  <Icon name="x" size={13} /> Hapus
+                </button>
+              </div>
+            </div>
+          ))
         )}
       </div>
 
+      {/* Modal */}
       {modalOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 16, padding: 28, width: 400, maxWidth: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", marginBottom: 20 }}>{isEdit ? "Edit Sektor" : "Tambah Sektor"}</div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "#555", display: "block", marginBottom: 5 }}>Nama Sektor *</label>
-              <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={{ ...inp, borderColor: errors.name ? "#c62828" : "#ddd" }} placeholder="Misal: Pertanian & Pangan" />
-              {errors.name && <div style={{ fontSize: 11, color: "#c62828", marginTop: 4 }}>{errors.name}</div>}
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", zIndex: 50, padding: isMobile ? 0 : 20 }}
+          onClick={() => setModalOpen(false)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: T.card, borderRadius: isMobile ? "16px 16px 0 0" : T.radiusLg,
+            padding: isMobile ? "24px 20px 32px" : "28px 32px",
+            width: isMobile ? "100%" : 420, maxHeight: isMobile ? "90vh" : "auto",
+            boxShadow: T.shadowLg, animation: isMobile ? "slideUp .25s ease" : "fadeIn .15s ease",
+          }}>
+            {/* Modal Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+              <h2 style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: 0 }}>{isEdit ? "Edit Sektor" : "Tambah Sektor"}</h2>
+              <button onClick={() => setModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textMuted, transition: "all 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; e.currentTarget.style.color = T.text; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.textMuted; }}>
+                <Icon name="x" size={18} />
+              </button>
             </div>
-            {errors.submit && <div style={{ fontSize: 12, color: "#c62828", marginBottom: 12, padding: "8px 12px", background: "#ffebee", borderRadius: 8 }}>{errors.submit}</div>}
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button onClick={() => setModalOpen(false)} style={{ padding: "8px 16px", background: "#f5f5f5", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Batal</button>
-              <button onClick={handleSubmit} disabled={loading} style={{ padding: "8px 16px", background: "#2563EB", color: "#fff", border: "none", borderRadius: 8, cursor: loading ? "not-allowed" : "pointer", fontWeight: 600, fontSize: 13 }}>
+
+            {/* Form */}
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>Nama Sektor <span style={{ color: T.danger }}>*</span></label>
+              <input
+                value={form.name}
+                onChange={e => setForm({ ...form, name: e.target.value })}
+                placeholder="Contoh: Pertanian & Pangan"
+                style={errors.name ? inputErrorStyle : inputStyle}
+                onFocus={e => { if (!errors.name) e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
+                onBlur={e => { if (!errors.name) e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
+                autoFocus
+              />
+              {errors.name && <div style={{ fontSize: 12, color: T.danger, marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}><Icon name="x" size={12} /> {errors.name}</div>}
+            </div>
+
+            {errors.submit && (
+              <div style={{ fontSize: 13, color: T.danger, marginTop: 12, padding: "10px 14px", background: T.dangerBg, borderRadius: T.radius, border: `1px solid ${T.dangerBorder}`, display: "flex", alignItems: "center", gap: 6 }}>
+                <Icon name="x" size={14} /> {errors.submit}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24, paddingTop: 16, borderTop: `1px solid ${T.border}` }}>
+              <button onClick={() => setModalOpen(false)} style={{ ...btnBase, padding: "10px 18px", background: "#F1F5F9", color: T.textSecondary, fontSize: 13 }}
+                onMouseEnter={e => e.currentTarget.style.background = "#E2E8F0"}
+                onMouseLeave={e => e.currentTarget.style.background = "#F1F5F9"}>
+                Batal
+              </button>
+              <button onClick={handleSubmit} disabled={loading} style={{ ...btnPrimary, opacity: loading ? 0.6 : 1, cursor: loading ? "not-allowed" : "pointer" }}>
                 {loading ? "Menyimpan..." : "Simpan"}
               </button>
             </div>
