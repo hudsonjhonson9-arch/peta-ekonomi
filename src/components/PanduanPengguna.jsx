@@ -83,7 +83,7 @@ const CONTENT = {
         ["Ditolak", "Upload ulang", "—", "—"],
       ]
     },
-    screenshot: null
+    screenshot: "/screenshots/detail.png"
   },
   upload: {
     title: "Upload Dokumen",
@@ -97,7 +97,7 @@ const CONTENT = {
       "Klik tombol <b>Upload</b> — progress bar akan muncul"
     ],
     note: "File dikirim ke Google Drive melalui Google Apps Script. Metadata disimpan di PostgreSQL. Status awal: Menunggu Review.",
-    screenshot: null
+    screenshot: "/screenshots/upload.png"
   },
   pencarian: {
     title: "Pencarian",
@@ -109,7 +109,7 @@ const CONTENT = {
       "Klik hasil untuk melihat detail dokumen"
     ],
     note: "Pencarian mencakup judul, deskripsi, jenis, sektor, uploader, dan tag dokumen.",
-    screenshot: null
+    screenshot: "/screenshots/pencarian.png"
   },
   publik: {
     title: "Portal Publik",
@@ -119,7 +119,7 @@ const CONTENT = {
       "Tampilan lebih sederhana (tanpa sidebar, tanpa aksi admin)",
       "Berguna untuk transparansi publik dan referensi bersama"
     ],
-    screenshot: null
+    screenshot: "/screenshots/publik.png"
   },
   bankdata: {
     title: "Bank Data",
@@ -131,7 +131,7 @@ const CONTENT = {
       "Klik tombol <b>Tampil/Sembunyi</b> untuk mengatur visibilitas di Dashboard"
     ],
     note: "Data yang di-toggle Tampil akan muncul di tabel Bank Data pada halaman Dashboard untuk semua pengguna.",
-    screenshot: null
+    screenshot: "/screenshots/bankdata.png"
   },
   pengguna: {
     title: "Manajemen Pengguna (Admin Only)",
@@ -148,7 +148,7 @@ const CONTENT = {
       ]
     },
     note: "Role menentukan menu dan tombol apa yang muncul untuk pengguna tersebut.",
-    screenshot: null
+    screenshot: "/screenshots/pengguna.png"
   },
   kategori: {
     title: "Manajemen Kategori Dokumen (Admin Only)",
@@ -159,7 +159,7 @@ const CONTENT = {
       "Klik ikon hapus untuk menghapus kategori"
     ],
     note: "Kategori default: RPJMD, Renstra, Renja, RKA, Kajian Ekonomi, Laporan Evaluasi, Data Statistik, Notulen Rapat.",
-    screenshot: null
+    screenshot: "/screenshots/kategori.png"
   },
   audit: {
     title: "Audit Trail (Admin Only)",
@@ -174,7 +174,7 @@ const CONTENT = {
       ]
     },
     note: "Audit trail diurutkan dari yang terbaru. Cocok untuk keperluan monitoring dan akuntabilitas.",
-    screenshot: null
+    screenshot: "/screenshots/audit.png"
   },
   trouble: {
     title: "Tips & Troubleshooting",
