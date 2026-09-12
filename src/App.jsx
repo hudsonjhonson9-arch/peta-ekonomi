@@ -167,6 +167,34 @@ export default function App() {
   };
 
   const handleUpload = async (form, onProgress) => {
+    // Google Drive URL mode — skip GAS upload
+    if (form.fileUrl) {
+      onProgress(100);
+      var newDoc = {
+        id:         Date.now(),
+        title:      form.title,
+        type:       form.type,
+        sector:     form.sector,
+        year:       form.year,
+        status:     "Menunggu Review",
+        uploader:   user.name,
+        reviewedBy: "—",
+        size:       "—",
+        pages:      0,
+        uploadDate: new Date().toLocaleDateString("id-ID"),
+        desc:       form.desc || "—",
+        tags:       form.tags ? form.tags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [],
+        url:        form.fileUrl,
+        publik:     false,
+      };
+      setDocs(function (d) { return [newDoc].concat(d); });
+      addLog("Upload dokumen (Google Drive Link)", newDoc);
+      queryClient.invalidateQueries({ queryKey: ['docs'] });
+      setPage("dokumen");
+      showToast("Dokumen berhasil ditambahkan via Google Drive link.");
+      return;
+    }
+
     if (!form.fileObj) return showToast("Pilih file terlebih dahulu.");
 
     try {

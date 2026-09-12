@@ -13,6 +13,8 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
   const [errors,    setErrors]    = useState({});
   const [uploading, setUploading] = useState(false);
   const [progress,  setProgress]  = useState(0);
+  const [inputMode, setInputMode] = useState("file"); // "file" | "gdrive"
+  const [gdriveUrl, setGdriveUrl] = useState("");
   const fileRef = useRef();
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -22,7 +24,9 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
     if (!form.title.trim()) e.title  = "Judul dokumen wajib diisi";
     if (!form.type)         e.type   = "Pilih jenis dokumen";
     if (!form.sector)       e.sector = "Pilih sektor";
-    if (!file)              e.file   = "Pilih file dokumen";
+    if (inputMode === "file" && !file) e.file = "Pilih file dokumen";
+    if (inputMode === "gdrive" && !gdriveUrl.trim()) e.gdriveUrl = "Masukkan URL Google Drive";
+    if (inputMode === "gdrive" && gdriveUrl.trim() && !/drive\.google\.com/.test(gdriveUrl)) e.gdriveUrl = "URL harus dari Google Drive";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -31,18 +35,36 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
     if (!validate() || uploading) return;
     setUploading(true);
     setProgress(0);
-    onSubmit({ ...form, fileObj: file, uploader: user.name }, function (pct) {
-      setProgress(pct);
-      if (pct >= 100) {
-        setTimeout(function () {
-          setUploading(false);
-          setFile(null);
-          setForm({ title: "", type: "", sector: "", year: (new Date().getFullYear() + 1).toString(), desc: "", tags: "" });
-          setProgress(0);
-          setErrors({});
-        }, 600);
-      }
-    });
+
+    if (inputMode === "gdrive") {
+      // Direct Google Drive URL mode — skip GAS upload
+      onSubmit({ ...form, fileObj: null, fileUrl: gdriveUrl, uploader: user.name }, function (pct) {
+        setProgress(pct);
+        if (pct >= 100) {
+          setTimeout(function () {
+            setUploading(false);
+            setFile(null);
+            setGdriveUrl("");
+            setForm({ title: "", type: "", sector: "", year: (new Date().getFullYear() + 1).toString(), desc: "", tags: "" });
+            setProgress(0);
+            setErrors({});
+          }, 600);
+        }
+      });
+    } else {
+      onSubmit({ ...form, fileObj: file, uploader: user.name }, function (pct) {
+        setProgress(pct);
+        if (pct >= 100) {
+          setTimeout(function () {
+            setUploading(false);
+            setFile(null);
+            setForm({ title: "", type: "", sector: "", year: (new Date().getFullYear() + 1).toString(), desc: "", tags: "" });
+            setProgress(0);
+            setErrors({});
+          }, 600);
+        }
+      });
+    }
   };
 
   const inp = (err) => ({
@@ -121,39 +143,94 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
               placeholder="Ringkasan isi dan tujuan dokumen ini..." disabled={uploading} />
           </div>
 
-          {/* File */}
+          {/* File / Google Drive URL */}
           <div style={{ gridColumn: "1 / -1" }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "#444", display: "block", marginBottom: 6 }}>
-              File Dokumen * (PDF, DOCX, XLSX, JPG, PNG, WEBP)
-            </label>
-            <input
-              type="file" ref={fileRef}
-              accept=".pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png,.gif,.webp"
-              onChange={e => { setFile(e.target.files[0]); setProgress(0); }}
-              style={{ display: "none" }}
-            />
-            <div
-              onClick={() => !uploading && fileRef.current.click()}
-              style={{
-                border: `2px dashed ${errors.file ? "#c62828" : "#BFDBFE"}`,
-                borderRadius: 10, padding: 28, textAlign: "center",
-                cursor: uploading ? "not-allowed" : "pointer", background: file ? "#EFF6FF" : "#fafafa",
-                transition: "all .15s",
-              }}
-            >
-              <Icon name="upload" size={28} style={{ color: file ? "#2563EB" : "#ccc", marginBottom: 8 }} />
-              <div style={{ fontSize: 13, fontWeight: 600, color: file ? "#2563EB" : "#999" }}>
-                {file ? "✓ " + file.name : "Klik untuk pilih file atau seret ke sini"}
-              </div>
-              {file && (
-                <div style={{ fontSize: 11, color: "#888", marginTop: 4, display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-                  <span>{formatSize(file.size)}</span>
-                  <span>{file.type || "unknown"}</span>
-                </div>
-              )}
-              <div style={{ fontSize: 11, color: "#bbb", marginTop: 4 }}>PDF, DOCX, XLSX, JPG, PNG, WEBP hingga 50 MB</div>
+            {/* Mode Toggle */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <button
+                type="button"
+                onClick={() => setInputMode("file")}
+                style={{
+                  flex: 1, padding: "10px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.15s",
+                  background: inputMode === "file" ? "#EFF6FF" : "#fff",
+                  color: inputMode === "file" ? "#2563EB" : "#666",
+                  border: inputMode === "file" ? "1.5px solid #BFDBFE" : "1.5px solid #e0e0e0",
+                }}
+              >
+                <Icon name="upload" size={14} /> Upload File
+              </button>
+              <button
+                type="button"
+                onClick={() => setInputMode("gdrive")}
+                style={{
+                  flex: 1, padding: "10px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.15s",
+                  background: inputMode === "gdrive" ? "#E8F5E9" : "#fff",
+                  color: inputMode === "gdrive" ? "#2e7d32" : "#666",
+                  border: inputMode === "gdrive" ? "1.5px solid #C8E6C9" : "1.5px solid #e0e0e0",
+                }}
+              >
+                <Icon name="link" size={14} /> Link Google Drive
+              </button>
             </div>
-            {errors.file && <div style={{ fontSize: 11, color: "#c62828", marginTop: 4 }}>{errors.file}</div>}
+
+            {inputMode === "file" ? (
+              <>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#444", display: "block", marginBottom: 6 }}>
+                  File Dokumen * (PDF, DOCX, XLSX, JPG, PNG, WEBP)
+                </label>
+                <input
+                  type="file" ref={fileRef}
+                  accept=".pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png,.gif,.webp"
+                  onChange={e => { setFile(e.target.files[0]); setProgress(0); }}
+                  style={{ display: "none" }}
+                />
+                <div
+                  onClick={() => !uploading && fileRef.current.click()}
+                  style={{
+                    border: `2px dashed ${errors.file ? "#c62828" : "#BFDBFE"}`,
+                    borderRadius: 10, padding: 28, textAlign: "center",
+                    cursor: uploading ? "not-allowed" : "pointer", background: file ? "#EFF6FF" : "#fafafa",
+                    transition: "all .15s",
+                  }}
+                >
+                  <Icon name="upload" size={28} style={{ color: file ? "#2563EB" : "#ccc", marginBottom: 8 }} />
+                  <div style={{ fontSize: 13, fontWeight: 600, color: file ? "#2563EB" : "#999" }}>
+                    {file ? "✓ " + file.name : "Klik untuk pilih file atau seret ke sini"}
+                  </div>
+                  {file && (
+                    <div style={{ fontSize: 11, color: "#888", marginTop: 4, display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+                      <span>{formatSize(file.size)}</span>
+                      <span>{file.type || "unknown"}</span>
+                    </div>
+                  )}
+                  <div style={{ fontSize: 11, color: "#bbb", marginTop: 4 }}>PDF, DOCX, XLSX, JPG, PNG, WEBP hingga 50 MB</div>
+                </div>
+                {errors.file && <div style={{ fontSize: 11, color: "#c62828", marginTop: 4 }}>{errors.file}</div>}
+              </>
+            ) : (
+              <>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#444", display: "block", marginBottom: 6 }}>
+                  URL Google Drive *
+                </label>
+                <input
+                  value={gdriveUrl}
+                  onChange={e => setGdriveUrl(e.target.value)}
+                  placeholder="https://drive.google.com/file/d/xxxxx/view?usp=sharing"
+                  style={{
+                    width: "100%", padding: "10px 12px",
+                    border: `1.5px solid ${errors.gdriveUrl ? "#c62828" : "#e0e0e0"}`,
+                    borderRadius: 8, fontSize: 13, outline: "none",
+                    boxSizing: "border-box", background: "#fff",
+                  }}
+                  disabled={uploading}
+                />
+                {errors.gdriveUrl && <div style={{ fontSize: 11, color: "#c62828", marginTop: 4 }}>{errors.gdriveUrl}</div>}
+                <div style={{ fontSize: 11, color: "#888", marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                  <Icon name="eye" size={12} style={{ color: "#2e7d32" }} />
+                  Dokumen akan bisa dilihat langsung di dalam aplikasi (embedded view)
+                </div>
+              </>
+            )}
 
             {/* Progress bar */}
             {uploading && (

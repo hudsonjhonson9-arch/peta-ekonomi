@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Icon, Badge } from "./ui.jsx";
+import { Icon, Badge, GoogleDriveEmbed, isGDriveUrl } from "./ui.jsx";
 import { YEARS, STATUS_LIST, STATUS_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
 
@@ -119,12 +119,14 @@ export function DocList({ docs, onView, categories = [], sectors = [] }) {
 export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPreview, onTogglePublik, user }) {
   const { isMobile } = useResponsive();
   const [catatan, setCatatan] = useState("");
+  const [showEmbed, setShowEmbed] = useState(false);
 
   const canApprove =
     (user.role === "Reviewer" || user.role === "Admin") &&
     (doc.status === "Menunggu Review" || doc.status === "Menunggu Persetujuan");
 
   const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(doc.title) || (doc.url && /\.(jpg|jpeg|png|gif|webp)/i.test(doc.url));
+  const canEmbed = isGDriveUrl(doc.url);
 
   const steps = [
     { label: "Diunggah",               done: true,                        date: doc.uploadDate },
@@ -233,10 +235,10 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
               <Icon name="download" size={14} /> Unduh Dokumen
             </button>
             <button
-              onClick={() => onPreview && onPreview(doc)}
-              style={{ width: "100%", padding: "10px 12px", background: "#f5f5f5", color: "#444", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, justifyContent: "center", marginBottom: 8 }}
+              onClick={() => canEmbed ? setShowEmbed(true) : onPreview && onPreview(doc)}
+              style={{ width: "100%", padding: "10px 12px", background: canEmbed ? "#E8F5E9" : "#f5f5f5", color: canEmbed ? "#2e7d32" : "#444", border: canEmbed ? "1px solid #C8E6C9" : "none", borderRadius: 8, fontSize: 13, fontWeight: canEmbed ? 600 : 400, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, justifyContent: "center", marginBottom: 8 }}
             >
-              <Icon name="eye" size={14} /> Preview Online
+              <Icon name="eye" size={14} /> {canEmbed ? "Lihat Dokumen" : "Preview Online"}
             </button>
             {doc.status === "Diarsipkan" && (
               <button
@@ -264,6 +266,14 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
           </div>
         </div>
       </div>
+
+      {showEmbed && (
+        <GoogleDriveEmbed
+          url={doc.url}
+          title={doc.title}
+          onClose={() => setShowEmbed(false)}
+        />
+      )}
     </div>
   );
 }

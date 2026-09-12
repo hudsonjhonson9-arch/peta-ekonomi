@@ -37,7 +37,103 @@ const PATHS = {
   edit:         "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z",
   filter:       "M22 3H2l8 9.46V19l4 2v-8.54L22 3z",
   layers:       "M12 2L2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5",
+  link:         "M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71 M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71",
 };
+
+// ── Google Drive Embed ─────────────────────────────────────────────────────
+export function extractGDriveFileId(url) {
+  if (!url) return null;
+  // https://drive.google.com/file/d/FILE_ID/view?...
+  let m = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (m) return m[1];
+  // https://drive.google.com/open?id=FILE_ID
+  m = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (m) return m[1];
+  // https://drive.google.com/uc?export=view&id=FILE_ID
+  m = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (m) return m[1];
+  return null;
+}
+
+export function isGDriveUrl(url) {
+  return url && /drive\.google\.com/.test(url);
+}
+
+export function GoogleDriveEmbed({ url, title, onClose }) {
+  const fileId = extractGDriveFileId(url);
+  if (!fileId) return null;
+  const embedUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)",
+        backdropFilter: "blur(4px)", display: "flex", alignItems: "center",
+        justifyContent: "center", zIndex: 1000, padding: 20,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 16, width: "90vw", maxWidth: 1100,
+          height: "85vh", display: "flex", flexDirection: "column",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.3)", overflow: "hidden",
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "14px 20px", borderBottom: "1px solid #e8e8e8",
+          background: "#F8FAFC", flexShrink: 0,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+            <div style={{ width: 32, height: 32, background: "#E8F5E9", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Icon name="eye" size={16} style={{ color: "#2e7d32" }} />
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {title || "Preview Dokumen"}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                padding: "7px 14px", background: "#fff", color: "#2563EB",
+                border: "1px solid #BFDBFE", borderRadius: 8, fontSize: 12,
+                fontWeight: 600, cursor: "pointer", textDecoration: "none",
+                display: "flex", alignItems: "center", gap: 5,
+              }}
+            >
+              <Icon name="eye" size={12} /> Buka di Tab Baru
+            </a>
+            <button
+              onClick={onClose}
+              style={{
+                padding: "7px 14px", background: "#fff", color: "#475569",
+                border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12,
+                fontWeight: 600, cursor: "pointer", display: "flex",
+                alignItems: "center", gap: 5,
+              }}
+            >
+              <Icon name="x" size={12} /> Tutup
+            </button>
+          </div>
+        </div>
+
+        {/* Iframe */}
+        <iframe
+          src={embedUrl}
+          title={title}
+          style={{ flex: 1, width: "100%", border: "none" }}
+          allow="autoplay"
+        />
+      </div>
+    </div>
+  );
+}
 
 export function Icon({ name, size = 16, style = {} }) {
   const d = PATHS[name] || "";
