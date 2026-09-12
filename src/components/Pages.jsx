@@ -579,7 +579,7 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
           ))}
         </div>
       ) : (
-        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e8e8e8", overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.03)", maxWidth: 600 }}>
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e8e8e8", overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#f9f9f9", borderBottom: "1px solid #e8e8e8" }}>
@@ -831,7 +831,7 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
           ))}
         </div>
       ) : (
-        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e8e8e8", overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.03)", maxWidth: 600 }}>
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e8e8e8", overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#f9f9f9", borderBottom: "1px solid #e8e8e8" }}>
