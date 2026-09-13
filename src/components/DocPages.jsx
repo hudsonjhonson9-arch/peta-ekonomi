@@ -118,6 +118,7 @@ export function DocList({ docs, onView, categories = [], sectors = [] }) {
   const { isMobile } = useResponsive();
   const [showFilter, setShowFilter] = useState(!isMobile);
   const [viewMode, setViewMode] = useState("grid");
+  const [gridSize, setGridSize] = useState(180);
   const [search,       setSearch]       = useState("");
   const [filterType,   setFilterType]   = useState("Semua Jenis");
   const [filterSector, setFilterSector] = useState("Semua Sektor");
@@ -147,6 +148,20 @@ export function DocList({ docs, onView, categories = [], sectors = [] }) {
           <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>{filtered.length} dokumen ditemukan</div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {/* Grid Size Slider */}
+          {viewMode === "grid" && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: "6px 10px" }}>
+              <Icon name="grid" size={12} style={{ color: T.textMuted }} />
+              <input
+                type="range"
+                min={120}
+                max={300}
+                value={gridSize}
+                onChange={e => setGridSize(Number(e.target.value))}
+                style={{ width: 60, height: 4, accentColor: T.primary, cursor: "pointer" }}
+              />
+            </div>
+          )}
           {/* View Toggle */}
           <div style={{ display: "flex", background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius, overflow: "hidden" }}>
             <button
@@ -244,7 +259,7 @@ export function DocList({ docs, onView, categories = [], sectors = [] }) {
       {viewMode === "grid" && filtered.length > 0 && (
         <div style={{
           display: "grid",
-          gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(auto-fill, minmax(200px, 1fr))",
+          gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : `repeat(auto-fill, minmax(${gridSize}px, 1fr))`,
           gap: 10,
         }}>
           {filtered.map((d, i) => {
