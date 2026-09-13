@@ -301,7 +301,7 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
       {viewMode === "grid" && !selectedBidang && bidangFolders.length > 0 && (
         <div style={{
           display: "grid",
-          gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : `repeat(auto-fill, minmax(200px, 1fr))`,
+          gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : `repeat(auto-fill, minmax(${gridSize}px, 1fr))`,
           gap: 12,
         }}>
           {bidangFolders.map(([nama, count], i) => {
