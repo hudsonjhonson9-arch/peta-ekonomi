@@ -244,8 +244,8 @@ export function DocList({ docs, onView, categories = [], sectors = [] }) {
       {viewMode === "grid" && filtered.length > 0 && (
         <div style={{
           display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(280px, 1fr))",
-          gap: 12,
+          gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(auto-fill, minmax(200px, 1fr))",
+          gap: 10,
         }}>
           {filtered.map((d, i) => {
             const typeColor = getFileTypeColor(d.type);
@@ -255,7 +255,7 @@ export function DocList({ docs, onView, categories = [], sectors = [] }) {
                 onClick={() => onView(d)}
                 style={{
                   ...cardStyle,
-                  padding: isMobile ? 14 : 18,
+                  padding: isMobile ? 12 : 14,
                   cursor: "pointer",
                   transition: "all 0.2s ease",
                   animation: "fadeIn 0.3s ease forwards",
@@ -273,52 +273,34 @@ export function DocList({ docs, onView, categories = [], sectors = [] }) {
                   e.currentTarget.style.transform = "translateY(0)";
                 }}
               >
-                {/* File Type Badge */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                  <div style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "4px 10px",
-                    borderRadius: 20,
-                    background: typeColor.bg,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: typeColor.text,
-                  }}>
-                    <Icon name="file" size={12} />
-                    {d.type}
-                  </div>
-                  <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
+                {/* File Type Icon */}
+                <div style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: typeColor.bg,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: 10,
+                }}>
+                  <Icon name="file" size={16} style={{ color: typeColor.text }} />
                 </div>
 
                 {/* Title */}
-                <div style={{ fontSize: isMobile ? 14 : 15, fontWeight: 700, color: T.text, marginBottom: 8, lineHeight: 1.4, minHeight: 42 }}>
+                <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 700, color: T.text, marginBottom: 6, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: 34 }}>
                   {d.title}
                 </div>
 
                 {/* Meta */}
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, fontSize: 12, color: T.textSecondary, marginBottom: 12 }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <Icon name="building" size={12} /> {d.sector}
-                  </span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <Icon name="calendar" size={12} /> {d.year}
-                  </span>
+                <div style={{ fontSize: 11, color: T.textSecondary, marginBottom: 8 }}>
+                  {d.sector} · {d.year}
                 </div>
 
                 {/* Footer */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: T.primaryLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: T.primary }}>
-                      {d.uploader?.charAt(0)?.toUpperCase() || "U"}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: T.text }}>{d.uploader}</div>
-                      <div style={{ fontSize: 11, color: T.textMuted }}>{d.size}</div>
-                    </div>
-                  </div>
-                  <Icon name="chevronRight" size={14} style={{ color: T.textMuted }} />
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTop: `1px solid ${T.border}` }}>
+                  <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
+                  <span style={{ fontSize: 10, color: T.textMuted }}>{d.size}</span>
                 </div>
               </div>
             );
@@ -328,35 +310,7 @@ export function DocList({ docs, onView, categories = [], sectors = [] }) {
 
       {/* List View */}
       {viewMode === "list" && filtered.length > 0 && (
-        <div style={{ ...cardStyle, overflow: "hidden" }}>
-          {/* Table Header */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr auto" : "2fr 1fr 1fr 1fr 1fr auto",
-            gap: 12,
-            padding: isMobile ? "10px 14px" : "12px 18px",
-            background: T.bg,
-            borderBottom: `1px solid ${T.border}`,
-            fontSize: 11,
-            fontWeight: 700,
-            color: T.textSecondary,
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-          }}>
-            {!isMobile && (
-              <>
-                <div>Dokumen</div>
-                <div>Jenis</div>
-                <div>Sektor</div>
-                <div>Tahun</div>
-                <div>Ukuran</div>
-              </>
-            )}
-            {isMobile && <div>Dokumen</div>}
-            <div style={{ textAlign: "right" }}>Aksi</div>
-          </div>
-
-          {/* Rows */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {filtered.map((d, i) => {
             const typeColor = getFileTypeColor(d.type);
             return (
@@ -364,69 +318,60 @@ export function DocList({ docs, onView, categories = [], sectors = [] }) {
                 key={d.id}
                 onClick={() => onView(d)}
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: isMobile ? "1fr auto" : "2fr 1fr 1fr 1fr 1fr auto",
-                  gap: 12,
-                  padding: isMobile ? "12px 14px" : "14px 18px",
-                  borderBottom: `1px solid ${T.border}`,
+                  ...cardStyle,
+                  padding: isMobile ? "10px 12px" : "12px 16px",
                   cursor: "pointer",
-                  transition: "background 0.15s ease",
+                  transition: "all 0.15s ease",
+                  display: "flex",
                   alignItems: "center",
+                  gap: 12,
                   animation: "fadeIn 0.3s ease forwards",
                   animationDelay: `${i * 20}ms`,
                   opacity: 0,
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = T.surfaceHover}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                onMouseEnter={e => {
+                  e.currentTarget.style.boxShadow = T.shadowMd;
+                  e.currentTarget.style.borderColor = T.borderHover;
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.boxShadow = T.shadowSm;
+                  e.currentTarget.style.borderColor = T.border;
+                }}
               >
-                {/* Doc Info */}
-                <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-                  <div style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 10,
-                    background: typeColor.bg,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}>
-                    <Icon name="file" size={18} style={{ color: typeColor.text }} />
+                {/* File Type Icon */}
+                <div style={{
+                  width: isMobile ? 36 : 40,
+                  height: isMobile ? 36 : 40,
+                  borderRadius: 10,
+                  background: typeColor.bg,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}>
+                  <Icon name="file" size={isMobile ? 16 : 18} style={{ color: typeColor.text }} />
+                </div>
+
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
+                    <span style={{ fontSize: isMobile ? 13 : 14, fontWeight: 700, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.title}</span>
                   </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: isMobile ? 13 : 14, fontWeight: 700, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.title}</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                      <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
-                      {isMobile && <span style={{ fontSize: 11, color: T.textMuted }}>· {d.year}</span>}
-                    </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: isMobile ? 11 : 12, color: T.textSecondary }}>
+                    <span>{d.type}</span>
+                    <span>·</span>
+                    <span>{d.sector}</span>
+                    <span>·</span>
+                    <span>{d.year}</span>
+                    <span>·</span>
+                    <span>{d.size}</span>
                   </div>
                 </div>
 
-                {/* Desktop Meta */}
-                {!isMobile && (
-                  <>
-                    <div style={{ fontSize: 13, color: T.textSecondary }}>{d.type}</div>
-                    <div style={{ fontSize: 13, color: T.textSecondary }}>{d.sector}</div>
-                    <div style={{ fontSize: 13, color: T.textSecondary }}>{d.year}</div>
-                    <div style={{ fontSize: 13, color: T.textSecondary }}>{d.size}</div>
-                  </>
-                )}
-
-                {/* Action */}
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                  <div
-                    style={{
-                      ...btnGhost,
-                      padding: "6px 10px",
-                      fontSize: 11,
-                      color: T.primary,
-                      background: T.primaryLight,
-                    }}
-                  >
-                    Lihat
-                  </div>
+                {/* Status + Arrow */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                  <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
+                  <Icon name="chevronRight" size={14} style={{ color: T.textMuted }} />
                 </div>
               </div>
             );
