@@ -4,118 +4,6 @@ import { YEARS, STATUS_LIST, STATUS_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
 
 // ─── DAFTAR DOKUMEN ───────────────────────────────────────────────────────────
-export function DocList({ docs, onView, categories = [], sectors = [] }) {
-  const { isMobile } = useResponsive();
-  const [showFilter, setShowFilter] = useState(!isMobile);
-  const [search,       setSearch]       = useState("");
-  const [filterType,   setFilterType]   = useState("Semua Jenis");
-  const [filterSector, setFilterSector] = useState("Semua Sektor");
-  const [filterYear,   setFilterYear]   = useState("Semua Tahun");
-  const [filterStatus, setFilterStatus] = useState("Semua Status");
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return docs.filter(d => {
-      const matchQ = !q || d.title.toLowerCase().includes(q) || d.type.toLowerCase().includes(q) || d.tags.some(t => t.includes(q));
-      return (
-        matchQ &&
-        (filterType   === "Semua Jenis"   || d.type   === filterType)   &&
-        (filterSector === "Semua Sektor"  || d.sector === filterSector) &&
-        (filterYear   === "Semua Tahun"   || d.year   === filterYear)   &&
-        (filterStatus === "Semua Status"  || d.status === filterStatus)
-      );
-    });
-  }, [docs, search, filterType, filterSector, filterYear, filterStatus]);
-
-  const selStyle = {
-    fontSize: 12, padding: "7px 10px",
-    border: "1.5px solid #e0e0e0", borderRadius: 8,
-    background: "#fff", color: "#333", cursor: "pointer", outline: "none",
-  };
-
-  return (
-    <div>
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: "#0F172A" }}>Dokumen</div>
-        <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>{filtered.length} dokumen ditemukan</div>
-      </div>
-
-      {/* Filters */}
-      <div style={{ background: "#fff", borderRadius: 12, padding: isMobile ? 12 : 16, border: "1px solid #e8e8e8", marginBottom: 16 }}>
-        {isMobile && (
-          <div
-            onClick={() => setShowFilter(v => !v)}
-            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", marginBottom: showFilter ? 10 : 0 }}
-          >
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#444" }}>Filter Pencarian</span>
-            <Icon name={showFilter ? "x" : "filter"} size={16} style={{ color: "#999" }} />
-          </div>
-        )}
-        <div style={{ display: isMobile ? (showFilter ? "flex" : "none") : "flex", gap: 8, flexWrap: "wrap" }}>
-          <div style={{ position: "relative", flex: "1 1 200px", minWidth: 0 }}>
-            <Icon name="search" size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#999" }} />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Cari judul..."
-              style={{ width: "100%", padding: "8px 10px 8px 30px", border: "1.5px solid #e0e0e0", borderRadius: 8, fontSize: isMobile ? 16 : 13, outline: "none", boxSizing: "border-box" }}
-            />
-          </div>
-          {(!isMobile || showFilter) && (
-            <>
-              <select value={filterType}   onChange={e => setFilterType(e.target.value)}   style={selStyle}>
-                <option value="Semua Jenis">Jenis</option>
-                {categories.map(c => <option key={c.id} value={c.nama}>{c.nama}</option>)}
-              </select>
-              <select value={filterSector} onChange={e => setFilterSector(e.target.value)} style={selStyle}>
-                <option value="Semua Sektor">Semua Sektor</option>
-                {sectors.map(s => <option key={s.id} value={s.nama}>{s.nama}</option>)}
-              </select>
-              <select value={filterYear}   onChange={e => setFilterYear(e.target.value)}   style={selStyle}>{YEARS.map(y     => <option key={y}>{y}</option>)}</select>
-              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={selStyle}>{STATUS_LIST.map(s => <option key={s}>{s}</option>)}</select>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* List */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: 40, color: "#999", background: "#fff", borderRadius: 12, border: "1px solid #e8e8e8" }}>
-            <Icon name="search" size={32} style={{ color: "#ccc", marginBottom: 10 }} />
-            <div style={{ fontSize: 14, fontWeight: 600 }}>Tidak ada dokumen ditemukan</div>
-            <div style={{ fontSize: 12, marginTop: 4 }}>Coba ubah kata kunci atau filter</div>
-          </div>
-        )}
-        {filtered.map(d => (
-          <div
-            key={d.id}
-            onClick={() => onView(d)}
-            style={{ background: "#fff", borderRadius: 12, padding: isMobile ? "12px 14px" : "16px 18px", border: "1px solid #e8e8e8", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, transition: "box-shadow .15s" }}
-            onMouseEnter={e => e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.08)"}
-            onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}
-          >
-            <div style={{ width: isMobile ? 36 : 44, height: isMobile ? 36 : 44, background: "#EFF6FF", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Icon name="file" size={isMobile ? 16 : 20} style={{ color: "#2563EB" }} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 3 }}>
-                <span style={{ fontSize: isMobile ? 13 : 14, fontWeight: 700, color: "#0F172A" }}>{d.title}</span>
-                <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
-              </div>
-              <div style={{ fontSize: isMobile ? 11 : 12, color: "#888" }}>
-                {d.type} · {d.sector} · {d.year} · {d.size} · <b>{d.uploader}</b>
-              </div>
-            </div>
-            <Icon name="chevronRight" size={isMobile ? 14 : 16} style={{ color: "#ccc", flexShrink: 0 }} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── DETAIL DOKUMEN ───────────────────────────────────────────────────────────
 // ── Shared Design Tokens ────────────────────────────────────────────────────
 const T = {
   bg: "#F8FAFC",
@@ -130,6 +18,7 @@ const T = {
   dangerBg: "#FEF2F2",
   dangerBorder: "#FECACA",
   dangerHover: "#FEE2E2",
+  dangerRing: "rgba(220,38,38,0.15)",
   text: "#0F172A",
   textSecondary: "#64748B",
   textMuted: "#94A3B8",
@@ -137,7 +26,6 @@ const T = {
   success: "#059669",
   successBg: "#ECFDF5",
   successBorder: "#A7F3D0",
-  successHover: "#D1FAE5",
   focusRing: "0 0 0 3px rgba(37,99,235,0.15)",
   shadowSm: "0 1px 2px rgba(0,0,0,0.05)",
   shadowMd: "0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05)",
@@ -162,12 +50,394 @@ const btnBase = {
   whiteSpace: "nowrap",
 };
 
+const btnPrimary = {
+  ...btnBase,
+  background: T.primary,
+  color: "#fff",
+  padding: "10px 18px",
+  fontSize: 13,
+  boxShadow: "0 1px 3px rgba(37,99,235,0.3)",
+};
+
+const btnGhost = {
+  ...btnBase,
+  background: "transparent",
+  color: T.textSecondary,
+  padding: "8px 12px",
+  fontSize: 12,
+};
+
 const cardStyle = {
   background: T.card,
   borderRadius: T.radiusLg,
   border: `1px solid ${T.border}`,
   boxShadow: T.shadowSm,
 };
+
+const inputStyle = {
+  width: "100%",
+  padding: "10px 14px 10px 36px",
+  fontFamily: T.font,
+  border: `1.5px solid ${T.border}`,
+  borderRadius: T.radius,
+  fontSize: 14,
+  outline: "none",
+  boxSizing: "border-box",
+  transition: "border-color 0.15s, box-shadow 0.15s",
+  color: T.text,
+  background: "#fff",
+};
+
+const selStyle = {
+  fontFamily: T.font,
+  fontSize: 13,
+  padding: "8px 12px",
+  border: `1.5px solid ${T.border}`,
+  borderRadius: T.radius,
+  background: "#fff",
+  color: T.text,
+  cursor: "pointer",
+  outline: "none",
+  transition: "border-color 0.15s",
+  minWidth: 120,
+};
+
+const FILE_TYPE_COLORS = {
+  "Laporan": { bg: "#EFF6FF", text: "#2563EB" },
+  "Peraturan": { bg: "#FEF3C7", text: "#D97706" },
+  "Keputusan": { bg: "#F3E8FF", text: "#9333EA" },
+  "Notulis": { bg: "#ECFDF5", text: "#059669" },
+  "Data": { bg: "#FFF1F2", text: "#E11D48" },
+};
+
+function getFileTypeColor(type) {
+  return FILE_TYPE_COLORS[type] || { bg: "#F1F5F9", text: "#64748B" };
+}
+
+export function DocList({ docs, onView, categories = [], sectors = [] }) {
+  const { isMobile } = useResponsive();
+  const [showFilter, setShowFilter] = useState(!isMobile);
+  const [viewMode, setViewMode] = useState("grid");
+  const [search,       setSearch]       = useState("");
+  const [filterType,   setFilterType]   = useState("Semua Jenis");
+  const [filterSector, setFilterSector] = useState("Semua Sektor");
+  const [filterYear,   setFilterYear]   = useState("Semua Tahun");
+  const [filterStatus, setFilterStatus] = useState("Semua Status");
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return docs.filter(d => {
+      const matchQ = !q || d.title.toLowerCase().includes(q) || d.type.toLowerCase().includes(q) || d.tags.some(t => t.includes(q));
+      return (
+        matchQ &&
+        (filterType   === "Semua Jenis"   || d.type   === filterType)   &&
+        (filterSector === "Semua Sektor"  || d.sector === filterSector) &&
+        (filterYear   === "Semua Tahun"   || d.year   === filterYear)   &&
+        (filterStatus === "Semua Status"  || d.status === filterStatus)
+      );
+    });
+  }, [docs, search, filterType, filterSector, filterYear, filterStatus]);
+
+  return (
+    <div style={{ fontFamily: T.font, background: T.bg, minHeight: "100vh" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: T.text }}>Dokumen</div>
+          <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>{filtered.length} dokumen ditemukan</div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {/* View Toggle */}
+          <div style={{ display: "flex", background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius, overflow: "hidden" }}>
+            <button
+              onClick={() => setViewMode("grid")}
+              style={{
+                ...btnBase,
+                padding: "8px 12px",
+                fontSize: 12,
+                background: viewMode === "grid" ? T.primary : "transparent",
+                color: viewMode === "grid" ? "#fff" : T.textSecondary,
+                borderRadius: 0,
+                borderRight: `1px solid ${T.border}`,
+              }}
+              title="Grid View"
+            >
+              <Icon name="grid" size={14} />
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              style={{
+                ...btnBase,
+                padding: "8px 12px",
+                fontSize: 12,
+                background: viewMode === "list" ? T.primary : "transparent",
+                color: viewMode === "list" ? "#fff" : T.textSecondary,
+                borderRadius: 0,
+              }}
+              title="List View"
+            >
+              <Icon name="list" size={14} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Search & Filters */}
+      <div style={{ ...cardStyle, padding: isMobile ? 12 : 16, marginBottom: 16 }}>
+        {isMobile && (
+          <div
+            onClick={() => setShowFilter(v => !v)}
+            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", marginBottom: showFilter ? 10 : 0 }}
+          >
+            <span style={{ fontSize: 13, fontWeight: 600, color: T.textSecondary }}>Filter Pencarian</span>
+            <Icon name={showFilter ? "x" : "filter"} size={16} style={{ color: T.textMuted }} />
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ position: "relative", flex: "1 1 240px", minWidth: 0 }}>
+            <Icon name="search" size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: T.textMuted }} />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Cari judul, jenis, atau tag..."
+              style={{
+                ...inputStyle,
+                background: T.bg,
+              }}
+              onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
+              onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
+            />
+          </div>
+          {(!isMobile || showFilter) && (
+            <>
+              <select value={filterType}   onChange={e => setFilterType(e.target.value)}   style={selStyle}>
+                <option value="Semua Jenis">Semua Jenis</option>
+                {categories.map(c => <option key={c.id} value={c.nama}>{c.nama}</option>)}
+              </select>
+              <select value={filterSector} onChange={e => setFilterSector(e.target.value)} style={selStyle}>
+                <option value="Semua Sektor">Semua Sektor</option>
+                {sectors.map(s => <option key={s.id} value={s.nama}>{s.nama}</option>)}
+              </select>
+              <select value={filterYear}   onChange={e => setFilterYear(e.target.value)}   style={selStyle}>
+                {YEARS.map(y => <option key={y}>{y}</option>)}
+              </select>
+              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={selStyle}>
+                {STATUS_LIST.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Empty State */}
+      {filtered.length === 0 && (
+        <div style={{ ...cardStyle, textAlign: "center", padding: 48 }}>
+          <div style={{ width: 64, height: 64, background: T.primaryLight, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+            <Icon name="search" size={28} style={{ color: T.primary }} />
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 4 }}>Tidak ada dokumen ditemukan</div>
+          <div style={{ fontSize: 13, color: T.textSecondary }}>Coba ubah kata kunci atau filter pencarian</div>
+        </div>
+      )}
+
+      {/* Grid View */}
+      {viewMode === "grid" && filtered.length > 0 && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(280px, 1fr))",
+          gap: 12,
+        }}>
+          {filtered.map((d, i) => {
+            const typeColor = getFileTypeColor(d.type);
+            return (
+              <div
+                key={d.id}
+                onClick={() => onView(d)}
+                style={{
+                  ...cardStyle,
+                  padding: isMobile ? 14 : 18,
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  animation: "fadeIn 0.3s ease forwards",
+                  animationDelay: `${i * 30}ms`,
+                  opacity: 0,
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.boxShadow = T.shadowMd;
+                  e.currentTarget.style.borderColor = T.borderHover;
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.boxShadow = T.shadowSm;
+                  e.currentTarget.style.borderColor = T.border;
+                  e.currentTarget.style.transform = "translateY(0)";
+                }}
+              >
+                {/* File Type Badge */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <div style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "4px 10px",
+                    borderRadius: 20,
+                    background: typeColor.bg,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: typeColor.text,
+                  }}>
+                    <Icon name="file" size={12} />
+                    {d.type}
+                  </div>
+                  <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
+                </div>
+
+                {/* Title */}
+                <div style={{ fontSize: isMobile ? 14 : 15, fontWeight: 700, color: T.text, marginBottom: 8, lineHeight: 1.4, minHeight: 42 }}>
+                  {d.title}
+                </div>
+
+                {/* Meta */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, fontSize: 12, color: T.textSecondary, marginBottom: 12 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <Icon name="building" size={12} /> {d.sector}
+                  </span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <Icon name="calendar" size={12} /> {d.year}
+                  </span>
+                </div>
+
+                {/* Footer */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: T.primaryLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: T.primary }}>
+                      {d.uploader?.charAt(0)?.toUpperCase() || "U"}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: T.text }}>{d.uploader}</div>
+                      <div style={{ fontSize: 11, color: T.textMuted }}>{d.size}</div>
+                    </div>
+                  </div>
+                  <Icon name="chevronRight" size={14} style={{ color: T.textMuted }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* List View */}
+      {viewMode === "list" && filtered.length > 0 && (
+        <div style={{ ...cardStyle, overflow: "hidden" }}>
+          {/* Table Header */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr auto" : "2fr 1fr 1fr 1fr 1fr auto",
+            gap: 12,
+            padding: isMobile ? "10px 14px" : "12px 18px",
+            background: T.bg,
+            borderBottom: `1px solid ${T.border}`,
+            fontSize: 11,
+            fontWeight: 700,
+            color: T.textSecondary,
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+          }}>
+            {!isMobile && (
+              <>
+                <div>Dokumen</div>
+                <div>Jenis</div>
+                <div>Sektor</div>
+                <div>Tahun</div>
+                <div>Ukuran</div>
+              </>
+            )}
+            {isMobile && <div>Dokumen</div>}
+            <div style={{ textAlign: "right" }}>Aksi</div>
+          </div>
+
+          {/* Rows */}
+          {filtered.map((d, i) => {
+            const typeColor = getFileTypeColor(d.type);
+            return (
+              <div
+                key={d.id}
+                onClick={() => onView(d)}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: isMobile ? "1fr auto" : "2fr 1fr 1fr 1fr 1fr auto",
+                  gap: 12,
+                  padding: isMobile ? "12px 14px" : "14px 18px",
+                  borderBottom: `1px solid ${T.border}`,
+                  cursor: "pointer",
+                  transition: "background 0.15s ease",
+                  alignItems: "center",
+                  animation: "fadeIn 0.3s ease forwards",
+                  animationDelay: `${i * 20}ms`,
+                  opacity: 0,
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = T.surfaceHover}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              >
+                {/* Doc Info */}
+                <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                  <div style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 10,
+                    background: typeColor.bg,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}>
+                    <Icon name="file" size={18} style={{ color: typeColor.text }} />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: isMobile ? 13 : 14, fontWeight: 700, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.title}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                      <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
+                      {isMobile && <span style={{ fontSize: 11, color: T.textMuted }}>· {d.year}</span>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Desktop Meta */}
+                {!isMobile && (
+                  <>
+                    <div style={{ fontSize: 13, color: T.textSecondary }}>{d.type}</div>
+                    <div style={{ fontSize: 13, color: T.textSecondary }}>{d.sector}</div>
+                    <div style={{ fontSize: 13, color: T.textSecondary }}>{d.year}</div>
+                    <div style={{ fontSize: 13, color: T.textSecondary }}>{d.size}</div>
+                  </>
+                )}
+
+                {/* Action */}
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <div
+                    style={{
+                      ...btnGhost,
+                      padding: "6px 10px",
+                      fontSize: 11,
+                      color: T.primary,
+                      background: T.primaryLight,
+                    }}
+                  >
+                    Lihat
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── DETAIL DOKUMEN ───────────────────────────────────────────────────────────
 
 export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPreview, onTogglePublik, user }) {
   const { isMobile } = useResponsive();
