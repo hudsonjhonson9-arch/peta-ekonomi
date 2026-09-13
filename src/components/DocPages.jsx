@@ -421,10 +421,23 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
   return (
     <div style={{ padding: isMobile ? 16 : "28px 36px", fontFamily: T.font, background: T.bg, minHeight: "100%" }}>
       {/* Back Button */}
-      <button onClick={onBack} style={{ ...btnBase, background: "transparent", color: T.primary, fontSize: 13, padding: "6px 0", marginBottom: 20 }}
-        onMouseEnter={e => e.currentTarget.style.color = T.primaryHover}
-        onMouseLeave={e => e.currentTarget.style.color = T.primary}>
-        ← Kembali ke Daftar
+      <button onClick={onBack} style={{
+        ...btnBase,
+        background: T.card,
+        color: T.primary,
+        fontSize: 14,
+        fontWeight: 600,
+        padding: "10px 18px",
+        marginBottom: 20,
+        border: `1.5px solid ${T.border}`,
+        borderRadius: T.radius,
+        boxShadow: T.shadowSm,
+        transition: "all 0.15s ease",
+      }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = T.primary; e.currentTarget.style.boxShadow = T.focusRing; }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = T.shadowSm; }}>
+        <Icon name="chevronRight" size={16} style={{ transform: "rotate(180deg)", marginRight: 4 }} />
+        Kembali ke Daftar
       </button>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 20, alignItems: "start" }}>
