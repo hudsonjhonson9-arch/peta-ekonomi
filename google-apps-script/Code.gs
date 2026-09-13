@@ -52,7 +52,8 @@ function doPost(e) {
       year:     params.year    || '',
       url:      fileUrl,
       ukuran:   sizeLabel,
-      uploader: params.uploader || 'System'
+      uploader: params.uploader || 'System',
+      bidang:   params.bidang  || ''
     };
 
     var apiOpts = {

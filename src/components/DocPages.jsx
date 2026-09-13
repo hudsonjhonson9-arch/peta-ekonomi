@@ -114,14 +114,15 @@ function getFileTypeColor(type) {
   return FILE_TYPE_COLORS[type] || { bg: "#F1F5F9", text: "#64748B" };
 }
 
-export function DocList({ docs, onView, categories = [], sectors = [] }) {
+export function DocList({ docs, onView, categories = [], sectors = [], bidangs = [] }) {
   const { isMobile } = useResponsive();
   const [showFilter, setShowFilter] = useState(!isMobile);
   const [viewMode, setViewMode] = useState("grid");
-  const [gridSize, setGridSize] = useState(180);
+  const [gridSize, setGridSize] = useState(240);
   const [search,       setSearch]       = useState("");
   const [filterType,   setFilterType]   = useState("Semua Jenis");
   const [filterSector, setFilterSector] = useState("Semua Sektor");
+  const [filterBidang, setFilterBidang] = useState("Semua Bidang");
   const [filterYear,   setFilterYear]   = useState("Semua Tahun");
   const [filterStatus, setFilterStatus] = useState("Semua Status");
 
@@ -133,11 +134,12 @@ export function DocList({ docs, onView, categories = [], sectors = [] }) {
         matchQ &&
         (filterType   === "Semua Jenis"   || d.type   === filterType)   &&
         (filterSector === "Semua Sektor"  || d.sector === filterSector) &&
+        (filterBidang === "Semua Bidang"  || d.bidang === filterBidang) &&
         (filterYear   === "Semua Tahun"   || d.year   === filterYear)   &&
         (filterStatus === "Semua Status"  || d.status === filterStatus)
       );
     });
-  }, [docs, search, filterType, filterSector, filterYear, filterStatus]);
+  }, [docs, search, filterType, filterSector, filterBidang, filterYear, filterStatus]);
 
   return (
     <div style={{ fontFamily: T.font, background: T.bg, minHeight: "100vh" }}>
@@ -154,8 +156,8 @@ export function DocList({ docs, onView, categories = [], sectors = [] }) {
               <Icon name="grid" size={12} style={{ color: T.textMuted }} />
               <input
                 type="range"
-                min={120}
-                max={300}
+                min={160}
+                max={400}
                 value={gridSize}
                 onChange={e => setGridSize(Number(e.target.value))}
                 style={{ width: 60, height: 4, accentColor: T.primary, cursor: "pointer" }}
@@ -233,6 +235,10 @@ export function DocList({ docs, onView, categories = [], sectors = [] }) {
                 <option value="Semua Sektor">Semua Sektor</option>
                 {sectors.map(s => <option key={s.id} value={s.nama}>{s.nama}</option>)}
               </select>
+              <select value={filterBidang} onChange={e => setFilterBidang(e.target.value)} style={selStyle}>
+                <option value="Semua Bidang">Semua Bidang</option>
+                {bidangs.map(b => <option key={b.id} value={b.nama}>{b.nama}</option>)}
+              </select>
               <select value={filterYear}   onChange={e => setFilterYear(e.target.value)}   style={selStyle}>
                 {YEARS.map(y => <option key={y}>{y}</option>)}
               </select>
@@ -309,7 +315,7 @@ export function DocList({ docs, onView, categories = [], sectors = [] }) {
 
                 {/* Meta */}
                 <div style={{ fontSize: 11, color: T.textSecondary, marginBottom: 8 }}>
-                  {d.sector} · {d.year}
+                  {d.sector} · {d.year}{d.bidang ? <> · <span style={{ color: T.primary, fontWeight: 500 }}>{d.bidang}</span></> : null}
                 </div>
 
                 {/* Footer */}
@@ -378,6 +384,7 @@ export function DocList({ docs, onView, categories = [], sectors = [] }) {
                     <span>{d.sector}</span>
                     <span>·</span>
                     <span>{d.year}</span>
+                    {d.bidang ? <><span>·</span><span style={{ color: T.primary, fontWeight: 500 }}>{d.bidang}</span></> : null}
                     <span>·</span>
                     <span>{d.size}</span>
                   </div>
@@ -475,6 +482,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
               {[
                 ["Jenis Dokumen", doc.type],
                 ["Sektor",        doc.sector],
+                ["Bidang",        doc.bidang || "—"],
                 ["Tahun",         doc.year],
                 ["Ukuran File",   doc.size],
                 ["Jumlah Halaman",`${doc.pages} halaman`],

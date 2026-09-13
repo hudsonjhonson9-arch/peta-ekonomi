@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useDocs, useUsers, useLogs, useCategories, useSectors, api } from './hooks.js';
+import { useDocs, useUsers, useLogs, useCategories, useSectors, useBidang, api } from './hooks.js';
 import { queryClient } from './main.jsx';
 import useResponsive    from './useResponsive.js';
 import LoginPage        from "./components/LoginPage.jsx";
@@ -63,6 +63,7 @@ export default function App() {
   const [logs,      setLogs]      = useState([]);
   const [categories, setCategories] = useState([]);
   const [sectors, setSectors] = useState([]);
+  const [bidangs, setBidangs] = useState([]);
   const [viewDoc,   setViewDoc]   = useState(null);
   const [collapsed, setCollapsed] = useState(false);
   const [toast,     setToast]     = useState("");
@@ -73,6 +74,7 @@ export default function App() {
   const { data: usersData = [] } = useUsers();
   const { data: categoriesData = [] } = useCategories();
   const { data: sectorsData = [] } = useSectors();
+  const { data: bidangData = [] } = useBidang();
 
   // Sync server data into local state, preserving local overrides
   useEffect(() => {
@@ -95,6 +97,7 @@ export default function App() {
   useEffect(() => { if (usersData.length > 0) setUsers(usersData); }, [usersData]);
   useEffect(() => { if (categoriesData.length > 0) setCategories(categoriesData); }, [categoriesData]);
   useEffect(() => { if (sectorsData.length > 0) setSectors(sectorsData); }, [sectorsData]);
+  useEffect(() => { if (bidangData.length > 0) setBidangs(bidangData); }, [bidangData]);
 
   const handleLogin = loggedUser => {
     localStorage.setItem("user", JSON.stringify(loggedUser));
@@ -186,6 +189,7 @@ export default function App() {
         tags:       form.tags ? form.tags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [],
         url:        form.fileUrl,
         publik:     false,
+        bidang:     form.bidang || "",
       };
       setDocs(function (d) { return [newDoc].concat(d); });
       addLog("Upload dokumen (Google Drive Link)", newDoc);
@@ -217,6 +221,7 @@ export default function App() {
         sector:   form.sector,
         year:     form.year,
         uploader: user.name,
+        bidang:   form.bidang || "",
       });
 
       var data = await new Promise(function (resolve, reject) {
@@ -342,7 +347,7 @@ export default function App() {
             <Dashboard docs={docs} onNav={goPage} sectors={sectors} categories={categories} />
           )}
           {page === "dokumen" && !viewDoc && (
-            <DocList docs={docs} onView={d => setViewDoc(d)} user={user} categories={categories} sectors={sectors} />
+            <DocList docs={docs} onView={d => setViewDoc(d)} user={user} categories={categories} sectors={sectors} bidangs={bidangs} />
           )}
           {page === "dokumen" && viewDoc && (
             <DocDetail
@@ -357,7 +362,7 @@ export default function App() {
             />
           )}
           {page === "upload" && (
-            <UploadForm onSubmit={handleUpload} user={user} categories={categories} sectors={sectors} />
+            <UploadForm onSubmit={handleUpload} user={user} categories={categories} sectors={sectors} bidangs={bidangs} />
           )}
           {page === "pencarian" && (
             <Pencarian docs={docs} onView={d => { setViewDoc(d); setPage("dokumen"); }} />

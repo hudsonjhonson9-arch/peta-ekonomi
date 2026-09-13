@@ -26,6 +26,15 @@ if (isProd) {
 const { Pool } = pg;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+// ── Auto-migration: tambah kolom bidang ────────────────────────────────────
+(async () => {
+  try {
+    await pool.query(`ALTER TABLE bapperida_dokumen ADD COLUMN IF NOT EXISTS bidang TEXT`);
+    await pool.query(`UPDATE bapperida_dokumen SET bidang = 'Bidang Ekonomi dan SDA' WHERE bidang IS NULL`);
+    console.log('Migration: bidang column ready');
+  } catch (e) { console.error('Migration bidang error:', e.message); }
+})();
+
 const queryDB = async (sql, params = []) => {
   const result = await pool.query(sql, params);
   return result.rows;
@@ -108,7 +117,8 @@ app.get('/api/docs', async (_, res) => {
         ''                                  AS desc,
         url,
         icon_data,
-        COALESCE(publik, false)             AS publik
+        COALESCE(publik, false)             AS publik,
+        COALESCE(bidang, '')                AS bidang
       FROM bapperida_dokumen
       ORDER BY id DESC
     `);
@@ -126,12 +136,12 @@ app.post('/api/docs', async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: invalid upload key' });
   }
 
-  const { title, type, sector, uploader, url, ukuran } = req.body;
+  const { title, type, sector, uploader, url, ukuran, bidang } = req.body;
   try {
     const result = await pool.query(
-      `INSERT INTO bapperida_dokumen (judul, kategori, tipe, tanggal, ukuran, url, created_at)
-       VALUES ($1, $2, $3, NOW(), $4, $5, NOW()) RETURNING *`,
-      [title, type, sector, ukuran || '0 MB', url || '']
+      `INSERT INTO bapperida_dokumen (judul, kategori, tipe, tanggal, ukuran, url, created_at, bidang)
+       VALUES ($1, $2, $3, NOW(), $4, $5, NOW(), $6) RETURNING *`,
+      [title, type, sector, ukuran || '0 MB', url || '', bidang || '']
 
     );
     await pool.query(
@@ -503,9 +513,10 @@ app.delete('/api/sektor/:id', async (req, res) => {
 app.get('/api/bidang', async (_, res) => {
   try {
     const rows = await queryDB(`
-      SELECT DISTINCT bidang FROM user_list WHERE bidang IS NOT NULL AND bidang != '' ORDER BY bidang
+      SELECT id, nama_bidang AS nama FROM bidang_list
+      WHERE instansi_id = 'bapperida' ORDER BY id
     `);
-    res.json(rows.map(r => r.bidang));
+    res.json(rows);
   } catch (err) {
     console.error('Get bidang error:', err);
     res.status(500).json({ error: 'Gagal mengambil data bidang' });

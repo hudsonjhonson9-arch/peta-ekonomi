@@ -26,6 +26,10 @@ export function useSectors() {
   return useQuery({ queryKey: ['sectors'], queryFn: () => api('/api/sektor') });
 }
 
+export function useBidang() {
+  return useQuery({ queryKey: ['bidang'], queryFn: () => api('/api/bidang') });
+}
+
 export function useIndikator() {
   return useQuery({ queryKey: ['indikator'], queryFn: () => api('/api/indikator') });
 }

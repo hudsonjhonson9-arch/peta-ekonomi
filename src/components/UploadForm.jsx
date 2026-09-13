@@ -2,10 +2,10 @@ import { useState, useRef } from "react";
 import { Icon } from "./ui.jsx";
 import useResponsive from "../useResponsive.js";
 
-export default function UploadForm({ onSubmit, user, categories = [], sectors = [] }) {
+export default function UploadForm({ onSubmit, user, categories = [], sectors = [], bidangs = [] }) {
   const { isMobile } = useResponsive();
   const [form, setForm] = useState({
-    title: "", type: "", sector: "",
+    title: "", type: "", sector: "", bidang: "",
     year: (new Date().getFullYear() + 1).toString(),
     desc: "", tags: "",
   });
@@ -45,7 +45,7 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
             setUploading(false);
             setFile(null);
             setGdriveUrl("");
-            setForm({ title: "", type: "", sector: "", year: (new Date().getFullYear() + 1).toString(), desc: "", tags: "" });
+            setForm({ title: "", type: "", sector: "", bidang: "", year: (new Date().getFullYear() + 1).toString(), desc: "", tags: "" });
             setProgress(0);
             setErrors({});
           }, 600);
@@ -58,7 +58,7 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
           setTimeout(function () {
             setUploading(false);
             setFile(null);
-            setForm({ title: "", type: "", sector: "", year: (new Date().getFullYear() + 1).toString(), desc: "", tags: "" });
+            setForm({ title: "", type: "", sector: "", bidang: "", year: (new Date().getFullYear() + 1).toString(), desc: "", tags: "" });
             setProgress(0);
             setErrors({});
           }, 600);
@@ -118,6 +118,15 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
               {sectors.map(s => <option key={s.id} value={s.nama}>{s.nama}</option>)}
             </select>
             {errors.sector && <div style={{ fontSize: 11, color: "#c62828", marginTop: 4 }}>{errors.sector}</div>}
+          </div>
+
+          {/* Bidang */}
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#444", display: "block", marginBottom: 6 }}>Bidang</label>
+            <select value={form.bidang} onChange={e => set("bidang", e.target.value)} style={{ ...inp(), cursor: "pointer" }} disabled={uploading}>
+              <option value="">— Pilih Bidang —</option>
+              {bidangs.map(b => <option key={b.id} value={b.nama}>{b.nama}</option>)}
+            </select>
           </div>
 
           {/* Tahun */}
