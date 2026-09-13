@@ -673,58 +673,87 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
       </div>
 
       {/* Table Card */}
-      <div style={{ ...cardStyle, overflow: "hidden" }}>
-        {/* Table Header */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", padding: "12px 20px", background: T.primaryLight, borderBottom: `1px solid ${T.border}` }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em" }}>Nama</span>
-          <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "right" }}>Aksi</span>
-        </div>
-
-        {/* Rows */}
-        {categories.length === 0 ? (
-          <div style={{ padding: "48px 20px", textAlign: "center" }}>
-            <div style={{ width: 48, height: 48, background: T.primaryLight, borderRadius: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
-              <Icon name="tag" size={22} style={{ color: T.primary }} />
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 4 }}>Belum ada tipe dokumen</div>
-            <div style={{ fontSize: 13, color: T.textMuted }}>Klik "Tambah" untuk menambahkan tipe dokumen baru</div>
-          </div>
-        ) : (
-          categories.map((c, i) => (
-            <div key={c.id}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 120px",
-                padding: "14px 20px",
-                borderBottom: i < categories.length - 1 ? `1px solid ${T.border}` : "none",
-                alignItems: "center",
-                transition: "background 0.12s",
-                cursor: "default",
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = T.surfaceHover}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-                <div style={{ width: 36, height: 36, background: T.primaryLight, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Icon name="tag" size={16} style={{ color: T.primary }} />
-                </div>
-                <span style={{ fontSize: 14, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.nama}</span>
+      {isMobile ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {categories.length === 0 ? (
+            <div style={{ ...cardStyle, padding: "48px 20px", textAlign: "center" }}>
+              <div style={{ width: 48, height: 48, background: T.primaryLight, borderRadius: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                <Icon name="tag" size={22} style={{ color: T.primary }} />
               </div>
-              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                <button onClick={() => openEdit(c)} style={btnGhost}
-                  onMouseEnter={e => e.currentTarget.style.background = T.primaryLight}
-                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 4 }}>Belum ada tipe dokumen</div>
+              <div style={{ fontSize: 13, color: T.textMuted }}>Klik "Tambah" untuk menambahkan tipe dokumen baru</div>
+            </div>
+          ) : categories.map(c => (
+            <div key={c.id} style={{ ...cardStyle, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 40, height: 40, background: T.primaryLight, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon name="tag" size={18} style={{ color: T.primary }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.nama}</div>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <button onClick={() => openEdit(c)} style={btnGhost}>
                   <Icon name="edit" size={13} /> Edit
                 </button>
-                <button onClick={() => handleDelete(c)} style={btnDanger}
-                  onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = "#F87171"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; e.currentTarget.style.borderColor = T.dangerBorder; }}>
+                <button onClick={() => handleDelete(c)} style={btnDanger}>
                   <Icon name="x" size={13} /> Hapus
                 </button>
               </div>
             </div>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ ...cardStyle, overflow: "hidden" }}>
+          {/* Table Header */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", padding: "12px 20px", background: T.primaryLight, borderBottom: `1px solid ${T.border}` }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em" }}>Nama</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "right" }}>Aksi</span>
+          </div>
+
+          {/* Rows */}
+          {categories.length === 0 ? (
+            <div style={{ padding: "48px 20px", textAlign: "center" }}>
+              <div style={{ width: 48, height: 48, background: T.primaryLight, borderRadius: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                <Icon name="tag" size={22} style={{ color: T.primary }} />
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 4 }}>Belum ada tipe dokumen</div>
+              <div style={{ fontSize: 13, color: T.textMuted }}>Klik "Tambah" untuk menambahkan tipe dokumen baru</div>
+            </div>
+          ) : (
+            categories.map((c, i) => (
+              <div key={c.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 120px",
+                  padding: "14px 20px",
+                  borderBottom: i < categories.length - 1 ? `1px solid ${T.border}` : "none",
+                  alignItems: "center",
+                  transition: "background 0.12s",
+                  cursor: "default",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = T.surfaceHover}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                  <div style={{ width: 36, height: 36, background: T.primaryLight, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon name="tag" size={16} style={{ color: T.primary }} />
+                  </div>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.nama}</span>
+                </div>
+                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                  <button onClick={() => openEdit(c)} style={btnGhost}
+                    onMouseEnter={e => e.currentTarget.style.background = T.primaryLight}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    <Icon name="edit" size={13} /> Edit
+                  </button>
+                  <button onClick={() => handleDelete(c)} style={btnDanger}
+                    onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = "#F87171"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; e.currentTarget.style.borderColor = T.dangerBorder; }}>
+                    <Icon name="x" size={13} /> Hapus
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
 
       {/* Modal */}
       {modalOpen && (
@@ -915,58 +944,87 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
       </div>
 
       {/* Table Card */}
-      <div style={{ ...cardStyle, overflow: "hidden" }}>
-        {/* Table Header */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", padding: "12px 20px", background: T.primaryLight, borderBottom: `1px solid ${T.border}` }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em" }}>Nama</span>
-          <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "right" }}>Aksi</span>
-        </div>
-
-        {/* Rows */}
-        {sectors.length === 0 ? (
-          <div style={{ padding: "48px 20px", textAlign: "center" }}>
-            <div style={{ width: 48, height: 48, background: T.primaryLight, borderRadius: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
-              <Icon name="layers" size={22} style={{ color: T.primary }} />
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 4 }}>Belum ada sektor</div>
-            <div style={{ fontSize: 13, color: T.textMuted }}>Klik "Tambah" untuk menambahkan sektor baru</div>
-          </div>
-        ) : (
-          sectors.map((s, i) => (
-            <div key={s.id}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 120px",
-                padding: "14px 20px",
-                borderBottom: i < sectors.length - 1 ? `1px solid ${T.border}` : "none",
-                alignItems: "center",
-                transition: "background 0.12s",
-                cursor: "default",
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = T.surfaceHover}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-                <div style={{ width: 36, height: 36, background: T.primaryLight, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Icon name="layers" size={16} style={{ color: T.primary }} />
-                </div>
-                <span style={{ fontSize: 14, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.nama}</span>
+      {isMobile ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {sectors.length === 0 ? (
+            <div style={{ ...cardStyle, padding: "48px 20px", textAlign: "center" }}>
+              <div style={{ width: 48, height: 48, background: T.primaryLight, borderRadius: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                <Icon name="layers" size={22} style={{ color: T.primary }} />
               </div>
-              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                <button onClick={() => openEdit(s)} style={btnGhost}
-                  onMouseEnter={e => e.currentTarget.style.background = T.primaryLight}
-                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 4 }}>Belum ada sektor</div>
+              <div style={{ fontSize: 13, color: T.textMuted }}>Klik "Tambah" untuk menambahkan sektor baru</div>
+            </div>
+          ) : sectors.map(s => (
+            <div key={s.id} style={{ ...cardStyle, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 40, height: 40, background: T.primaryLight, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon name="layers" size={18} style={{ color: T.primary }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.nama}</div>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <button onClick={() => openEdit(s)} style={btnGhost}>
                   <Icon name="edit" size={13} /> Edit
                 </button>
-                <button onClick={() => handleDelete(s)} style={btnDanger}
-                  onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = "#F87171"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; e.currentTarget.style.borderColor = T.dangerBorder; }}>
+                <button onClick={() => handleDelete(s)} style={btnDanger}>
                   <Icon name="x" size={13} /> Hapus
                 </button>
               </div>
             </div>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ ...cardStyle, overflow: "hidden" }}>
+          {/* Table Header */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", padding: "12px 20px", background: T.primaryLight, borderBottom: `1px solid ${T.border}` }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em" }}>Nama</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "right" }}>Aksi</span>
+          </div>
+
+          {/* Rows */}
+          {sectors.length === 0 ? (
+            <div style={{ padding: "48px 20px", textAlign: "center" }}>
+              <div style={{ width: 48, height: 48, background: T.primaryLight, borderRadius: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                <Icon name="layers" size={22} style={{ color: T.primary }} />
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 4 }}>Belum ada sektor</div>
+              <div style={{ fontSize: 13, color: T.textMuted }}>Klik "Tambah" untuk menambahkan sektor baru</div>
+            </div>
+          ) : (
+            sectors.map((s, i) => (
+              <div key={s.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 120px",
+                  padding: "14px 20px",
+                  borderBottom: i < sectors.length - 1 ? `1px solid ${T.border}` : "none",
+                  alignItems: "center",
+                  transition: "background 0.12s",
+                  cursor: "default",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = T.surfaceHover}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                  <div style={{ width: 36, height: 36, background: T.primaryLight, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon name="layers" size={16} style={{ color: T.primary }} />
+                  </div>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.nama}</span>
+                </div>
+                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                  <button onClick={() => openEdit(s)} style={btnGhost}
+                    onMouseEnter={e => e.currentTarget.style.background = T.primaryLight}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    <Icon name="edit" size={13} /> Edit
+                  </button>
+                  <button onClick={() => handleDelete(s)} style={btnDanger}
+                    onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = "#F87171"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; e.currentTarget.style.borderColor = T.dangerBorder; }}>
+                    <Icon name="x" size={13} /> Hapus
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
 
       {/* Modal */}
       {modalOpen && (
