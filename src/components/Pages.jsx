@@ -474,8 +474,8 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
           onClick={() => setModalOpen(false)}>
           <div onClick={e => e.stopPropagation()} style={{
             background: T.card, borderRadius: isMobile ? "16px 16px 0 0" : T.radiusLg,
-            padding: isMobile ? "24px 20px 32px" : "28px 32px",
-            width: isMobile ? "100%" : 460, maxHeight: isMobile ? "90vh" : "auto", overflowY: "auto",
+            padding: isMobile ? "24px 20px 80px" : "28px 32px",
+            width: isMobile ? "100%" : 460, maxHeight: isMobile ? "85vh" : "auto", overflowY: "auto",
             boxShadow: T.shadowLg, animation: isMobile ? "slideUp .25s ease" : "fadeIn .15s ease",
           }}>
             {/* Modal Header */}
@@ -732,8 +732,8 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
           onClick={() => setModalOpen(false)}>
           <div onClick={e => e.stopPropagation()} style={{
             background: T.card, borderRadius: isMobile ? "16px 16px 0 0" : T.radiusLg,
-            padding: isMobile ? "24px 20px 32px" : "28px 32px",
-            width: isMobile ? "100%" : 420, maxHeight: isMobile ? "90vh" : "auto",
+            padding: isMobile ? "24px 20px 80px" : "28px 32px",
+            width: isMobile ? "100%" : 420, maxHeight: isMobile ? "85vh" : "auto",
             boxShadow: T.shadowLg, animation: isMobile ? "slideUp .25s ease" : "fadeIn .15s ease",
           }}>
             {/* Modal Header */}
@@ -974,8 +974,8 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
           onClick={() => setModalOpen(false)}>
           <div onClick={e => e.stopPropagation()} style={{
             background: T.card, borderRadius: isMobile ? "16px 16px 0 0" : T.radiusLg,
-            padding: isMobile ? "24px 20px 32px" : "28px 32px",
-            width: isMobile ? "100%" : 420, maxHeight: isMobile ? "90vh" : "auto",
+            padding: isMobile ? "24px 20px 80px" : "28px 32px",
+            width: isMobile ? "100%" : 420, maxHeight: isMobile ? "85vh" : "auto",
             boxShadow: T.shadowLg, animation: isMobile ? "slideUp .25s ease" : "fadeIn .15s ease",
           }}>
             {/* Modal Header */}
