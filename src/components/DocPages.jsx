@@ -297,150 +297,250 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
         </div>
       )}
 
-      {/* Grid View */}
-      {viewMode === "grid" && (
-        <>
-          {/* Folder Grid (no bidang selected) */}
-          {!selectedBidang && bidangFolders.length > 0 && (
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : `repeat(auto-fill, minmax(${Math.max(gridSize, 180)}px, 1fr))`,
-              gap: 10,
-            }}>
-              {bidangFolders.map(([nama, count], i) => {
-                const bc = getBidangColor(nama);
-                return (
-                  <div
-                    key={nama}
-                    onClick={() => setSelectedBidang(nama)}
-                    style={{
-                      ...cardStyle,
-                      padding: isMobile ? 16 : 20,
-                      cursor: "pointer",
-                      transition: "all 0.2s ease",
-                      animation: "fadeIn 0.3s ease forwards",
-                      animationDelay: `${i * 40}ms`,
-                      opacity: 0,
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.boxShadow = T.shadowMd;
-                      e.currentTarget.style.borderColor = bc.text;
-                      e.currentTarget.style.transform = "translateY(-2px)";
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.boxShadow = T.shadowSm;
-                      e.currentTarget.style.borderColor = T.border;
-                      e.currentTarget.style.transform = "translateY(0)";
-                    }}
-                  >
-                    <div style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 12,
-                      background: bc.bg,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginBottom: 14,
-                    }}>
-                      <Icon name="folder" size={24} style={{ color: bc.text }} />
-                    </div>
-                    <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 700, color: T.text, marginBottom: 4, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                      {nama}
-                    </div>
-                    <div style={{ fontSize: 12, color: T.textSecondary }}>
-                      {count} dokumen
-                    </div>
+      {/* ── GRID: Folder Level ── */}
+      {viewMode === "grid" && !selectedBidang && bidangFolders.length > 0 && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : `repeat(auto-fill, minmax(200px, 1fr))`,
+          gap: 12,
+        }}>
+          {bidangFolders.map(([nama, count], i) => {
+            const bc = getBidangColor(nama);
+            return (
+              <div
+                key={nama}
+                onClick={() => setSelectedBidang(nama)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedBidang(nama); }}}
+                style={{
+                  ...cardStyle,
+                  padding: isMobile ? 20 : 24,
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  animation: "fadeIn 0.3s ease forwards",
+                  animationDelay: `${i * 40}ms`,
+                  opacity: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-start",
+                  gap: 14,
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+                  e.currentTarget.style.borderColor = bc.text;
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.boxShadow = T.shadowSm;
+                  e.currentTarget.style.borderColor = T.border;
+                  e.currentTarget.style.transform = "translateY(0)";
+                }}
+                onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
+                onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
+              >
+                {/* Folder Icon */}
+                <div style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  background: bc.bg,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}>
+                  <Icon name="folder" size={22} style={{ color: bc.text }} />
+                </div>
+                {/* Name + Count */}
+                <div>
+                  <div style={{
+                    fontSize: isMobile ? 13 : 14,
+                    fontWeight: 600,
+                    color: T.text,
+                    lineHeight: 1.3,
+                    marginBottom: 4,
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                  }}>
+                    {nama}
                   </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Doc Grid (inside selected bidang) */}
-          {selectedBidang && folderDocs.length > 0 && (
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : `repeat(auto-fill, minmax(${gridSize}px, 1fr))`,
-              gap: 10,
-            }}>
-              {folderDocs.map((d, i) => {
-                return (
-                  <div
-                    key={d.id}
-                    onClick={() => onView(d)}
-                    style={{
-                      ...cardStyle,
-                      padding: isMobile ? 12 : 14,
-                      cursor: "pointer",
-                      transition: "all 0.2s ease",
-                      animation: "fadeIn 0.3s ease forwards",
-                      animationDelay: `${i * 30}ms`,
-                      opacity: 0,
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.boxShadow = T.shadowMd;
-                      e.currentTarget.style.borderColor = T.borderHover;
-                      e.currentTarget.style.transform = "translateY(-2px)";
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.boxShadow = T.shadowSm;
-                      e.currentTarget.style.borderColor = T.border;
-                      e.currentTarget.style.transform = "translateY(0)";
-                    }}
-                  >
-                    <div style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 8,
-                      background: getBidangColor(d.bidang).bg,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginBottom: 10,
-                    }}>
-                      <Icon name="file" size={16} style={{ color: getBidangColor(d.bidang).text }} />
-                    </div>
-                    <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 700, color: T.text, marginBottom: 6, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: 34 }}>
-                      {d.title}
-                    </div>
-                    <div style={{ fontSize: 11, color: T.textSecondary, marginBottom: 8 }}>
-                      {d.sector} · {d.year}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTop: `1px solid ${T.border}` }}>
-                      <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
-                      <span style={{ fontSize: 10, color: T.textMuted }}>{d.size}</span>
-                    </div>
+                  <div style={{ fontSize: 12, color: T.textSecondary }}>
+                    {count} dokumen
                   </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Empty inside folder */}
-          {selectedBidang && folderDocs.length === 0 && (
-            <div style={{ ...cardStyle, textAlign: "center", padding: 48 }}>
-              <Icon name="search" size={28} style={{ color: T.primary }} />
-              <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginTop: 12, marginBottom: 4 }}>Tidak ada dokumen</div>
-              <div style={{ fontSize: 13, color: T.textSecondary }}>di bidang ini</div>
-            </div>
-          )}
-        </>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
 
-      {/* List View */}
-      {viewMode === "list" && filtered.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {filtered.map((d, i) => {
+      {/* ── GRID: Document Level (inside folder) ── */}
+      {viewMode === "grid" && selectedBidang && folderDocs.length > 0 && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : `repeat(auto-fill, minmax(${gridSize}px, 1fr))`,
+          gap: 10,
+        }}>
+          {folderDocs.map((d, i) => {
             return (
               <div
                 key={d.id}
                 onClick={() => onView(d)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onView(d); }}}
+                style={{
+                  ...cardStyle,
+                  padding: isMobile ? 12 : 14,
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  animation: "fadeIn 0.3s ease forwards",
+                  animationDelay: `${i * 30}ms`,
+                  opacity: 0,
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+                  e.currentTarget.style.borderColor = T.borderHover;
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.boxShadow = T.shadowSm;
+                  e.currentTarget.style.borderColor = T.border;
+                  e.currentTarget.style.transform = "translateY(0)";
+                }}
+                onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
+                onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
+              >
+                {/* File Icon */}
+                <div style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: getBidangColor(d.bidang).bg,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: 10,
+                }}>
+                  <Icon name="file" size={16} style={{ color: getBidangColor(d.bidang).text }} />
+                </div>
+                {/* Title */}
+                <div style={{
+                  fontSize: isMobile ? 12 : 13,
+                  fontWeight: 700,
+                  color: T.text,
+                  marginBottom: 6,
+                  lineHeight: 1.3,
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                  minHeight: 34,
+                }}>
+                  {d.title}
+                </div>
+                {/* Meta */}
+                <div style={{ fontSize: 11, color: T.textSecondary, marginBottom: 8 }}>
+                  {d.sector} · {d.year}
+                </div>
+                {/* Footer */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTop: `1px solid ${T.border}` }}>
+                  <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
+                  <span style={{ fontSize: 10, color: T.textMuted }}>{d.size}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── GRID: Empty inside folder ── */}
+      {viewMode === "grid" && selectedBidang && folderDocs.length === 0 && (
+        <div style={{ ...cardStyle, textAlign: "center", padding: 48 }}>
+          <Icon name="search" size={28} style={{ color: T.primary }} />
+          <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginTop: 12, marginBottom: 4 }}>Tidak ada dokumen</div>
+          <div style={{ fontSize: 13, color: T.textSecondary }}>di bidang ini</div>
+        </div>
+      )}
+
+      {/* ── LIST: Folder Level ── */}
+      {viewMode === "list" && !selectedBidang && bidangFolders.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {bidangFolders.map(([nama, count], i) => {
+            const bc = getBidangColor(nama);
+            return (
+              <div
+                key={nama}
+                onClick={() => setSelectedBidang(nama)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedBidang(nama); }}}
+                style={{
+                  ...cardStyle,
+                  padding: isMobile ? "12px 14px" : "14px 18px",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
+                  animation: "fadeIn 0.3s ease forwards",
+                  animationDelay: `${i * 30}ms`,
+                  opacity: 0,
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+                  e.currentTarget.style.borderColor = bc.text;
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.boxShadow = T.shadowSm;
+                  e.currentTarget.style.borderColor = T.border;
+                }}
+                onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
+                onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
+              >
+                {/* Folder Icon */}
+                <div style={{
+                  width: isMobile ? 40 : 44,
+                  height: isMobile ? 40 : 44,
+                  borderRadius: 10,
+                  background: bc.bg,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}>
+                  <Icon name="folder" size={isMobile ? 18 : 20} style={{ color: bc.text }} />
+                </div>
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 600, color: T.text }}>{nama}</div>
+                  <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 2 }}>{count} dokumen</div>
+                </div>
+                <Icon name="chevronRight" size={16} style={{ color: T.textMuted, flexShrink: 0 }} />
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── LIST: Document Level (inside folder) ── */}
+      {viewMode === "list" && selectedBidang && folderDocs.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {folderDocs.map((d, i) => {
+            return (
+              <div
+                key={d.id}
+                onClick={() => onView(d)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onView(d); }}}
                 style={{
                   ...cardStyle,
                   padding: isMobile ? "10px 12px" : "12px 16px",
                   cursor: "pointer",
-                  transition: "all 0.15s ease",
+                  transition: "all 0.2s ease",
                   display: "flex",
                   alignItems: "center",
                   gap: 12,
@@ -449,33 +549,33 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
                   opacity: 0,
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.boxShadow = T.shadowMd;
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
                   e.currentTarget.style.borderColor = T.borderHover;
                 }}
                 onMouseLeave={e => {
                   e.currentTarget.style.boxShadow = T.shadowSm;
                   e.currentTarget.style.borderColor = T.border;
                 }}
+                onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
+                onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
               >
-                {/* Bidang Folder Icon */}
-                {(() => { const bc = getBidangColor(d.bidang); return (
+                {/* File Icon */}
                 <div style={{
                   width: isMobile ? 36 : 40,
                   height: isMobile ? 36 : 40,
                   borderRadius: 10,
-                  background: bc.bg,
+                  background: getBidangColor(d.bidang).bg,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   flexShrink: 0,
                 }}>
-                  <Icon name="folder" size={isMobile ? 16 : 18} style={{ color: bc.text }} />
-                </div>); })()}
-
+                  <Icon name="file" size={isMobile ? 16 : 18} style={{ color: getBidangColor(d.bidang).text }} />
+                </div>
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
-                    <span style={{ fontSize: isMobile ? 13 : 14, fontWeight: 700, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.title}</span>
+                    <span style={{ fontSize: isMobile ? 13 : 14, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.title}</span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: isMobile ? 11 : 12, color: T.textSecondary }}>
                     <span>{d.type}</span>
@@ -483,12 +583,10 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
                     <span>{d.sector}</span>
                     <span>·</span>
                     <span>{d.year}</span>
-                    {d.bidang ? <><span>·</span><span style={{ color: T.primary, fontWeight: 500 }}>{d.bidang}</span></> : null}
                     <span>·</span>
                     <span>{d.size}</span>
                   </div>
                 </div>
-
                 {/* Status + Arrow */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                   <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
@@ -497,6 +595,15 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── LIST: Empty inside folder ── */}
+      {viewMode === "list" && selectedBidang && folderDocs.length === 0 && (
+        <div style={{ ...cardStyle, textAlign: "center", padding: 48 }}>
+          <Icon name="search" size={28} style={{ color: T.primary }} />
+          <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginTop: 12, marginBottom: 4 }}>Tidak ada dokumen</div>
+          <div style={{ fontSize: 13, color: T.textSecondary }}>di bidang ini</div>
         </div>
       )}
     </div>
