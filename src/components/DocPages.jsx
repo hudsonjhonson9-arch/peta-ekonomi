@@ -114,6 +114,16 @@ function getFileTypeColor(type) {
   return FILE_TYPE_COLORS[type] || { bg: "#F1F5F9", text: "#64748B" };
 }
 
+const BIDANG_COLORS = {
+  "Sekretariat":                                    { bg: "#F1F5F9", text: "#475569" },
+  "Bidang Perencanaan":                             { bg: "#EFF6FF", text: "#2563EB" },
+  "Bidang Ekonomi dan SDA":                         { bg: "#ECFDF5", text: "#059669" },
+  "Bidang Pemerintahan dan Pembangunan Manusia":    { bg: "#FEF3C7", text: "#D97706" },
+  "Bidang Infrastruktur dan Kewilayahan":           { bg: "#F3E8FF", text: "#9333EA" },
+  "Bidang Riset dan Inovasi Daerah":                { bg: "#FFF1F2", text: "#E11D48" },
+};
+function getBidangColor(bidang) { return BIDANG_COLORS[bidang] || { bg: "#F1F5F9", text: "#64748B" }; }
+
 export function DocList({ docs, onView, categories = [], sectors = [], bidangs = [] }) {
   const { isMobile } = useResponsive();
   const [showFilter, setShowFilter] = useState(!isMobile);
@@ -269,7 +279,6 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
           gap: 10,
         }}>
           {filtered.map((d, i) => {
-            const typeColor = getFileTypeColor(d.type);
             return (
               <div
                 key={d.id}
@@ -294,19 +303,20 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
                   e.currentTarget.style.transform = "translateY(0)";
                 }}
               >
-                {/* File Type Icon */}
+                {/* Bidang Folder Icon */}
+                {(() => { const bc = getBidangColor(d.bidang); return (
                 <div style={{
                   width: 36,
                   height: 36,
                   borderRadius: 8,
-                  background: typeColor.bg,
+                  background: bc.bg,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   marginBottom: 10,
                 }}>
-                  <Icon name="file" size={16} style={{ color: typeColor.text }} />
-                </div>
+                  <Icon name="folder" size={16} style={{ color: bc.text }} />
+                </div>); })()}
 
                 {/* Title */}
                 <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 700, color: T.text, marginBottom: 6, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: 34 }}>
@@ -333,7 +343,6 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
       {viewMode === "list" && filtered.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {filtered.map((d, i) => {
-            const typeColor = getFileTypeColor(d.type);
             return (
               <div
                 key={d.id}
@@ -359,19 +368,20 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
                   e.currentTarget.style.borderColor = T.border;
                 }}
               >
-                {/* File Type Icon */}
+                {/* Bidang Folder Icon */}
+                {(() => { const bc = getBidangColor(d.bidang); return (
                 <div style={{
                   width: isMobile ? 36 : 40,
                   height: isMobile ? 36 : 40,
                   borderRadius: 10,
-                  background: typeColor.bg,
+                  background: bc.bg,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   flexShrink: 0,
                 }}>
-                  <Icon name="file" size={isMobile ? 16 : 18} style={{ color: typeColor.text }} />
-                </div>
+                  <Icon name="folder" size={isMobile ? 16 : 18} style={{ color: bc.text }} />
+                </div>); })()}
 
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
