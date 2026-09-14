@@ -40,7 +40,7 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
     year: (new Date().getFullYear() + 1).toString(),
     desc: "", tags: "",
   });
-  const [file,      setFile]      = useState(null);
+  const [files,     setFiles]     = useState([]);
   const [errors,    setErrors]    = useState({});
   const [uploading, setUploading] = useState(false);
   const [progress,  setProgress]  = useState(0);
@@ -56,7 +56,7 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
     if (!form.title.trim()) e.title  = "Judul dokumen wajib diisi";
     if (!form.type)         e.type   = "Pilih jenis dokumen";
     if (!form.sector)       e.sector = "Pilih sektor";
-    if (inputMode === "file" && !file) e.file = "Pilih file dokumen";
+    if (inputMode === "file" && !files.length) e.file = "Pilih minimal satu file dokumen";
     if (inputMode === "gdrive" && !gdriveUrl.trim()) e.gdriveUrl = "Masukkan URL Google Drive";
     if (inputMode === "gdrive" && gdriveUrl.trim() && !/drive\.google\.com/.test(gdriveUrl)) e.gdriveUrl = "URL harus dari Google Drive";
     setErrors(e);
@@ -65,7 +65,7 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
 
   const resetForm = () => {
     setForm({ title: "", type: "", sector: "", bidang: "", year: (new Date().getFullYear() + 1).toString(), desc: "", tags: "" });
-    setFile(null);
+    setFiles([]);
     setErrors({});
     setGdriveUrl("");
   };
@@ -76,8 +76,8 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
     setProgress(0);
 
     const payload = inputMode === "gdrive"
-      ? { ...form, fileObj: null, fileUrl: gdriveUrl, uploader: user.name }
-      : { ...form, fileObj: file, uploader: user.name };
+      ? { ...form, fileObjs: null, fileUrl: gdriveUrl, uploader: user.name }
+      : { ...form, fileObjs: files, uploader: user.name };
 
     onSubmit(payload, function (pct) {
       setProgress(pct);
@@ -94,8 +94,8 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
   const handleFileDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
-    if (!uploading && e.dataTransfer.files?.[0]) {
-      setFile(e.dataTransfer.files[0]);
+    if (!uploading && e.dataTransfer.files?.length) {
+      setFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
       setProgress(0);
     }
   };
@@ -326,8 +326,9 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
               </label>
               <input
                 type="file" ref={fileRef}
+                multiple
                 accept=".pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png,.gif,.webp"
-                onChange={e => { setFile(e.target.files[0]); setProgress(0); }}
+                onChange={e => { setFiles(prev => [...prev, ...Array.from(e.target.files)]); setProgress(0); }}
                 style={{ display: "none" }}
               />
               <div
@@ -336,39 +337,50 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleFileDrop}
                 style={{
-                  border: `2px dashed ${errors.file ? T.danger : dragOver ? T.primary : file ? T.primary : T.border}`,
+                  border: `2px dashed ${errors.file ? T.danger : dragOver ? T.primary : files.length ? T.primary : T.border}`,
                   borderRadius: T.radiusLg,
-                  padding: file ? "20px 24px" : "40px 24px",
+                  padding: files.length ? "20px 24px" : "40px 24px",
                   textAlign: "center",
                   cursor: uploading ? "not-allowed" : "pointer",
-                  background: dragOver ? T.primaryLight : file ? T.primaryLight : "#FAFBFC",
+                  background: dragOver ? T.primaryLight : files.length ? T.primaryLight : "#FAFBFC",
                   transition: "all 0.2s",
                 }}
               >
-                {file ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                    <div style={{
-                      width: 44, height: 44, borderRadius: 10, background: T.primaryLight,
-                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                    }}>
-                      <Icon name="file" size={20} style={{ color: T.primary }} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {file.name}
+                {files.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, textAlign: "left", width: "100%" }}>
+                    {files.map((f, idx) => (
+                      <div key={idx} style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                        <div style={{
+                          width: 44, height: 44, borderRadius: 10, background: T.primaryLight,
+                          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                        }}>
+                          <Icon name="file" size={20} style={{ color: T.primary }} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {f.name}
+                          </div>
+                          <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 2, display: "flex", gap: 8 }}>
+                            <span>{formatSize(f.size)}</span>
+                            <span>·</span>
+                            <span>{f.type || "unknown"}</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); setFiles(prev => prev.filter((_, i) => i !== idx)); }}
+                          style={{ padding: "6px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, cursor: "pointer", fontSize: 12, color: T.danger }}
+                        >
+                          Hapus
+                        </button>
                       </div>
-                      <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 2, display: "flex", gap: 8 }}>
-                        <span>{formatSize(file.size)}</span>
-                        <span>·</span>
-                        <span>{file.type || "unknown"}</span>
-                      </div>
-                    </div>
+                    ))}
                     <button
                       type="button"
-                      onClick={e => { e.stopPropagation(); setFile(null); }}
-                      style={{ padding: "6px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, cursor: "pointer", fontSize: 12, color: T.textSecondary }}
+                      onClick={e => { e.stopPropagation(); fileRef.current.click(); }}
+                      style={{ padding: "8px 14px", borderRadius: 6, border: `1px dashed ${T.border}`, background: "transparent", cursor: "pointer", fontSize: 12, color: T.primary, fontWeight: 600, marginTop: 4 }}
                     >
-                      Ganti
+                      + Tambah File Lain
                     </button>
                   </div>
                 ) : (
@@ -378,7 +390,7 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
                       {dragOver ? "Lepaskan file di sini" : "Klik untuk pilih file atau seret ke sini"}
                     </div>
                     <div style={{ fontSize: 12, color: T.textMuted }}>
-                      PDF, DOCX, XLSX, JPG, PNG, WEBP hingga 50 MB
+                      PDF, DOCX, XLSX, JPG, PNG, WEBP · Bisa pilih lebih dari satu file
                     </div>
                   </>
                 )}

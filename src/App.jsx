@@ -219,116 +219,119 @@ export default function App() {
       return;
     }
 
-    if (!form.fileObj) return showToast("Pilih file terlebih dahulu.");
+    if (!form.fileObjs || !form.fileObjs.length) return showToast("Pilih file terlebih dahulu.");
 
     try {
-      var result;
+      var totalFiles = form.fileObjs.length;
+      var allDocs = [];
 
-      if (form.fileObj.size <= DIRECT_THRESHOLD) {
-        // ── Direct mode (base64, file < 30MB) ─────────────────────────────
-        var base64 = await new Promise(function (resolve, reject) {
-          var reader = new FileReader();
-          reader.onprogress = function (e) { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 50)); };
-          reader.onload = function () { resolve(reader.result.split(",")[1]); };
-          reader.onerror = function () { reject(new Error('Gagal membaca file')); };
-          reader.readAsDataURL(form.fileObj);
-        });
-        onProgress(50);
+      for (var fi = 0; fi < totalFiles; fi++) {
+        var fobj = form.fileObjs[fi];
+        var fileTitle = totalFiles > 1 ? form.title + " — " + fobj.name : form.title;
+        onProgress(Math.round((fi / totalFiles) * 100));
 
-        result = await gasPost({
-          action:   "direct",
-          file:     base64,
-          filename: form.fileObj.name,
-          mimeType: form.fileObj.type,
-          title:    form.title,
-          type:     form.type,
-          sector:   form.sector,
-          year:     form.year,
-          uploader: user.name,
-          bidang:   form.bidang || "",
-        });
-
-        onProgress(100);
-      } else {
-        // ── Resumable mode (chunked, file > 30MB) ─────────────────────────
-        var initResult = await gasPost({
-          action:   "initiate",
-          filename: form.fileObj.name,
-          mimeType: form.fileObj.type || "application/octet-stream",
-          fileSize: form.fileObj.size,
-        });
-
-        if (!initResult.uploadUrl) throw new Error(initResult.error || "Gagal init resumable session");
-
-        var uploadUrl = initResult.uploadUrl;
-        var total = form.fileObj.size;
-        var start = 0;
-        var driveFileId = null;
-
-        while (start < total) {
-          var end = Math.min(start + CHUNK_SIZE, total);
-          var chunk = form.fileObj.slice(start, end);
-
-          var chunkRes = await fetch(uploadUrl, {
-            method: "PUT",
-            headers: { "Content-Range": "bytes " + start + "-" + (end - 1) + "/" + total },
-            body: chunk,
+        var result;
+        if (fobj.size <= DIRECT_THRESHOLD) {
+          // ── Direct mode (base64, file < 30MB) ─────────────────────────────
+          var base64 = await new Promise(function (resolve, reject) {
+            var reader = new FileReader();
+            reader.onprogress = function (e) { if (e.lengthComputable) onProgress(Math.round(((fi + e.loaded / e.total) / totalFiles) * 100)); };
+            reader.onload = function () { resolve(reader.result.split(",")[1]); };
+            reader.onerror = function () { reject(new Error('Gagal membaca file')); };
+            reader.readAsDataURL(fobj);
           });
 
-          if (chunkRes.status === 200 || chunkRes.status === 201) {
-            var driveData = await chunkRes.json();
-            driveFileId = driveData.id;
-            onProgress(90);
-            break;
-          } else if (chunkRes.status !== 308) {
-            throw new Error("Upload chunk gagal: HTTP " + chunkRes.status);
+          result = await gasPost({
+            action:   "direct",
+            file:     base64,
+            filename: fobj.name,
+            mimeType: fobj.type,
+            title:    fileTitle,
+            type:     form.type,
+            sector:   form.sector,
+            year:     form.year,
+            uploader: user.name,
+            bidang:   form.bidang || "",
+          });
+        } else {
+          // ── Resumable mode (chunked, file > 30MB) ─────────────────────────
+          var initResult = await gasPost({
+            action:   "initiate",
+            filename: fobj.name,
+            mimeType: fobj.type || "application/octet-stream",
+            fileSize: fobj.size,
+          });
+
+          if (!initResult.uploadUrl) throw new Error(initResult.error || "Gagal init resumable session");
+
+          var uploadUrl = initResult.uploadUrl;
+          var total = fobj.size;
+          var start = 0;
+          var driveFileId = null;
+
+          while (start < total) {
+            var end = Math.min(start + CHUNK_SIZE, total);
+            var chunk = fobj.slice(start, end);
+
+            var chunkRes = await fetch(uploadUrl, {
+              method: "PUT",
+              headers: { "Content-Range": "bytes " + start + "-" + (end - 1) + "/" + total },
+              body: chunk,
+            });
+
+            if (chunkRes.status === 200 || chunkRes.status === 201) {
+              var driveData = await chunkRes.json();
+              driveFileId = driveData.id;
+              break;
+            } else if (chunkRes.status !== 308) {
+              throw new Error("Upload chunk gagal: HTTP " + chunkRes.status);
+            }
+            start = end;
           }
 
-          onProgress(Math.round((end / total) * 80));
-          start = end;
+          if (!driveFileId) throw new Error("Gagal mendapatkan file ID dari Drive");
+
+          result = await gasPost({
+            action:   "finalize",
+            fileId:   driveFileId,
+            title:    fileTitle,
+            type:     form.type,
+            sector:   form.sector,
+            year:     form.year,
+            uploader: user.name,
+            bidang:   form.bidang || "",
+          });
         }
 
-        if (!driveFileId) throw new Error("Gagal mendapatkan file ID dari Drive");
+        if (result.error) throw new Error(result.error);
 
-        result = await gasPost({
-          action:   "finalize",
-          fileId:   driveFileId,
-          title:    form.title,
-          type:     form.type,
-          sector:   form.sector,
-          year:     form.year,
-          uploader: user.name,
-          bidang:   form.bidang || "",
+        allDocs.push({
+          id:         Date.now() + fi,
+          title:      fileTitle,
+          type:       form.type,
+          sector:     form.sector,
+          year:       form.year,
+          status:     "Menunggu Review",
+          uploader:   user.name,
+          reviewedBy: "—",
+          size:       result.size || "—",
+          pages:      0,
+          uploadDate: new Date().toLocaleDateString("id-ID"),
+          desc:       form.desc || "—",
+          tags:       form.tags ? form.tags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [],
+          url:        result.fileUrl || "",
+          publik:     false,
+          bidang:     form.bidang || "",
         });
-
-        onProgress(100);
       }
 
-      if (result.error) throw new Error(result.error);
-
-      var newDoc = {
-        id:         Date.now(),
-        title:      form.title,
-        type:       form.type,
-        sector:     form.sector,
-        year:       form.year,
-        status:     "Menunggu Review",
-        uploader:   user.name,
-        reviewedBy: "—",
-        size:       result.size || "—",
-        pages:      0,
-        uploadDate: new Date().toLocaleDateString("id-ID"),
-        desc:       form.desc || "—",
-        tags:       form.tags ? form.tags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [],
-        url:        result.fileUrl || "",
-        publik:     false,
-        bidang:     form.bidang || "",
-      };
-      setDocs(function (d) { return [newDoc].concat(d); });
-      addLog("Upload dokumen", newDoc);
-      queryClient.invalidateQueries({ queryKey: ['docs'] });
-      setPage("dokumen");
-      showToast("Dokumen berhasil diunggah dan dikirim untuk review.");
+      if (allDocs.length > 0) {
+        setDocs(function (d) { return allDocs.concat(d); });
+        allDocs.forEach(function (doc) { addLog("Upload dokumen", doc); });
+        queryClient.invalidateQueries({ queryKey: ['docs'] });
+        setPage("dokumen");
+        showToast(allDocs.length + " dokumen berhasil diunggah dan dikirim untuk review.");
+      }
     } catch (err) {
       showToast("Gagal mengunggah: " + err.message);
     }
