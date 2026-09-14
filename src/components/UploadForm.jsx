@@ -244,7 +244,7 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
             </div>
 
             {/* Tags */}
-            <div style={{ gridColumn: isMobile ? "1 / -1" : "1 / -1" }}>
+            <div style={{ gridColumn: isMobile ? "1 / -1" : "auto" }}>
               <label style={labelStyle}>Tag / Kata Kunci</label>
               <input
                 value={form.tags}
@@ -259,7 +259,7 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
             </div>
 
             {/* Deskripsi */}
-            <div style={{ gridColumn: "1 / -1" }}>
+            <div style={{ gridColumn: isMobile ? "1 / -1" : "auto" }}>
               <label style={labelStyle}>Deskripsi Dokumen</label>
               <textarea
                 value={form.desc}
