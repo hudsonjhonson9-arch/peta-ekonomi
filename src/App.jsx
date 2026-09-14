@@ -269,23 +269,39 @@ export default function App() {
           var start = 0;
           var driveFileId = null;
 
+          function sliceToBase64(blob) {
+            return new Promise(function (resolve, reject) {
+              var r = new FileReader();
+              r.onload = function () { resolve(r.result.split(",")[1]); };
+              r.onerror = function () { reject(new Error('Gagal membaca chunk')); };
+              r.readAsDataURL(blob);
+            });
+          }
+
+          // ponytail: chunks uploaded THROUGH GAS (UrlFetchApp) — direct browser
+          // PUT to googleapis.com fails CORS on the final chunk (no ACAO header)
           while (start < total) {
             var end = Math.min(start + CHUNK_SIZE, total);
-            var chunk = fobj.slice(start, end);
+            var chunkB64 = await sliceToBase64(fobj.slice(start, end));
 
-            var chunkRes = await fetch(uploadUrl, {
-              method: "PUT",
-              headers: { "Content-Range": "bytes " + start + "-" + (end - 1) + "/" + total },
-              body: chunk,
+            var chunkResult = await gasPost({
+              action:      "chunk",
+              uploadUrl:   uploadUrl,
+              chunkBase64: chunkB64,
+              start:       start,
+              end:         end,
+              totalSize:   total,
+              mimeType:    fobj.type || "application/octet-stream",
             });
 
-            if (chunkRes.status === 200 || chunkRes.status === 201) {
-              var driveData = await chunkRes.json();
-              driveFileId = driveData.id;
+            if (chunkResult.status === 200 || chunkResult.status === 201) {
+              driveFileId = chunkResult.fileId;
               break;
-            } else if (chunkRes.status !== 308) {
-              throw new Error("Upload chunk gagal: HTTP " + chunkRes.status);
+            } else if (chunkResult.status !== 308) {
+              throw new Error(chunkResult.error || ("Chunk gagal: HTTP " + chunkResult.status));
             }
+
+            onProgress(Math.round((end / total) * 80));
             start = end;
           }
 

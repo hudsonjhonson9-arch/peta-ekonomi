@@ -81,6 +81,44 @@ function doPost(e) {
     }
 
     // =========================================================================
+    // TAHAP 1b: Forward chunk ke Drive API (file > 30MB)
+    // =========================================================================
+    if (action === 'chunk') {
+      if (!params.uploadUrl || !params.chunkBase64 || params.start == null || params.end == null || !params.totalSize) {
+        return res(400, { error: 'Parameter uploadUrl, chunkBase64, start, end, totalSize wajib diisi' });
+      }
+
+      var chunkBytes = Utilities.base64Decode(params.chunkBase64);
+      var chunkOpts = {
+        method: 'put',
+        contentType: params.mimeType || 'application/octet-stream',
+        headers: {
+          'Content-Range': 'bytes ' + params.start + '-' + (params.end - 1) + '/' + params.totalSize
+        },
+        payload: chunkBytes,
+        muteHttpExceptions: true
+      };
+
+      var chunkResp = UrlFetchApp.fetch(params.uploadUrl, chunkOpts);
+      var chunkStatus = chunkResp.getResponseCode();
+
+      if (chunkStatus === 200 || chunkStatus === 201) {
+        var fileJson = JSON.parse(chunkResp.getContentText());
+        return res(200, { status: chunkStatus, complete: true, fileId: fileJson.id });
+      }
+
+      if (chunkStatus === 308) {
+        return res(200, { status: chunkStatus, complete: false });
+      }
+
+      return res(500, {
+        status: chunkStatus,
+        error: 'Chunk upload gagal',
+        details: chunkResp.getContentText().substring(0, 500)
+      });
+    }
+
+    // =========================================================================
     // TAHAP 2: Finalisasi — set permission & simpan metadata ke PostgreSQL
     // =========================================================================
     if (action === 'finalize') {
