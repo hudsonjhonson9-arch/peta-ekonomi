@@ -152,18 +152,21 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
     });
   }, [docs, search, filterType, filterSector, filterBidang, filterYear, filterStatus]);
 
+  const tanpaBidangDocs = useMemo(() => {
+    return filtered.filter(d => !d.bidang);
+  }, [filtered]);
+
   const bidangFolders = useMemo(() => {
     const map = {};
     docs.forEach(d => {
-      const b = d.bidang || "Tanpa Bidang";
-      map[b] = (map[b] || 0) + 1;
+      if (d.bidang) map[d.bidang] = (map[d.bidang] || 0) + 1;
     });
     return Object.entries(map).sort((a, b) => b[1] - a[1]);
   }, [docs]);
 
   const folderDocs = useMemo(() => {
     if (!selectedBidang) return [];
-    return filtered.filter(d => (d.bidang || "Tanpa Bidang") === selectedBidang);
+    return filtered.filter(d => d.bidang === selectedBidang);
   }, [filtered, selectedBidang]);
 
   return (
@@ -295,6 +298,64 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
           <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 4 }}>Tidak ada dokumen ditemukan</div>
           <div style={{ fontSize: 13, color: T.textSecondary }}>Coba ubah kata kunci atau filter pencarian</div>
         </div>
+      )}
+
+      {/* ── GRID: Tanpa Bidang (direct docs) ── */}
+      {viewMode === "grid" && !selectedBidang && tanpaBidangDocs.length > 0 && (
+        <>
+          <div style={{ fontSize: 14, fontWeight: 600, color: T.textSecondary, marginBottom: 10, marginTop: 8 }}>Tanpa Bidang</div>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : `repeat(auto-fill, minmax(${gridSize}px, 1fr))`,
+            gap: 10,
+            marginBottom: 20,
+          }}>
+            {tanpaBidangDocs.map((d, i) => {
+              return (
+                <div
+                  key={d.id}
+                  onClick={() => onView(d)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onView(d); }}}
+                  style={{
+                    ...cardStyle,
+                    padding: isMobile ? 12 : 14,
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    animation: "fadeIn 0.3s ease forwards",
+                    animationDelay: `${i * 30}ms`,
+                    opacity: 0,
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+                    e.currentTarget.style.borderColor = T.borderHover;
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.boxShadow = T.shadowSm;
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.transform = "translateY(0)";
+                  }}
+                  onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
+                  onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
+                >
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: T.primaryLight, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Icon name="file" size={18} style={{ color: T.primary }} />
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 600, color: T.text, lineHeight: 1.3, marginBottom: 4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                        {d.title}
+                      </div>
+                      <div style={{ fontSize: 11, color: T.textSecondary }}>{d.type}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* ── GRID: Folder Level ── */}
@@ -463,6 +524,61 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
           <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginTop: 12, marginBottom: 4 }}>Tidak ada dokumen</div>
           <div style={{ fontSize: 13, color: T.textSecondary }}>di bidang ini</div>
         </div>
+      )}
+
+      {/* ── LIST: Tanpa Bidang (direct docs) ── */}
+      {viewMode === "list" && !selectedBidang && tanpaBidangDocs.length > 0 && (
+        <>
+          <div style={{ fontSize: 14, fontWeight: 600, color: T.textSecondary, marginBottom: 6, marginTop: 8 }}>Tanpa Bidang</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
+            {tanpaBidangDocs.map((d, i) => {
+              return (
+                <div
+                  key={d.id}
+                  onClick={() => onView(d)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onView(d); }}}
+                  style={{
+                    ...cardStyle,
+                    padding: isMobile ? "12px 14px" : "14px 18px",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 14,
+                    animation: "fadeIn 0.3s ease forwards",
+                    animationDelay: `${i * 30}ms`,
+                    opacity: 0,
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+                    e.currentTarget.style.borderColor = T.borderHover;
+                    e.currentTarget.style.transform = "translateY(-1px)";
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.boxShadow = T.shadowSm;
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.transform = "translateY(0)";
+                  }}
+                  onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
+                  onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
+                >
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: T.primaryLight, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon name="file" size={18} style={{ color: T.primary }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.title}</div>
+                    <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 2 }}>{d.type} · {d.sector}</div>
+                  </div>
+                  <div style={{ flexShrink: 0 }}>
+                    <StatusBadge status={d.status} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* ── LIST: Folder Level ── */}
