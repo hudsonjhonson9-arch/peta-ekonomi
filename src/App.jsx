@@ -221,9 +221,21 @@ export default function App() {
 
     if (!form.fileObjs || !form.fileObjs.length) return showToast("Pilih file terlebih dahulu.");
 
+    var groupMode = form.fileObjs.length > 1;
+    var folderId = null;
+    var folderUrl = null;
+
     try {
       var totalFiles = form.fileObjs.length;
       var allDocs = [];
+      var groupFiles = [];
+
+      if (groupMode) {
+        var folderRes = await gasPost({ action: "createFolder", folderName: form.title });
+        if (folderRes.error || !folderRes.folderId) throw new Error(folderRes.error || "Gagal membuat folder Drive");
+        folderId = folderRes.folderId;
+        folderUrl = folderRes.folderUrl;
+      }
 
       for (var fi = 0; fi < totalFiles; fi++) {
         var fobj = form.fileObjs[fi];
@@ -252,6 +264,8 @@ export default function App() {
             year:     form.year,
             uploader: user.name,
             bidang:   form.bidang || "",
+            folderId: groupMode ? folderId : undefined,
+            group:    groupMode,
           });
         } else {
           // ── Resumable mode (chunked, file > 30MB) ─────────────────────────
@@ -260,6 +274,7 @@ export default function App() {
             filename: fobj.name,
             mimeType: fobj.type || "application/octet-stream",
             fileSize: fobj.size,
+            folderId: groupMode ? folderId : undefined,
           });
 
           if (!initResult.uploadUrl) throw new Error(initResult.error || "Gagal init resumable session");
@@ -327,10 +342,16 @@ export default function App() {
             year:     form.year,
             uploader: user.name,
             bidang:   form.bidang || "",
+            group: groupMode,
           });
         }
 
         if (result.error) throw new Error(result.error);
+
+        if (groupMode) {
+          groupFiles.push({ name: fobj.name, url: result.fileUrl, size: fobj.size });
+          continue;
+        }
 
         allDocs.push({
           id:         Date.now() + fi,
@@ -350,6 +371,47 @@ export default function App() {
           publik:     false,
           bidang:     form.bidang || "",
         });
+      }
+
+      if (groupMode) {
+        var reg = await gasPost({
+          action:    "registerFolder",
+          title:     form.title,
+          type:      form.type,
+          sector:    form.sector,
+          year:      form.year,
+          uploader:  user.name,
+          bidang:    form.bidang || "",
+          folderUrl: folderUrl,
+          files:     groupFiles,
+        });
+        if (reg.error) throw new Error(reg.error);
+
+        var folderDoc = {
+          id:         Date.now(),
+          title:      form.title,
+          type:       form.type,
+          sector:     form.sector,
+          year:       form.year,
+          status:     "Menunggu Review",
+          uploader:   user.name,
+          reviewedBy: "—",
+          size:       reg.ukuran || "—",
+          pages:      0,
+          uploadDate: new Date().toLocaleDateString("id-ID"),
+          desc:       form.desc || "—",
+          tags:       form.tags ? form.tags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [],
+          url:        reg.url || folderUrl,
+          publik:     false,
+          bidang:     form.bidang || "",
+          files:      groupFiles,
+        };
+        setDocs(function (d) { return [folderDoc].concat(d); });
+        addLog("Upload dokumen", folderDoc);
+        queryClient.invalidateQueries({ queryKey: ['docs'] });
+        setPage("dokumen");
+        showToast("Folder " + form.title + " (" + groupFiles.length + " file) berhasil diunggah dan dikirim untuk review.");
+        return;
       }
 
       if (allDocs.length > 0) {
