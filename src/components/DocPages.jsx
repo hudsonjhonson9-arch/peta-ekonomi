@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Icon, Badge, GoogleDriveEmbed, isGDriveUrl } from "./ui.jsx";
+import { Icon, Badge, GoogleDriveEmbed, isGDriveUrl, formatBytes } from "./ui.jsx";
 import { YEARS, STATUS_LIST, STATUS_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
 
@@ -311,6 +311,7 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
             marginBottom: 20,
           }}>
             {tanpaBidangDocs.map((d, i) => {
+              const isFolder = Array.isArray(d.files) && d.files.length > 0;
               return (
                 <div
                   key={d.id}
@@ -342,13 +343,15 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
                 >
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                     <div style={{ width: 36, height: 36, borderRadius: 10, background: T.primaryLight, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <Icon name="file" size={18} style={{ color: T.primary }} />
+                      <Icon name={isFolder ? "folder" : "file"} size={18} style={{ color: T.primary }} />
                     </div>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 600, color: T.text, lineHeight: 1.3, marginBottom: 4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                         {d.title}
                       </div>
-                      <div style={{ fontSize: 11, color: T.textSecondary }}>{d.type}</div>
+                      <div style={{ fontSize: 11, color: T.textSecondary }}>
+                        {isFolder ? `${d.files.length} file dalam folder` : d.type}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -445,6 +448,7 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
           gap: 10,
         }}>
           {folderDocs.map((d, i) => {
+            const isFolder = Array.isArray(d.files) && d.files.length > 0;
             return (
               <div
                 key={d.id}
@@ -485,7 +489,7 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
                   justifyContent: "center",
                   marginBottom: 10,
                 }}>
-                  <Icon name="file" size={16} style={{ color: getBidangColor(d.bidang).text }} />
+                  <Icon name={isFolder ? "folder" : "file"} size={16} style={{ color: getBidangColor(d.bidang).text }} />
                 </div>
                 {/* Title */}
                 <div style={{
@@ -504,7 +508,7 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
                 </div>
                 {/* Meta */}
                 <div style={{ fontSize: 11, color: T.textSecondary, marginBottom: 8 }}>
-                  {d.sector} · {d.year}
+                  {isFolder ? `${d.files.length} file · ${d.sector} · ${d.year}` : `${d.sector} · ${d.year}`}
                 </div>
                 {/* Footer */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTop: `1px solid ${T.border}` }}>
@@ -819,6 +823,38 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
               ))}
             </div>
           </div>
+
+          {/* File dalam Folder */}
+          {Array.isArray(doc.files) && doc.files.length > 0 && (
+            <div style={{ ...cardStyle, padding: isMobile ? 20 : 28 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 16px", display: "flex", alignItems: "center", gap: 8 }}>
+                <Icon name="folder" size={16} style={{ color: T.primary }} />
+                File dalam Folder
+              </h2>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {doc.files.map(f => (
+                  <a
+                    key={f.url}
+                    href={f.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "10px 12px", background: T.bg, borderRadius: T.radius,
+                      border: `1px solid ${T.border}`, textDecoration: "none",
+                      color: "inherit", transition: "all 0.15s",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = T.primary; e.currentTarget.style.boxShadow = T.focusRing; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
+                  >
+                    <Icon name="file" size={15} style={{ color: T.primary, flexShrink: 0 }} />
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
+                    <span style={{ fontSize: 11, color: T.textMuted, flexShrink: 0 }}>{formatBytes(f.size)}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Approval Panel */}
           {canApprove && (
