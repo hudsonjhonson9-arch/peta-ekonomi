@@ -13,7 +13,7 @@
  */
 
 var DRIVE_FOLDER_ID = '1yJXskcIfVjH-X7HWQh0b-BgnmTimkNQs';
-var API_BASE_URL    = 'https://peta-ekonomi.mindcloud.my.id'; // Root domain, GAS akan nambah /api/docs
+var API_BASE_URL    = 'https://arsipdigital.mindcloud.my.id'; // Root domain, GAS akan nambah /api/docs
 var API_KEY         = ''; // Optional, cocokkan dengan UPLOAD_API_KEY di .env
 
 function doPost(e) {

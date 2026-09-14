@@ -228,6 +228,9 @@ export default function App() {
         var xhr = new XMLHttpRequest();
         xhr.open('POST', gasUrl);
         xhr.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
+        xhr.upload.onprogress = function (e) {
+          if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+        };
         xhr.onload = function () {
           onProgress(100);
           try { resolve(JSON.parse(xhr.responseText)); }
