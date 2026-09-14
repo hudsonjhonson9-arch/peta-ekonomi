@@ -207,7 +207,10 @@ export default function App() {
 
       var reader = new FileReader();
       var base64 = await new Promise(function (resolve, reject) {
-        reader.onload  = function () { resolve(reader.result.split(",")[1]); };
+        reader.onprogress = function (e) {
+          if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 50));
+        };
+        reader.onload  = function () { onProgress(50); resolve(reader.result.split(",")[1]); };
         reader.onerror = reject;
         reader.readAsDataURL(form.fileObj);
       });
@@ -229,7 +232,7 @@ export default function App() {
         xhr.open('POST', gasUrl);
         xhr.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
         xhr.upload.onprogress = function (e) {
-          if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+          if (e.lengthComputable) onProgress(50 + Math.round((e.loaded / e.total) * 50));
         };
         xhr.onload = function () {
           onProgress(100);
