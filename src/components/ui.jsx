@@ -61,14 +61,30 @@ export function extractGDriveFileId(url) {
   return null;
 }
 
+export function extractGDriveFolderId(url) {
+  if (!url) return null;
+  const m = url.match(/\/folders\/([A-Za-z0-9_-]+)/);
+  return m ? m[1] : null;
+}
+
 export function isGDriveUrl(url) {
   return url && /drive\.google\.com/.test(url);
 }
 
+export function formatBytes(bytes) {
+  if (!bytes) return "—";
+  return bytes > 1048576
+    ? (bytes / 1048576).toFixed(1) + ' MB'
+    : (bytes / 1024).toFixed(0) + ' KB';
+}
+
 export function GoogleDriveEmbed({ url, title, onClose }) {
+  const folderId = extractGDriveFolderId(url);
   const fileId = extractGDriveFileId(url);
-  if (!fileId) return null;
-  const embedUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+  if (!folderId && !fileId) return null;
+  const embedUrl = folderId
+    ? `https://drive.google.com/embeddedfolderview?id=${folderId}#list`
+    : `https://drive.google.com/file/d/${fileId}/preview`;
 
   return (
     <div
