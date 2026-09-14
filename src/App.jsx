@@ -284,15 +284,26 @@ export default function App() {
             var end = Math.min(start + CHUNK_SIZE, total);
             var chunkB64 = await sliceToBase64(fobj.slice(start, end));
 
-            var chunkResult = await gasPost({
-              action:      "chunk",
-              uploadUrl:   uploadUrl,
-              chunkBase64: chunkB64,
-              start:       start,
-              end:         end,
-              totalSize:   total,
-              mimeType:    fobj.type || "application/octet-stream",
-            });
+            // ponytail: GAS echo-token occasionally expires mid-upload and the
+            // 302 redirect falls through to doGet() (plain text, not JSON). A
+            // resumable session is idempotent for overlapping ranges, so a
+            // bound retry is safe.
+            var chunkResult = null;
+            for (var attempt = 0; attempt < 3 && !chunkResult; attempt++) {
+              try {
+                chunkResult = await gasPost({
+                  action:      "chunk",
+                  uploadUrl:   uploadUrl,
+                  chunkBase64: chunkB64,
+                  start:       start,
+                  end:         end,
+                  totalSize:   total,
+                  mimeType:    fobj.type || "application/octet-stream",
+                });
+              } catch (_) {
+                if (attempt === 2) throw _;
+              }
+            }
 
             if (chunkResult.status === 200 || chunkResult.status === 201) {
               driveFileId = chunkResult.fileId;
