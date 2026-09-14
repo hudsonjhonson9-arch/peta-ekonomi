@@ -4,8 +4,6 @@ import dotenv  from 'dotenv';
 import pg      from 'pg';
 import bcrypt from 'bcryptjs';
 import path    from 'path';
-import fs      from 'fs';
-import multer  from 'multer';
 import { fileURLToPath } from 'url';
 
 dotenv.config();
@@ -16,19 +14,6 @@ const isProd    = process.env.NODE_ENV === 'production';
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
-
-// ── File upload (direct, bypass GAS) ──────────────────────────────────────
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
-  filename: (_req, file, cb) => {
-    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, unique + path.extname(file.originalname));
-  }
-});
-const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
 
 // ── Static files (production) ─────────────────────────────────────────────
 // Di production Coolify, Express serve hasil build React dari /dist
@@ -169,43 +154,6 @@ app.post('/api/docs', async (req, res) => {
     res.status(500).json({ error: 'Gagal menyimpan dokumen' });
   }
 });
-
-// Direct file upload (no GAS)
-app.post('/api/docs/upload', upload.single('file'), async (req, res) => {
-  if (process.env.UPLOAD_API_KEY) {
-    const key = req.headers['x-upload-key'];
-    if (!key || key !== process.env.UPLOAD_API_KEY)
-      return res.status(403).json({ error: 'Forbidden: invalid upload key' });
-  }
-
-  const { title, type, sector, year, uploader, bidang, tags, desc } = req.body;
-  const file = req.file;
-  if (!file) return res.status(400).json({ error: 'File tidak ditemukan' });
-
-  const fileUrl = `/api/docs/files/${file.filename}`;
-  const fileSize = file.size > 1048576
-    ? (file.size / 1048576).toFixed(1) + ' MB'
-    : (file.size / 1024).toFixed(1) + ' KB';
-
-  try {
-    const result = await pool.query(
-      `INSERT INTO bapperida_dokumen (judul, kategori, tipe, tahun, tanggal, ukuran, url, created_at, bidang)
-       VALUES ($1, $2, $3, $4, NOW(), $5, $6, NOW(), $7) RETURNING *`,
-      [title, type, sector, year || new Date().getFullYear(), fileSize, fileUrl, bidang || '']
-    );
-    await pool.query(
-      `INSERT INTO audit_logs (user_name, action, doc_title) VALUES ($1, $2, $3)`,
-      [uploader || 'System', 'Upload dokumen', title]
-    );
-    res.json({ message: 'Dokumen berhasil diunggah', doc: result.rows[0], fileUrl, size: fileSize });
-  } catch (err) {
-    console.error('Upload error:', err);
-    res.status(500).json({ error: 'Gagal menyimpan dokumen' });
-  }
-});
-
-// Serve uploaded files
-app.use('/api/docs/files', express.static(uploadsDir));
 
 app.patch('/api/docs/:id/status', async (req, res) => {
   const { status } = req.body;

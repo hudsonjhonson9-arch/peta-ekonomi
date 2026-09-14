@@ -201,59 +201,72 @@ export default function App() {
 
     if (!form.fileObj) return showToast("Pilih file terlebih dahulu.");
 
-    try {
-      var formData = new FormData();
-      formData.append('file', form.fileObj);
-      formData.append('title', form.title);
-      formData.append('type', form.type);
-      formData.append('sector', form.sector);
-      formData.append('year', form.year);
-      formData.append('uploader', user.name);
-      formData.append('bidang', form.bidang || '');
-      formData.append('tags', form.tags || '');
-      formData.append('desc', form.desc || '');
+    var GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyjrDE_5NnsTsKSyRvEwLLMJH3lWeGsg7jpM44btardExAFX1Vxvp246pazjQdH4UL5/exec";
+    var API_BASE_URL = "https://arsipdigital.mindcloud.my.id";
 
-      var data = await new Promise(function (resolve, reject) {
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', '/api/docs/upload');
-        xhr.upload.onprogress = function (e) {
-          if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
-        };
-        xhr.onload = function () {
-          onProgress(100);
-          try { resolve(JSON.parse(xhr.responseText)); }
-          catch (_) { resolve({}); }
-        };
-        xhr.onerror = function () { reject(new Error('Network error')); };
-        xhr.send(formData);
-      });
+    var reader = new FileReader();
+    reader.onprogress = function (e) {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 50));
+    };
+    reader.onload = async function () {
+      try {
+        var base64 = reader.result.split(",")[1];
+        onProgress(50);
 
-      var newDoc = {
-        id:         Date.now(),
-        title:      form.title,
-        type:       form.type,
-        sector:     form.sector,
-        year:       form.year,
-        status:     "Menunggu Review",
-        uploader:   user.name,
-        reviewedBy: "—",
-        size:       data.size || "—",
-        pages:      0,
-        uploadDate: new Date().toLocaleDateString("id-ID"),
-        desc:       form.desc || "—",
-        tags:       form.tags ? form.tags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [],
-        url:        data.fileUrl || "",
-        publik:     false,
-        bidang:     form.bidang || "",
-      };
-      setDocs(function (d) { return [newDoc].concat(d); });
-      addLog("Upload dokumen", newDoc);
-      queryClient.invalidateQueries({ queryKey: ['docs'] });
-      setPage("dokumen");
-      showToast("Dokumen berhasil diunggah dan dikirim untuk review.");
-    } catch (err) {
-      showToast("Gagal mengunggah: " + err.message);
-    }
+        var payload = {
+          action: "uploadFile",
+          fileName: form.fileObj.name,
+          mimeType: form.fileObj.type,
+          fileBase64: base64,
+          title: form.title,
+          type: form.type,
+          sector: form.sector,
+          year: form.year,
+          uploader: user.name,
+          desc: form.desc || "",
+          bidang: form.bidang || "",
+          tags: form.tags || "",
+          callbackUrl: API_BASE_URL,
+        };
+
+        var resp = await fetch(GAS_WEBAPP_URL, {
+          method: "POST",
+          body: JSON.stringify(payload),
+          redirect: "follow",
+        });
+        var result = await resp.json();
+
+        if (!result.success) throw new Error(result.error || "Gagal upload ke GAS");
+
+        var newDoc = {
+          id:         Date.now(),
+          title:      form.title,
+          type:       form.type,
+          sector:     form.sector,
+          year:       form.year,
+          status:     "Menunggu Review",
+          uploader:   user.name,
+          reviewedBy: "—",
+          size:       result.size || "—",
+          pages:      0,
+          uploadDate: new Date().toLocaleDateString("id-ID"),
+          desc:       form.desc || "—",
+          tags:       form.tags ? form.tags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [],
+          url:        result.url || "",
+          publik:     false,
+          bidang:     form.bidang || "",
+        };
+        setDocs(function (d) { return [newDoc].concat(d); });
+        addLog("Upload dokumen", newDoc);
+        queryClient.invalidateQueries({ queryKey: ['docs'] });
+        setPage("dokumen");
+        showToast("Dokumen berhasil diunggah dan dikirim untuk review.");
+      } catch (err) {
+        showToast("Gagal mengunggah: " + err.message);
+      }
+      onProgress(100);
+    };
+    reader.readAsDataURL(form.fileObj);
   };
 
   // ── Not logged in ─────────────────────────────────────────────────────────
