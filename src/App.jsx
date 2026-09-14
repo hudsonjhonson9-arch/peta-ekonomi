@@ -202,37 +202,22 @@ export default function App() {
     if (!form.fileObj) return showToast("Pilih file terlebih dahulu.");
 
     try {
-      var gasUrl = import.meta.env.VITE_GAS_WEBAPP_URL;
-      if (!gasUrl) { showToast("GAS_URL belum dikonfigurasi"); return; }
-
-      var reader = new FileReader();
-      var base64 = await new Promise(function (resolve, reject) {
-        reader.onprogress = function (e) {
-          if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 50));
-        };
-        reader.onload  = function () { onProgress(50); resolve(reader.result.split(",")[1]); };
-        reader.onerror = reject;
-        reader.readAsDataURL(form.fileObj);
-      });
-
-      var payload = JSON.stringify({
-        file:     base64,
-        filename: form.fileObj.name,
-        mimeType: form.fileObj.type,
-        title:    form.title,
-        type:     form.type,
-        sector:   form.sector,
-        year:     form.year,
-        uploader: user.name,
-        bidang:   form.bidang || "",
-      });
+      var formData = new FormData();
+      formData.append('file', form.fileObj);
+      formData.append('title', form.title);
+      formData.append('type', form.type);
+      formData.append('sector', form.sector);
+      formData.append('year', form.year);
+      formData.append('uploader', user.name);
+      formData.append('bidang', form.bidang || '');
+      formData.append('tags', form.tags || '');
+      formData.append('desc', form.desc || '');
 
       var data = await new Promise(function (resolve, reject) {
         var xhr = new XMLHttpRequest();
-        xhr.open('POST', gasUrl);
-        xhr.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
+        xhr.open('POST', '/api/docs/upload');
         xhr.upload.onprogress = function (e) {
-          if (e.lengthComputable) onProgress(50 + Math.round((e.loaded / e.total) * 50));
+          if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
         };
         xhr.onload = function () {
           onProgress(100);
@@ -240,7 +225,7 @@ export default function App() {
           catch (_) { resolve({}); }
         };
         xhr.onerror = function () { reject(new Error('Network error')); };
-        xhr.send(payload);
+        xhr.send(formData);
       });
 
       var newDoc = {
@@ -252,13 +237,14 @@ export default function App() {
         status:     "Menunggu Review",
         uploader:   user.name,
         reviewedBy: "—",
-        size:       form.fileObj.size ? (form.fileObj.size / 1048576).toFixed(1) + " MB" : "—",
+        size:       data.size || "—",
         pages:      0,
         uploadDate: new Date().toLocaleDateString("id-ID"),
         desc:       form.desc || "—",
         tags:       form.tags ? form.tags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [],
         url:        data.fileUrl || "",
         publik:     false,
+        bidang:     form.bidang || "",
       };
       setDocs(function (d) { return [newDoc].concat(d); });
       addLog("Upload dokumen", newDoc);
