@@ -131,7 +131,7 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
   const requiredMark = { color: T.danger, marginLeft: 2 };
 
   return (
-    <div style={{ fontFamily: T.font, background: T.bg, minHeight: "100vh", padding: isMobile ? 16 : "28px 36px" }}>
+    <div style={{ fontFamily: T.font, background: T.bg, minHeight: "100vh", padding: isMobile ? "12px 16px 16px" : "20px 36px 28px" }}>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, color: T.text, letterSpacing: "-0.01em" }}>
@@ -286,37 +286,38 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
           </div>
 
           {/* Mode Toggle */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-            <button
-              type="button"
-              onClick={() => setInputMode("file")}
-              style={{
-                flex: 1, padding: "11px 16px", borderRadius: T.radius, fontSize: 13, fontWeight: 600,
-                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                transition: "all 0.15s",
-                background: inputMode === "file" ? T.primaryLight : T.card,
-                color: inputMode === "file" ? T.primary : T.textSecondary,
-                border: `1.5px solid ${inputMode === "file" ? T.primary : T.border}`,
-                boxShadow: inputMode === "file" ? `0 0 0 3px ${T.primaryRing}` : "none",
-              }}
-            >
-              <Icon name="upload" size={16} /> Upload File
-            </button>
-            <button
-              type="button"
-              onClick={() => setInputMode("gdrive")}
-              style={{
-                flex: 1, padding: "11px 16px", borderRadius: T.radius, fontSize: 13, fontWeight: 600,
-                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                transition: "all 0.15s",
-                background: inputMode === "gdrive" ? T.successBg : T.card,
-                color: inputMode === "gdrive" ? T.success : T.textSecondary,
-                border: `1.5px solid ${inputMode === "gdrive" ? T.success : T.border}`,
-                boxShadow: inputMode === "gdrive" ? `0 0 0 3px rgba(5,150,105,0.15)` : "none",
-              }}
-            >
-              <Icon name="link" size={16} /> Link Google Drive
-            </button>
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>Metode Unggah</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => setInputMode("file")}
+                style={{
+                  flex: 1, padding: isMobile ? "10px 10px" : "10px 14px", borderRadius: T.radius, fontSize: 13, fontWeight: 600,
+                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                  transition: "all 0.15s",
+                  background: inputMode === "file" ? T.primaryLight : T.card,
+                  color: inputMode === "file" ? T.primary : T.textSecondary,
+                  border: `1.5px solid ${inputMode === "file" ? T.primary : T.border}`,
+                }}
+              >
+                <Icon name="upload" size={15} /> Upload File dari Komputer
+              </button>
+              <button
+                type="button"
+                onClick={() => setInputMode("gdrive")}
+                style={{
+                  flex: 1, padding: isMobile ? "10px 10px" : "10px 14px", borderRadius: T.radius, fontSize: 13, fontWeight: 600,
+                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                  transition: "all 0.15s",
+                  background: inputMode === "gdrive" ? T.successBg : T.card,
+                  color: inputMode === "gdrive" ? T.success : T.textSecondary,
+                  border: `1.5px solid ${inputMode === "gdrive" ? T.success : T.border}`,
+                }}
+              >
+                <Icon name="link" size={15} /> Link Google Drive
+              </button>
+            </div>
           </div>
 
           {inputMode === "file" ? (
@@ -339,7 +340,7 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
                 style={{
                   border: `2px dashed ${errors.file ? T.danger : dragOver ? T.primary : files.length ? T.primary : T.border}`,
                   borderRadius: T.radiusLg,
-                  padding: files.length ? "20px 24px" : "40px 24px",
+                  padding: files.length ? "20px 24px" : "24px 24px",
                   textAlign: "center",
                   cursor: uploading ? "not-allowed" : "pointer",
                   background: dragOver ? T.primaryLight : files.length ? T.primaryLight : "#FAFBFC",
@@ -385,11 +386,25 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
                   </div>
                 ) : (
                   <>
-                    <Icon name="upload" size={32} style={{ color: dragOver ? T.primary : T.textMuted, marginBottom: 10 }} />
-                    <div style={{ fontSize: 14, fontWeight: 600, color: dragOver ? T.primary : T.textSecondary, marginBottom: 4 }}>
-                      {dragOver ? "Lepaskan file di sini" : "Klik untuk pilih file atau seret ke sini"}
+                    <Icon name="upload" size={30} style={{ color: dragOver ? T.primary : T.textMuted, marginBottom: 12 }} />
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); fileRef.current.click(); }}
+                      style={{
+                        background: T.primary, color: "#fff", border: "none", borderRadius: T.radius,
+                        padding: "11px 26px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+                        fontFamily: T.font, display: "flex", alignItems: "center", gap: 8, margin: "0 auto",
+                        boxShadow: "0 1px 3px rgba(37,99,235,0.3)",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = T.primaryHover; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = T.primary; }}
+                    >
+                      <Icon name="upload" size={16} /> Pilih File
+                    </button>
+                    <div style={{ fontSize: 13, color: dragOver ? T.primary : T.textSecondary, marginTop: 12, fontWeight: 500 }}>
+                      {dragOver ? "Lepaskan file di sini" : "atau seret file ke kotak ini"}
                     </div>
-                    <div style={{ fontSize: 12, color: T.textMuted }}>
+                    <div style={{ fontSize: 12, color: T.textMuted, marginTop: 4 }}>
                       PDF, DOCX, XLSX, JPG, PNG, WEBP · Bisa pilih lebih dari satu file
                     </div>
                   </>

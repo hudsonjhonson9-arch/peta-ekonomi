@@ -442,7 +442,7 @@ export default function App() {
         </div>
 
         {/* Main */}
-        <div style={{ flex: 1, padding: isMobile ? 14 : 24, overflowY: "auto" }}>
+        <div style={{ flex: 1, padding: isMobile ? "10px 14px 14px" : "14px 24px 24px", overflowY: "auto" }}>
           {page === "dashboard" && !viewDoc && (
             <Dashboard docs={docs} onNav={goPage} sectors={sectors} categories={categories} />
           )}
