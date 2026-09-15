@@ -743,6 +743,8 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
     (user.role === "Reviewer" || user.role === "Admin") &&
     (doc.status === "Menunggu Review" || doc.status === "Menunggu Persetujuan");
 
+  const canEdit = user.role === "Admin" || doc.status !== "Diarsipkan";
+
   const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(doc.title) || (doc.url && /\.(jpg|jpeg|png|gif|webp)/i.test(doc.url));
   const canEmbed = isGDriveUrl(doc.url);
 
@@ -832,7 +834,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
               <Icon name="world" size={14} /> {doc.publik ? "✓ Dipublikasikan" : "Publikasikan"}
             </button>
           )}
-          {user.role === "Admin" && (
+          {canEdit && (
             <>
               <button onClick={() => {
                 setEditForm({ judul: doc.title || doc.judul, kategori: doc.sector || doc.kategori, tipe: doc.type || doc.tipe, bidang: doc.bidang || "" });
