@@ -169,6 +169,43 @@ export default function App() {
     showToast(newPublik ? "Dokumen berhasil dipublikasikan ke portal publik." : "Dokumen dihapus dari portal publik.");
   };
 
+  const handleDelete = async doc => {
+    if (!window.confirm(`Hapus dokumen "${doc.title}"?`)) return;
+    try {
+      const res = await api(`/api/docs/${doc.id}`, "DELETE", { user: user.name });
+      // Clean up Drive files if Apps Script supports it
+      try {
+        var GAS_URL = "https://script.google.com/macros/s/AKfycbyjrDE_5NnsTsKSyRvEwLLMJH3lWeGsg7jpM44btardExAFX1Vxvp246pazjQdH4UL5/exec";
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', GAS_URL, true);
+        xhr.timeout = 30000;
+        xhr.send(JSON.stringify({ action: "deleteFile", fileId: doc.url }));
+      } catch (_) { /* Drive cleanup best-effort */ }
+      setDocs(d => d.filter(x => x.id !== doc.id));
+      queryClient.invalidateQueries({ queryKey: ['docs'] });
+      setViewDoc(null);
+      setPage("dokumen");
+      showToast("Dokumen berhasil dihapus.");
+    } catch (err) {
+      showToast("Gagal menghapus dokumen.");
+    }
+  };
+
+  const handleEdit = async (doc, updates) => {
+    try {
+      const res = await api(`/api/docs/${doc.id}`, "PUT", { ...updates, user: user.name });
+      if (res.doc) {
+        setDocs(d => d.map(x => x.id === doc.id ? { ...x, ...res.doc } : x));
+      }
+      queryClient.invalidateQueries({ queryKey: ['docs'] });
+      showToast("Dokumen berhasil diperbarui.");
+      return true;
+    } catch (err) {
+      showToast("Gagal memperbarui dokumen.");
+      return false;
+    }
+  };
+
   const handleUpload = async (form, onProgress) => {
     var GAS_URL = "https://script.google.com/macros/s/AKfycbyjrDE_5NnsTsKSyRvEwLLMJH3lWeGsg7jpM44btardExAFX1Vxvp246pazjQdH4UL5/exec";
     var DIRECT_THRESHOLD = 30 * 1024 * 1024;
@@ -520,7 +557,12 @@ export default function App() {
               onDownload={handleDownload}
               onPreview={handlePreview}
               onTogglePublik={handleTogglePublik}
+              onDelete={handleDelete}
+              onEdit={handleEdit}
               user={user}
+              categories={categories}
+              sectors={sectors}
+              bidangs={bidangs}
             />
           )}
           {page === "upload" && (

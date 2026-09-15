@@ -732,10 +732,12 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
 
 // ─── DETAIL DOKUMEN ───────────────────────────────────────────────────────────
 
-export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPreview, onTogglePublik, user }) {
+export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPreview, onTogglePublik, onDelete, onEdit, user, categories = [], sectors = [], bidangs = [] }) {
   const { isMobile } = useResponsive();
   const [catatan, setCatatan] = useState("");
   const [showEmbed, setShowEmbed] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ judul: "", kategori: "", tipe: "", bidang: "" });
 
   const canApprove =
     (user.role === "Reviewer" || user.role === "Admin") &&
@@ -807,18 +809,11 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
             <Icon name="download" size={15} /> Unduh
           </button>
           {canEmbed && (
-            <>
-              <button onClick={() => setShowEmbed(true)} style={{ ...btnBase, padding: "10px 16px", background: T.success, color: "#fff", fontSize: 13, fontWeight: 600, boxShadow: "0 1px 3px rgba(5,150,105,0.3)" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#047857"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(5,150,105,0.35)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = T.success; e.currentTarget.style.boxShadow = "0 1px 3px rgba(5,150,105,0.3)"; }}>
-                <Icon name="eye" size={15} /> Lihat Dokumen
-              </button>
-              <a href={doc.url} target="_blank" rel="noopener noreferrer" style={{ ...btnBase, padding: "10px 16px", background: T.successBg, color: T.success, fontSize: 13, fontWeight: 600, border: `1.5px solid ${T.successBorder}`, textDecoration: "none" }}
-                onMouseEnter={e => { e.currentTarget.style.background = T.successHover; e.currentTarget.style.borderColor = "#6EE7B7"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = T.successBg; e.currentTarget.style.borderColor = T.successBorder; }}>
-                <Icon name="external-link" size={14} /> Tab Baru
-              </a>
-            </>
+            <a href={doc.url} target="_blank" rel="noopener noreferrer" style={{ ...btnBase, padding: "10px 16px", background: T.successBg, color: T.success, fontSize: 13, fontWeight: 600, border: `1.5px solid ${T.successBorder}`, textDecoration: "none" }}
+              onMouseEnter={e => { e.currentTarget.style.background = T.successHover; e.currentTarget.style.borderColor = "#6EE7B7"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = T.successBg; e.currentTarget.style.borderColor = T.successBorder; }}>
+              <Icon name="external-link" size={14} /> Tab Baru
+            </a>
           )}
           {!canEmbed && (
             <button onClick={() => onPreview && onPreview(doc)} style={{ ...btnBase, padding: "10px 16px", background: "#F1F5F9", color: T.textSecondary, fontSize: 13 }}>
@@ -837,14 +832,31 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
               <Icon name="world" size={14} /> {doc.publik ? "✓ Dipublikasikan" : "Publikasikan"}
             </button>
           )}
+          {user.role === "Admin" && (
+            <>
+              <button onClick={() => {
+                setEditForm({ judul: doc.title || doc.judul, kategori: doc.sector || doc.kategori, tipe: doc.type || doc.tipe, bidang: doc.bidang || "" });
+                setEditing(true);
+              }} style={{ ...btnBase, padding: "10px 16px", fontSize: 13, background: "#F1F5F9", color: T.textSecondary, border: `1.5px solid ${T.border}` }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#E2E8F0"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#F1F5F9"; }}>
+                <Icon name="edit" size={14} /> Edit
+              </button>
+              <button onClick={() => onDelete && onDelete(doc)} style={{ ...btnBase, padding: "10px 16px", fontSize: 13, background: T.dangerBg, color: T.danger, border: `1.5px solid ${T.dangerBorder}` }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#FEE2E2"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; }}>
+                <Icon name="trash" size={14} /> Hapus
+              </button>
+            </>
+          )}
         </div>
       </div>
 
       {/* Main Content: Preview + Metadata */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 20, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 20, alignItems: "stretch" }}>
         {/* ── Preview Pane ── */}
         {canEmbed && doc.url && (
-          <div style={{ ...cardStyle, overflow: "hidden" }}>
+          <div style={{ ...cardStyle, overflow: "hidden", display: "flex", flexDirection: "column" }}>
             <iframe
               src={(() => {
                 const fid = extractGDriveFolderId(doc.url);
@@ -853,7 +865,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
                   : `https://drive.google.com/file/d/${extractGDriveFileId(doc.url)}/preview`;
               })()}
               title={doc.title}
-              style={{ width: "100%", height: isMobile ? 300 : 520, border: "none", borderRadius: `${T.radius}px ${T.radius}px 0 0` }}
+              style={{ width: "100%", flex: 1, minHeight: 500, border: "none", borderRadius: `${T.radius}px ${T.radius}px 0 0` }}
               allow="autoplay"
             />
           </div>
@@ -957,6 +969,51 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
           title={doc.title}
           onClose={() => setShowEmbed(false)}
         />
+      )}
+
+      {/* Edit Modal */}
+      {editing && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 16 }}
+          onClick={e => { if (e.target === e.currentTarget) setEditing(false); }}>
+          <div style={{ background: T.card, borderRadius: T.radiusLg, border: `1px solid ${T.border}`, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", width: "100%", maxWidth: 440, padding: isMobile ? 20 : 28, fontFamily: T.font }}>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: "0 0 20px" }}>Edit Dokumen</h3>
+            {[
+              { key: "judul", label: "Judul Dokumen", type: "text" },
+              { key: "kategori", label: "Sektor", type: "select", opts: sectors.map(s => s.nama || s.name || s) },
+              { key: "tipe", label: "Jenis Dokumen", type: "select", opts: ["PDF","Word","Excel","Gambar","Lainnya"] },
+              { key: "bidang", label: "Bidang", type: "select", opts: bidangs.map(b => b.nama || b.name || b) },
+            ].map(f => (
+              <div key={f.key} style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: T.textSecondary, display: "block", marginBottom: 6 }}>{f.label}</label>
+                {f.type === "text" ? (
+                  <input value={editForm[f.key]} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))}
+                    style={{ width: "100%", padding: "10px 14px", fontSize: 14, borderRadius: T.radius, border: `1.5px solid ${T.border}`, background: T.bg, color: T.text, outline: "none", boxSizing: "border-box" }}
+                    onFocus={e => e.target.style.borderColor = T.primary}
+                    onBlur={e => e.target.style.borderColor = T.border} />
+                ) : (
+                  <select value={editForm[f.key]} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))}
+                    style={{ width: "100%", padding: "10px 14px", fontSize: 14, borderRadius: T.radius, border: `1.5px solid ${T.border}`, background: T.bg, color: T.text, outline: "none", boxSizing: "border-box" }}
+                    onFocus={e => e.target.style.borderColor = T.primary}
+                    onBlur={e => e.target.style.borderColor = T.border}>
+                    <option value="">Pilih {f.label}</option>
+                    {f.opts.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                )}
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+              <button onClick={() => setEditing(false)} style={{ flex: 1, padding: "10px 16px", fontSize: 14, fontWeight: 600, borderRadius: T.radius, border: `1.5px solid ${T.border}`, background: T.bg, color: T.textSecondary, cursor: "pointer" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#E2E8F0"}
+                onMouseLeave={e => e.currentTarget.style.background = T.bg}>Batal</button>
+              <button onClick={async () => {
+                const ok = await onEdit(doc, editForm);
+                if (ok) setEditing(false);
+              }} style={{ flex: 1, padding: "10px 16px", fontSize: 14, fontWeight: 600, borderRadius: T.radius, border: "none", background: T.primary, color: "#fff", cursor: "pointer", boxShadow: "0 1px 3px rgba(37,99,235,0.3)" }}
+                onMouseEnter={e => e.currentTarget.style.background = T.primaryHover}
+                onMouseLeave={e => e.currentTarget.style.background = T.primary}>Simpan</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

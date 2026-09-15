@@ -203,6 +203,55 @@ app.patch('/api/docs/:id/publik', async (req, res) => {
   }
 });
 
+// ── Delete Dokumen ──────────────────────────────────────────────────────────
+app.delete('/api/docs/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `DELETE FROM bapperida_dokumen WHERE id = $1 RETURNING judul, url, files`,
+      [id]
+    );
+    if (!result.rows.length)
+      return res.status(404).json({ error: 'Dokumen tidak ditemukan' });
+    const doc = result.rows[0];
+    await pool.query(
+      `INSERT INTO audit_logs (user_name, action, doc_title) VALUES ($1, $2, $3)`,
+      [req.body.user || 'Admin', 'Hapus dokumen', doc.judul]
+    );
+    res.json({ message: 'Dokumen berhasil dihapus', gdriveUrl: doc.url, files: doc.files });
+  } catch (err) {
+    console.error('Delete doc error:', err);
+    res.status(500).json({ error: 'Gagal menghapus dokumen' });
+  }
+});
+
+// ── Edit Dokumen ────────────────────────────────────────────────────────────
+app.put('/api/docs/:id', async (req, res) => {
+  const { id } = req.params;
+  const { judul, kategori, tipe, bidang } = req.body;
+  try {
+    const result = await pool.query(
+      `UPDATE bapperida_dokumen
+       SET judul = COALESCE($1, judul),
+           kategori = COALESCE($2, kategori),
+           tipe = COALESCE($3, tipe),
+           bidang = COALESCE($4, bidang)
+       WHERE id = $5 RETURNING *`,
+      [judul, kategori, tipe, bidang, id]
+    );
+    if (!result.rows.length)
+      return res.status(404).json({ error: 'Dokumen tidak ditemukan' });
+    await pool.query(
+      `INSERT INTO audit_logs (user_name, action, doc_title) VALUES ($1, $2, $3)`,
+      [req.body.user || 'Admin', 'Edit dokumen', judul || result.rows[0].judul]
+    );
+    res.json({ message: 'Dokumen berhasil diperbarui', doc: result.rows[0] });
+  } catch (err) {
+    console.error('Edit doc error:', err);
+    res.status(500).json({ error: 'Gagal memperbarui dokumen' });
+  }
+});
+
 // ── Audit Logs ────────────────────────────────────────────────────────────
 app.get('/api/logs', async (_, res) => {
   try {
