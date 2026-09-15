@@ -119,7 +119,7 @@ app.get('/api/docs', async (_, res) => {
         '—'                                 AS uploader,
         '—'                                 AS "reviewedBy",
         ukuran                              AS size,
-        0                                   AS pages,
+        COALESCE(pages, 0)                  AS pages,
         TO_CHAR(tanggal, 'DD Mon YYYY')     AS "uploadDate",
         ''                                  AS desc,
         url,
@@ -148,12 +148,12 @@ app.post('/api/docs', async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: invalid upload key' });
   }
 
-  const { title, type, sector, uploader, url, ukuran, bidang, files } = req.body;
+  const { title, type, sector, uploader, url, ukuran, bidang, files, pages } = req.body;
   try {
     const result = await pool.query(
-      `INSERT INTO bapperida_dokumen (judul, kategori, tipe, tanggal, ukuran, url, created_at, bidang, files)
-       VALUES ($1, $2, $3, NOW(), $4, $5, NOW(), $6, $7) RETURNING *`,
-      [title, type, sector, ukuran || '0 MB', url || '', bidang || '', files ? JSON.stringify(files) : null]
+      `INSERT INTO bapperida_dokumen (judul, kategori, tipe, tanggal, ukuran, url, created_at, bidang, files, pages)
+       VALUES ($1, $2, $3, NOW(), $4, $5, NOW(), $6, $7, $8) RETURNING *`,
+      [title, type, sector, ukuran || '0 MB', url || '', bidang || '', files ? JSON.stringify(files) : null, pages || 0]
 
     );
     await pool.query(

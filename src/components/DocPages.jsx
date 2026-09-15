@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Icon, Badge, GoogleDriveEmbed, isGDriveUrl, formatBytes, extractGDriveFileId, extractGDriveFolderId } from "./ui.jsx";
+import { Icon, Badge, GoogleDriveEmbed, isGDriveUrl, formatBytes, extractGDriveFileId, extractGDriveFolderId, gdriveDirectUrl } from "./ui.jsx";
 import { YEARS, STATUS_LIST, STATUS_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
 
@@ -863,12 +863,13 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
             <iframe
               src={(() => {
                 const fid = extractGDriveFolderId(doc.url);
-                return fid
-                  ? `https://drive.google.com/embeddedfolderview?id=${fid}#list`
-                  : `https://drive.google.com/file/d/${extractGDriveFileId(doc.url)}/preview`;
+                if (fid) return `https://drive.google.com/embeddedfolderview?id=${fid}#list`;
+                const fileId = extractGDriveFileId(doc.url);
+                // ponytail: Google Docs viewer shows PDF with page navigation sidebar
+                return `https://docs.google.com/gview?url=${encodeURIComponent(gdriveDirectUrl(fileId))}&embedded=true`;
               })()}
               title={doc.title}
-              style={{ width: "100%", flex: 1, minHeight: 500, border: "none", borderRadius: `${T.radius}px ${T.radius}px 0 0` }}
+              style={{ width: "100%", flex: 1, minHeight: 600, border: "none", borderRadius: `${T.radius}px ${T.radius}px 0 0` }}
               allow="autoplay"
             />
           </div>

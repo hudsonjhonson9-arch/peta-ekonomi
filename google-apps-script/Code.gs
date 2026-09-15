@@ -189,7 +189,8 @@ function doPost(e) {
           url:      fileUrl,
           ukuran:   sizeLabel,
           uploader: params.uploader || 'System',
-          bidang:   params.bidang  || ''
+          bidang:   params.bidang  || '',
+          pages:    params.pages   || 0
         };
 
         var apiOpts = {
@@ -237,7 +238,8 @@ function doPost(e) {
         ukuran:   sizeLabel,
         uploader: params.uploader || 'System',
         bidang:   params.bidang  || '',
-        files:    files
+        files:    files,
+        pages:    params.pages   || 0
       };
 
       var apiOpts = {
@@ -290,7 +292,8 @@ function doPost(e) {
         url:      fileUrl,
         ukuran:   sizeLabel,
         uploader: params.uploader || 'System',
-        bidang:   params.bidang  || ''
+        bidang:   params.bidang  || '',
+        pages:    params.pages   || 0
       };
 
       var apiOpts = {

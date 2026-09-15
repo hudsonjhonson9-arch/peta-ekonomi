@@ -8,6 +8,19 @@ import BottomNav        from "./components/BottomNav.jsx";
 import Dashboard        from "./components/Dashboard.jsx";
 import { DocList, DocDetail } from "./components/DocPages.jsx";
 import UploadForm       from "./components/UploadForm.jsx";
+import * as pdfjsLib    from "pdfjs-dist";
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
+
+// ponytail: count PDF pages from File object
+async function countPdfPages(file) {
+  try {
+    var data = await file.arrayBuffer();
+    var doc = await pdfjsLib.getDocument({ data }).promise;
+    var count = doc.numPages;
+    doc.destroy();
+    return count;
+  } catch (_) { return 0; }
+}
 import { Pencarian, PortalPublik, ManajemenPengguna, AuditTrail, ManajemenKategoriDokumen, ManajemenSektor } from "./components/Pages.jsx";
 import PanduanPengguna   from "./components/PanduanPengguna.jsx";
 import BankData          from "./components/BankData.jsx";
@@ -279,6 +292,9 @@ export default function App() {
         var fileTitle = totalFiles > 1 ? form.title + " — " + fobj.name : form.title;
         onProgress(Math.round((fi / totalFiles) * 100));
 
+        var pageCount = 0;
+        if (/\.pdf$/i.test(fobj.name)) pageCount = await countPdfPages(fobj);
+
         var result;
         if (fobj.size <= DIRECT_THRESHOLD) {
           // ── Direct mode (base64, file < 30MB) ─────────────────────────────
@@ -301,6 +317,7 @@ export default function App() {
             year:     form.year,
             uploader: user.name,
             bidang:   form.bidang || "",
+            pages:    pageCount,
             folderId: groupMode ? folderId : undefined,
             group:    groupMode,
           });
@@ -379,6 +396,7 @@ export default function App() {
             year:     form.year,
             uploader: user.name,
             bidang:   form.bidang || "",
+            pages:    pageCount,
             group: groupMode,
           });
         }
@@ -400,7 +418,7 @@ export default function App() {
           uploader:   user.name,
           reviewedBy: "—",
           size:       result.size || "—",
-          pages:      0,
+          pages:      pageCount,
           uploadDate: new Date().toLocaleDateString("id-ID"),
           desc:       form.desc || "—",
           tags:       form.tags ? form.tags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [],

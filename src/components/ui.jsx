@@ -71,6 +71,11 @@ export function isGDriveUrl(url) {
   return url && /drive\.google\.com/.test(url);
 }
 
+// ponytail: build a direct-download URL for Google Docs viewer
+export function gdriveDirectUrl(fileId) {
+  return `https://drive.google.com/uc?export=download&id=${fileId}`;
+}
+
 export function formatBytes(bytes) {
   if (!bytes) return "—";
   return bytes > 1048576
