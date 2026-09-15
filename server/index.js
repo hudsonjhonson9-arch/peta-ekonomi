@@ -154,12 +154,18 @@ app.post('/api/docs', async (req, res) => {
       `INSERT INTO bapperida_dokumen (judul, kategori, tipe, tanggal, ukuran, url, created_at, bidang, files, pages)
        VALUES ($1, $2, $3, NOW(), $4, $5, NOW(), $6, $7, $8) RETURNING *`,
       [title, type, sector, ukuran || '0 MB', url || '', bidang || '', files ? JSON.stringify(files) : null, pages || 0]
-
     );
     await pool.query(
       `INSERT INTO audit_logs (user_name, action, doc_title) VALUES ($1, $2, $3)`,
       [uploader || 'System', 'Upload dokumen', title]
     );
+    // Notify all admins about new upload
+    try {
+      const admins = await queryDB(`SELECT id FROM user_list WHERE role = 'Admin' OR id = (SELECT id FROM user_list WHERE "NIP" = $1)`, [uploader]);
+      for (const a of admins) {
+        createNotification(a.id, 'Dokumen Baru', `"${title}" diunggah oleh ${uploader || 'System'}.`, 'info', result.rows[0].id);
+      }
+    } catch (_) {}
     res.json({ message: 'Dokumen berhasil diunggah', doc: result.rows[0] });
   } catch (err) {
     console.error('Upload error:', err);
@@ -168,7 +174,7 @@ app.post('/api/docs', async (req, res) => {
 });
 
 app.patch('/api/docs/:id/status', async (req, res) => {
-  const { status } = req.body;
+  const { status, user_id } = req.body;
   const { id } = req.params;
   const allowed = ['Menunggu Review', 'Diarsipkan', 'Ditolak'];
   if (!allowed.includes(status))
@@ -180,7 +186,13 @@ app.patch('/api/docs/:id/status', async (req, res) => {
     );
     if (!result.rows.length)
       return res.status(404).json({ error: 'Dokumen tidak ditemukan' });
-    res.json({ message: 'Status diperbarui', doc: result.rows[0] });
+    const doc = result.rows[0];
+    // Notify uploader
+    if (user_id && status !== 'Menunggu Review') {
+      const label = status === 'Diarsipkan' ? 'Diarsipkan' : 'Ditolak';
+      createNotification(user_id, `Dokumen ${label}`, `"${doc.judul}" telah ${label}.`, status === 'Diarsipkan' ? 'success' : 'warning', doc.id);
+    }
+    res.json({ message: 'Status diperbarui', doc });
   } catch (err) {
     console.error('Status update error:', err);
     res.status(500).json({ error: 'Gagal memperbarui status' });
@@ -718,6 +730,71 @@ app.post('/api/indikator/tampil', async (req, res) => {
     res.status(500).json({ error: 'Gagal mengubah pengaturan tampilan' });
   }
 });
+
+// ── Notifications ────────────────────────────────────────────────────────
+app.get('/api/notifications', async (req, res) => {
+  const userId = req.query.user_id;
+  if (!userId) return res.status(400).json({ error: 'user_id wajib' });
+  try {
+    const rows = await queryDB(
+      `SELECT id, title, message, type, doc_id, is_read, created_at
+       FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50`,
+      [userId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('GET notifications error:', err);
+    res.status(500).json({ error: 'Gagal mengambil notifikasi' });
+  }
+});
+
+app.post('/api/notifications', async (req, res) => {
+  const { user_id, title, message, type = 'info', doc_id = null } = req.body;
+  if (!user_id || !title || !message) return res.status(400).json({ error: 'user_id, title, message wajib' });
+  try {
+    const rows = await queryDB(
+      `INSERT INTO notifications (user_id, title, message, type, doc_id)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id, title, message, type, doc_id, is_read, created_at`,
+      [user_id, title, message, type, doc_id]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('POST notification error:', err);
+    res.status(500).json({ error: 'Gagal membuat notifikasi' });
+  }
+});
+
+app.patch('/api/notifications/:id/read', async (req, res) => {
+  try {
+    await queryDB('UPDATE notifications SET is_read = TRUE WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Gagal update notifikasi' });
+  }
+});
+
+app.post('/api/notifications/read-all', async (req, res) => {
+  const { user_id } = req.body;
+  if (!user_id) return res.status(400).json({ error: 'user_id wajib' });
+  try {
+    await queryDB('UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE', [user_id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Gagal update notifikasi' });
+  }
+});
+
+// Helper: create notification + return it
+async function createNotification(userId, title, message, type = 'info', docId = null) {
+  try {
+    await queryDB(
+      `INSERT INTO notifications (user_id, title, message, type, doc_id) VALUES ($1, $2, $3, $4, $5)`,
+      [userId, title, message, type, docId]
+    );
+  } catch (err) {
+    console.error('createNotification error:', err.message);
+  }
+}
 
 // ── SPA fallback: semua route non-API → index.html (production only) ──────
 if (isProd) {

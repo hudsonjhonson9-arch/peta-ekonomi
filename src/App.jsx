@@ -8,6 +8,7 @@ import BottomNav        from "./components/BottomNav.jsx";
 import Dashboard        from "./components/Dashboard.jsx";
 import { DocList, DocDetail } from "./components/DocPages.jsx";
 import UploadForm       from "./components/UploadForm.jsx";
+import NotificationDropdown from "./components/NotificationDropdown.jsx";
 import * as pdfjsLib    from "pdfjs-dist";
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
 
@@ -539,13 +540,14 @@ export default function App() {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 14 }}>
             {pendingCount > 0 && (
-              <div style={{ position: "relative", cursor: "pointer" }} onClick={() => goPage("dokumen")}>
-                <Icon name="bell" size={isMobile ? 17 : 18} style={{ color: "#666" }} />
-                <span style={{ position: "absolute", top: -5, right: -5, width: 16, height: 16, background: "#c62828", borderRadius: 50, fontSize: 9, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
+              <div style={{ position: "relative", cursor: "pointer" }} onClick={() => goPage("dokumen")} title="Dokumen perlu review">
+                <Icon name="layers" size={isMobile ? 17 : 18} style={{ color: "#f59e0b" }} />
+                <span style={{ position: "absolute", top: -5, right: -5, width: 16, height: 16, background: "#f59e0b", borderRadius: 50, fontSize: 9, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
                   {pendingCount}
                 </span>
               </div>
             )}
+            <NotificationDropdown userId={user.id} />
             {!isMobile && (
               <>
                 <div style={{ fontSize: 13, color: "#666" }}>

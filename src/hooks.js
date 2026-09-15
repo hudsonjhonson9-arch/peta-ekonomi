@@ -33,3 +33,12 @@ export function useBidang() {
 export function useIndikator() {
   return useQuery({ queryKey: ['indikator'], queryFn: () => api('/api/indikator') });
 }
+
+export function useNotifications(userId) {
+  return useQuery({
+    queryKey: ['notifications', userId],
+    queryFn: () => api(`/api/notifications?user_id=${userId}`),
+    enabled: !!userId,
+    refetchInterval: 30000,
+  });
+}
