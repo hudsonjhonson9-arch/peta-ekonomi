@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Icon, Badge, GoogleDriveEmbed, isGDriveUrl, formatBytes } from "./ui.jsx";
+import { Icon, Badge, GoogleDriveEmbed, isGDriveUrl, formatBytes, extractGDriveFileId, extractGDriveFolderId } from "./ui.jsx";
 import { YEARS, STATUS_LIST, STATUS_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
 
@@ -773,38 +773,98 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
         Kembali ke Daftar
       </button>
 
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 20, alignItems: "start" }}>
-        {/* ── Left Column ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Title Card */}
-          <div style={{ ...cardStyle, padding: isMobile ? 20 : 28 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, lineHeight: 1.3, letterSpacing: "-0.02em" }}>{doc.title}</h1>
-                <div style={{ marginTop: 10 }}>
-                  <Badge label={doc.status} colors={STATUS_COLOR[doc.status]} />
-                </div>
-              </div>
-              <div style={{ width: 52, height: 52, background: T.primaryLight, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginLeft: 16 }}>
-                <Icon name="file" size={24} style={{ color: T.primary }} />
-              </div>
+      {/* Title Card */}
+      <div style={{ ...cardStyle, padding: isMobile ? 20 : 28, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, lineHeight: 1.3, letterSpacing: "-0.02em" }}>{doc.title}</h1>
+            <div style={{ marginTop: 10 }}>
+              <Badge label={doc.status} colors={STATUS_COLOR[doc.status]} />
             </div>
-            <p style={{ fontSize: 14, color: T.textSecondary, lineHeight: 1.7, margin: 0 }}>{doc.desc}</p>
-            {doc.tags.length > 0 && (
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 14 }}>
-                {doc.tags.map(t => (
-                  <span key={t} style={{ fontSize: 11, fontWeight: 500, color: T.primary, background: T.primaryLight, padding: "4px 10px", borderRadius: 99 }}>
-                    {t}
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
+          <div style={{ width: 52, height: 52, background: T.primaryLight, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginLeft: 16 }}>
+            <Icon name="file" size={24} style={{ color: T.primary }} />
+          </div>
+        </div>
+        <p style={{ fontSize: 14, color: T.textSecondary, lineHeight: 1.7, margin: 0 }}>{doc.desc}</p>
+        {doc.tags.length > 0 && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 14 }}>
+            {doc.tags.map(t => (
+              <span key={t} style={{ fontSize: 11, fontWeight: 500, color: T.primary, background: T.primaryLight, padding: "4px 10px", borderRadius: 99 }}>
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
 
+      {/* Action Bar */}
+      <div style={{ ...cardStyle, padding: 16, marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <button onClick={() => onDownload(doc)} style={{ ...btnBase, padding: "10px 16px", background: T.primary, color: "#fff", fontSize: 13, boxShadow: "0 1px 3px rgba(37,99,235,0.3)" }}
+            onMouseEnter={e => { e.currentTarget.style.background = T.primaryHover; e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,0.35)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = T.primary; e.currentTarget.style.boxShadow = "0 1px 3px rgba(37,99,235,0.3)"; }}>
+            <Icon name="download" size={15} /> Unduh
+          </button>
+          {canEmbed && (
+            <>
+              <button onClick={() => setShowEmbed(true)} style={{ ...btnBase, padding: "10px 16px", background: T.success, color: "#fff", fontSize: 13, fontWeight: 600, boxShadow: "0 1px 3px rgba(5,150,105,0.3)" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#047857"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(5,150,105,0.35)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = T.success; e.currentTarget.style.boxShadow = "0 1px 3px rgba(5,150,105,0.3)"; }}>
+                <Icon name="eye" size={15} /> Lihat Dokumen
+              </button>
+              <a href={doc.url} target="_blank" rel="noopener noreferrer" style={{ ...btnBase, padding: "10px 16px", background: T.successBg, color: T.success, fontSize: 13, fontWeight: 600, border: `1.5px solid ${T.successBorder}`, textDecoration: "none" }}
+                onMouseEnter={e => { e.currentTarget.style.background = T.successHover; e.currentTarget.style.borderColor = "#6EE7B7"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = T.successBg; e.currentTarget.style.borderColor = T.successBorder; }}>
+                <Icon name="external-link" size={14} /> Tab Baru
+              </a>
+            </>
+          )}
+          {!canEmbed && (
+            <button onClick={() => onPreview && onPreview(doc)} style={{ ...btnBase, padding: "10px 16px", background: "#F1F5F9", color: T.textSecondary, fontSize: 13 }}>
+              <Icon name="eye" size={14} /> Preview Online
+            </button>
+          )}
+          {doc.status === "Diarsipkan" && (
+            <button onClick={() => onTogglePublik && onTogglePublik(doc)}
+              style={{ ...btnBase, padding: "10px 16px", fontSize: 13,
+                background: doc.publik ? T.successBg : T.primaryLight,
+                color: doc.publik ? T.success : T.primary,
+                border: `1.5px solid ${doc.publik ? T.successBorder : T.border}`,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = doc.publik ? T.successHover : "#DBEAFE"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = doc.publik ? T.successBg : T.primaryLight; }}>
+              <Icon name="world" size={14} /> {doc.publik ? "✓ Dipublikasikan" : "Publikasikan"}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Main Content: Preview + Metadata */}
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 20, alignItems: "start" }}>
+        {/* ── Preview Pane ── */}
+        {canEmbed && doc.url && (
+          <div style={{ ...cardStyle, overflow: "hidden" }}>
+            <iframe
+              src={(() => {
+                const fid = extractGDriveFolderId(doc.url);
+                return fid
+                  ? `https://drive.google.com/embeddedfolderview?id=${fid}#list`
+                  : `https://drive.google.com/file/d/${extractGDriveFileId(doc.url)}/preview`;
+              })()}
+              title={doc.title}
+              style={{ width: "100%", height: isMobile ? 300 : 520, border: "none", borderRadius: `${T.radius}px ${T.radius}px 0 0` }}
+              allow="autoplay"
+            />
+          </div>
+        )}
+
+        {/* ── Right: Metadata + Status ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, position: isMobile ? "static" : "sticky", top: 20 }}>
           {/* Metadata Card */}
           <div style={{ ...cardStyle, padding: isMobile ? 20 : 28 }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 16px" }}>Metadata Dokumen</h2>
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {[
                 ["Jenis Dokumen", doc.type],
                 ["Sektor",        doc.sector],
@@ -816,9 +876,9 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
                 ["Diunggah oleh", doc.uploader],
                 ["Di-review oleh",doc.reviewedBy],
               ].map(([k, v]) => (
-                <div key={k} style={{ padding: "12px 14px", background: T.bg, borderRadius: T.radius, border: `1px solid ${T.border}` }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>{k}</div>
-                  <div style={{ fontSize: 14, fontWeight: 500, color: T.text }}>{v}</div>
+                <div key={k} style={{ padding: "10px 14px", background: T.bg, borderRadius: T.radius, border: `1px solid ${T.border}` }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>{k}</div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: T.text }}>{v}</div>
                 </div>
               ))}
             </div>
@@ -827,26 +887,16 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
           {/* File dalam Folder */}
           {Array.isArray(doc.files) && doc.files.length > 0 && (
             <div style={{ ...cardStyle, padding: isMobile ? 20 : 28 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 16px", display: "flex", alignItems: "center", gap: 8 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 8 }}>
                 <Icon name="folder" size={16} style={{ color: T.primary }} />
                 File dalam Folder
               </h2>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {doc.files.map(f => (
-                  <a
-                    key={f.url}
-                    href={f.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: "flex", alignItems: "center", gap: 10,
-                      padding: "10px 12px", background: T.bg, borderRadius: T.radius,
-                      border: `1px solid ${T.border}`, textDecoration: "none",
-                      color: "inherit", transition: "all 0.15s",
-                    }}
+                  <a key={f.url} href={f.url} target="_blank" rel="noopener noreferrer"
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: T.bg, borderRadius: T.radius, border: `1px solid ${T.border}`, textDecoration: "none", color: "inherit", transition: "all 0.15s" }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = T.primary; e.currentTarget.style.boxShadow = T.focusRing; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
-                  >
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}>
                     <Icon name="file" size={15} style={{ color: T.primary, flexShrink: 0 }} />
                     <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
                     <span style={{ fontSize: 11, color: T.textMuted, flexShrink: 0 }}>{formatBytes(f.size)}</span>
@@ -861,10 +911,8 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
             <div style={{ ...cardStyle, padding: isMobile ? 20 : 28 }}>
               <h2 style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 14px" }}>Tindakan Persetujuan</h2>
               <textarea
-                value={catatan}
-                onChange={e => setCatatan(e.target.value)}
-                placeholder="Catatan review (opsional)..."
-                rows={3}
+                value={catatan} onChange={e => setCatatan(e.target.value)}
+                placeholder="Catatan review (opsional)..." rows={3}
                 style={{ width: "100%", padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radius, fontSize: 14, fontFamily: T.font, resize: "vertical", boxSizing: "border-box", outline: "none", color: T.text }}
                 onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
                 onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
@@ -883,64 +931,6 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
               </div>
             </div>
           )}
-        </div>
-
-        {/* ── Right Column ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, position: isMobile ? "static" : "sticky", top: 20 }}>
-          {/* Image Preview */}
-          {isImage && doc.url && (
-            <div style={{ ...cardStyle, overflow: "hidden" }}>
-              <img src={doc.url} alt={doc.title} style={{ width: "100%", display: "block", maxHeight: 260, objectFit: "contain", background: T.bg }} />
-            </div>
-          )}
-
-          {/* Actions Card */}
-          <div style={{ ...cardStyle, padding: 20 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Aksi</h3>
-
-            {/* Download Button */}
-            <button onClick={() => onDownload(doc)} style={{ ...btnBase, width: "100%", padding: "12px 16px", background: T.primary, color: "#fff", fontSize: 14, boxShadow: "0 1px 3px rgba(37,99,235,0.3)", marginBottom: 10 }}
-              onMouseEnter={e => { e.currentTarget.style.background = T.primaryHover; e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,0.35)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = T.primary; e.currentTarget.style.boxShadow = "0 1px 3px rgba(37,99,235,0.3)"; }}>
-              <Icon name="download" size={16} /> Unduh Dokumen
-            </button>
-
-            {/* Embed / Preview Button — PROMINENT */}
-            {canEmbed && (
-              <>
-                <button onClick={() => setShowEmbed(true)} style={{ ...btnBase, width: "100%", padding: "12px 16px", background: T.success, color: "#fff", fontSize: 14, fontWeight: 700, boxShadow: "0 1px 3px rgba(5,150,105,0.3)", marginBottom: 8 }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "#047857"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(5,150,105,0.35)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = T.success; e.currentTarget.style.boxShadow = "0 1px 3px rgba(5,150,105,0.3)"; }}>
-                  <Icon name="eye" size={16} /> Lihat Dokumen
-                </button>
-                <a href={doc.url} target="_blank" rel="noopener noreferrer" style={{ ...btnBase, width: "100%", padding: "12px 16px", background: T.successBg, color: T.success, fontSize: 14, fontWeight: 600, border: `1.5px solid ${T.successBorder}`, textDecoration: "none", marginBottom: 10 }}
-                  onMouseEnter={e => { e.currentTarget.style.background = T.successHover; e.currentTarget.style.borderColor = "#6EE7B7"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = T.successBg; e.currentTarget.style.borderColor = T.successBorder; }}>
-                  <Icon name="external-link" size={15} /> Buka di Tab Baru
-                </a>
-              </>
-            )}
-
-            {!canEmbed && (
-              <button onClick={() => onPreview && onPreview(doc)} style={{ ...btnBase, width: "100%", padding: "12px 16px", background: "#F1F5F9", color: T.textSecondary, fontSize: 14, marginBottom: 10 }}>
-                <Icon name="eye" size={15} /> Preview Online
-              </button>
-            )}
-
-            {/* Publish Button */}
-            {doc.status === "Diarsipkan" && (
-              <button onClick={() => onTogglePublik && onTogglePublik(doc)}
-                style={{ ...btnBase, width: "100%", padding: "12px 16px", fontSize: 14, marginBottom: 0,
-                  background: doc.publik ? T.successBg : T.primaryLight,
-                  color: doc.publik ? T.success : T.primary,
-                  border: `1.5px solid ${doc.publik ? T.successBorder : T.border}`,
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = doc.publik ? T.successHover : "#DBEAFE"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = doc.publik ? T.successBg : T.primaryLight; }}>
-                <Icon name="world" size={15} /> {doc.publik ? "✓ Dipublikasikan" : "Publikasikan ke Publik"}
-              </button>
-            )}
-          </div>
 
           {/* Status History */}
           <div style={{ ...cardStyle, padding: 20 }}>
