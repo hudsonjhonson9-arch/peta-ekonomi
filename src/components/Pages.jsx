@@ -268,7 +268,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
   }, []);
 
   const openAdd = () => {
-    setForm({ id: "", nip: "", name: "", role: "Staf", unit: bidangList[0] || "", status: "AKTIF", password: "" });
+    setForm({ id: "", nip: "", name: "", role: "Staf", unit: bidangList[0]?.nama || "", status: "AKTIF", password: "" });
     setErrors({});
     setIsEdit(false);
     setModalOpen(true);
@@ -540,8 +540,8 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
                   onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
                   onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}>
                   <option value="">— Pilih Bidang —</option>
-                  {bidangList.map(b => <option key={b} value={b}>{b}</option>)}
-                  {form.unit && !bidangList.includes(form.unit) && <option value={form.unit}>{form.unit}</option>}
+                  {bidangList.map(b => <option key={b.id} value={b.nama}>{b.nama}</option>)}
+                  {form.unit && !bidangList.some(b => b.nama === form.unit) && <option value={form.unit}>{form.unit}</option>}
                 </select>
               </div>
 
