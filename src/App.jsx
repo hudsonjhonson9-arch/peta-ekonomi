@@ -563,6 +563,7 @@ export default function App() {
               categories={categories}
               sectors={sectors}
               bidangs={bidangs}
+              docs={docs}
             />
           )}
           {page === "upload" && (

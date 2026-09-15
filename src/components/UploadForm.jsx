@@ -224,6 +224,7 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
                 disabled={uploading}
               >
                 <option value="">— Pilih Bidang —</option>
+                <option value="Umum">Umum</option>
                 {bidangs.map(b => <option key={b.id} value={b.nama}>{b.nama}</option>)}
               </select>
             </div>

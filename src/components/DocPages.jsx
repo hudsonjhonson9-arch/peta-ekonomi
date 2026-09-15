@@ -153,13 +153,13 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
   }, [docs, search, filterType, filterSector, filterBidang, filterYear, filterStatus]);
 
   const tanpaBidangDocs = useMemo(() => {
-    return filtered.filter(d => !d.bidang);
+    return filtered.filter(d => !d.bidang || d.bidang === "Umum");
   }, [filtered]);
 
   const bidangFolders = useMemo(() => {
     const map = {};
     docs.forEach(d => {
-      if (d.bidang) map[d.bidang] = (map[d.bidang] || 0) + 1;
+      if (d.bidang && d.bidang !== "Umum") map[d.bidang] = (map[d.bidang] || 0) + 1;
     });
     return Object.entries(map).sort((a, b) => b[1] - a[1]);
   }, [docs]);
@@ -276,6 +276,7 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
               </select>
               <select value={filterBidang} onChange={e => setFilterBidang(e.target.value)} style={selStyle}>
                 <option value="Semua Bidang">Semua Bidang</option>
+                <option value="Umum">Umum</option>
                 {bidangs.map(b => <option key={b.id} value={b.nama}>{b.nama}</option>)}
               </select>
               <select value={filterYear}   onChange={e => setFilterYear(e.target.value)}   style={selStyle}>
@@ -732,7 +733,7 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
 
 // ─── DETAIL DOKUMEN ───────────────────────────────────────────────────────────
 
-export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPreview, onTogglePublik, onDelete, onEdit, user, categories = [], sectors = [], bidangs = [] }) {
+export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPreview, onTogglePublik, onDelete, onEdit, user, categories = [], sectors = [], bidangs = [], docs = [] }) {
   const { isMobile } = useResponsive();
   const [catatan, setCatatan] = useState("");
   const [showEmbed, setShowEmbed] = useState(false);
@@ -982,8 +983,8 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
             {[
               { key: "judul", label: "Judul Dokumen", type: "text" },
               { key: "kategori", label: "Sektor", type: "select", opts: sectors.map(s => s.nama || s.name || s) },
-              { key: "tipe", label: "Jenis Dokumen", type: "select", opts: ["PDF","Word","Excel","Gambar","Lainnya"] },
-              { key: "bidang", label: "Bidang", type: "select", opts: bidangs.map(b => b.nama || b.name || b) },
+              { key: "tipe", label: "Jenis Dokumen", type: "select", opts: categories.map(c => c.nama || c.name || c) },
+              { key: "bidang", label: "Bidang", type: "select", opts: ["Umum", ...bidangs.map(b => b.nama || b.name || b)] },
             ].map(f => (
               <div key={f.key} style={{ marginBottom: 14 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: T.textSecondary, display: "block", marginBottom: 6 }}>{f.label}</label>
