@@ -136,6 +136,34 @@ function doPost(e) {
     }
 
     // =========================================================================
+    // HAPUS FILE/FOLDER DARI GOOGLE DRIVE
+    // =========================================================================
+    if (action === 'deleteFile') {
+      if (!params.fileId) {
+        return res(400, { error: 'fileId wajib diisi' });
+      }
+
+      var id = params.fileId;
+      // Extract ID from URL: https://drive.google.com/file/d/{ID}/... or /drive/folders/{ID}
+      var m = id.match(/\/d\/([a-zA-Z0-9_-]+)/) || id.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+      if (m) id = m[1];
+
+      try {
+        var file = DriveApp.getFileById(id);
+        file.setTrashed(true);
+        return res(200, { message: 'File berhasil dihapus', fileId: id, type: 'file' });
+      } catch (e1) {
+        try {
+          var folder = DriveApp.getFolderById(id);
+          folder.setTrashed(true);
+          return res(200, { message: 'Folder berhasil dihapus', fileId: id, type: 'folder' });
+        } catch (e2) {
+          return res(404, { error: 'File/folder tidak ditemukan di Drive', fileId: id });
+        }
+      }
+    }
+
+    // =========================================================================
     // TAHAP 2: Finalisasi — set permission & simpan metadata ke PostgreSQL
     // =========================================================================
     if (action === 'finalize') {
