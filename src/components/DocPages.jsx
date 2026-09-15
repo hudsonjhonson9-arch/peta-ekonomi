@@ -577,7 +577,7 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
                     <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 2 }}>{d.type} · {d.sector}</div>
                   </div>
                   <div style={{ flexShrink: 0 }}>
-                    <StatusBadge status={d.status} />
+                    <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
                   </div>
                 </div>
               );
