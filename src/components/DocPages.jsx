@@ -958,13 +958,13 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
                 onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
                 onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
               />
-              <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-                <button onClick={() => onApprove(doc)} style={{ ...btnBase, flex: 1, padding: "11px 16px", background: T.primary, color: "#fff", fontSize: 13, boxShadow: "0 1px 3px rgba(37,99,235,0.3)" }}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
+                <button onClick={() => onApprove(doc)} style={{ ...btnBase, width: "100%", padding: "11px 16px", background: T.primary, color: "#fff", fontSize: 13, boxShadow: "0 1px 3px rgba(37,99,235,0.3)" }}
                   onMouseEnter={e => { e.currentTarget.style.background = T.primaryHover; e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,0.35)"; }}
                   onMouseLeave={e => { e.currentTarget.style.background = T.primary; e.currentTarget.style.boxShadow = "0 1px 3px rgba(37,99,235,0.3)"; }}>
                   <Icon name="check" size={14} /> Setujui & Arsipkan
                 </button>
-                <button onClick={() => onReject(doc)} style={{ ...btnBase, flex: 1, padding: "11px 16px", background: T.dangerBg, color: T.danger, fontSize: 13, border: `1px solid ${T.dangerBorder}` }}
+                <button onClick={() => onReject(doc)} style={{ ...btnBase, width: "100%", padding: "11px 16px", background: T.dangerBg, color: T.danger, fontSize: 13, border: `1px solid ${T.dangerBorder}` }}
                   onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = "#F87171"; }}
                   onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; e.currentTarget.style.borderColor = T.dangerBorder; }}>
                   <Icon name="x" size={14} /> Tolak Dokumen
