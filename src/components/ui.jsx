@@ -77,6 +77,39 @@ export function gdriveDirectUrl(fileId) {
   return `https://drive.google.com/uc?export=download&id=${fileId}`;
 }
 
+// ── File-type + universal preview helpers ──────────────────────────────────
+const IMAGE_EXT = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i;
+const OFFICE_EXT = /\.(docx?|xlsx?|pptx?)$/i;
+const PDF_EXT = /\.pdf$/i;
+
+export function isImageFile(url, title = "") {
+  return IMAGE_EXT.test(title) || (url && IMAGE_EXT.test(url));
+}
+
+export function isOfficeFile(url, title = "") {
+  return OFFICE_EXT.test(title) || (url && OFFICE_EXT.test(url));
+}
+
+export function isPdfFile(url, title = "") {
+  return PDF_EXT.test(title) || (url && PDF_EXT.test(url));
+}
+
+// Returns an iframe-embeddable preview URL for ANY file, or null if the
+// file can't be previewed inline (e.g. no URL at all).
+// - Google Drive files/folders: uses Drive's own /preview or folder view
+//   (this already natively renders PDF, DOCX, XLSX, PPTX, and images).
+// - Non-Drive files (must be a public URL): routed through Google's public
+//   Docs Viewer, which can also render PDF, Office docs, and images.
+export function getUniversalPreviewUrl(url) {
+  if (!url) return null;
+  const folderId = extractGDriveFolderId(url);
+  if (folderId) return `https://drive.google.com/embeddedfolderview?id=${folderId}#list`;
+  const fileId = extractGDriveFileId(url);
+  if (fileId) return `https://drive.google.com/file/d/${fileId}/preview`;
+  // Not a Drive link — fall back to Google Docs Viewer for a public URL.
+  return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
+}
+
 export function formatBytes(bytes) {
   if (!bytes) return "—";
   return bytes > 1048576
