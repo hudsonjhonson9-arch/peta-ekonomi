@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Icon, Badge, GoogleDriveEmbed, isGDriveUrl, formatBytes, extractGDriveFileId, extractGDriveFolderId, gdriveDirectUrl } from "./ui.jsx";
+import { Icon, Badge, GoogleDriveEmbed, isGDriveUrl, formatBytes, extractGDriveFileId, extractGDriveFolderId, gdriveDirectUrl, isImageFile, isOfficeFile, isPdfFile, getUniversalPreviewUrl } from "./ui.jsx";
 import { YEARS, STATUS_LIST, STATUS_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
 
@@ -746,8 +746,15 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
 
   const canEdit = user.role === "Admin" || doc.status !== "Diarsipkan";
 
-  const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(doc.title) || (doc.url && /\.(jpg|jpeg|png|gif|webp)/i.test(doc.url));
+  const isImage = isImageFile(doc.url, doc.title);
+  const isOffice = isOfficeFile(doc.url, doc.title);
+  const isPdf = isPdfFile(doc.url, doc.title);
   const canEmbed = isGDriveUrl(doc.url);
+  // Any file with a URL can be shown inline: Drive files/folders render
+  // natively (PDF, DOCX, XLSX, PPTX, images); non-Drive files with a
+  // public URL route through Google Docs Viewer as a fallback.
+  const previewUrl = getUniversalPreviewUrl(doc.url);
+  const canPreviewInline = !!previewUrl;
 
   const steps = [
     { label: "Diunggah",               done: true,                        date: doc.uploadDate },
@@ -811,14 +818,14 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
             onMouseLeave={e => { e.currentTarget.style.background = T.primary; e.currentTarget.style.boxShadow = "0 1px 3px rgba(37,99,235,0.3)"; }}>
             <Icon name="download" size={15} /> Unduh
           </button>
-          {canEmbed && (
+          {doc.url && (
             <a href={doc.url} target="_blank" rel="noopener noreferrer" style={{ ...btnBase, padding: "10px 16px", background: T.successBg, color: T.success, fontSize: 13, fontWeight: 600, border: `1.5px solid ${T.successBorder}`, textDecoration: "none" }}
               onMouseEnter={e => { e.currentTarget.style.background = T.successHover; e.currentTarget.style.borderColor = "#6EE7B7"; }}
               onMouseLeave={e => { e.currentTarget.style.background = T.successBg; e.currentTarget.style.borderColor = T.successBorder; }}>
               <Icon name="external-link" size={14} /> Tab Baru
             </a>
           )}
-          {!canEmbed && (
+          {!canPreviewInline && (
             <button onClick={() => onPreview && onPreview(doc)} style={{ ...btnBase, padding: "10px 16px", background: "#F1F5F9", color: T.textSecondary, fontSize: 13 }}>
               <Icon name="eye" size={14} /> Preview Online
             </button>
@@ -858,20 +865,38 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
       {/* Main Content: Preview + Metadata */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 20, alignItems: "stretch" }}>
         {/* ── Preview Pane ── */}
-        {canEmbed && doc.url && (
+        {isImage && doc.url && (
+          <div style={{ ...cardStyle, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, minHeight: 400 }}>
+            <img
+              src={doc.url}
+              alt={doc.title}
+              style={{ maxWidth: "100%", maxHeight: 600, borderRadius: T.radius, objectFit: "contain" }}
+            />
+          </div>
+        )}
+
+        {!isImage && canPreviewInline && (
           <div style={{ ...cardStyle, overflow: "hidden", display: "flex", flexDirection: "column" }}>
             <iframe
-              src={(() => {
-                const fid = extractGDriveFolderId(doc.url);
-                if (fid) return `https://drive.google.com/embeddedfolderview?id=${fid}#list`;
-                const fileId = extractGDriveFileId(doc.url);
-                // ponytail: Google Docs viewer shows PDF with page navigation sidebar
-                return `https://drive.google.com/file/d/${fileId}/preview`
-              })()}
+              src={previewUrl}
               title={doc.title}
               style={{ width: "100%", flex: 1, minHeight: 600, border: "none", borderRadius: `${T.radius}px ${T.radius}px 0 0` }}
               allow="autoplay"
             />
+            {!canEmbed && (isOffice || isPdf) && (
+              <div style={{ padding: "8px 14px", fontSize: 11, color: T.textMuted, borderTop: `1px solid ${T.border}` }}>
+                Pratinjau via Google Docs Viewer — memerlukan URL file yang dapat diakses publik.
+              </div>
+            )}
+          </div>
+        )}
+
+        {!isImage && !canPreviewInline && (
+          <div style={{ ...cardStyle, padding: 40, textAlign: "center" }}>
+            <Icon name="file" size={32} style={{ color: T.textMuted }} />
+            <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 12 }}>
+              Preview tidak tersedia untuk dokumen ini
+            </div>
           </div>
         )}
 
