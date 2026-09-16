@@ -909,7 +909,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
           )}
 
           {!isImage && canPreviewInline && (
-            <div style={{ ...cardStyle, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <div style={{ ...cardStyle, overflow: "hidden", display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
               <iframe
                 key={active.url || doc.url}
                 src={previewUrl}
