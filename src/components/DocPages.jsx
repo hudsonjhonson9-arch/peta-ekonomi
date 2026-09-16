@@ -739,6 +739,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
   const [showEmbed, setShowEmbed] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ judul: "", kategori: "", tipe: "", bidang: "" });
+  const [activeFile, setActiveFile] = useState(null);
 
   const canApprove =
     (user.role === "Reviewer" || user.role === "Admin") &&
@@ -746,14 +747,18 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
 
   const canEdit = user.role === "Admin" || doc.status !== "Diarsipkan";
 
-  const isImage = isImageFile(doc.url, doc.title);
-  const isOffice = isOfficeFile(doc.url, doc.title);
-  const isPdf = isPdfFile(doc.url, doc.title);
-  const canEmbed = isGDriveUrl(doc.url);
+  const files = Array.isArray(doc.files) && doc.files.length ? doc.files : null;
+  const active = activeFile || (files && files[0]) || {};
+  const pUrl = active.url || doc.url;
+  const pTitle = active.name || doc.title;
+  const isImage = isImageFile(pUrl, pTitle);
+  const isOffice = isOfficeFile(pUrl, pTitle);
+  const isPdf = isPdfFile(pUrl, pTitle);
+  const canEmbed = isGDriveUrl(pUrl);
   // Any file with a URL can be shown inline: Drive files/folders render
   // natively (PDF, DOCX, XLSX, PPTX, images); non-Drive files with a
   // public URL route through Google Docs Viewer as a fallback.
-  const previewUrl = getUniversalPreviewUrl(doc.url);
+  const previewUrl = getUniversalPreviewUrl(pUrl);
   const canPreviewInline = !!previewUrl;
 
   const steps = [
@@ -865,40 +870,61 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
       {/* Main Content: Preview + Metadata */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 20, alignItems: "stretch" }}>
         {/* ── Preview Pane ── */}
-        {isImage && doc.url && (
-          <div style={{ ...cardStyle, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, minHeight: 400 }}>
-            <img
-              src={doc.url}
-              alt={doc.title}
-              style={{ maxWidth: "100%", maxHeight: 600, borderRadius: T.radius, objectFit: "contain" }}
-            />
-          </div>
-        )}
-
-        {!isImage && canPreviewInline && (
-          <div style={{ ...cardStyle, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-            <iframe
-              src={previewUrl}
-              title={doc.title}
-              style={{ width: "100%", flex: 1, minHeight: 600, border: "none", borderRadius: `${T.radius}px ${T.radius}px 0 0` }}
-              allow="autoplay"
-            />
-            {!canEmbed && (isOffice || isPdf) && (
-              <div style={{ padding: "8px 14px", fontSize: 11, color: T.textMuted, borderTop: `1px solid ${T.border}` }}>
-                Pratinjau via Google Docs Viewer — memerlukan URL file yang dapat diakses publik.
-              </div>
-            )}
-          </div>
-        )}
-
-        {!isImage && !canPreviewInline && (
-          <div style={{ ...cardStyle, padding: 40, textAlign: "center" }}>
-            <Icon name="file" size={32} style={{ color: T.textMuted }} />
-            <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 12 }}>
-              Preview tidak tersedia untuk dokumen ini
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+          {files && files.length > 1 && (
+            <div style={{ ...cardStyle, padding: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {files.map(f => (
+                <button key={f.url} onClick={() => setActiveFile(f)}
+                  style={{
+                    ...btnBase, padding: "8px 14px", fontSize: 12, borderRadius: 99,
+                    background: active === f ? T.primary : T.bg,
+                    color: active === f ? "#fff" : T.textSecondary,
+                    border: `1.5px solid ${active === f ? T.primary : T.border}`,
+                  }}
+                  title={f.name}>
+                  <Icon name="file" size={12} />
+                  <span style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
+                </button>
+              ))}
             </div>
-          </div>
-        )}
+          )}
+
+          {isImage && pUrl && (
+            <div style={{ ...cardStyle, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, minHeight: 400 }}>
+              <img
+                src={pUrl}
+                alt={pTitle}
+                style={{ maxWidth: "100%", maxHeight: 600, borderRadius: T.radius, objectFit: "contain" }}
+              />
+            </div>
+          )}
+
+          {!isImage && canPreviewInline && (
+            <div style={{ ...cardStyle, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <iframe
+                key={active.url || doc.url}
+                src={previewUrl}
+                title={pTitle}
+                style={{ width: "100%", flex: 1, minHeight: 600, border: "none", borderRadius: `${T.radius}px ${T.radius}px 0 0` }}
+                allow="autoplay"
+              />
+              {!canEmbed && (isOffice || isPdf) && (
+                <div style={{ padding: "8px 14px", fontSize: 11, color: T.textMuted, borderTop: `1px solid ${T.border}` }}>
+                  Pratinjau via Google Docs Viewer — memerlukan URL file yang dapat diakses publik.
+                </div>
+              )}
+            </div>
+          )}
+
+          {!isImage && !canPreviewInline && (
+            <div style={{ ...cardStyle, padding: 40, textAlign: "center" }}>
+              <Icon name="file" size={32} style={{ color: T.textMuted }} />
+              <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 12 }}>
+                Preview tidak tersedia untuk dokumen ini
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* ── Right: Metadata + Status ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14, position: isMobile ? "static" : "sticky", top: 20 }}>
