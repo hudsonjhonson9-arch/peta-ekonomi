@@ -870,7 +870,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
       {/* Main Content: Preview + Metadata */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 20, alignItems: "stretch" }}>
         {/* ── Preview Pane ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, maxHeight: 500, overflow: "auto" }}>
           {files && files.length > 1 && (
             <div style={{ ...cardStyle, padding: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
               {files.map(f => (
