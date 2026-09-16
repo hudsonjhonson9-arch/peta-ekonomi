@@ -900,12 +900,12 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
           )}
 
           {!isImage && canPreviewInline && (
-            <div style={{ ...cardStyle, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <div style={{ ...cardStyle, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
               <iframe
                 key={active.url || doc.url}
                 src={previewUrl}
                 title={pTitle}
-                style={{ width: "100%", flex: 1, minHeight: 300, maxHeight: 500, overflow: "auto", border: "none", borderRadius: `${T.radius}px ${T.radius}px 0 0` }}
+                style={{ width: "100%", border: "none", borderRadius: `${T.radius}px ${T.radius}px 0 0` }}
                 allow="autoplay"
               />
               {!canEmbed && (isOffice || isPdf) && (
