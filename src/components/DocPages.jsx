@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Icon, Badge, GoogleDriveEmbed, isGDriveUrl, formatBytes, extractGDriveFileId, extractGDriveFolderId, gdriveDirectUrl, isImageFile, isOfficeFile, isPdfFile, getUniversalPreviewUrl } from "./ui.jsx";
 import { YEARS, STATUS_LIST, STATUS_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
@@ -740,6 +740,15 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ judul: "", kategori: "", tipe: "", bidang: "" });
   const [activeFile, setActiveFile] = useState(null);
+  const sidebarRef = useRef(null);
+  const [sidebarH, setSidebarH] = useState(0);
+
+  useEffect(() => {
+    if (!sidebarRef.current) return;
+    const ro = new ResizeObserver(([e]) => setSidebarH(e.contentRect.height));
+    ro.observe(sidebarRef.current);
+    return () => ro.disconnect();
+  }, []);
 
   const canApprove =
     (user.role === "Reviewer" || user.role === "Admin") &&
@@ -870,7 +879,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
       {/* Main Content: Preview + Metadata */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 20, alignItems: "stretch" }}>
         {/* ── Preview Pane ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, height: 500, overflow: "hidden" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, height: sidebarH || 500, overflow: "hidden" }}>
           {files && files.length > 1 && (
             <div style={{ ...cardStyle, padding: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
               {files.map(f => (
@@ -927,7 +936,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
         </div>
 
         {/* ── Right: Metadata + Status ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, position: isMobile ? "static" : "sticky", top: 20 }}>
+        <div ref={sidebarRef} style={{ display: "flex", flexDirection: "column", gap: 14, position: isMobile ? "static" : "sticky", top: 20 }}>
           {/* Metadata Card */}
           <div style={{ ...cardStyle, padding: isMobile ? 20 : 28 }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 16px" }}>Metadata Dokumen</h2>
