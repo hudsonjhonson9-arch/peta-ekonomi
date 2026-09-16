@@ -894,7 +894,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
               <img
                 src={pUrl}
                 alt={pTitle}
-                style={{ maxWidth: "100%", maxHeight: 600, borderRadius: T.radius, objectFit: "contain" }}
+                style={{ maxWidth: "100%", maxHeight: 500, borderRadius: T.radius, objectFit: "contain" }}
               />
             </div>
           )}
@@ -905,7 +905,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
                 key={active.url || doc.url}
                 src={previewUrl}
                 title={pTitle}
-                style={{ width: "100%", flex: 1, minHeight: 600, border: "none", borderRadius: `${T.radius}px ${T.radius}px 0 0` }}
+                style={{ width: "100%", flex: 1, minHeight: 300, maxHeight: 500, overflow: "auto", border: "none", borderRadius: `${T.radius}px ${T.radius}px 0 0` }}
                 allow="autoplay"
               />
               {!canEmbed && (isOffice || isPdf) && (

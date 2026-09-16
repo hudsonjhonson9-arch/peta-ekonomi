@@ -53,10 +53,16 @@ export function extractGDriveFileId(url) {
   // https://drive.google.com/file/d/FILE_ID/view?...
   let m = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
   if (m) return m[1];
-  // https://drive.google.com/open?id=FILE_ID
-  m = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  // https://docs.google.com/spreadsheets/d/FILE_ID/edit?...
+  m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
   if (m) return m[1];
-  // https://drive.google.com/uc?export=view&id=FILE_ID
+  // https://docs.google.com/document/d/FILE_ID/edit?...
+  m = url.match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
+  if (m) return m[1];
+  // https://docs.google.com/presentation/d/FILE_ID/edit?...
+  m = url.match(/\/presentation\/d\/([a-zA-Z0-9_-]+)/);
+  if (m) return m[1];
+  // https://drive.google.com/open?id=FILE_ID
   m = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
   if (m) return m[1];
   return null;
@@ -69,7 +75,7 @@ export function extractGDriveFolderId(url) {
 }
 
 export function isGDriveUrl(url) {
-  return url && /drive\.google\.com/.test(url);
+  return url && /drive\.google\.com|docs\.google\.com/.test(url);
 }
 
 // ponytail: build a direct-download URL for Google Docs viewer
