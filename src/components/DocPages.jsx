@@ -870,7 +870,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
       {/* Main Content: Preview + Metadata */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 20, alignItems: "stretch" }}>
         {/* ── Preview Pane ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, maxHeight: 500, overflow: "auto" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, height: 500, overflow: "hidden" }}>
           {files && files.length > 1 && (
             <div style={{ ...cardStyle, padding: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
               {files.map(f => (
@@ -900,12 +900,12 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
           )}
 
           {!isImage && canPreviewInline && (
-            <div style={{ ...cardStyle, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
+            <div style={{ ...cardStyle, overflow: "hidden", display: "flex", flexDirection: "column" }}>
               <iframe
                 key={active.url || doc.url}
                 src={previewUrl}
                 title={pTitle}
-                style={{ width: "100%", border: "none", borderRadius: `${T.radius}px ${T.radius}px 0 0` }}
+                style={{ width: "100%", flex: 1, border: "none", borderRadius: `${T.radius}px ${T.radius}px 0 0` }}
                 allow="autoplay"
               />
               {!canEmbed && (isOffice || isPdf) && (
