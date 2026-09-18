@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
+import { ThemeContext } from "../App.jsx";
 import { Icon } from "./ui.jsx";
 
 const MAIN = [
@@ -19,6 +20,7 @@ const MORE = [
 ];
 
 export default function BottomNav({ active, onNav, user }) {
+  const { T } = useContext(ThemeContext);
   const [open, setOpen] = useState(false);
   const moreItems = MORE.filter(n => !n.adminOnly || user.role === "Admin");
   const isMoreActive = moreItems.some(n => n.key === active);
@@ -31,8 +33,8 @@ export default function BottomNav({ active, onNav, user }) {
           <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 199 }} />
           <div style={{
             position: "absolute", bottom: 56, right: 8, left: 8,
-            background: "#fff", borderRadius: 12, boxShadow: "0 -4px 24px rgba(0,0,0,0.12)",
-            border: "1px solid #e8e8e8", padding: "6px 0", zIndex: 201,
+            background: T.bottomNavBg, borderRadius: 12, boxShadow: T.shadowMd,
+            border: `1px solid ${T.border}`, padding: "6px 0", zIndex: 201,
             maxHeight: 300, overflowY: "auto",
           }}>
             {moreItems.map(n => (
@@ -42,7 +44,7 @@ export default function BottomNav({ active, onNav, user }) {
                 style={{
                   width: "100%", display: "flex", alignItems: "center", gap: 10,
                   padding: "11px 16px", background: "none", border: "none",
-                  cursor: "pointer", fontSize: 13, color: active === n.key ? "#2563EB" : "#333",
+                  cursor: "pointer", fontSize: 13, color: active === n.key ? T.primary : T.text,
                   fontWeight: active === n.key ? 600 : 400,
                 }}
               >
@@ -56,7 +58,7 @@ export default function BottomNav({ active, onNav, user }) {
 
       {/* Bottom bar */}
       <div style={{
-        background: "#fff", borderTop: "1px solid #e8e8e8",
+        background: T.bottomNavBg, borderTop: `1px solid ${T.bottomNavBorder}`,
         display: "flex",
         paddingBottom: "env(safe-area-inset-bottom, 0)",
       }}>
@@ -72,7 +74,7 @@ export default function BottomNav({ active, onNav, user }) {
                 padding: "6px 0 4px",
                 background: "none", border: "none",
                 cursor: "pointer",
-                color: isActive ? "#2563EB" : "#999",
+                color: isActive ? T.primary : T.textMuted,
                 fontSize: 10, fontWeight: isActive ? 700 : 500,
                 minHeight: 48,
               }}
@@ -90,7 +92,7 @@ export default function BottomNav({ active, onNav, user }) {
             padding: "6px 0 4px",
             background: "none", border: "none",
             cursor: "pointer",
-            color: isMoreActive || open ? "#2563EB" : "#999",
+            color: isMoreActive || open ? T.primary : T.textMuted,
             fontSize: 10, fontWeight: isMoreActive ? 700 : 500,
             minHeight: 48,
           }}
