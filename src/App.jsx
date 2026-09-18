@@ -141,7 +141,30 @@ export default function App() {
     }, ...l]);
   };
 
-  const goPage = p => { setPage(p); setViewDoc(null); sessionStorage.setItem("page", p); };
+  const goPage = (p, pushState = true) => {
+    setPage(p);
+    setViewDoc(null);
+    sessionStorage.setItem("page", p);
+    if (pushState) history.pushState({ page: p }, "", `#${p}`);
+  };
+
+  // browser back/forward
+  useEffect(() => {
+    const onPop = (e) => {
+      const p = e.state?.page || "dashboard";
+      setPage(p);
+      setViewDoc(null);
+      sessionStorage.setItem("page", p);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // push initial state on mount
+  useEffect(() => {
+    const p = sessionStorage.getItem("page") || "dashboard";
+    history.replaceState({ page: p }, "", `#${p}`);
+  }, []);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleApprove = doc => {
@@ -566,7 +589,7 @@ export default function App() {
             <Dashboard docs={docs} onNav={goPage} sectors={sectors} categories={categories} />
           )}
           {page === "dokumen" && !viewDoc && (
-            <DocList docs={docs} onView={d => setViewDoc(d)} user={user} categories={categories} sectors={sectors} bidangs={bidangs} />
+            <DocList docs={docs} onView={d => { setViewDoc(d); history.pushState({ page: "dokumen", docId: d.id }, "", "#dokumen"); }} user={user} categories={categories} sectors={sectors} bidangs={bidangs} />
           )}
           {page === "dokumen" && viewDoc && (
             <DocDetail

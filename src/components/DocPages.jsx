@@ -124,11 +124,29 @@ const BIDANG_COLORS = {
 };
 function getBidangColor(bidang) { return BIDANG_COLORS[bidang] || { bg: "#F1F5F9", text: "#64748B" }; }
 
-export function DocList({ docs, onView, categories = [], sectors = [], bidangs = [] }) {
+export function DocList({ docs, onView, onNav, categories = [], sectors = [], bidangs = [] }) {
   const { isMobile } = useResponsive();
   const [showFilter, setShowFilter] = useState(!isMobile);
-  const [viewMode, setViewMode] = useState("grid");
-  const [gridSize, setGridSize] = useState(240);
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem("doc_viewMode") || "grid");
+  const [gridSize, setGridSize] = useState(() => Number(localStorage.getItem("doc_gridSize")) || 240);
+  const [dragOver, setDragOver] = useState(false);
+
+  // persist viewMode & gridSize
+  const setViewModePersist = (v) => { localStorage.setItem("doc_viewMode", v); setViewMode(v); };
+  const setGridSizePersist = (v) => { localStorage.setItem("doc_gridSize", String(v)); setGridSize(v); };
+
+  // drag & drop → buka upload form
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const files = e.dataTransfer?.files;
+    if (files?.length > 0 && onNav) {
+      // simpan files di sessionStorage untuk diambil UploadForm
+      const fileList = Array.from(files).map(f => f.name);
+      sessionStorage.setItem("droppedFiles", JSON.stringify(fileList));
+      onNav("upload");
+    }
+  };
   const [search,       setSearch]       = useState("");
   const [filterType,   setFilterType]   = useState("Semua Jenis");
   const [filterSector, setFilterSector] = useState("Semua Sektor");
@@ -170,7 +188,12 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
   }, [filtered, selectedBidang]);
 
   return (
-    <div style={{ fontFamily: T.font, background: T.bg, minHeight: "100vh" }}>
+    <div
+      style={{ fontFamily: T.font, background: dragOver ? "#EFF6FF" : T.bg, minHeight: "100vh", transition: "background 0.2s" }}
+      onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={handleDrop}
+    >
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -189,6 +212,17 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {/* Tambah Button */}
+          {onNav && (
+            <button onClick={() => onNav("upload")} style={{
+              ...btnBase, padding: "8px 14px", fontSize: 13, fontWeight: 600,
+              background: T.primary, color: "#fff", boxShadow: "0 1px 3px rgba(37,99,235,0.3)",
+            }}
+              onMouseEnter={e => { e.currentTarget.style.background = T.primaryHover; }}
+              onMouseLeave={e => { e.currentTarget.style.background = T.primary; }}>
+              <Icon name="plus" size={15} /> {!isMobile && "Tambah"}
+            </button>
+          )}
           {/* Grid Size Slider */}
           {viewMode === "grid" && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: "6px 10px" }}>
@@ -198,7 +232,7 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
                 min={160}
                 max={400}
                 value={gridSize}
-                onChange={e => setGridSize(Number(e.target.value))}
+                onChange={e => setGridSizePersist(Number(e.target.value))}
                 style={{ width: 60, height: 4, accentColor: T.primary, cursor: "pointer" }}
               />
             </div>
@@ -206,7 +240,7 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
           {/* View Toggle */}
           <div style={{ display: "flex", background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius, overflow: "hidden" }}>
             <button
-              onClick={() => setViewMode("grid")}
+              onClick={() => setViewModePersist("grid")}
               style={{
                 ...btnBase,
                 padding: "8px 12px",
@@ -221,7 +255,7 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
               <Icon name="grid" size={14} />
             </button>
             <button
-              onClick={() => setViewMode("list")}
+              onClick={() => setViewModePersist("list")}
               style={{
                 ...btnBase,
                 padding: "8px 12px",
@@ -237,6 +271,24 @@ export function DocList({ docs, onView, categories = [], sectors = [], bidangs =
           </div>
         </div>
       </div>
+
+      {/* Drag Overlay */}
+      {dragOver && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(37,99,235,0.1)", zIndex: 50,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          pointerEvents: "none",
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: 16, padding: "32px 48px",
+            boxShadow: "0 20px 60px rgba(37,99,235,0.2)", border: `2px dashed ${T.primary}`,
+            textAlign: "center",
+          }}>
+            <Icon name="upload" size={40} style={{ color: T.primary, marginBottom: 12 }} />
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>Lepas file untuk upload</div>
+          </div>
+        </div>
+      )}
 
       {/* Search & Filters */}
       <div style={{ ...cardStyle, padding: isMobile ? 12 : 16, marginBottom: 16 }}>
