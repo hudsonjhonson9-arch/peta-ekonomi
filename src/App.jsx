@@ -638,6 +638,34 @@ export default function App() {
           )}
         </div>
 
+        {/* FAB: + */}
+        {!viewDoc && page !== "upload" && (
+          <button
+            onClick={() => goPage("upload")}
+            style={{
+              position: "fixed",
+              bottom: isMobile ? 80 : 24,
+              right: 24,
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+              background: "#2563eb",
+              color: "#fff",
+              border: "none",
+              boxShadow: "0 4px 14px rgba(37,99,235,0.4)",
+              fontSize: 28,
+              cursor: "pointer",
+              zIndex: 999,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "transform 0.15s",
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = "scale(1.1)"}
+            onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
+          >+</button>
+        )}
+
         {/* Bottom Nav */}
         {isMobile && (
           <BottomNav active={viewDoc ? "dokumen" : page} onNav={goPage} user={user} />

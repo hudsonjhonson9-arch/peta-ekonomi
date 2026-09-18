@@ -163,6 +163,16 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
     history.pushState({ page: "dokumen" }, "", "#dokumen");
   };
 
+  // browser back from folder → clear selectedBidang
+  useEffect(() => {
+    const onPop = () => {
+      const h = location.hash;
+      if (!h.startsWith("#folder-")) setSelectedBidang(null);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return docs.filter(d => {
