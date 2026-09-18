@@ -140,6 +140,22 @@ const EXT_MAP = {
   csv:  { icon: "file",     bg: "#ECFDF5", color: "#059669", label: "CSV" },
   zip:  { icon: "file",     bg: "#F1F5F9", color: "#64748B", label: "ZIP" },
 };
+// ponytail: map kategori dokumen → warna (fallback when no file ext)
+const TYPE_COLORS = {
+  "Perencanaan":             { bg: "#ECFDF5", color: "#059669" },
+  "Perencanaan Tahunan (RKPD)": { bg: "#ECFDF5", color: "#059669" },
+  "RKPD":                    { bg: "#ECFDF5", color: "#059669" },
+  "Renstra":                 { bg: "#ECFDF5", color: "#059669" },
+  "Renja":                   { bg: "#FEF3C7", color: "#D97706" },
+  "RKA":                     { bg: "#FEF3C7", color: "#D97706" },
+  "Laporan Evaluasi":        { bg: "#EFF6FF", color: "#2563EB" },
+  "Evaluasi & Pelaporan":    { bg: "#EFF6FF", color: "#2563EB" },
+  "Kajian Ekonomi":          { bg: "#F5F3FF", color: "#7C3AED" },
+  "Forum Perencanaan":       { bg: "#FDF2F8", color: "#DB2777" },
+  "Administrasi Umum":       { bg: "#F1F5F9", color: "#475569" },
+  "Administrasi":            { bg: "#F1F5F9", color: "#475569" },
+};
+const DEFAULT_TYPE_COLOR = { bg: "#F1F5F9", color: "#64748B" };
 function getFileExtInfo(name) {
   if (!name) return { icon: "file", bg: "#F1F5F9", color: "#64748B", label: "File" };
   const ext = name.split(".").pop().toLowerCase();
@@ -150,8 +166,8 @@ function getDocFileInfo(d) {
   if (Array.isArray(d.files) && d.files.length > 0) {
     return getFileExtInfo(d.files[0].name || d.files[0]);
   }
-  // fallback: try to guess from title
-  return getFileExtInfo(d.title);
+  // fallback: use kategori dokumen color
+  return { icon: "file", ...(TYPE_COLORS[d.type] || DEFAULT_TYPE_COLOR), label: d.type || "File" };
 }
 
 // ── Hover Tooltip ──────────────────────────────────────────────────────────
