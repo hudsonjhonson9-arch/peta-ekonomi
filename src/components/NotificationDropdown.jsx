@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useContext } from "react";
 import { Icon } from "./ui.jsx";
 import { useNotifications, api } from "../hooks.js";
 import { queryClient } from "../main.jsx";
+import { ThemeContext } from "../App.jsx";
 
 const TYPE_ICON = { info: "bell", success: "check", warning: "x" };
 const TYPE_COLOR = { info: "#2563EB", success: "#059669", warning: "#DC2626" };
@@ -21,6 +22,7 @@ export default function NotificationDropdown({ userId }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const { data: notifs = [] } = useNotifications(userId);
+  const { T } = useContext(ThemeContext);
   const unread = notifs.filter(n => !n.is_read).length;
 
   useEffect(() => {
@@ -45,7 +47,7 @@ export default function NotificationDropdown({ userId }) {
         onClick={() => setOpen(o => !o)}
         style={{ position: "relative", background: "none", border: "none", cursor: "pointer", padding: 6, borderRadius: 6, display: "flex", alignItems: "center" }}
       >
-        <Icon name="bell" size={18} style={{ color: "#666" }} />
+        <Icon name="bell" size={18} style={{ color: T.textMuted }} />
         {unread > 0 && (
           <span style={{
             position: "absolute", top: 0, right: 0,
@@ -61,14 +63,14 @@ export default function NotificationDropdown({ userId }) {
       {open && (
         <div style={{
           position: "absolute", top: "calc(100% + 8px)", right: 0,
-          width: 340, maxHeight: 400, background: "#fff", borderRadius: 12,
-          boxShadow: "0 10px 40px rgba(0,0,0,0.15)", border: "1px solid #E2E8F0",
+          width: 340, maxHeight: 400, background: T.card, borderRadius: 12,
+          boxShadow: "0 10px 40px rgba(0,0,0,0.15)", border: `1px solid ${T.border}`,
           overflow: "hidden", zIndex: 999,
         }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: "1px solid #F1F5F9" }}>
-            <span style={{ fontWeight: 700, fontSize: 14, color: "#0F172A" }}>Notifikasi</span>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${T.border}` }}>
+            <span style={{ fontWeight: 700, fontSize: 14, color: T.text }}>Notifikasi</span>
             {unread > 0 && (
-              <button onClick={markAllRead} style={{ background: "none", border: "none", color: "#2563EB", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+              <button onClick={markAllRead} style={{ background: "none", border: "none", color: T.primary, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                 Tandai semua dibaca
               </button>
             )}
@@ -76,7 +78,7 @@ export default function NotificationDropdown({ userId }) {
 
           <div style={{ maxHeight: 340, overflowY: "auto" }}>
             {notifs.length === 0 ? (
-              <div style={{ padding: 32, textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
+              <div style={{ padding: 32, textAlign: "center", color: T.textMuted, fontSize: 13 }}>
                 Belum ada notifikasi
               </div>
             ) : notifs.map(n => (
@@ -85,8 +87,8 @@ export default function NotificationDropdown({ userId }) {
                 onClick={() => { if (!n.is_read) markRead(n.id); }}
                 style={{
                   display: "flex", gap: 10, padding: "10px 16px",
-                  background: n.is_read ? "#fff" : "#F8FAFC",
-                  cursor: "pointer", borderBottom: "1px solid #F8FAFC",
+                  background: n.is_read ? T.card : T.surfaceHover,
+                  cursor: "pointer", borderBottom: `1px solid ${T.border}`,
                   transition: "background 0.15s",
                 }}
               >
@@ -98,9 +100,9 @@ export default function NotificationDropdown({ userId }) {
                   <Icon name={TYPE_ICON[n.type] || "bell"} size={14} style={{ color: TYPE_COLOR[n.type] || "#2563EB" }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: n.is_read ? 400 : 600, color: "#0F172A", marginBottom: 2 }}>{n.title}</div>
-                  <div style={{ fontSize: 12, color: "#64748B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.message}</div>
-                  <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>{timeAgo(n.created_at)}</div>
+                  <div style={{ fontSize: 13, fontWeight: n.is_read ? 400 : 600, color: T.text, marginBottom: 2 }}>{n.title}</div>
+                  <div style={{ fontSize: 12, color: T.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.message}</div>
+                  <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>{timeAgo(n.created_at)}</div>
                 </div>
                 {!n.is_read && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#2563EB", flexShrink: 0, marginTop: 4 }} />}
               </div>

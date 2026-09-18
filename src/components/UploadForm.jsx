@@ -342,7 +342,7 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
                   padding: files.length ? "20px 24px" : "24px 24px",
                   textAlign: "center",
                   cursor: uploading ? "not-allowed" : "pointer",
-                  background: dragOver ? T.primaryLight : files.length ? T.primaryLight : "#FAFBFC",
+                  background: dragOver ? T.primaryLight : files.length ? T.primaryLight : T.surfaceHover,
                   transition: "all 0.2s",
                 }}
               >
