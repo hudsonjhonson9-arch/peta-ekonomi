@@ -1,10 +1,13 @@
+import { useContext } from "react";
 import { Icon, Badge } from "./ui.jsx";
 import { STATUS_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
 import BankDataDashboard from "./BankDataDashboard.jsx";
+import { ThemeContext } from "../App.jsx";
 
 export default function Dashboard({ docs, onNav, sectors = [], categories = [] }) {
   const { isMobile } = useResponsive();
+  const { T } = useContext(ThemeContext);
   const archived  = docs.filter(d => d.status === "Diarsipkan").length;
   const pending   = docs.filter(d => d.status !== "Diarsipkan" && d.status !== "Ditolak").length;
   const rejected  = docs.filter(d => d.status === "Ditolak").length;
@@ -27,8 +30,8 @@ export default function Dashboard({ docs, onNav, sectors = [], categories = [] }
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: "#0F172A" }}>Dashboard</div>
-        <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: T.text }}>Dashboard</div>
+        <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>
           Ringkasan arsip dokumen perencanaan pembangunan
         </div>
       </div>
@@ -41,9 +44,9 @@ export default function Dashboard({ docs, onNav, sectors = [], categories = [] }
           { label: "Menunggu Proses",  value: pending,     color: "#f57f17", icon: "bell"    },
           { label: "Ditolak",          value: rejected,    color: "#c62828", icon: "x"       },
         ].map((s, i) => (
-          <div key={i} style={{ background: "#fff", borderRadius: 12, padding: 16, border: "1px solid #e8e8e8" }}>
+          <div key={i} style={{ background: T.card, borderRadius: 12, padding: 16, border: `1px solid ${T.border}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <div style={{ fontSize: 12, color: "#666", fontWeight: 500 }}>{s.label}</div>
+              <div style={{ fontSize: 12, color: T.textSecondary, fontWeight: 500 }}>{s.label}</div>
               <div style={{ width: 32, height: 32, background: s.color + "18", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Icon name={s.icon} size={15} style={{ color: s.color }} />
               </div>
@@ -55,31 +58,31 @@ export default function Dashboard({ docs, onNav, sectors = [], categories = [] }
 
       {/* Charts */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16, marginBottom: 24 }}>
-        <div style={{ background: "#fff", borderRadius: 12, padding: 20, border: "1px solid #e8e8e8" }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", marginBottom: 14 }}>Dokumen per Jenis</div>
+        <div style={{ background: T.card, borderRadius: 12, padding: 20, border: `1px solid ${T.border}` }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 14 }}>Dokumen per Jenis</div>
           {byType.map((x, i) => (
             <div key={i} style={{ marginBottom: 10 }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                <span style={{ color: "#444" }}>{x.type}</span>
-                <span style={{ fontWeight: 600, color: "#2563EB" }}>{x.count}</span>
+                <span style={{ color: T.textSecondary }}>{x.type}</span>
+                <span style={{ fontWeight: 600, color: T.primary }}>{x.count}</span>
               </div>
-              <div style={{ height: 6, background: "#f0f0f0", borderRadius: 99 }}>
-                <div style={{ height: "100%", background: "#2563EB", borderRadius: 99, width: `${(x.count / maxType) * 100}%`, transition: "width .5s" }} />
+              <div style={{ height: 6, background: T.border, borderRadius: 99 }}>
+                <div style={{ height: "100%", background: T.primary, borderRadius: 99, width: `${(x.count / maxType) * 100}%`, transition: "width .5s" }} />
               </div>
             </div>
           ))}
         </div>
 
-        <div style={{ background: "#fff", borderRadius: 12, padding: 20, border: "1px solid #e8e8e8" }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", marginBottom: 14 }}>Dokumen per Sektor</div>
+        <div style={{ background: T.card, borderRadius: 12, padding: 20, border: `1px solid ${T.border}` }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 14 }}>Dokumen per Sektor</div>
           {bySector.map((x, i) => (
             <div key={i} style={{ marginBottom: 10 }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                <span style={{ color: "#444" }}>{x.sector}</span>
-                <span style={{ fontWeight: 600, color: "#1D4ED8" }}>{x.count}</span>
+                <span style={{ color: T.textSecondary }}>{x.sector}</span>
+                <span style={{ fontWeight: 600, color: T.primary }}>{x.count}</span>
               </div>
-              <div style={{ height: 6, background: "#f0f0f0", borderRadius: 99 }}>
-                <div style={{ height: "100%", background: "#1D4ED8", borderRadius: 99, width: `${(x.count / maxSector) * 100}%`, transition: "width .5s" }} />
+              <div style={{ height: 6, background: T.border, borderRadius: 99 }}>
+                <div style={{ height: "100%", background: T.primary, borderRadius: 99, width: `${(x.count / maxSector) * 100}%`, transition: "width .5s" }} />
               </div>
             </div>
           ))}
@@ -90,21 +93,21 @@ export default function Dashboard({ docs, onNav, sectors = [], categories = [] }
       <BankDataDashboard />
 
       {/* Recent docs */}
-      <div style={{ background: "#fff", borderRadius: 12, padding: 20, border: "1px solid #e8e8e8" }}>
+      <div style={{ background: T.card, borderRadius: 12, padding: 20, border: `1px solid ${T.border}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>Dokumen Terbaru</div>
-          <button onClick={() => onNav("dokumen")} style={{ fontSize: 12, color: "#2563EB", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Dokumen Terbaru</div>
+          <button onClick={() => onNav("dokumen")} style={{ fontSize: 12, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
             Lihat semua →
           </button>
         </div>
         {recent.map((d, i) => (
-          <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: i < recent.length - 1 ? "1px solid #f5f5f5" : "none" }}>
-            <div style={{ width: 36, height: 36, background: "#EFF6FF", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Icon name="file" size={16} style={{ color: "#2563EB" }} />
+          <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: i < recent.length - 1 ? `1px solid ${T.border}` : "none" }}>
+            <div style={{ width: 36, height: 36, background: T.primaryLight, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Icon name="file" size={16} style={{ color: T.primary }} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.title}</div>
-              <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>{d.type} · {d.year} · {d.uploader}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.title}</div>
+              <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>{d.type} · {d.year} · {d.uploader}</div>
             </div>
             <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
           </div>
