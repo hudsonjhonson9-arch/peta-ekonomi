@@ -49,6 +49,14 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
   const [dragOver,  setDragOver]  = useState(false);
   const fileRef = useRef();
 
+  // pick up files dropped on DocList
+  useEffect(() => {
+    if (window.__droppedFiles?.length) {
+      setFiles(prev => [...prev, ...window.__droppedFiles]);
+      window.__droppedFiles = null;
+    }
+  }, []);
+
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const validate = () => {
