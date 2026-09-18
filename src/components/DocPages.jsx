@@ -269,24 +269,6 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
   const setViewModePersist = (v) => { localStorage.setItem("doc_viewMode", v); setViewMode(v); };
   const setGridSizePersist = (v) => { localStorage.setItem("doc_gridSize", String(v)); setGridSize(v); };
 
-  // keyboard shortcuts: Ctrl+K = focus search, Esc = clear folder, ArrowLeft = back
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === "k" && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        document.getElementById("doc-search")?.focus();
-      }
-      if (e.key === "Escape") {
-        if (selectedBidang) clearBidang();
-      }
-      if (e.key === "ArrowLeft" && selectedBidang) {
-        clearBidang();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [selectedBidang]);
-
   // drag & drop → buka upload form
   const handleDrop = (e) => {
     e.preventDefault();
@@ -314,6 +296,24 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
     setSelectedBidang(null);
     history.pushState({ page: "dokumen" }, "", "#dokumen");
   };
+
+  // keyboard shortcuts: Ctrl+K = focus search, Esc = clear folder, ArrowLeft = back
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "k" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        document.getElementById("doc-search")?.focus();
+      }
+      if (e.key === "Escape") {
+        if (selectedBidang) clearBidang();
+      }
+      if (e.key === "ArrowLeft" && selectedBidang) {
+        clearBidang();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedBidang]);
 
   // browser back from folder → clear selectedBidang
   useEffect(() => {
