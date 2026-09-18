@@ -43,6 +43,17 @@ function makeSelStyle(T) {
   };
 }
 
+// ponytail: dark-mode flag set by DocList each render; adapt() derives dark tints
+// from the accent color so every color map below works in both themes.
+let _dark = false;
+function adapt(c) {
+  if (!_dark) return c;
+  const fg = c.color || c.text;
+  const bg = `color-mix(in srgb, ${fg} 22%, transparent)`;
+  const nf = `color-mix(in srgb, ${fg} 60%, white)`;
+  return c.color ? { ...c, bg, color: nf } : { ...c, bg, text: nf };
+}
+
 const FILE_TYPE_COLORS = {
   "Laporan": { bg: "#EFF6FF", text: "#2563EB" },
   "Peraturan": { bg: "#FEF3C7", text: "#D97706" },
@@ -52,7 +63,7 @@ const FILE_TYPE_COLORS = {
 };
 
 function getFileTypeColor(type) {
-  return FILE_TYPE_COLORS[type] || { bg: "#F1F5F9", text: "#64748B" };
+  return adapt(FILE_TYPE_COLORS[type] || { bg: "#F1F5F9", text: "#64748B" });
 }
 
 const BIDANG_COLORS = {
@@ -63,7 +74,7 @@ const BIDANG_COLORS = {
   "Bidang Infrastruktur dan Kewilayahan":           { bg: "#F3E8FF", text: "#9333EA" },
   "Bidang Riset dan Inovasi Daerah":                { bg: "#FFF1F2", text: "#E11D48" },
 };
-function getBidangColor(bidang) { return BIDANG_COLORS[bidang] || { bg: "#F1F5F9", text: "#64748B" }; }
+function getBidangColor(bidang) { return adapt(BIDANG_COLORS[bidang] || { bg: "#F1F5F9", text: "#64748B" }); }
 
 // ── File Type Icon & Color ──────────────────────────────────────────────────
 const EXT_MAP = {
@@ -98,9 +109,9 @@ const TYPE_COLORS = {
 };
 const DEFAULT_TYPE_COLOR = { bg: "#F1F5F9", color: "#64748B" };
 function getFileExtInfo(name) {
-  if (!name) return { icon: "file", bg: "#F1F5F9", color: "#64748B", label: "File" };
+  if (!name) return adapt({ icon: "file", bg: "#F1F5F9", color: "#64748B", label: "File" });
   const ext = name.split(".").pop().toLowerCase();
-  return EXT_MAP[ext] || { icon: "file", bg: "#F1F5F9", color: "#64748B", label: ext.toUpperCase() };
+  return adapt(EXT_MAP[ext] || { icon: "file", bg: "#F1F5F9", color: "#64748B", label: ext.toUpperCase() });
 }
 // ponytail: guess file type from title if no files array
 function getDocFileInfo(d) {
@@ -108,7 +119,7 @@ function getDocFileInfo(d) {
     return getFileExtInfo(d.files[0].name || d.files[0]);
   }
   // fallback: use kategori dokumen color
-  return { icon: "file", ...(TYPE_COLORS[d.type] || DEFAULT_TYPE_COLOR), label: d.type || "File" };
+  return { icon: "file", ...adapt(TYPE_COLORS[d.type] || DEFAULT_TYPE_COLOR), label: d.type || "File" };
 }
 
 // ── Hover Tooltip ──────────────────────────────────────────────────────────
@@ -169,6 +180,7 @@ function DocTooltip({ doc, children }) {
 // ── Skeleton Loader ────────────────────────────────────────────────────────
 function SkeletonGrid({ count = 8, gridSize = 240 }) {
   const { T } = useContext(ThemeContext);
+  const cardStyle = makeCardStyle(T);
   const shimmer = {
     background: `linear-gradient(90deg, ${T.border} 25%, ${T.borderHover} 50%, ${T.border} 75%)`,
     backgroundSize: "200% 100%",
@@ -193,6 +205,7 @@ function SkeletonGrid({ count = 8, gridSize = 240 }) {
 
 function SkeletonList({ count = 8 }) {
   const { T } = useContext(ThemeContext);
+  const cardStyle = makeCardStyle(T);
   const shimmer = {
     background: `linear-gradient(90deg, ${T.border} 25%, ${T.borderHover} 50%, ${T.border} 75%)`,
     backgroundSize: "200% 100%",
@@ -218,7 +231,8 @@ function SkeletonList({ count = 8 }) {
 }
 
 export function DocList({ docs, onView, onNav, categories = [], sectors = [], bidangs = [], loading = false, onBulkAction }) {
-  const { T } = useContext(ThemeContext);
+  const { T, isDark } = useContext(ThemeContext);
+  _dark = !!isDark;
   const { isMobile } = useResponsive();
   const cardStyle = useMemo(() => makeCardStyle(T), [T]);
   const inputStyle = useMemo(() => makeInputStyle(T), [T]);

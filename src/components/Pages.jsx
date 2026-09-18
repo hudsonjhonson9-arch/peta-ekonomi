@@ -425,12 +425,12 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
               </div>
               <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 12 }}>Login: {u.lastLogin}</div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => openEdit(u)} style={{ ...btnBase, flex: 1, padding: "9px 12px", background: T.bg, border: `1px solid ${T.border}`, color: T.textSecondary, fontSize: 13 }}
+                <button onClick={() => openEdit(u)} style={{ ...s.btnBase, flex: 1, padding: "9px 12px", background: T.bg, border: `1px solid ${T.border}`, color: T.textSecondary, fontSize: 13 }}
                   onMouseEnter={e => e.currentTarget.style.background = T.primaryLight}
                   onMouseLeave={e => e.currentTarget.style.background = T.bg}>
                   <Icon name="edit" size={13} /> Edit
                 </button>
-                <button onClick={() => handleDelete(u)} style={{ ...btnBase, flex: 1, padding: "9px 12px", background: T.dangerBg, border: `1px solid ${T.dangerBorder}`, color: T.danger, fontSize: 13 }}
+                <button onClick={() => handleDelete(u)} style={{ ...s.btnBase, flex: 1, padding: "9px 12px", background: T.dangerBg, border: `1px solid ${T.dangerBorder}`, color: T.danger, fontSize: 13 }}
                   onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = T.danger; }}
                   onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; e.currentTarget.style.borderColor = T.dangerBorder; }}>
                   <Icon name="x" size={13} /> Hapus
@@ -541,7 +541,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
 
             {/* Actions */}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24, paddingTop: 16, borderTop: `1px solid ${T.border}` }}>
-              <button onClick={() => setModalOpen(false)} style={{ ...btnBase, padding: "10px 18px", background: T.surfaceHover, color: T.textSecondary, fontSize: 13 }}
+              <button onClick={() => setModalOpen(false)} style={{ ...s.btnBase, padding: "10px 18px", background: T.surfaceHover, color: T.textSecondary, fontSize: 13 }}
                 onMouseEnter={e => e.currentTarget.style.background = T.borderHover}
                 onMouseLeave={e => e.currentTarget.style.background = T.surfaceHover}>
                 Batal
@@ -773,7 +773,7 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
 
             {/* Actions */}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24, paddingTop: 16, borderTop: `1px solid ${T.border}` }}>
-              <button onClick={() => setModalOpen(false)} style={{ ...btnBase, padding: "10px 18px", background: T.surfaceHover, color: T.textSecondary, fontSize: 13 }}
+              <button onClick={() => setModalOpen(false)} style={{ ...s.btnBase, padding: "10px 18px", background: T.surfaceHover, color: T.textSecondary, fontSize: 13 }}
                 onMouseEnter={e => e.currentTarget.style.background = T.borderHover}
                 onMouseLeave={e => e.currentTarget.style.background = T.surfaceHover}>
                 Batal
@@ -932,17 +932,17 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
               <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 4 }}>Belum ada sektor</div>
               <div style={{ fontSize: 13, color: T.textMuted }}>Klik "Tambah" untuk menambahkan sektor baru</div>
             </div>
-          ) : sectors.map(s => (
-            <div key={s.id} style={{ ...s.cardStyle, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+          ) : sectors.map(sec => (
+            <div key={sec.id} style={{ ...s.cardStyle, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ width: 40, height: 40, background: T.primaryLight, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Icon name="layers" size={18} style={{ color: T.primary }} />
               </div>
-              <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.nama}</div>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sec.nama}</div>
               <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                <button onClick={() => openEdit(s)} style={s.btnGhost}>
+                <button onClick={() => openEdit(sec)} style={s.btnGhost}>
                   <Icon name="edit" size={13} /> Edit
                 </button>
-                <button onClick={() => handleDelete(s)} style={s.btnDanger}>
+                <button onClick={() => handleDelete(sec)} style={s.btnDanger}>
                   <Icon name="x" size={13} /> Hapus
                 </button>
               </div>
@@ -967,8 +967,8 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
               <div style={{ fontSize: 13, color: T.textMuted }}>Klik "Tambah" untuk menambahkan sektor baru</div>
             </div>
           ) : (
-            sectors.map((s, i) => (
-              <div key={s.id}
+            sectors.map((sec, i) => (
+              <div key={sec.id}
                 style={{
                   display: "grid",
                   gridTemplateColumns: "1fr 120px",
@@ -984,15 +984,15 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
                   <div style={{ width: 36, height: 36, background: T.primaryLight, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                     <Icon name="layers" size={16} style={{ color: T.primary }} />
                   </div>
-                  <span style={{ fontSize: 14, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.nama}</span>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sec.nama}</span>
                 </div>
                 <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                  <button onClick={() => openEdit(s)} style={s.btnGhost}
+                  <button onClick={() => openEdit(sec)} style={s.btnGhost}
                     onMouseEnter={e => e.currentTarget.style.background = T.primaryLight}
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                     <Icon name="edit" size={13} /> Edit
                   </button>
-                  <button onClick={() => handleDelete(s)} style={s.btnDanger}
+                  <button onClick={() => handleDelete(sec)} style={s.btnDanger}
                     onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = T.danger; }}
                     onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; e.currentTarget.style.borderColor = T.dangerBorder; }}>
                     <Icon name="x" size={13} /> Hapus
@@ -1047,7 +1047,7 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
 
             {/* Actions */}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24, paddingTop: 16, borderTop: `1px solid ${T.border}` }}>
-              <button onClick={() => setModalOpen(false)} style={{ ...btnBase, padding: "10px 18px", background: T.surfaceHover, color: T.textSecondary, fontSize: 13 }}
+              <button onClick={() => setModalOpen(false)} style={{ ...s.btnBase, padding: "10px 18px", background: T.surfaceHover, color: T.textSecondary, fontSize: 13 }}
                 onMouseEnter={e => e.currentTarget.style.background = T.borderHover}
                 onMouseLeave={e => e.currentTarget.style.background = T.surfaceHover}>
                 Batal

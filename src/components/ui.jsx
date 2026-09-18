@@ -1,8 +1,24 @@
+import { useState, useEffect } from "react";
+
+// ponytail: reactive dark-mode flag — App sets data-theme on <html>
+export function useIsDark() {
+  const read = () => document.documentElement.getAttribute("data-theme") === "dark";
+  const [dark, setDark] = useState(read);
+  useEffect(() => {
+    const mo = new MutationObserver(() => setDark(read()));
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    setDark(read());
+    return () => mo.disconnect();
+  }, []);
+  return dark;
+}
+
 export function Badge({ label, colors }) {
+  const dark = useIsDark();
   return (
     <span style={{
-      background: colors.bg,
-      color: colors.text,
+      background: dark && colors.darkBg ? colors.darkBg : colors.bg,
+      color: dark && colors.darkText ? colors.darkText : colors.text,
       fontSize: 11,
       fontWeight: 600,
       padding: "3px 9px",
