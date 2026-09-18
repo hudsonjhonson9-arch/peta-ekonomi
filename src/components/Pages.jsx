@@ -1,110 +1,79 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext, useMemo } from "react";
 import { Icon, Badge } from "./ui.jsx";
 import { STATUS_COLOR, ROLE_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
+import { ThemeContext } from "../App.jsx";
 
-// ── Shared Design Tokens ────────────────────────────────────────────────────
-const T = {
-  bg: "#F8FAFC",
-  card: "#FFFFFF",
-  border: "#E4ECFC",
-  borderHover: "#C7D7FC",
-  primary: "#2563EB",
-  primaryHover: "#1D4ED8",
-  primaryLight: "#EFF6FF",
-  primaryRing: "rgba(37,99,235,0.15)",
-  danger: "#DC2626",
-  dangerBg: "#FEF2F2",
-  dangerBorder: "#FECACA",
-  dangerHover: "#FEE2E2",
-  dangerRing: "rgba(220,38,38,0.15)",
-  text: "#0F172A",
-  textSecondary: "#64748B",
-  textMuted: "#94A3B8",
-  surfaceHover: "#F8FAFC",
-  success: "#059669",
-  successBg: "#ECFDF5",
-  successBorder: "#A7F3D0",
-  focusRing: "0 0 0 3px rgba(37,99,235,0.15)",
-  shadowSm: "0 1px 2px rgba(0,0,0,0.05)",
-  shadowMd: "0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05)",
-  shadowLg: "0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.04)",
-  radius: "10px",
-  radiusLg: "14px",
-  font: "'Lexend', 'Source Sans 3', system-ui, -apple-system, sans-serif",
-};
-
-const btnBase = {
-  fontFamily: T.font,
-  fontWeight: 600,
-  borderRadius: T.radius,
-  border: "none",
-  cursor: "pointer",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 6,
-  transition: "all 0.15s ease",
-  outline: "none",
-  whiteSpace: "nowrap",
-};
-
-const btnPrimary = {
-  ...btnBase,
-  background: T.primary,
-  color: "#fff",
-  padding: "10px 18px",
-  fontSize: 13,
-  boxShadow: "0 1px 3px rgba(37,99,235,0.3)",
-};
-
-const btnGhost = {
-  ...btnBase,
-  background: "transparent",
-  color: T.textSecondary,
-  padding: "8px 12px",
-  fontSize: 12,
-};
-
-const btnDanger = {
-  ...btnBase,
-  background: T.dangerBg,
-  color: T.danger,
-  padding: "8px 12px",
-  fontSize: 12,
-  border: `1px solid ${T.dangerBorder}`,
-};
-
-const cardStyle = {
-  background: T.card,
-  borderRadius: T.radiusLg,
-  border: `1px solid ${T.border}`,
-  boxShadow: T.shadowSm,
-};
-
-const inputStyle = {
-  width: "100%",
-  padding: "10px 14px",
-  fontFamily: T.font,
-  border: `1.5px solid ${T.border}`,
-  borderRadius: T.radius,
-  fontSize: 14,
-  outline: "none",
-  boxSizing: "border-box",
-  transition: "border-color 0.15s, box-shadow 0.15s",
-  color: T.text,
-  background: "#fff",
-};
-
-const inputErrorStyle = {
-  ...inputStyle,
-  borderColor: T.danger,
-  boxShadow: `0 0 0 3px ${T.dangerRing}`,
-};
+// ── Shared Style Factories (use T from ThemeContext) ──────────────────────────
+function makeStyles(T) {
+  const btnBase = {
+    fontFamily: T.font,
+    fontWeight: 600,
+    borderRadius: T.radius,
+    border: "none",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    transition: "all 0.15s ease",
+    outline: "none",
+    whiteSpace: "nowrap",
+  };
+  const btnPrimary = {
+    ...btnBase,
+    background: T.primary,
+    color: "#fff",
+    padding: "10px 18px",
+    fontSize: 13,
+    boxShadow: "0 1px 3px rgba(37,99,235,0.3)",
+  };
+  const btnGhost = {
+    ...btnBase,
+    background: "transparent",
+    color: T.textSecondary,
+    padding: "8px 12px",
+    fontSize: 12,
+  };
+  const btnDanger = {
+    ...btnBase,
+    background: T.dangerBg,
+    color: T.danger,
+    padding: "8px 12px",
+    fontSize: 12,
+    border: `1px solid ${T.dangerBorder}`,
+  };
+  const cardStyle = {
+    background: T.card,
+    borderRadius: T.radiusLg,
+    border: `1px solid ${T.border}`,
+    boxShadow: T.shadowSm,
+  };
+  const inputStyle = {
+    width: "100%",
+    padding: "10px 14px",
+    fontFamily: T.font,
+    border: `1.5px solid ${T.border}`,
+    borderRadius: T.radius,
+    fontSize: 14,
+    outline: "none",
+    boxSizing: "border-box",
+    transition: "border-color 0.15s, box-shadow 0.15s",
+    color: T.text,
+    background: T.inputBg,
+  };
+  const inputErrorStyle = {
+    ...inputStyle,
+    borderColor: T.danger,
+    boxShadow: `0 0 0 3px ${T.dangerRing}`,
+  };
+  return { btnBase, btnPrimary, btnGhost, btnDanger, cardStyle, inputStyle, inputErrorStyle };
+}
 
 // ─── PENCARIAN ────────────────────────────────────────────────────────────────
 export function Pencarian({ docs, onView }) {
   const { isMobile } = useResponsive();
+  const { T } = useContext(ThemeContext);
   const [q,        setQ]        = useState("");
   const [results,  setResults]  = useState([]);
   const [searched, setSearched] = useState(false);
@@ -129,36 +98,36 @@ export function Pencarian({ docs, onView }) {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: "#0F172A" }}>Pencarian Dokumen</div>
-        <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>Cari dalam seluruh repositori dokumen</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: T.text }}>Pencarian Dokumen</div>
+        <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>Cari dalam seluruh repositori dokumen</div>
       </div>
 
-      <div style={{ background: "#fff", borderRadius: 12, padding: isMobile ? 16 : 24, border: "1px solid #e8e8e8", marginBottom: 20 }}>
+      <div style={{ background: T.card, borderRadius: 12, padding: isMobile ? 16 : 24, border: `1px solid ${T.border}`, marginBottom: 20 }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           <div style={{ position: "relative", flex: 1 }}>
-            <Icon name="search" size={isMobile ? 14 : 16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#999" }} />
+            <Icon name="search" size={isMobile ? 14 : 16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: T.textMuted }} />
             <input
               value={q}
               onChange={e => setQ(e.target.value)}
               onKeyDown={e => e.key === "Enter" && doSearch()}
               placeholder="Cari dokumen..."
-              style={{ width: "100%", padding: "10px 12px 10px 38px", border: "1.5px solid #2563EB", borderRadius: 8, fontSize: isMobile ? 16 : 14, outline: "none", boxSizing: "border-box" }}
+              style={{ width: "100%", padding: "10px 12px 10px 38px", border: `1.5px solid ${T.primary}`, borderRadius: 8, fontSize: isMobile ? 16 : 14, outline: "none", boxSizing: "border-box" }}
             />
           </div>
           <button
             onClick={() => doSearch()}
-            style={{ padding: "10px 18px", background: "#2563EB", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+            style={{ padding: "10px 18px", background: T.primary, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
           >
             Cari
           </button>
         </div>
-        <div style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>Coba cari:</div>
+        <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>Coba cari:</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {suggestions.map(s => (
             <button
               key={s}
               onClick={() => { setQ(s); doSearch(s); }}
-              style={{ fontSize: 12, padding: "4px 12px", background: "#EFF6FF", color: "#2563EB", border: "1px solid #BFDBFE", borderRadius: 99, cursor: "pointer" }}
+              style={{ fontSize: 12, padding: "4px 12px", background: T.primaryLight, color: T.primary, border: `1px solid ${T.primaryRing}`, borderRadius: 99, cursor: "pointer" }}
             >
               {s}
             </button>
@@ -168,7 +137,7 @@ export function Pencarian({ docs, onView }) {
 
       {searched && (
         <div>
-          <div style={{ fontSize: 13, color: "#666", marginBottom: 12 }}>
+          <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 12 }}>
             {results.length > 0
               ? `${results.length} dokumen ditemukan untuk "${q}"`
               : `Tidak ada dokumen untuk "${q}"`}
@@ -177,22 +146,22 @@ export function Pencarian({ docs, onView }) {
             <div
               key={d.id}
               onClick={() => onView(d)}
-              style={{ background: "#fff", borderRadius: 10, padding: isMobile ? 12 : 16, border: "1px solid #e8e8e8", marginBottom: 8, cursor: "pointer", display: "flex", gap: 10, alignItems: "center" }}
+              style={{ background: T.card, borderRadius: 10, padding: isMobile ? 12 : 16, border: `1px solid ${T.border}`, marginBottom: 8, cursor: "pointer", display: "flex", gap: 10, alignItems: "center" }}
             >
-              <div style={{ width: isMobile ? 34 : 40, height: isMobile ? 34 : 40, background: "#EFF6FF", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Icon name="file" size={isMobile ? 15 : 18} style={{ color: "#2563EB" }} />
+              <div style={{ width: isMobile ? 34 : 40, height: isMobile ? 34 : 40, background: T.primaryLight, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon name="file" size={isMobile ? 15 : 18} style={{ color: T.primary }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 700, color: "#0F172A", marginBottom: 2 }}>{d.title}</div>
-                <div style={{ fontSize: isMobile ? 11 : 12, color: "#888", marginBottom: 3 }}>{d.type} · {d.sector} · {d.year}</div>
-                <div style={{ fontSize: isMobile ? 11 : 12, color: "#666", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{d.desc}</div>
+                <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 700, color: T.text, marginBottom: 2 }}>{d.title}</div>
+                <div style={{ fontSize: isMobile ? 11 : 12, color: T.textMuted, marginBottom: 3 }}>{d.type} · {d.sector} · {d.year}</div>
+                <div style={{ fontSize: isMobile ? 11 : 12, color: T.textSecondary, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{d.desc}</div>
               </div>
               <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
             </div>
           ))}
           {results.length === 0 && (
-            <div style={{ textAlign: "center", padding: 32, background: "#fff", borderRadius: 12, border: "1px solid #e8e8e8", color: "#999" }}>
-              <Icon name="search" size={32} style={{ color: "#ddd", marginBottom: 10 }} />
+            <div style={{ textAlign: "center", padding: 32, background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, color: T.textMuted }}>
+              <Icon name="search" size={32} style={{ color: T.textMuted, marginBottom: 10 }} />
               <div style={{ fontSize: 14, fontWeight: 600 }}>Dokumen tidak ditemukan</div>
               <div style={{ fontSize: 12, marginTop: 4 }}>Coba kata kunci lain</div>
             </div>
@@ -206,13 +175,14 @@ export function Pencarian({ docs, onView }) {
 // ─── PORTAL PUBLIK ────────────────────────────────────────────────────────────
 export function PortalPublik({ docs, onDownload }) {
   const { isMobile } = useResponsive();
+  const { T } = useContext(ThemeContext);
   const publik = docs.filter(d =>
     d.status === "Diarsipkan" && d.publik
   );
 
   return (
     <div>
-      <div style={{ background: "linear-gradient(135deg, #0F172A, #1D4ED8)", borderRadius: 16, padding: isMobile ? "24px 20px" : "32px 28px", marginBottom: 24, color: "#fff" }}>
+      <div style={{ background: `linear-gradient(135deg, ${T.sidebarBg}, ${T.primary})`, borderRadius: 16, padding: isMobile ? "24px 20px" : "32px 28px", marginBottom: 24, color: "#fff" }}>
         <div style={{ fontSize: isMobile ? 19 : 22, fontWeight: 700, marginBottom: 6 }}>Portal Dokumen Publik</div>
         <div style={{ fontSize: 14, color: "rgba(255,255,255,0.75)" }}>
           Akses dokumen perencanaan pembangunan yang tersedia untuk publik
@@ -222,22 +192,22 @@ export function PortalPublik({ docs, onDownload }) {
         </div>
       </div>
 
-      <div style={{ fontSize: 13, color: "#666", marginBottom: 14 }}>{publik.length} dokumen tersedia untuk publik</div>
+      <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 14 }}>{publik.length} dokumen tersedia untuk publik</div>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2,1fr)", gap: 12 }}>
         {publik.map(d => (
-          <div key={d.id} style={{ background: "#fff", borderRadius: 12, padding: 18, border: "1px solid #e8e8e8" }}>
+          <div key={d.id} style={{ background: T.card, borderRadius: 12, padding: 18, border: `1px solid ${T.border}` }}>
             <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-              <div style={{ width: 40, height: 40, background: "#EFF6FF", borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Icon name="file" size={18} style={{ color: "#2563EB" }} />
+              <div style={{ width: 40, height: 40, background: T.primaryLight, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon name="file" size={18} style={{ color: T.primary }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", marginBottom: 4, lineHeight: 1.3 }}>{d.title}</div>
-                <div style={{ fontSize: 11, color: "#888", marginBottom: 8 }}>{d.type} · {d.year} · {d.size}</div>
-                <div style={{ fontSize: 12, color: "#666", marginBottom: 10, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{d.desc}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 4, lineHeight: 1.3 }}>{d.title}</div>
+                <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 8 }}>{d.type} · {d.year} · {d.size}</div>
+                <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 10, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{d.desc}</div>
                 <button
                   onClick={() => onDownload && onDownload(d)}
-                  style={{ fontSize: 11, padding: "5px 12px", background: "#2563EB", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}
+                  style={{ fontSize: 11, padding: "5px 12px", background: T.primary, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}
                 >
                   <Icon name="download" size={11} /> Unduh
                 </button>
@@ -253,6 +223,8 @@ export function PortalPublik({ docs, onDownload }) {
 // ─── MANAJEMEN PENGGUNA ───────────────────────────────────────────────────────
 export function ManajemenPengguna({ users, onReload, showToast }) {
   const { isMobile } = useResponsive();
+  const { T } = useContext(ThemeContext);
+  const s = useMemo(() => makeStyles(T), [T]);
   const [modalOpen, setModalOpen] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
   const [form, setForm] = useState({
@@ -342,7 +314,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
           <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, letterSpacing: "-0.02em" }}>Pengguna</h1>
           <p style={{ fontSize: 13, color: T.textSecondary, margin: "4px 0 0" }}>{users.length} pengguna terdaftar</p>
         </div>
-        <button onClick={openAdd} style={btnPrimary}
+        <button onClick={openAdd} style={s.btnPrimary}
           onMouseEnter={e => { e.currentTarget.style.background = T.primaryHover; e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,0.35)"; }}
           onMouseLeave={e => { e.currentTarget.style.background = T.primary; e.currentTarget.style.boxShadow = "0 1px 3px rgba(37,99,235,0.3)"; }}>
           <Icon name="plus" size={15} /> Tambah
@@ -351,7 +323,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
 
       {/* Desktop Table */}
       {!isMobile ? (
-        <div style={{ ...cardStyle, overflow: "hidden" }}>
+        <div style={{ ...s.cardStyle, overflow: "hidden" }}>
           {/* Table Header */}
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1.2fr 0.8fr 1fr 120px", padding: "12px 20px", background: T.primaryLight, borderBottom: `1px solid ${T.border}` }}>
             {["Nama / NIP", "Peran", "Unit Kerja", "Status", "Login Terakhir", "Aksi"].map(h => (
@@ -404,13 +376,13 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
                 <div style={{ fontSize: 12, color: T.textMuted }}>{u.lastLogin}</div>
                 {/* Actions */}
                 <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                  <button onClick={() => openEdit(u)} style={btnGhost}
+                  <button onClick={() => openEdit(u)} style={s.btnGhost}
                     onMouseEnter={e => e.currentTarget.style.background = T.primaryLight}
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                     <Icon name="edit" size={13} /> Edit
                   </button>
-                  <button onClick={() => handleDelete(u)} style={btnDanger}
-                    onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = "#F87171"; }}
+                  <button onClick={() => handleDelete(u)} style={s.btnDanger}
+                    onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = T.danger; }}
                     onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; e.currentTarget.style.borderColor = T.dangerBorder; }}>
                     <Icon name="x" size={13} /> Hapus
                   </button>
@@ -423,7 +395,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
         /* Mobile Cards */
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {users.length === 0 ? (
-            <div style={{ ...cardStyle, padding: "48px 20px", textAlign: "center" }}>
+            <div style={{ ...s.cardStyle, padding: "48px 20px", textAlign: "center" }}>
               <div style={{ width: 48, height: 48, background: T.primaryLight, borderRadius: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
                 <Icon name="users" size={22} style={{ color: T.primary }} />
               </div>
@@ -431,7 +403,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
               <div style={{ fontSize: 13, color: T.textMuted }}>Klik "Tambah" untuk menambahkan pengguna baru</div>
             </div>
           ) : users.map(u => (
-            <div key={u.id} style={{ ...cardStyle, padding: 16 }}>
+            <div key={u.id} style={{ ...s.cardStyle, padding: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
                 <div style={{ width: 40, height: 40, background: T.primaryLight, borderRadius: 99, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: T.primary, flexShrink: 0 }}>
                   {u.name[0]}
@@ -458,7 +430,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
                   <Icon name="edit" size={13} /> Edit
                 </button>
                 <button onClick={() => handleDelete(u)} style={{ ...btnBase, flex: 1, padding: "9px 12px", background: T.dangerBg, border: `1px solid ${T.dangerBorder}`, color: T.danger, fontSize: 13 }}
-                  onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = "#F87171"; }}
+                  onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = T.danger; }}
                   onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; e.currentTarget.style.borderColor = T.dangerBorder; }}>
                   <Icon name="x" size={13} /> Hapus
                 </button>
@@ -482,7 +454,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
               <h2 style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: 0 }}>{isEdit ? "Edit Pengguna" : "Tambah Pengguna"}</h2>
               <button onClick={() => setModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textMuted, transition: "all 0.15s" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; e.currentTarget.style.color = T.text; }}
+                onMouseEnter={e => { e.currentTarget.style.background = T.surfaceHover; e.currentTarget.style.color = T.text; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.textMuted; }}>
                 <Icon name="x" size={18} />
               </button>
@@ -494,7 +466,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>NIP <span style={{ color: T.danger }}>*</span></label>
                 <input value={form.nip} onChange={e => setForm({ ...form, nip: e.target.value })} placeholder="Masukkan NIP"
-                  style={errors.nip ? inputErrorStyle : inputStyle}
+                  style={errors.nip ? s.inputErrorStyle : s.inputStyle}
                   onFocus={e => { if (!errors.nip) e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
                   onBlur={e => { if (!errors.nip) e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }} />
                 {errors.nip && <div style={{ fontSize: 12, color: T.danger, marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}><Icon name="x" size={12} /> {errors.nip}</div>}
@@ -504,7 +476,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>Nama Lengkap <span style={{ color: T.danger }}>*</span></label>
                 <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Masukkan nama lengkap"
-                  style={errors.name ? inputErrorStyle : inputStyle}
+                  style={errors.name ? s.inputErrorStyle : s.inputStyle}
                   onFocus={e => { if (!errors.name) e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
                   onBlur={e => { if (!errors.name) e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }} />
                 {errors.name && <div style={{ fontSize: 12, color: T.danger, marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}><Icon name="x" size={12} /> {errors.name}</div>}
@@ -515,7 +487,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
                 <div>
                   <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>Peran <span style={{ color: T.danger }}>*</span></label>
                   <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
-                    style={{ ...inputStyle, cursor: "pointer", appearance: "auto" }}
+                    style={{ ...s.inputStyle, cursor: "pointer", appearance: "auto" }}
                     onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
                     onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}>
                     <option>Staf</option><option>Reviewer</option><option>Admin</option>
@@ -524,7 +496,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
                 <div>
                   <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>Status <span style={{ color: T.danger }}>*</span></label>
                   <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
-                    style={{ ...inputStyle, cursor: "pointer", appearance: "auto" }}
+                    style={{ ...s.inputStyle, cursor: "pointer", appearance: "auto" }}
                     onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
                     onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}>
                     <option value="AKTIF">AKTIF</option><option value="TUGAS">TUGAS</option><option value="NONAKTIF">NONAKTIF</option>
@@ -536,7 +508,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>Unit Kerja <span style={{ color: T.danger }}>*</span></label>
                 <select value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })}
-                  style={{ ...inputStyle, cursor: "pointer", appearance: "auto" }}
+                  style={{ ...s.inputStyle, cursor: "pointer", appearance: "auto" }}
                   onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
                   onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}>
                   <option value="">— Pilih Bidang —</option>
@@ -553,7 +525,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
                 </label>
                 <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
                   placeholder={isEdit ? "••••••••" : "Masukkan password"}
-                  style={errors.password ? inputErrorStyle : inputStyle}
+                  style={errors.password ? s.inputErrorStyle : s.inputStyle}
                   onFocus={e => { if (!errors.password) e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
                   onBlur={e => { if (!errors.password) e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }} />
                 {errors.password && <div style={{ fontSize: 12, color: T.danger, marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}><Icon name="x" size={12} /> {errors.password}</div>}
@@ -568,12 +540,12 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
 
             {/* Actions */}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24, paddingTop: 16, borderTop: `1px solid ${T.border}` }}>
-              <button onClick={() => setModalOpen(false)} style={{ ...btnBase, padding: "10px 18px", background: "#F1F5F9", color: T.textSecondary, fontSize: 13 }}
-                onMouseEnter={e => e.currentTarget.style.background = "#E2E8F0"}
-                onMouseLeave={e => e.currentTarget.style.background = "#F1F5F9"}>
+              <button onClick={() => setModalOpen(false)} style={{ ...btnBase, padding: "10px 18px", background: T.surfaceHover, color: T.textSecondary, fontSize: 13 }}
+                onMouseEnter={e => e.currentTarget.style.background = T.borderHover}
+                onMouseLeave={e => e.currentTarget.style.background = T.surfaceHover}>
                 Batal
               </button>
-              <button onClick={handleSubmit} disabled={loading} style={{ ...btnPrimary, opacity: loading ? 0.6 : 1, cursor: loading ? "not-allowed" : "pointer" }}>
+              <button onClick={handleSubmit} disabled={loading} style={{ ...s.btnPrimary, opacity: loading ? 0.6 : 1, cursor: loading ? "not-allowed" : "pointer" }}>
                 {loading ? "Menyimpan..." : "Simpan"}
               </button>
             </div>
@@ -588,6 +560,8 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
 
 export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
   const { isMobile } = useResponsive();
+  const { T } = useContext(ThemeContext);
+  const s = useMemo(() => makeStyles(T), [T]);
   const [modalOpen, setModalOpen] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
   const [form, setForm] = useState({ id: "", name: "" });
@@ -665,7 +639,7 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
           <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, letterSpacing: "-0.02em" }}>Tipe Dokumen</h1>
           <p style={{ fontSize: 13, color: T.textSecondary, margin: "4px 0 0" }}>{categories.length} tipe dokumen dikonfigurasi</p>
         </div>
-        <button onClick={openAdd} style={btnPrimary}
+        <button onClick={openAdd} style={s.btnPrimary}
           onMouseEnter={e => { e.currentTarget.style.background = T.primaryHover; e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,0.35)"; }}
           onMouseLeave={e => { e.currentTarget.style.background = T.primary; e.currentTarget.style.boxShadow = "0 1px 3px rgba(37,99,235,0.3)"; }}>
           <Icon name="plus" size={15} /> Tambah
@@ -676,7 +650,7 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
       {isMobile ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {categories.length === 0 ? (
-            <div style={{ ...cardStyle, padding: "48px 20px", textAlign: "center" }}>
+            <div style={{ ...s.cardStyle, padding: "48px 20px", textAlign: "center" }}>
               <div style={{ width: 48, height: 48, background: T.primaryLight, borderRadius: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
                 <Icon name="tag" size={22} style={{ color: T.primary }} />
               </div>
@@ -684,16 +658,16 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
               <div style={{ fontSize: 13, color: T.textMuted }}>Klik "Tambah" untuk menambahkan tipe dokumen baru</div>
             </div>
           ) : categories.map(c => (
-            <div key={c.id} style={{ ...cardStyle, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+            <div key={c.id} style={{ ...s.cardStyle, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ width: 40, height: 40, background: T.primaryLight, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Icon name="tag" size={18} style={{ color: T.primary }} />
               </div>
               <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.nama}</div>
               <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                <button onClick={() => openEdit(c)} style={btnGhost}>
+                <button onClick={() => openEdit(c)} style={s.btnGhost}>
                   <Icon name="edit" size={13} /> Edit
                 </button>
-                <button onClick={() => handleDelete(c)} style={btnDanger}>
+                <button onClick={() => handleDelete(c)} style={s.btnDanger}>
                   <Icon name="x" size={13} /> Hapus
                 </button>
               </div>
@@ -701,7 +675,7 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
           ))}
         </div>
       ) : (
-        <div style={{ ...cardStyle, overflow: "hidden" }}>
+        <div style={{ ...s.cardStyle, overflow: "hidden" }}>
           {/* Table Header */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", padding: "12px 20px", background: T.primaryLight, borderBottom: `1px solid ${T.border}` }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em" }}>Nama</span>
@@ -738,13 +712,13 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
                   <span style={{ fontSize: 14, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.nama}</span>
                 </div>
                 <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                  <button onClick={() => openEdit(c)} style={btnGhost}
+                  <button onClick={() => openEdit(c)} style={s.btnGhost}
                     onMouseEnter={e => e.currentTarget.style.background = T.primaryLight}
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                     <Icon name="edit" size={13} /> Edit
                   </button>
-                  <button onClick={() => handleDelete(c)} style={btnDanger}
-                    onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = "#F87171"; }}
+                  <button onClick={() => handleDelete(c)} style={s.btnDanger}
+                    onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = T.danger; }}
                     onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; e.currentTarget.style.borderColor = T.dangerBorder; }}>
                     <Icon name="x" size={13} /> Hapus
                   </button>
@@ -769,7 +743,7 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
               <h2 style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: 0 }}>{isEdit ? "Edit Tipe Dokumen" : "Tambah Tipe Dokumen"}</h2>
               <button onClick={() => setModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textMuted, transition: "all 0.15s" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; e.currentTarget.style.color = T.text; }}
+                onMouseEnter={e => { e.currentTarget.style.background = T.surfaceHover; e.currentTarget.style.color = T.text; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.textMuted; }}>
                 <Icon name="x" size={18} />
               </button>
@@ -782,7 +756,7 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
                 value={form.name}
                 onChange={e => setForm({ ...form, name: e.target.value })}
                 placeholder="Contoh: RPJMD, Renstra, Laporan"
-                style={errors.name ? inputErrorStyle : inputStyle}
+                style={errors.name ? s.inputErrorStyle : s.inputStyle}
                 onFocus={e => { if (!errors.name) e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
                 onBlur={e => { if (!errors.name) e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
                 autoFocus
@@ -798,12 +772,12 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
 
             {/* Actions */}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24, paddingTop: 16, borderTop: `1px solid ${T.border}` }}>
-              <button onClick={() => setModalOpen(false)} style={{ ...btnBase, padding: "10px 18px", background: "#F1F5F9", color: T.textSecondary, fontSize: 13 }}
-                onMouseEnter={e => e.currentTarget.style.background = "#E2E8F0"}
-                onMouseLeave={e => e.currentTarget.style.background = "#F1F5F9"}>
+              <button onClick={() => setModalOpen(false)} style={{ ...btnBase, padding: "10px 18px", background: T.surfaceHover, color: T.textSecondary, fontSize: 13 }}
+                onMouseEnter={e => e.currentTarget.style.background = T.borderHover}
+                onMouseLeave={e => e.currentTarget.style.background = T.surfaceHover}>
                 Batal
               </button>
-              <button onClick={handleSubmit} disabled={loading} style={{ ...btnPrimary, opacity: loading ? 0.6 : 1, cursor: loading ? "not-allowed" : "pointer" }}>
+              <button onClick={handleSubmit} disabled={loading} style={{ ...s.btnPrimary, opacity: loading ? 0.6 : 1, cursor: loading ? "not-allowed" : "pointer" }}>
                 {loading ? "Menyimpan..." : "Simpan"}
               </button>
             </div>
@@ -825,28 +799,29 @@ const ACTION_COLOR = {
 
 export function AuditTrail({ logs }) {
   const { isMobile } = useResponsive();
+  const { T } = useContext(ThemeContext);
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: "#0F172A" }}>Audit Trail</div>
-        <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>Riwayat semua aktivitas pada sistem</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: T.text }}>Audit Trail</div>
+        <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>Riwayat semua aktivitas pada sistem</div>
       </div>
 
-      <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e8e8e8", overflow: "hidden" }}>
+      <div style={{ background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, overflow: "hidden" }}>
         {logs.map((l, i) => (
-          <div key={l.id} style={{ display: "flex", gap: isMobile ? 10 : 14, padding: isMobile ? "12px 14px" : "14px 18px", borderBottom: i < logs.length - 1 ? "1px solid #f5f5f5" : "none", alignItems: "flex-start" }}>
-            <div style={{ width: 36, height: 36, background: "#EFF6FF", borderRadius: 50, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 12, fontWeight: 700, color: "#2563EB" }}>
+          <div key={l.id} style={{ display: "flex", gap: isMobile ? 10 : 14, padding: isMobile ? "12px 14px" : "14px 18px", borderBottom: i < logs.length - 1 ? `1px solid ${T.border}` : "none", alignItems: "flex-start" }}>
+            <div style={{ width: 36, height: 36, background: T.primaryLight, borderRadius: 50, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 12, fontWeight: 700, color: T.primary }}>
               {l.user[0]}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, color: "#0F172A", marginBottom: 3 }}>
+              <div style={{ fontSize: 13, color: T.text, marginBottom: 3 }}>
                 <b>{l.user}</b>{" "}
-                <span style={{ color: ACTION_COLOR[l.action] || "#555", fontWeight: 600 }}>{l.action}</span>
+                <span style={{ color: ACTION_COLOR[l.action] || T.textSecondary, fontWeight: 600 }}>{l.action}</span>
               </div>
-              <div style={{ fontSize: 12, color: "#666", marginBottom: 2 }}>{l.doc}</div>
-              <div style={{ fontSize: 11, color: "#aaa" }}>{l.time}</div>
+              <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 2 }}>{l.doc}</div>
+              <div style={{ fontSize: 11, color: T.textMuted }}>{l.time}</div>
             </div>
-            <div style={{ fontSize: 11, padding: "3px 8px", background: "#f5f5f5", borderRadius: 6, color: "#888", whiteSpace: "nowrap" }}>
+            <div style={{ fontSize: 11, padding: "3px 8px", background: T.surfaceHover, borderRadius: 6, color: T.textMuted, whiteSpace: "nowrap" }}>
               {l.action.split(" ")[0]}
             </div>
           </div>
@@ -859,6 +834,8 @@ export function AuditTrail({ logs }) {
 // ─── MANAJEMEN SEKTOR ──────────────────────────────────────────────────────
 export function ManajemenSektor({ sectors, onReload, showToast }) {
   const { isMobile } = useResponsive();
+  const { T } = useContext(ThemeContext);
+  const s = useMemo(() => makeStyles(T), [T]);
   const [modalOpen, setModalOpen] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
   const [form, setForm] = useState({ id: "", name: "" });
@@ -936,7 +913,7 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
           <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, letterSpacing: "-0.02em" }}>Sektor</h1>
           <p style={{ fontSize: 13, color: T.textSecondary, margin: "4px 0 0" }}>{sectors.length} sektor dikonfigurasi</p>
         </div>
-        <button onClick={openAdd} style={btnPrimary}
+        <button onClick={openAdd} style={s.btnPrimary}
           onMouseEnter={e => { e.currentTarget.style.background = T.primaryHover; e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,0.35)"; }}
           onMouseLeave={e => { e.currentTarget.style.background = T.primary; e.currentTarget.style.boxShadow = "0 1px 3px rgba(37,99,235,0.3)"; }}>
           <Icon name="plus" size={15} /> Tambah
@@ -947,7 +924,7 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
       {isMobile ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {sectors.length === 0 ? (
-            <div style={{ ...cardStyle, padding: "48px 20px", textAlign: "center" }}>
+            <div style={{ ...s.cardStyle, padding: "48px 20px", textAlign: "center" }}>
               <div style={{ width: 48, height: 48, background: T.primaryLight, borderRadius: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
                 <Icon name="layers" size={22} style={{ color: T.primary }} />
               </div>
@@ -955,16 +932,16 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
               <div style={{ fontSize: 13, color: T.textMuted }}>Klik "Tambah" untuk menambahkan sektor baru</div>
             </div>
           ) : sectors.map(s => (
-            <div key={s.id} style={{ ...cardStyle, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+            <div key={s.id} style={{ ...s.cardStyle, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ width: 40, height: 40, background: T.primaryLight, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Icon name="layers" size={18} style={{ color: T.primary }} />
               </div>
               <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.nama}</div>
               <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                <button onClick={() => openEdit(s)} style={btnGhost}>
+                <button onClick={() => openEdit(s)} style={s.btnGhost}>
                   <Icon name="edit" size={13} /> Edit
                 </button>
-                <button onClick={() => handleDelete(s)} style={btnDanger}>
+                <button onClick={() => handleDelete(s)} style={s.btnDanger}>
                   <Icon name="x" size={13} /> Hapus
                 </button>
               </div>
@@ -972,7 +949,7 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
           ))}
         </div>
       ) : (
-        <div style={{ ...cardStyle, overflow: "hidden" }}>
+        <div style={{ ...s.cardStyle, overflow: "hidden" }}>
           {/* Table Header */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", padding: "12px 20px", background: T.primaryLight, borderBottom: `1px solid ${T.border}` }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em" }}>Nama</span>
@@ -1009,13 +986,13 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
                   <span style={{ fontSize: 14, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.nama}</span>
                 </div>
                 <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                  <button onClick={() => openEdit(s)} style={btnGhost}
+                  <button onClick={() => openEdit(s)} style={s.btnGhost}
                     onMouseEnter={e => e.currentTarget.style.background = T.primaryLight}
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                     <Icon name="edit" size={13} /> Edit
                   </button>
-                  <button onClick={() => handleDelete(s)} style={btnDanger}
-                    onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = "#F87171"; }}
+                  <button onClick={() => handleDelete(s)} style={s.btnDanger}
+                    onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = T.danger; }}
                     onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; e.currentTarget.style.borderColor = T.dangerBorder; }}>
                     <Icon name="x" size={13} /> Hapus
                   </button>
@@ -1040,7 +1017,7 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
               <h2 style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: 0 }}>{isEdit ? "Edit Sektor" : "Tambah Sektor"}</h2>
               <button onClick={() => setModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textMuted, transition: "all 0.15s" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; e.currentTarget.style.color = T.text; }}
+                onMouseEnter={e => { e.currentTarget.style.background = T.surfaceHover; e.currentTarget.style.color = T.text; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.textMuted; }}>
                 <Icon name="x" size={18} />
               </button>
@@ -1053,7 +1030,7 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
                 value={form.name}
                 onChange={e => setForm({ ...form, name: e.target.value })}
                 placeholder="Contoh: Pertanian & Pangan"
-                style={errors.name ? inputErrorStyle : inputStyle}
+                style={errors.name ? s.inputErrorStyle : s.inputStyle}
                 onFocus={e => { if (!errors.name) e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
                 onBlur={e => { if (!errors.name) e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
                 autoFocus
@@ -1069,12 +1046,12 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
 
             {/* Actions */}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24, paddingTop: 16, borderTop: `1px solid ${T.border}` }}>
-              <button onClick={() => setModalOpen(false)} style={{ ...btnBase, padding: "10px 18px", background: "#F1F5F9", color: T.textSecondary, fontSize: 13 }}
-                onMouseEnter={e => e.currentTarget.style.background = "#E2E8F0"}
-                onMouseLeave={e => e.currentTarget.style.background = "#F1F5F9"}>
+              <button onClick={() => setModalOpen(false)} style={{ ...btnBase, padding: "10px 18px", background: T.surfaceHover, color: T.textSecondary, fontSize: 13 }}
+                onMouseEnter={e => e.currentTarget.style.background = T.borderHover}
+                onMouseLeave={e => e.currentTarget.style.background = T.surfaceHover}>
                 Batal
               </button>
-              <button onClick={handleSubmit} disabled={loading} style={{ ...btnPrimary, opacity: loading ? 0.6 : 1, cursor: loading ? "not-allowed" : "pointer" }}>
+              <button onClick={handleSubmit} disabled={loading} style={{ ...s.btnPrimary, opacity: loading ? 0.6 : 1, cursor: loading ? "not-allowed" : "pointer" }}>
                 {loading ? "Menyimpan..." : "Simpan"}
               </button>
             </div>
