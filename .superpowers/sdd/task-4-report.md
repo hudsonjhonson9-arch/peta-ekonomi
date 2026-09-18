@@ -1,36 +1,31 @@
-# Task 4 Report: DocPages — File dalam Folder + Ikon Folder di List
+# Task 4: Convert Pages.jsx to Use Theme
 
-## What Was Implemented
+## Status: DONE
 
-Four changes to `src/components/DocPages.jsx`:
+## Changes
 
-1. **Import (line 2):** Added `formatBytes` to the named import from `./ui.jsx`.
-2. **"Tanpa Bidang" grid map (~line 313):** Added `isFolder` const; swapped `<Icon name="file">` to `name={isFolder ? "folder" : "file"}`; replaced `{d.type}` with `{isFolder ? ...file count... : d.type}`.
-3. **FolderDocs grid map (~line 447):** Added `isFolder` const; swapped icon to folder-aware; prepended file count to the `{d.sector} · {d.year}` meta line.
-4. **DocDetail (~line 822):** Inserted a new "File dalam Folder" card between the Metadata Card and Approval Panel, rendering each file as a clickable link with name + `formatBytes(f.size)`.
+- Removed hardcoded `const T = { ... }` block (18+ token definitions duplicating theme.js)
+- Added `import { ThemeContext } from "../App.jsx"` and `useContext, useMemo` to React imports
+- Converted module-level style objects (`btnBase`, `btnPrimary`, `btnGhost`, `btnDanger`, `cardStyle`, `inputStyle`, `inputErrorStyle`) into a `makeStyles(T)` factory function — called via `useMemo` in each component
+- Added `const { T } = useContext(ThemeContext)` to all 6 exported components: `Pencarian`, `PortalPublik`, `ManajemenPengguna`, `ManajemenKategoriDokumen`, `AuditTrail`, `ManajemenSektor`
+- Replaced hardcoded color strings (`#0F172A`, `#666`, `#888`, `#999`, `#fff`, `#e8e8e8`, `#EFF6FF`, `#2563EB`, `#BFDBFE`, `#F1F5F9`, `#E2E8F0`, `#F87171`, `#f5f5f5`) with `T.*` tokens
+- PortalPublik gradient now uses `T.sidebarBg` and `T.primary`
+- inputStyle `background` changed from `#fff` to `T.inputBg`
 
-## Verification
+## Files Modified
 
-- **Command:** `npm run build`
-- **Result:** Exit code 0. Vite v5.4.21, 92 modules transformed, built in 1.28s.
+- `src/components/Pages.jsx` — 162 insertions, 185 deletions
 
-## Files Changed
+## Commit
 
-| File | Lines changed |
-|---|---|
-| `src/components/DocPages.jsx` | +41 / −5 |
+- `421e345` — `feat(theme): convert Pages.jsx to use ThemeContext`
 
-No other files were modified.
+## Build
 
-## Self-Review Findings
+- ✅ `npm run build` passes
 
-- All code matches the brief verbatim (inline styles, T tokens, isMobile, Card layout).
-- List view (line ~650) left completely untouched.
-- `doc.files` guard: `Array.isArray(doc.files) && doc.files.length > 0` — handles both `undefined` and empty `[]` correctly.
-- `formatBytes` import path and usage match the `ui.jsx` contract.
-- `key={f.url}` on file links assumes unique URLs — acceptable per brief.
-- No new dependencies introduced.
+## Notes
 
-## Concerns
-
-None. All line numbers in the file matched the brief context exactly. The insert at line 822 was a clean boundary — no ambiguity with surrounding elements.
+- `ROLE_COLOR` fallback badge colors (`#F1F5F9` / `#475569`) left as-is — these are semantic badge colors, not theme colors
+- `ACTION_COLOR` map (AuditTrail) left as-is — semantic action colors
+- `color: "#fff"` on primary buttons left as-is — intentional white-on-color contrast

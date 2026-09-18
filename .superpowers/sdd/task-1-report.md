@@ -1,34 +1,30 @@
-# Task 1 Report: Server — kolom `files` + POST/GET `/api/docs`
+# Task 1: Create Theme System — Report
 
-## What I implemented
-Modified `server/index.js` exactly per the brief:
+**Status:** DONE
 
-1. **Migration** — added an async block after the `bidang` migration that runs `ALTER TABLE bapperida_dokumen ADD COLUMN IF NOT EXISTS files TEXT` and logs `Migration: files column ready`.
-2. **GET /api/docs** — added `files,` to the SELECT between `url,` and `icon_data,`; changed the response map to parse `files` as JSON into an array (empty array on missing/invalid JSON).
-3. **POST /api/docs** — added `files` to destructuring; INSERT now writes the `files` column (9 columns, $1–$9) with `files ? JSON.stringify(files) : null`.
+## What was done
 
-No other endpoints, migrations, logic, or dependencies touched. No comments added.
+Created `src/theme.js` with:
+- `LIGHT` object — 19 design tokens matching existing hardcoded values
+- `DARK` object — 19 design tokens with dark palette
+- `getTheme(preference)` — returns LIGHT/DARK based on "light"/"dark"/"system"
+- `isDarkTheme(preference)` — boolean helper for conditional logic
 
-## Verification run and result
-Command:
+## Verification
+
 ```
-node --check server/index.js; echo "exit=$LASTEXITCODE"
+node -e "import('./src/theme.js').then(t => console.log(Object.keys(t)))"
+// → ['DARK', 'LIGHT', 'getTheme', 'isDarkTheme']
 ```
-Output:
-```
-exit=0
-```
-Result: PASS — exit code 0, no output. Syntax valid.
 
-## Files changed
-- `server/index.js` (+17 / −5, staged and committed)
+All four exports load correctly.
 
-## Self-review findings
-- Complete: all 3 brief steps applied with brief-verbatim values.
-- Quality: GET parsing wraps `JSON.parse` in try/catch with `[]` fallback (per brief); POST stores `null` when `files` absent so legacy uploads remain valid.
-- Discipline (YAGNI): no extra columns, no refactors, no test framework added. Brief's constraint "do NOT change other endpoints/migrations" honored — git diff confirms only the three targeted edits.
-- No stray changes: `git status --short` shows only untracked `.superpowers/` and `docs/superpowers/plans/...` (pre-existing, not staged). Commit contains only `server/index.js`.
+## Commit
+
+```
+6b83360 feat(theme): add light/dark theme token system
+```
 
 ## Concerns
-- None blocking. Note: GET response carries both `files` (parsed array) and the raw `files` string field is overwritten in the spread (`...d, files`) — so only the array is exposed to the frontend. Behavior per brief.
-- No DB was reachable in this environment, so the migration/round-trip was not executed against a live database; verification was syntax-level only (`node --check`) as specified.
+
+None. File follows plan exactly.

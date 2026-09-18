@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
 import { Icon } from "./ui.jsx";
 import useResponsive from "../useResponsive.js";
+import { ThemeContext } from "../App.jsx";
 
 const SECTIONS = [
   { id: "login",     title: "Login",              icon: "users"    },
@@ -195,6 +196,7 @@ const CONTENT = {
 
 export default function PanduanPengguna() {
   const { isMobile } = useResponsive();
+  const { T } = useContext(ThemeContext);
   const [activeId, setActiveId] = useState("login");
   const section = CONTENT[activeId];
   if (!section) return null;
@@ -202,8 +204,8 @@ export default function PanduanPengguna() {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: "#0F172A" }}>Panduan Pengguna</div>
-        <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: T.text }}>Panduan Pengguna</div>
+        <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>
           Pusat Dokumen Digital Perencanaan Pembangunan — BAPPERIDA Kabupaten Sumba Barat
         </div>
       </div>
@@ -212,25 +214,25 @@ export default function PanduanPengguna() {
         {SECTIONS.map(s => (
           <button key={s.id} onClick={() => setActiveId(s.id)}
             style={{ padding: "6px 14px", borderRadius: 99, border: "none", cursor: "pointer", fontSize: 12, fontWeight: activeId === s.id ? 600 : 400, whiteSpace: "nowrap",
-              background: activeId === s.id ? "#2563EB" : "#f0f0f0", color: activeId === s.id ? "#fff" : "#666" }}>
+              background: activeId === s.id ? T.primary : T.border, color: activeId === s.id ? "#fff" : T.textSecondary }}>
             <Icon name={s.icon} size={12} style={{ marginRight: 4 }} />{s.title}
           </button>
         ))}
       </div>
 
-      <div style={{ background: "#fff", borderRadius: 12, padding: isMobile ? 16 : 24, border: "1px solid #e8e8e8" }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", marginBottom: 16 }}>{section.title}</div>
+      <div style={{ background: T.card, borderRadius: 12, padding: isMobile ? 16 : 24, border: `1px solid ${T.border}` }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 16 }}>{section.title}</div>
 
         {section.desc && (
-          <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 16 }}>{section.desc}</p>
+          <p style={{ fontSize: 13, color: T.textSecondary, lineHeight: 1.6, marginBottom: 16 }}>{section.desc}</p>
         )}
 
         {section.steps && (
           <>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", marginBottom: 8 }}>Langkah-langkah:</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: T.text, marginBottom: 8 }}>Langkah-langkah:</div>
             <ol style={{ paddingLeft: 20, marginBottom: 16 }}>
               {section.steps.map((s, i) => (
-                <li key={i} style={{ fontSize: 13, color: "#444", marginBottom: 8, lineHeight: 1.5 }}
+                <li key={i} style={{ fontSize: 13, color: T.textSecondary, marginBottom: 8, lineHeight: 1.5 }}
                   dangerouslySetInnerHTML={{ __html: s }} />
               ))}
             </ol>
@@ -243,7 +245,7 @@ export default function PanduanPengguna() {
               <thead>
                 <tr>
                   {section.table.header.map((h, i) => (
-                    <th key={i} style={{ textAlign: "left", padding: "8px 10px", borderBottom: "2px solid #e8e8e8", color: "#555", fontWeight: 600, background: "#f9faf9" }}>{h}</th>
+                    <th key={i} style={{ textAlign: "left", padding: "8px 10px", borderBottom: `2px solid ${T.border}`, color: T.textSecondary, fontWeight: 600, background: T.bg }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -251,7 +253,7 @@ export default function PanduanPengguna() {
                 {section.table.rows.map((r, i) => (
                   <tr key={i}>
                     {r.map((c, j) => (
-                      <td key={j} style={{ padding: "8px 10px", borderBottom: "1px solid #f5f5f5", color: "#444" }}>{c}</td>
+                      <td key={j} style={{ padding: "8px 10px", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>{c}</td>
                     ))}
                   </tr>
                 ))}
@@ -261,14 +263,14 @@ export default function PanduanPengguna() {
         )}
 
         {section.note && (
-          <div style={{ background: "#fff8e1", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#8d6e00", marginBottom: 16, display: "flex", gap: 6, alignItems: "flex-start" }}>
+          <div style={{ background: T.markBg, borderRadius: 8, padding: "10px 14px", fontSize: 12, color: T.textSecondary, marginBottom: 16, display: "flex", gap: 6, alignItems: "flex-start" }}>
             <span style={{ fontSize: 14 }}>💡</span>
             <span>{section.note}</span>
           </div>
         )}
 
         {section.screenshot && (
-          <div style={{ marginTop: 12, borderRadius: 8, overflow: "hidden", border: "1px solid #e8e8e8" }}>
+          <div style={{ marginTop: 12, borderRadius: 8, overflow: "hidden", border: `1px solid ${T.border}` }}>
             <img
               src={section.screenshot}
               alt={section.title}

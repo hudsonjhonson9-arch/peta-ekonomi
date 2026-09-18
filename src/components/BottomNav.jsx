@@ -20,10 +20,17 @@ const MORE = [
 ];
 
 export default function BottomNav({ active, onNav, user }) {
-  const { T } = useContext(ThemeContext);
+  const { T, theme, setTheme } = useContext(ThemeContext);
   const [open, setOpen] = useState(false);
   const moreItems = MORE.filter(n => !n.adminOnly || user.role === "Admin");
   const isMoreActive = moreItems.some(n => n.key === active);
+
+  const themeIcon = theme === "system" ? "monitor" : theme === "dark" ? "moon" : "sun";
+  const themeLabel = theme === "system" ? "Sistem" : theme === "dark" ? "Gelap" : "Terang";
+  const cycleTheme = () => {
+    const next = theme === "system" ? "light" : theme === "light" ? "dark" : "system";
+    setTheme(next);
+  };
 
   return (
     <nav style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200 }}>
@@ -52,6 +59,18 @@ export default function BottomNav({ active, onNav, user }) {
                 {n.label}
               </button>
             ))}
+            <div style={{ height: 1, background: T.border, margin: "4px 0" }} />
+            <button
+              onClick={cycleTheme}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 10,
+                padding: "11px 16px", background: "none", border: "none",
+                cursor: "pointer", fontSize: 13, color: T.text,
+              }}
+            >
+              <Icon name={themeIcon} size={16} />
+              Mode: {themeLabel}
+            </button>
           </div>
         </>
       )}

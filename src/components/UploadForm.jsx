@@ -1,29 +1,18 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useContext } from "react";
 import { Icon } from "./ui.jsx";
 import useResponsive from "../useResponsive.js";
+import { ThemeContext } from "../App.jsx";
 
-const T = {
+const EXTRA = {
   font: "'Segoe UI', system-ui, -apple-system, sans-serif",
-  bg: "#F8FAFC",
-  card: "#FFFFFF",
-  border: "#E4ECFC",
-  borderHover: "#C7D7FC",
-  primary: "#2563EB",
-  primaryHover: "#1D4ED8",
-  primaryLight: "#EFF6FF",
-  primaryRing: "rgba(37,99,235,0.15)",
   danger: "#DC2626",
   dangerBg: "#FEF2F2",
   dangerBorder: "#FECACA",
-  text: "#0F172A",
-  textSecondary: "#64748B",
-  textMuted: "#94A3B8",
   success: "#059669",
   successBg: "#ECFDF5",
   radius: 8,
   radiusLg: 12,
-  shadowSm: "0 1px 2px rgba(0,0,0,0.05)",
-  shadowMd: "0 4px 6px -1px rgba(0,0,0,0.07)",
+  primaryHover: "#1D4ED8",
 };
 
 const cardStyle = {
@@ -35,6 +24,8 @@ const cardStyle = {
 
 export default function UploadForm({ onSubmit, user, categories = [], sectors = [], bidangs = [] }) {
   const { isMobile } = useResponsive();
+  const { T: _T } = useContext(ThemeContext);
+  const T = { ..._T, ...EXTRA };
   const [form, setForm] = useState({
     title: "", type: "", sector: "", bidang: "",
     year: (new Date().getFullYear() + 1).toString(),
