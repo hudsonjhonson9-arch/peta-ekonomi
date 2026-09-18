@@ -610,7 +610,7 @@ export default function App() {
             />
           )}
           {page === "upload" && (
-            <UploadForm onSubmit={handleUpload} user={user} categories={categories} sectors={sectors} bidangs={bidangs} />
+            <UploadForm onSubmit={handleUpload} user={user} categories={categories} sectors={sectors} bidangs={bidangs} initialFiles={window.__droppedFiles} />
           )}
           {page === "pencarian" && (
             <Pencarian docs={docs} onView={d => { setViewDoc(d); setPage("dokumen"); }} />

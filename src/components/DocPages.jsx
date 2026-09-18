@@ -141,9 +141,8 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
     setDragOver(false);
     const files = e.dataTransfer?.files;
     if (files?.length > 0 && onNav) {
-      // simpan files di sessionStorage untuk diambil UploadForm
-      const fileList = Array.from(files).map(f => f.name);
-      sessionStorage.setItem("droppedFiles", JSON.stringify(fileList));
+      // ponytail: simpan File objects di window supaya UploadForm bisa ambil
+      window.__droppedFiles = Array.from(files);
       onNav("upload");
     }
   };
@@ -154,6 +153,15 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
   const [filterYear,   setFilterYear]   = useState("Semua Tahun");
   const [filterStatus, setFilterStatus] = useState("Semua Status");
   const [selectedBidang, setSelectedBidang] = useState(null); // null = show folders
+
+  const selectBidang = (b) => {
+    setSelectedBidang(b);
+    if (b) history.pushState({ folder: b }, "", `#folder-${b}`);
+  };
+  const clearBidang = () => {
+    setSelectedBidang(null);
+    history.pushState({ page: "dokumen" }, "", "#dokumen");
+  };
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -198,7 +206,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {selectedBidang && (
-            <button onClick={() => setSelectedBidang(null)} style={{ ...btnBase, background: T.card, border: `1.5px solid ${T.border}`, borderRadius: T.radius, padding: "8px 12px", fontSize: 13, color: T.primary, boxShadow: T.shadowSm }}>
+            <button onClick={clearBidang} style={{ ...btnBase, background: T.card, border: `1.5px solid ${T.border}`, borderRadius: T.radius, padding: "8px 12px", fontSize: 13, color: T.primary, boxShadow: T.shadowSm }}>
               <Icon name="chevronRight" size={14} style={{ transform: "rotate(180deg)" }} />
             </button>
           )}
@@ -426,10 +434,10 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
             return (
               <div
                 key={nama}
-                onClick={() => setSelectedBidang(nama)}
+                onClick={() => selectBidang(nama)}
                 role="button"
                 tabIndex={0}
-                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedBidang(nama); }}}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectBidang(nama); }}}
                 style={{
                   ...cardStyle,
                   padding: isMobile ? 20 : 24,
@@ -646,10 +654,10 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
             return (
               <div
                 key={nama}
-                onClick={() => setSelectedBidang(nama)}
+                onClick={() => selectBidang(nama)}
                 role="button"
                 tabIndex={0}
-                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedBidang(nama); }}}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectBidang(nama); }}}
                 style={{
                   ...cardStyle,
                   padding: isMobile ? "12px 14px" : "14px 18px",
