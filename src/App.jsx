@@ -589,7 +589,7 @@ export default function App() {
             <Dashboard docs={docs} onNav={goPage} sectors={sectors} categories={categories} />
           )}
           {page === "dokumen" && !viewDoc && (
-            <DocList docs={docs} onView={d => { setViewDoc(d); history.pushState({ page: "dokumen", docId: d.id }, "", "#dokumen"); }} user={user} categories={categories} sectors={sectors} bidangs={bidangs} />
+            <DocList docs={docs} onView={d => { setViewDoc(d); history.pushState({ page: "dokumen", docId: d.id }, "", "#dokumen"); }} onNav={goPage} user={user} categories={categories} sectors={sectors} bidangs={bidangs} />
           )}
           {page === "dokumen" && viewDoc && (
             <DocDetail
