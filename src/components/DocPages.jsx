@@ -206,7 +206,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {selectedBidang && (
-            <button onClick={() => history.back()} style={{ ...btnBase, background: T.card, border: `1.5px solid ${T.border}`, borderRadius: T.radius, padding: "8px 12px", fontSize: 13, color: T.primary, boxShadow: T.shadowSm }}>
+            <button onClick={clearBidang} style={{ ...btnBase, background: T.card, border: `1.5px solid ${T.border}`, borderRadius: T.radius, padding: "8px 12px", fontSize: 13, color: T.primary, boxShadow: T.shadowSm }}>
               <Icon name="chevronRight" size={14} style={{ transform: "rotate(180deg)" }} />
             </button>
           )}
