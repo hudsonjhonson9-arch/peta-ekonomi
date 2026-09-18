@@ -215,7 +215,7 @@ function SkeletonList({ count = 8 }) {
   );
 }
 
-export function DocList({ docs, onView, onNav, categories = [], sectors = [], bidangs = [], loading = false }) {
+export function DocList({ docs, onView, onNav, categories = [], sectors = [], bidangs = [], loading = false, onBulkAction }) {
   const { T } = useContext(ThemeContext);
   const { isMobile } = useResponsive();
   const cardStyle = useMemo(() => makeCardStyle(T), [T]);
@@ -250,6 +250,36 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
   const [filterStatus, setFilterStatus] = useState("Semua Status");
   const [sortOpt, setSortOpt] = useState("date-desc");
   const [selectedBidang, setSelectedBidang] = useState(null); // null = show folders
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
+
+  const toggleSelect = (e, id) => {
+    e.stopPropagation();
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const Checkbox = ({ id }) => (
+    <div
+      onClick={e => toggleSelect(e, id)}
+      style={{
+        width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+        border: selectedIds.has(id) ? "none" : `2px solid ${T.borderHover}`,
+        background: selectedIds.has(id) ? T.primary : "transparent",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        cursor: "pointer", transition: "all 0.15s",
+      }}
+    >
+      {selectedIds.has(id) && (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      )}
+    </div>
+  );
 
   const selectBidang = (b) => {
     setSelectedBidang(b);
@@ -489,6 +519,13 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                 <option value="size-desc">Ukuran ↓</option>
                 <option value="size-asc">Ukuran ↑</option>
               </select>
+              <button
+                onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
+                style={{ ...btnBase, padding: "8px 14px", fontSize: 13, background: selectionMode ? T.primary : T.card, color: selectionMode ? "#fff" : T.textSecondary, border: `1.5px solid ${selectionMode ? T.primary : T.border}`, borderRadius: 10 }}
+              >
+                <Icon name={selectionMode ? "x" : "check"} size={14} />
+                {selectionMode ? "Batal" : "Pilih"}
+              </button>
             </>
           )}
         </div>
@@ -528,18 +565,20 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
               return (
                 <DocTooltip key={d.id} doc={d}>
                   <div
-                    onClick={() => onView(d)}
+                    onClick={() => { if (!selectionMode) onView(d); }}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onView(d); }}}
+                    onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!selectionMode) onView(d); }}}
                     style={{
                       ...cardStyle,
                       padding: isMobile ? 12 : 14,
-                      cursor: "pointer",
+                      cursor: selectionMode ? "default" : "pointer",
                       transition: "all 0.2s ease",
                       animation: "fadeIn 0.3s ease forwards",
                       animationDelay: `${i * 30}ms`,
                       opacity: 0,
+                      position: "relative",
+                      background: selectedIds.has(d.id) ? T.primaryLight : T.card,
                     }}
                     onMouseEnter={e => {
                       e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
@@ -554,6 +593,11 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                     onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
                     onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
                   >
+                    {selectionMode && (
+                      <div style={{ position: "absolute", top: 8, right: 8, zIndex: 2 }}>
+                        <Checkbox id={d.id} />
+                      </div>
+                    )}
                     <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                       <div style={{ width: 36, height: 36, borderRadius: 10, background: fi.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         <Icon name={isFolder ? "folder" : "file"} size={18} style={{ color: fi.color }} />
@@ -603,6 +647,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                   flexDirection: "column",
                   alignItems: "flex-start",
                   gap: 14,
+                  position: "relative",
                 }}
                 onMouseEnter={e => {
                   e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
@@ -667,18 +712,20 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
             return (
               <DocTooltip key={d.id} doc={d}>
                 <div
-                  onClick={() => onView(d)}
+                  onClick={() => { if (!selectionMode) onView(d); }}
                   role="button"
                   tabIndex={0}
-                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onView(d); }}}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!selectionMode) onView(d); }}}
                   style={{
                     ...cardStyle,
                     padding: isMobile ? 12 : 14,
-                    cursor: "pointer",
+                    cursor: selectionMode ? "default" : "pointer",
                     transition: "all 0.2s ease",
                     animation: "fadeIn 0.3s ease forwards",
                     animationDelay: `${i * 30}ms`,
                     opacity: 0,
+                    position: "relative",
+                    background: selectedIds.has(d.id) ? T.primaryLight : T.card,
                   }}
                   onMouseEnter={e => {
                     e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
@@ -693,6 +740,11 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                   onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
                   onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
                 >
+                  {selectionMode && (
+                    <div style={{ position: "absolute", top: 8, right: 8, zIndex: 2 }}>
+                      <Checkbox id={d.id} />
+                    </div>
+                  )}
                   {/* File Icon */}
                   <div style={{
                     width: 36,
@@ -756,14 +808,14 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
               return (
                 <DocTooltip key={d.id} doc={d}>
                   <div
-                    onClick={() => onView(d)}
+                    onClick={() => { if (!selectionMode) onView(d); }}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onView(d); }}}
+                    onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!selectionMode) onView(d); }}}
                     style={{
                       ...cardStyle,
                       padding: isMobile ? "12px 14px" : "14px 18px",
-                      cursor: "pointer",
+                      cursor: selectionMode ? "default" : "pointer",
                       transition: "all 0.2s ease",
                       display: "flex",
                       alignItems: "center",
@@ -771,6 +823,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                       animation: "fadeIn 0.3s ease forwards",
                       animationDelay: `${i * 30}ms`,
                       opacity: 0,
+                      background: selectedIds.has(d.id) ? T.primaryLight : T.card,
                     }}
                     onMouseEnter={e => {
                       e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
@@ -785,6 +838,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                     onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
                     onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
                   >
+                    {selectionMode && <Checkbox id={d.id} />}
                     <div style={{ width: 36, height: 36, borderRadius: 10, background: fi.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                       <Icon name="file" size={18} style={{ color: fi.color }} />
                     </div>
@@ -871,14 +925,14 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
             return (
               <DocTooltip key={d.id} doc={d}>
                 <div
-                  onClick={() => onView(d)}
+                  onClick={() => { if (!selectionMode) onView(d); }}
                   role="button"
                   tabIndex={0}
-                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onView(d); }}}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!selectionMode) onView(d); }}}
                   style={{
                     ...cardStyle,
                     padding: isMobile ? "10px 12px" : "12px 16px",
-                    cursor: "pointer",
+                    cursor: selectionMode ? "default" : "pointer",
                     transition: "all 0.2s ease",
                     display: "flex",
                     alignItems: "center",
@@ -886,6 +940,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                     animation: "fadeIn 0.3s ease forwards",
                     animationDelay: `${i * 20}ms`,
                     opacity: 0,
+                    background: selectedIds.has(d.id) ? T.primaryLight : T.card,
                   }}
                   onMouseEnter={e => {
                     e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
@@ -898,6 +953,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                   onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
                   onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
                 >
+                  {selectionMode && <Checkbox id={d.id} />}
                   {/* File Icon */}
                   <div style={{
                     width: isMobile ? 36 : 40,
@@ -944,6 +1000,42 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
           <Icon name="search" size={28} style={{ color: T.primary }} />
           <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginTop: 12, marginBottom: 4 }}>Tidak ada dokumen</div>
           <div style={{ fontSize: 13, color: T.textSecondary }}>di bidang ini</div>
+        </div>
+      )}
+
+      {/* ── Floating Action Bar (Bulk Selection) ── */}
+      {selectionMode && selectedIds.size > 0 && (
+        <div style={{
+          position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+          background: T.card, borderRadius: 16, padding: "12px 20px",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.2)", border: `1px solid ${T.border}`,
+          display: "flex", alignItems: "center", gap: 12, zIndex: 1000,
+        }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: T.text, marginRight: 4, whiteSpace: "nowrap" }}>
+            {selectedIds.size} dipilih
+          </span>
+          {onBulkAction && (
+            <>
+              <button onClick={() => onBulkAction("archive", [...selectedIds])} style={{
+                ...btnBase, padding: "8px 14px", fontSize: 13,
+                background: "#FEF3C7", color: "#D97706", border: "1px solid #FDE68A", borderRadius: 10,
+              }}>
+                <Icon name="archive" size={14} /> Arsipkan
+              </button>
+              <button onClick={() => onBulkAction("publish", [...selectedIds])} style={{
+                ...btnBase, padding: "8px 14px", fontSize: 13,
+                background: "#ECFDF5", color: "#059669", border: "1px solid #A7F3D0", borderRadius: 10,
+              }}>
+                <Icon name="world" size={14} /> Publikasikan
+              </button>
+              <button onClick={() => onBulkAction("delete", [...selectedIds])} style={{
+                ...btnBase, padding: "8px 14px", fontSize: 13,
+                background: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA", borderRadius: 10,
+              }}>
+                <Icon name="trash" size={14} /> Hapus
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

@@ -246,6 +246,25 @@ export default function App() {
     }
   };
 
+  const handleBulkAction = async (action, ids) => {
+    const label = { archive: "mengarsipkan", publish: "memublikasikan", delete: "menghapus" }[action];
+    if (!window.confirm(`${label.charAt(0).toUpperCase() + label.slice(1)} ${ids.length} dokumen?`)) return;
+    try {
+      const res = await api("/api/docs/bulk", "POST", { action, ids, user: user.name });
+      if (action === "delete") {
+        setDocs(d => d.filter(x => !ids.includes(x.id)));
+      } else if (action === "archive") {
+        setDocs(d => d.map(x => ids.includes(x.id) ? { ...x, status: "Diarsipkan" } : x));
+      } else {
+        setDocs(d => d.map(x => ids.includes(x.id) ? { ...x, publik: true } : x));
+      }
+      queryClient.invalidateQueries({ queryKey: ['docs'] });
+      showToast(`${res.affected} dokumen berhasil ${label}.`);
+    } catch (err) {
+      showToast(`Gagal ${label} dokumen.`);
+    }
+  };
+
   const handleEdit = async (doc, updates) => {
     try {
       const res = await api(`/api/docs/${doc.id}`, "PUT", { ...updates, user: user.name });
@@ -608,7 +627,7 @@ export default function App() {
               <Dashboard docs={docs} onNav={goPage} sectors={sectors} categories={categories} />
             )}
             {page === "dokumen" && !viewDoc && (
-              <DocList docs={docs} onView={d => { setViewDoc(d); history.pushState({ page: "dokumen", docId: d.id }, "", "#dokumen"); }} onNav={goPage} user={user} categories={categories} sectors={sectors} bidangs={bidangs} loading={docsLoading} />
+              <DocList docs={docs} onView={d => { setViewDoc(d); history.pushState({ page: "dokumen", docId: d.id }, "", "#dokumen"); }} onNav={goPage} user={user} categories={categories} sectors={sectors} bidangs={bidangs} loading={docsLoading} onBulkAction={handleBulkAction} />
             )}
             {page === "dokumen" && viewDoc && (
               <DocDetail

@@ -264,6 +264,48 @@ app.put('/api/docs/:id', async (req, res) => {
   }
 });
 
+// ── Bulk Actions ─────────────────────────────────────────────────────────
+app.post('/api/docs/bulk', async (req, res) => {
+  const { action, ids } = req.body;
+  if (!['delete', 'archive', 'publish'].includes(action))
+    return res.status(400).json({ error: 'Action tidak valid' });
+  if (!Array.isArray(ids) || ids.length === 0)
+    return res.status(400).json({ error: 'IDs tidak valid' });
+  if (ids.length > 50)
+    return res.status(400).json({ error: 'Maksimal 50 dokumen per request' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    let result;
+    if (action === 'delete') {
+      result = await client.query(
+        `DELETE FROM bapperida_dokumen WHERE id = ANY($1)`, [ids]
+      );
+    } else if (action === 'archive') {
+      result = await client.query(
+        `UPDATE bapperida_dokumen SET status = 'Diarsipkan' WHERE id = ANY($1)`, [ids]
+      );
+    } else {
+      result = await client.query(
+        `UPDATE bapperida_dokumen SET publik = true WHERE id = ANY($1)`, [ids]
+      );
+    }
+    await client.query(
+      `INSERT INTO audit_logs (user_name, action, doc_title) VALUES ($1, $2, $3)`,
+      [req.body.user || 'Admin', `Bulk ${action}`, `${ids.length} dokumen`]
+    );
+    await client.query('COMMIT');
+    res.json({ success: true, affected: result.rowCount });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Bulk action error:', err);
+    res.status(500).json({ error: 'Gagal menjalankan bulk action' });
+  } finally {
+    client.release();
+  }
+});
+
 // ── Audit Logs ────────────────────────────────────────────────────────────
 app.get('/api/logs', async (_, res) => {
   try {
