@@ -15,17 +15,16 @@ const EXTRA = {
   primaryHover: "#1D4ED8",
 };
 
-const cardStyle = {
-  background: T.card,
-  borderRadius: T.radiusLg,
-  border: `1px solid ${T.border}`,
-  boxShadow: T.shadowSm,
-};
-
 export default function UploadForm({ onSubmit, user, categories = [], sectors = [], bidangs = [] }) {
   const { isMobile } = useResponsive();
   const { T: _T } = useContext(ThemeContext);
   const T = { ..._T, ...EXTRA };
+  const cardStyle = {
+    background: T.card,
+    borderRadius: T.radiusLg,
+    border: `1px solid ${T.border}`,
+    boxShadow: T.shadowSm,
+  };
   const [form, setForm] = useState({
     title: "", type: "", sector: "", bidang: "",
     year: (new Date().getFullYear() + 1).toString(),
