@@ -124,7 +124,141 @@ const BIDANG_COLORS = {
 };
 function getBidangColor(bidang) { return BIDANG_COLORS[bidang] || { bg: "#F1F5F9", text: "#64748B" }; }
 
-export function DocList({ docs, onView, onNav, categories = [], sectors = [], bidangs = [] }) {
+// ── File Type Icon & Color ──────────────────────────────────────────────────
+const EXT_MAP = {
+  pdf:  { icon: "file",     bg: "#FEF2F2", color: "#DC2626", label: "PDF" },
+  doc:  { icon: "file",     bg: "#EFF6FF", color: "#2563EB", label: "Word" },
+  docx: { icon: "file",     bg: "#EFF6FF", color: "#2563EB", label: "Word" },
+  xls:  { icon: "file",     bg: "#ECFDF5", color: "#059669", label: "Excel" },
+  xlsx: { icon: "file",     bg: "#ECFDF5", color: "#059669", label: "Excel" },
+  ppt:  { icon: "file",     bg: "#FEF3C7", color: "#D97706", label: "PPT" },
+  pptx: { icon: "file",     bg: "#FEF3C7", color: "#D97706", label: "PPT" },
+  jpg:  { icon: "file",     bg: "#F5F3FF", color: "#7C3AED", label: "Gambar" },
+  jpeg: { icon: "file",     bg: "#F5F3FF", color: "#7C3AED", label: "Gambar" },
+  png:  { icon: "file",     bg: "#F5F3FF", color: "#7C3AED", label: "Gambar" },
+  gif:  { icon: "file",     bg: "#F5F3FF", color: "#7C3AED", label: "Gambar" },
+  csv:  { icon: "file",     bg: "#ECFDF5", color: "#059669", label: "CSV" },
+  zip:  { icon: "file",     bg: "#F1F5F9", color: "#64748B", label: "ZIP" },
+};
+function getFileExtInfo(name) {
+  if (!name) return { icon: "file", bg: "#F1F5F9", color: "#64748B", label: "File" };
+  const ext = name.split(".").pop().toLowerCase();
+  return EXT_MAP[ext] || { icon: "file", bg: "#F1F5F9", color: "#64748B", label: ext.toUpperCase() };
+}
+// ponytail: guess file type from title if no files array
+function getDocFileInfo(d) {
+  if (Array.isArray(d.files) && d.files.length > 0) {
+    return getFileExtInfo(d.files[0].name || d.files[0]);
+  }
+  // fallback: try to guess from title
+  return getFileExtInfo(d.title);
+}
+
+// ── Hover Tooltip ──────────────────────────────────────────────────────────
+function DocTooltip({ doc, children }) {
+  const [show, setShow] = useState(false);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const ref = useRef(null);
+  const fi = getDocFileInfo(doc);
+
+  const onEnter = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setPos({ x: r.left + r.width / 2, y: r.top });
+    setShow(true);
+  };
+
+  return (
+    <div
+      ref={ref}
+      onMouseEnter={onEnter}
+      onMouseLeave={() => setShow(false)}
+      style={{ position: "relative" }}
+    >
+      {children}
+      {show && (
+        <div style={{
+          position: "fixed",
+          left: pos.x,
+          top: pos.y - 8,
+          transform: "translate(-50%, -100%)",
+          background: "#0F172A",
+          color: "#F8FAFC",
+          borderRadius: 10,
+          padding: "10px 14px",
+          fontSize: 12,
+          lineHeight: 1.5,
+          zIndex: 9999,
+          pointerEvents: "none",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+          maxWidth: 280,
+          minWidth: 180,
+        }}>
+          <div style={{ fontWeight: 700, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ background: fi.bg, color: fi.color, borderRadius: 4, padding: "1px 5px", fontSize: 10, fontWeight: 700 }}>{fi.label}</span>
+            {doc.title}
+          </div>
+          <div style={{ color: "#94A3B8", fontSize: 11 }}>
+            {doc.type} · {doc.sector} · {doc.year}
+          </div>
+          <div style={{ color: "#94A3B8", fontSize: 11, marginTop: 2 }}>
+            {doc.size} · {doc.status}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Skeleton Loader ────────────────────────────────────────────────────────
+function SkeletonGrid({ count = 8, gridSize = 240 }) {
+  const shimmer = {
+    background: "linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%)",
+    backgroundSize: "200% 100%",
+    animation: "shimmer 1.5s infinite",
+    borderRadius: 8,
+  };
+  return (
+    <>
+      <style>{`@keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }`}</style>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${gridSize}px, 1fr))`, gap: 12 }}>
+        {Array.from({ length: count }).map((_, i) => (
+          <div key={i} style={{ ...cardStyle, padding: 14 }}>
+            <div style={{ ...shimmer, width: 36, height: 36, borderRadius: 8, marginBottom: 10 }} />
+            <div style={{ ...shimmer, height: 14, borderRadius: 4, marginBottom: 6, width: "80%" }} />
+            <div style={{ ...shimmer, height: 11, borderRadius: 4, width: "60%" }} />
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function SkeletonList({ count = 8 }) {
+  const shimmer = {
+    background: "linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%)",
+    backgroundSize: "200% 100%",
+    animation: "shimmer 1.5s infinite",
+    borderRadius: 8,
+  };
+  return (
+    <>
+      <style>{`@keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }`}</style>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {Array.from({ length: count }).map((_, i) => (
+          <div key={i} style={{ ...cardStyle, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ ...shimmer, width: 40, height: 40, borderRadius: 10, flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ ...shimmer, height: 14, borderRadius: 4, marginBottom: 6, width: "70%" }} />
+              <div style={{ ...shimmer, height: 11, borderRadius: 4, width: "40%" }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+export function DocList({ docs, onView, onNav, categories = [], sectors = [], bidangs = [], loading = false }) {
   const { isMobile } = useResponsive();
   const [showFilter, setShowFilter] = useState(!isMobile);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("doc_viewMode") || "grid");
@@ -134,6 +268,24 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
   // persist viewMode & gridSize
   const setViewModePersist = (v) => { localStorage.setItem("doc_viewMode", v); setViewMode(v); };
   const setGridSizePersist = (v) => { localStorage.setItem("doc_gridSize", String(v)); setGridSize(v); };
+
+  // keyboard shortcuts: Ctrl+K = focus search, Esc = clear folder, ArrowLeft = back
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "k" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        document.getElementById("doc-search")?.focus();
+      }
+      if (e.key === "Escape") {
+        if (selectedBidang) clearBidang();
+      }
+      if (e.key === "ArrowLeft" && selectedBidang) {
+        clearBidang();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedBidang]);
 
   // drag & drop → buka upload form
   const handleDrop = (e) => {
@@ -221,6 +373,14 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
             </button>
           )}
           <div>
+            {/* Breadcrumb */}
+            {selectedBidang && (
+              <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ cursor: "pointer", color: T.primary }} onClick={clearBidang}>Dokumen</span>
+                <Icon name="chevronRight" size={10} style={{ color: T.textMuted }} />
+                <span style={{ color: T.text }}>{selectedBidang}</span>
+              </div>
+            )}
             <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: T.text }}>
               {selectedBidang || "Dokumen"}
             </div>
@@ -312,9 +472,10 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
           <div style={{ position: "relative", flex: "1 1 240px", minWidth: 0 }}>
             <Icon name="search" size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: T.textMuted }} />
             <input
+              id="doc-search"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Cari judul, jenis, atau tag..."
+              placeholder="Cari judul, jenis, atau tag... (Ctrl+K)"
               style={{
                 ...inputStyle,
                 background: T.bg,
@@ -349,8 +510,15 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
         </div>
       </div>
 
+      {/* Skeleton Loading */}
+      {loading && (
+        viewMode === "grid"
+          ? <SkeletonGrid count={8} gridSize={gridSize} />
+          : <SkeletonList count={8} />
+      )}
+
       {/* Empty State */}
-      {filtered.length === 0 && (
+      {!loading && filtered.length === 0 && (
         <div style={{ ...cardStyle, textAlign: "center", padding: 48 }}>
           <div style={{ width: 64, height: 64, background: T.primaryLight, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
             <Icon name="search" size={28} style={{ color: T.primary }} />
@@ -372,39 +540,40 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
           }}>
             {tanpaBidangDocs.map((d, i) => {
               const isFolder = Array.isArray(d.files) && d.files.length > 0;
+              const fi = isFolder ? { bg: T.primaryLight, color: T.primary, label: "Folder" } : getDocFileInfo(d);
               return (
-                <div
-                  key={d.id}
-                  onClick={() => onView(d)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onView(d); }}}
-                  style={{
-                    ...cardStyle,
-                    padding: isMobile ? 12 : 14,
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    animation: "fadeIn 0.3s ease forwards",
-                    animationDelay: `${i * 30}ms`,
-                    opacity: 0,
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
-                    e.currentTarget.style.borderColor = T.borderHover;
-                    e.currentTarget.style.transform = "translateY(-2px)";
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.boxShadow = T.shadowSm;
-                    e.currentTarget.style.borderColor = T.border;
-                    e.currentTarget.style.transform = "translateY(0)";
-                  }}
-                  onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
-                  onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
-                >
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: T.primaryLight, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <Icon name={isFolder ? "folder" : "file"} size={18} style={{ color: T.primary }} />
-                    </div>
+                <DocTooltip key={d.id} doc={d}>
+                  <div
+                    onClick={() => onView(d)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onView(d); }}}
+                    style={{
+                      ...cardStyle,
+                      padding: isMobile ? 12 : 14,
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      animation: "fadeIn 0.3s ease forwards",
+                      animationDelay: `${i * 30}ms`,
+                      opacity: 0,
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+                      e.currentTarget.style.borderColor = T.borderHover;
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.boxShadow = T.shadowSm;
+                      e.currentTarget.style.borderColor = T.border;
+                      e.currentTarget.style.transform = "translateY(0)";
+                    }}
+                    onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
+                    onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
+                  >
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: fi.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <Icon name={isFolder ? "folder" : "file"} size={18} style={{ color: fi.color }} />
+                      </div>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 600, color: T.text, lineHeight: 1.3, marginBottom: 4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                         {d.title}
@@ -415,6 +584,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                     </div>
                   </div>
                 </div>
+                </DocTooltip>
               );
             })}
           </div>
@@ -509,48 +679,49 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
         }}>
           {folderDocs.map((d, i) => {
             const isFolder = Array.isArray(d.files) && d.files.length > 0;
+            const fi = isFolder ? { bg: getBidangColor(d.bidang).bg, color: getBidangColor(d.bidang).text, label: "Folder" } : getDocFileInfo(d);
             return (
-              <div
-                key={d.id}
-                onClick={() => onView(d)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onView(d); }}}
-                style={{
-                  ...cardStyle,
-                  padding: isMobile ? 12 : 14,
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  animation: "fadeIn 0.3s ease forwards",
-                  animationDelay: `${i * 30}ms`,
-                  opacity: 0,
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
-                  e.currentTarget.style.borderColor = T.borderHover;
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.boxShadow = T.shadowSm;
-                  e.currentTarget.style.borderColor = T.border;
-                  e.currentTarget.style.transform = "translateY(0)";
-                }}
-                onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
-                onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
-              >
-                {/* File Icon */}
-                <div style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 8,
-                  background: getBidangColor(d.bidang).bg,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: 10,
-                }}>
-                  <Icon name={isFolder ? "folder" : "file"} size={16} style={{ color: getBidangColor(d.bidang).text }} />
-                </div>
+              <DocTooltip key={d.id} doc={d}>
+                <div
+                  onClick={() => onView(d)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onView(d); }}}
+                  style={{
+                    ...cardStyle,
+                    padding: isMobile ? 12 : 14,
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    animation: "fadeIn 0.3s ease forwards",
+                    animationDelay: `${i * 30}ms`,
+                    opacity: 0,
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+                    e.currentTarget.style.borderColor = T.borderHover;
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.boxShadow = T.shadowSm;
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.transform = "translateY(0)";
+                  }}
+                  onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
+                  onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
+                >
+                  {/* File Icon */}
+                  <div style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 8,
+                    background: fi.bg,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 10,
+                  }}>
+                    <Icon name={isFolder ? "folder" : "file"} size={16} style={{ color: fi.color }} />
+                  </div>
                 {/* Title */}
                 <div style={{
                   fontSize: isMobile ? 12 : 13,
@@ -576,6 +747,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                   <span style={{ fontSize: 10, color: T.textMuted }}>{d.size}</span>
                 </div>
               </div>
+              </DocTooltip>
             );
           })}
         </div>
@@ -596,49 +768,51 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
           <div style={{ fontSize: 14, fontWeight: 600, color: T.textSecondary, marginBottom: 6, marginTop: 8 }}>Tanpa Bidang</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
             {tanpaBidangDocs.map((d, i) => {
+              const fi = getDocFileInfo(d);
               return (
-                <div
-                  key={d.id}
-                  onClick={() => onView(d)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onView(d); }}}
-                  style={{
-                    ...cardStyle,
-                    padding: isMobile ? "12px 14px" : "14px 18px",
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 14,
-                    animation: "fadeIn 0.3s ease forwards",
-                    animationDelay: `${i * 30}ms`,
-                    opacity: 0,
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
-                    e.currentTarget.style.borderColor = T.borderHover;
-                    e.currentTarget.style.transform = "translateY(-1px)";
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.boxShadow = T.shadowSm;
-                    e.currentTarget.style.borderColor = T.border;
-                    e.currentTarget.style.transform = "translateY(0)";
-                  }}
-                  onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
-                  onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
-                >
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: T.primaryLight, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Icon name="file" size={18} style={{ color: T.primary }} />
+                <DocTooltip key={d.id} doc={d}>
+                  <div
+                    onClick={() => onView(d)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onView(d); }}}
+                    style={{
+                      ...cardStyle,
+                      padding: isMobile ? "12px 14px" : "14px 18px",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 14,
+                      animation: "fadeIn 0.3s ease forwards",
+                      animationDelay: `${i * 30}ms`,
+                      opacity: 0,
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+                      e.currentTarget.style.borderColor = T.borderHover;
+                      e.currentTarget.style.transform = "translateY(-1px)";
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.boxShadow = T.shadowSm;
+                      e.currentTarget.style.borderColor = T.border;
+                      e.currentTarget.style.transform = "translateY(0)";
+                    }}
+                    onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
+                    onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
+                  >
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: fi.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Icon name="file" size={18} style={{ color: fi.color }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.title}</div>
+                      <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 2 }}>{d.type} · {d.sector}</div>
+                    </div>
+                    <div style={{ flexShrink: 0 }}>
+                      <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
+                    </div>
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.title}</div>
-                    <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 2 }}>{d.type} · {d.sector}</div>
-                  </div>
-                  <div style={{ flexShrink: 0 }}>
-                    <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
-                  </div>
-                </div>
+                </DocTooltip>
               );
             })}
           </div>
@@ -709,49 +883,50 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
       {viewMode === "list" && selectedBidang && folderDocs.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {folderDocs.map((d, i) => {
+            const fi = getDocFileInfo(d);
             return (
-              <div
-                key={d.id}
-                onClick={() => onView(d)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onView(d); }}}
-                style={{
-                  ...cardStyle,
-                  padding: isMobile ? "10px 12px" : "12px 16px",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  animation: "fadeIn 0.3s ease forwards",
-                  animationDelay: `${i * 20}ms`,
-                  opacity: 0,
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
-                  e.currentTarget.style.borderColor = T.borderHover;
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.boxShadow = T.shadowSm;
-                  e.currentTarget.style.borderColor = T.border;
-                }}
-                onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
-                onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
-              >
-                {/* File Icon */}
-                <div style={{
-                  width: isMobile ? 36 : 40,
-                  height: isMobile ? 36 : 40,
-                  borderRadius: 10,
-                  background: getBidangColor(d.bidang).bg,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}>
-                  <Icon name="file" size={isMobile ? 16 : 18} style={{ color: getBidangColor(d.bidang).text }} />
-                </div>
+              <DocTooltip key={d.id} doc={d}>
+                <div
+                  onClick={() => onView(d)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onView(d); }}}
+                  style={{
+                    ...cardStyle,
+                    padding: isMobile ? "10px 12px" : "12px 16px",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    animation: "fadeIn 0.3s ease forwards",
+                    animationDelay: `${i * 20}ms`,
+                    opacity: 0,
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+                    e.currentTarget.style.borderColor = T.borderHover;
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.boxShadow = T.shadowSm;
+                    e.currentTarget.style.borderColor = T.border;
+                  }}
+                  onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
+                  onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
+                >
+                  {/* File Icon */}
+                  <div style={{
+                    width: isMobile ? 36 : 40,
+                    height: isMobile ? 36 : 40,
+                    borderRadius: 10,
+                    background: fi.bg,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}>
+                    <Icon name="file" size={isMobile ? 16 : 18} style={{ color: fi.color }} />
+                  </div>
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
@@ -773,6 +948,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                   <Icon name="chevronRight" size={14} style={{ color: T.textMuted }} />
                 </div>
               </div>
+              </DocTooltip>
             );
           })}
         </div>

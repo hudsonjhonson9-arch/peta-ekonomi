@@ -83,7 +83,7 @@ export default function App() {
   const [toast,     setToast]     = useState("");
   const { isMobile, isDesktop } = useResponsive();
 
-  const { data: serverDocs = [] } = useDocs();
+  const { data: serverDocs = [], isLoading: docsLoading } = useDocs();
   const { data: logsData = [] } = useLogs();
   const { data: usersData = [] } = useUsers();
   const { data: categoriesData = [] } = useCategories();
@@ -589,7 +589,7 @@ export default function App() {
             <Dashboard docs={docs} onNav={goPage} sectors={sectors} categories={categories} />
           )}
           {page === "dokumen" && !viewDoc && (
-            <DocList docs={docs} onView={d => { setViewDoc(d); history.pushState({ page: "dokumen", docId: d.id }, "", "#dokumen"); }} onNav={goPage} user={user} categories={categories} sectors={sectors} bidangs={bidangs} />
+            <DocList docs={docs} onView={d => { setViewDoc(d); history.pushState({ page: "dokumen", docId: d.id }, "", "#dokumen"); }} onNav={goPage} user={user} categories={categories} sectors={sectors} bidangs={bidangs} loading={docsLoading} />
           )}
           {page === "dokumen" && viewDoc && (
             <DocDetail
