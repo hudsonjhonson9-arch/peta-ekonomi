@@ -3,6 +3,7 @@ import { Icon, Badge, GoogleDriveEmbed, isGDriveUrl, formatBytes, extractGDriveF
 import { YEARS, STATUS_LIST, STATUS_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
 import { ThemeContext } from "../App.jsx";
+import HighlightText from "./HighlightText.jsx";
 
 // ── Shared Design Token Helpers (derived from theme T) ─────────────────────
 function makeBtnBase(T) {
@@ -537,7 +538,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                       </div>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 600, color: T.text, lineHeight: 1.3, marginBottom: 4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                        {d.title}
+                        <HighlightText text={d.title} query={search} />
                       </div>
                       <div style={{ fontSize: 11, color: T.textSecondary }}>
                         {isFolder ? `${d.files.length} file dalam folder` : d.type}
@@ -696,7 +697,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                   overflow: "hidden",
                   minHeight: 34,
                 }}>
-                  {d.title}
+                  <HighlightText text={d.title} query={search} />
                 </div>
                 {/* Meta */}
                 <div style={{ fontSize: 11, color: T.textSecondary, marginBottom: 8 }}>
@@ -766,7 +767,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                       <Icon name="file" size={18} style={{ color: fi.color }} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.title}</div>
+                      <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}><HighlightText text={d.title} query={search} /></div>
                       <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 2 }}>{d.type} · {d.sector}</div>
                     </div>
                     <div style={{ flexShrink: 0 }}>
@@ -891,7 +892,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
-                    <span style={{ fontSize: isMobile ? 13 : 14, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.title}</span>
+                    <span style={{ fontSize: isMobile ? 13 : 14, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><HighlightText text={d.title} query={search} /></span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: isMobile ? 11 : 12, color: T.textSecondary }}>
                     <span>{d.type}</span>
@@ -1002,7 +1003,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
       <div style={{ ...cardStyle, padding: isMobile ? 20 : 28, marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, lineHeight: 1.3, letterSpacing: "-0.02em" }}>{doc.title}</h1>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, lineHeight: 1.3, letterSpacing: "-0.02em" }}><HighlightText text={doc.title} query={""} /></h1>
             <div style={{ marginTop: 10 }}>
               <Badge label={doc.status} colors={STATUS_COLOR[doc.status]} />
             </div>

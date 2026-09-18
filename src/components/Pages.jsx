@@ -3,6 +3,7 @@ import { Icon, Badge } from "./ui.jsx";
 import { STATUS_COLOR, ROLE_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
 import { ThemeContext } from "../App.jsx";
+import HighlightText from "./HighlightText.jsx";
 
 // ── Shared Style Factories (use T from ThemeContext) ──────────────────────────
 function makeStyles(T) {
@@ -152,7 +153,7 @@ export function Pencarian({ docs, onView }) {
                 <Icon name="file" size={isMobile ? 15 : 18} style={{ color: T.primary }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 700, color: T.text, marginBottom: 2 }}>{d.title}</div>
+                <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 700, color: T.text, marginBottom: 2 }}><HighlightText text={d.title} query={q} /></div>
                 <div style={{ fontSize: isMobile ? 11 : 12, color: T.textMuted, marginBottom: 3 }}>{d.type} · {d.sector} · {d.year}</div>
                 <div style={{ fontSize: isMobile ? 11 : 12, color: T.textSecondary, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{d.desc}</div>
               </div>
