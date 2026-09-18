@@ -34,6 +34,7 @@ const ThemeContext = createContext({ T: LIGHT, isDark: false, theme: "system", s
 export { ThemeContext };
 
 function ProfileMenu({ user, onLogout }) {
+  const { T } = useContext(ThemeContext);
   const [open, setOpen] = useState(false);
   return (
     <div style={{ position: "relative" }}>
@@ -42,24 +43,24 @@ function ProfileMenu({ user, onLogout }) {
         onClick={() => setOpen(v => !v)}
         style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", padding: 4, borderRadius: 8 }}
       >
-        <div style={{ width: 30, height: 30, background: "#2563EB", borderRadius: 50, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+        <div style={{ width: 30, height: 30, background: T.primary, borderRadius: 50, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
           {user.name[0]}
         </div>
-        <span style={{ fontSize: 12, fontWeight: 600, color: "#333", maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name.split(" ")[0]}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: T.textSecondary, maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name.split(" ")[0]}</span>
       </button>
       {open && (
         <div style={{
           position: "absolute", top: 40, right: 0, width: 180,
-          background: "#fff", borderRadius: 10, boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
-          border: "1px solid #e8e8e8", padding: "6px 0", zIndex: 150,
+          background: T.card, borderRadius: 10, boxShadow: T.shadowLg,
+          border: `1px solid ${T.border}`, padding: "6px 0", zIndex: 150,
         }}>
-          <div style={{ padding: "10px 14px", borderBottom: "1px solid #f0f0f0" }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{user.name}</div>
-            <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>{user.role}</div>
+          <div style={{ padding: "10px 14px", borderBottom: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{user.name}</div>
+            <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>{user.role}</div>
           </div>
           <button
             onClick={onLogout}
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#c62828" }}
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "none", border: "none", cursor: "pointer", fontSize: 13, color: T.danger }}
           >
             <Icon name="logout" size={15} /> Keluar
           </button>
@@ -533,7 +534,7 @@ export default function App() {
 
   return (
     <ThemeContext.Provider value={{ T, isDark, theme, setTheme }}>
-      <div style={{ display: "flex", width: "100%", minHeight: "100vh", fontFamily: "system-ui, -apple-system, sans-serif", background: "#f5f7f5" }}>
+      <div style={{ display: "flex", width: "100%", minHeight: "100vh", fontFamily: "system-ui, -apple-system, sans-serif", background: T.bg }}>
         {!isMobile && (
           <Sidebar
             active={viewDoc ? "dokumen" : page}
@@ -547,7 +548,7 @@ export default function App() {
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", paddingBottom: isMobile ? 64 : 0 }}>
           {/* Topbar */}
           <div style={{
-            background: "#fff", borderBottom: "1px solid #e8e8e8",
+            background: T.card, borderBottom: `1px solid ${T.border}`,
             padding: isMobile ? "10px 14px" : "11px 24px",
             display: "flex", alignItems: "center", justifyContent: "space-between",
             position: "sticky", top: 0, zIndex: 100, minHeight: 48,
@@ -556,14 +557,14 @@ export default function App() {
               {!isMobile && (
                 <button
                   onClick={() => setCollapsed(c => !c)}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "#666", padding: 6, borderRadius: 6, minWidth: 32, minHeight: 32, display: "flex", alignItems: "center", justifyContent: "center" }}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: T.textSecondary, padding: 6, borderRadius: 6, minWidth: 32, minHeight: 32, display: "flex", alignItems: "center", justifyContent: "center" }}
                   aria-label="Toggle menu"
                 >
                   <Icon name="menu" size={20} />
                 </button>
               )}
               {isMobile && (
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#0d2b1a" }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>
                   {page === "dashboard" && "Dashboard"}
                   {page === "dokumen" && !viewDoc && "Dokumen"}
                   {page === "dokumen" && viewDoc && "Detail Dokumen"}
@@ -591,7 +592,7 @@ export default function App() {
               <NotificationDropdown userId={user.id} />
               {!isMobile && (
                 <>
-                  <div style={{ fontSize: 13, color: "#666" }}>
+                  <div style={{ fontSize: 13, color: T.textSecondary }}>
                     Halo, <b>{user.name.split(" ")[0]}</b>
                   </div>
                   <Badge label={user.role} colors={ROLE_COLOR[user.role]} />
@@ -667,7 +668,7 @@ export default function App() {
                 width: 56,
                 height: 56,
                 borderRadius: 28,
-                background: "#2563eb",
+                background: T.primary,
                 color: "#fff",
                 border: "none",
                 boxShadow: "0 4px 14px rgba(37,99,235,0.4)",
