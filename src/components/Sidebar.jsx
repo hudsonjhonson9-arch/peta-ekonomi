@@ -19,7 +19,7 @@ const NAV = [
 ];
 
 export default function Sidebar({ active, onNav, user, onLogout, collapsed, mobileOpen }) {
-  const { T } = useContext(ThemeContext);
+  const { T, theme, setTheme } = useContext(ThemeContext);
   const isMobileOv = mobileOpen !== undefined;
 
   return (
@@ -93,6 +93,24 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, mobi
           );
         })}
       </nav>
+
+      {/* Theme toggle */}
+      <div style={{ padding: collapsed ? "4px 0" : "4px 16px", borderTop: "1px solid " + T.border }}>
+        <button
+          onClick={() => setTheme(theme === "light" ? "dark" : theme === "dark" ? "system" : "light")}
+          title={collapsed ? (theme === "dark" ? "Gelap" : theme === "light" ? "Terang" : "Sistem") : undefined}
+          style={{
+            display: "flex", alignItems: "center", gap: 8,
+            background: "none", border: "none",
+            color: T.textMuted, cursor: "pointer", fontSize: 13,
+            padding: "8px 0", width: "100%",
+            justifyContent: collapsed ? "center" : "flex-start",
+          }}
+        >
+          <Icon name={theme === "dark" ? "moon" : theme === "light" ? "sun" : "monitor"} size={16} />
+          {!collapsed && (theme === "dark" ? "Gelap" : theme === "light" ? "Terang" : "Sistem")}
+        </button>
+      </div>
 
       {/* User info + logout */}
       <div style={{

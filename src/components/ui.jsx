@@ -45,6 +45,10 @@ const PATHS = {
   building: "M3 21h18M9 8h1M9 12h1M9 16h1M14 8h1M14 12h1M14 16h1M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16",
   trash:     "M3 6h18 M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2",
   calendar: "M19 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2zM16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01",
+  // ponytail: theme icons added for dark mode toggle
+  moon:      "M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z",
+  sun:       "M12 3v1m0 16v1m8.66-14.66l-.71.71M4.05 19.95l-.71.71M21 12h-1M4 12H3m16.66 7.66l-.71-.71M4.05 4.05l-.71-.71M16 12a4 4 0 11-8 0 4 4 0 018 0z",
+  monitor:   "M2 3h20v14H2z M8 21h8 M12 17v4",
 };
 
 // ── Google Drive Embed ─────────────────────────────────────────────────────
