@@ -18,7 +18,52 @@ const NAV = [
   { key: "audit",     label: "Audit Trail",      icon: "history", adminOnly: true },
 ];
 
-export default function Sidebar({ active, onNav, user, onLogout, collapsed, mobileOpen }) {
+function RecentActivity({ logs = [] }) {
+  const { T } = useContext(ThemeContext);
+  const recent = logs.slice(0, 5);
+  if (recent.length === 0) return null;
+
+  const actionIcon = (action) => {
+    if (action?.includes("upload")) return "upload";
+    if (action?.includes("Arsip") || action?.includes("arsip")) return "archive";
+    if (action?.includes("Hapus") || action?.includes("hapus") || action?.includes("delete")) return "trash";
+    if (action?.includes("Approve") || action?.includes("approve")) return "check";
+    return "edit";
+  };
+
+  const timeAgo = (t) => {
+    const d = Date.now() - new Date(t).getTime();
+    const mins = Math.floor(d / 60000);
+    if (mins < 1) return "baru";
+    if (mins < 60) return mins + "m";
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + "j";
+    return Math.floor(hrs / 24) + "h";
+  };
+
+  return (
+    <div style={{ padding: "8px 12px 4px" }}>
+      <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
+        Aktivitas
+      </div>
+      {recent.map((log) => (
+        <div key={log.id} style={{ display: "flex", alignItems: "flex-start", gap: 7, padding: "4px 6px", borderRadius: 5 }}>
+          <Icon name={actionIcon(log.action)} size={12} style={{ color: T.textMuted, marginTop: 2, flexShrink: 0 }} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 11, color: T.sidebarText, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span style={{ fontWeight: 600 }}>{log.user || log.user_name}</span>{" "}
+              <span style={{ color: T.textMuted }}>{log.action}</span>{" "}
+              <span style={{ fontWeight: 500 }}>{log.doc || log.doc_title}</span>
+            </div>
+            <div style={{ fontSize: 9, color: T.textMuted, marginTop: 1 }}>{timeAgo(log.time || log.created_at)}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function Sidebar({ active, onNav, user, onLogout, collapsed, mobileOpen, logs }) {
   const { T, theme, setTheme } = useContext(ThemeContext);
   const isMobileOv = mobileOpen !== undefined;
 
@@ -93,6 +138,9 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, mobi
           );
         })}
       </nav>
+
+      {/* Recent activity */}
+      {!collapsed && <RecentActivity logs={logs} />}
 
       {/* Theme toggle */}
       <div style={{ padding: collapsed ? "4px 0" : "4px 16px", borderTop: "1px solid " + T.border }}>

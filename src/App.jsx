@@ -561,6 +561,7 @@ export default function App() {
             user={user}
             onLogout={handleLogout}
             collapsed={collapsed}
+            logs={logs}
           />
         )}
 
