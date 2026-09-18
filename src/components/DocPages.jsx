@@ -31,14 +31,14 @@ function makeInputStyle(T) {
     fontFamily: "'Lexend', 'Source Sans 3', system-ui, -apple-system, sans-serif",
     border: `1.5px solid ${T.border}`, borderRadius: "10px", fontSize: 14,
     outline: "none", boxSizing: "border-box", transition: "border-color 0.15s, box-shadow 0.15s",
-    color: T.text, background: "#fff",
+    color: T.text, background: T.inputBg,
   };
 }
 function makeSelStyle(T) {
   return {
     fontFamily: "'Lexend', 'Source Sans 3', system-ui, -apple-system, sans-serif",
     fontSize: 13, padding: "8px 12px", border: `1.5px solid ${T.border}`, borderRadius: "10px",
-    background: "#fff", color: T.text, cursor: "pointer", outline: "none",
+    background: T.inputBg, color: T.text, cursor: "pointer", outline: "none",
     transition: "border-color 0.15s", minWidth: 120,
   };
 }
@@ -168,8 +168,9 @@ function DocTooltip({ doc, children }) {
 
 // ── Skeleton Loader ────────────────────────────────────────────────────────
 function SkeletonGrid({ count = 8, gridSize = 240 }) {
+  const { T } = useContext(ThemeContext);
   const shimmer = {
-    background: "linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%)",
+    background: `linear-gradient(90deg, ${T.border} 25%, ${T.borderHover} 50%, ${T.border} 75%)`,
     backgroundSize: "200% 100%",
     animation: "shimmer 1.5s infinite",
     borderRadius: 8,
@@ -191,8 +192,9 @@ function SkeletonGrid({ count = 8, gridSize = 240 }) {
 }
 
 function SkeletonList({ count = 8 }) {
+  const { T } = useContext(ThemeContext);
   const shimmer = {
-    background: "linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%)",
+    background: `linear-gradient(90deg, ${T.border} 25%, ${T.borderHover} 50%, ${T.border} 75%)`,
     backgroundSize: "200% 100%",
     animation: "shimmer 1.5s infinite",
     borderRadius: 8,
@@ -453,8 +455,8 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
           pointerEvents: "none",
         }}>
           <div style={{
-            background: "#fff", borderRadius: 16, padding: "32px 48px",
-            boxShadow: "0 20px 60px rgba(37,99,235,0.2)", border: `2px dashed ${T.primary}`,
+            background: T.card, borderRadius: 16, padding: "32px 48px",
+            boxShadow: T.shadowLg, border: `2px dashed ${T.primary}`,
             textAlign: "center",
           }}>
             <Icon name="upload" size={40} style={{ color: T.primary, marginBottom: 12 }} />
@@ -1018,19 +1020,19 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
             <>
               <button onClick={() => onBulkAction("archive", [...selectedIds])} style={{
                 ...btnBase, padding: "8px 14px", fontSize: 13,
-                background: "#FEF3C7", color: "#D97706", border: "1px solid #FDE68A", borderRadius: 10,
+                background: T.warningBg, color: T.warning, border: `1px solid ${T.warningBorder}`, borderRadius: 10,
               }}>
                 <Icon name="archive" size={14} /> Arsipkan
               </button>
               <button onClick={() => onBulkAction("publish", [...selectedIds])} style={{
                 ...btnBase, padding: "8px 14px", fontSize: 13,
-                background: "#ECFDF5", color: "#059669", border: "1px solid #A7F3D0", borderRadius: 10,
+                background: T.successBg, color: T.success, border: `1px solid ${T.successBorder}`, borderRadius: 10,
               }}>
                 <Icon name="world" size={14} /> Publikasikan
               </button>
               <button onClick={() => onBulkAction("delete", [...selectedIds])} style={{
                 ...btnBase, padding: "8px 14px", fontSize: 13,
-                background: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA", borderRadius: 10,
+                background: T.dangerBg, color: T.danger, border: `1px solid ${T.dangerBorder}`, borderRadius: 10,
               }}>
                 <Icon name="trash" size={14} /> Hapus
               </button>
@@ -1154,7 +1156,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
             </a>
           )}
           {!canPreviewInline && (
-            <button onClick={() => onPreview && onPreview(doc)} style={{ ...btnBase, padding: "10px 16px", background: "#F1F5F9", color: T.textSecondary, fontSize: 13 }}>
+            <button onClick={() => onPreview && onPreview(doc)} style={{ ...btnBase, padding: "10px 16px", background: T.card, color: T.textSecondary, fontSize: 13 }}>
               <Icon name="eye" size={14} /> Preview Online
             </button>
           )}
@@ -1165,7 +1167,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
                 color: doc.publik ? T.success : T.primary,
                 border: `1.5px solid ${doc.publik ? T.successBorder : T.border}`,
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = doc.publik ? T.successHover : "#DBEAFE"; }}
+              onMouseEnter={e => { e.currentTarget.style.background = doc.publik ? T.successHover : T.primaryLight; }}
               onMouseLeave={e => { e.currentTarget.style.background = doc.publik ? T.successBg : T.primaryLight; }}>
               <Icon name="world" size={14} /> {doc.publik ? "✓ Dipublikasikan" : "Publikasikan"}
             </button>
@@ -1175,13 +1177,13 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
               <button onClick={() => {
                 setEditForm({ judul: doc.title || doc.judul, kategori: doc.sector || doc.kategori, tipe: doc.type || doc.tipe, bidang: doc.bidang || "" });
                 setEditing(true);
-              }} style={{ ...btnBase, padding: "10px 16px", fontSize: 13, background: "#F1F5F9", color: T.textSecondary, border: `1.5px solid ${T.border}` }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#E2E8F0"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "#F1F5F9"; }}>
+              }} style={{ ...btnBase, padding: "10px 16px", fontSize: 13, background: T.card, color: T.textSecondary, border: `1.5px solid ${T.border}` }}
+                onMouseEnter={e => { e.currentTarget.style.background = T.surfaceHover; }}
+                onMouseLeave={e => { e.currentTarget.style.background = T.card; }}>
                 <Icon name="edit" size={14} /> Edit
               </button>
               <button onClick={() => onDelete && onDelete(doc)} style={{ ...btnBase, padding: "10px 16px", fontSize: 13, background: T.dangerBg, color: T.danger, border: `1.5px solid ${T.dangerBorder}` }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#FEE2E2"; }}
+                onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; }}
                 onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; }}>
                 <Icon name="trash" size={14} /> Hapus
               </button>
@@ -1381,7 +1383,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
             ))}
             <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
               <button onClick={() => setEditing(false)} style={{ flex: 1, padding: "10px 16px", fontSize: 14, fontWeight: 600, borderRadius: T.radius, border: `1.5px solid ${T.border}`, background: T.bg, color: T.textSecondary, cursor: "pointer" }}
-                onMouseEnter={e => e.currentTarget.style.background = "#E2E8F0"}
+                onMouseEnter={e => e.currentTarget.style.background = T.surfaceHover}
                 onMouseLeave={e => e.currentTarget.style.background = T.bg}>Batal</button>
               <button onClick={async () => {
                 const ok = await onEdit(doc, editForm);
