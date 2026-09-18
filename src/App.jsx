@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, createContext, useContext } from "react";
+import { LIGHT, DARK, getTheme, isDarkTheme } from "./theme.js";
 import { useDocs, useUsers, useLogs, useCategories, useSectors, useBidang, api } from './hooks.js';
 import { queryClient } from './main.jsx';
 import useResponsive    from './useResponsive.js';
@@ -28,10 +29,12 @@ import BankData          from "./components/BankData.jsx";
 import { Icon, Toast }  from "./components/ui.jsx";
 import { ROLE_COLOR } from "./data.js";
 import { Badge } from "./components/ui.jsx";
-import { useState as useState2 } from "react";
+
+const ThemeContext = createContext({ T: LIGHT, isDark: false, theme: "system", setTheme: () => {} });
+export { ThemeContext };
 
 function ProfileMenu({ user, onLogout }) {
-  const [open, setOpen] = useState2(false);
+  const [open, setOpen] = useState(false);
   return (
     <div style={{ position: "relative" }}>
       {open && <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 149 }} />}
@@ -81,6 +84,20 @@ export default function App() {
   const [viewDoc,   setViewDoc]   = useState(null);
   const [collapsed, setCollapsed] = useState(false);
   const [toast,     setToast]     = useState("");
+  const [theme, setThemeState] = useState(() => localStorage.getItem("theme") || "system");
+  const T = useMemo(() => getTheme(theme), [theme]);
+  const isDark = useMemo(() => isDarkTheme(theme), [theme]);
+
+  const setTheme = (v) => {
+    setThemeState(v);
+    localStorage.setItem("theme", v);
+    document.documentElement.setAttribute("data-theme", isDarkTheme(v) ? "dark" : "light");
+  };
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
+  }, [isDark]);
+
   const { isMobile, isDesktop } = useResponsive();
 
   const { data: serverDocs = [], isLoading: docsLoading } = useDocs();
@@ -515,164 +532,166 @@ export default function App() {
   const liveDoc = viewDoc ? docs.find(d => d.id === viewDoc.id) || viewDoc : null;
 
   return (
-    <div style={{ display: "flex", width: "100%", minHeight: "100vh", fontFamily: "system-ui, -apple-system, sans-serif", background: "#f5f7f5" }}>
-      {!isMobile && (
-        <Sidebar
-          active={viewDoc ? "dokumen" : page}
-          onNav={(p) => { goPage(p); }}
-          user={user}
-          onLogout={handleLogout}
-          collapsed={collapsed}
-        />
-      )}
+    <ThemeContext.Provider value={{ T, isDark, theme, setTheme }}>
+      <div style={{ display: "flex", width: "100%", minHeight: "100vh", fontFamily: "system-ui, -apple-system, sans-serif", background: "#f5f7f5" }}>
+        {!isMobile && (
+          <Sidebar
+            active={viewDoc ? "dokumen" : page}
+            onNav={(p) => { goPage(p); }}
+            user={user}
+            onLogout={handleLogout}
+            collapsed={collapsed}
+          />
+        )}
 
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", paddingBottom: isMobile ? 64 : 0 }}>
-        {/* Topbar */}
-        <div style={{
-          background: "#fff", borderBottom: "1px solid #e8e8e8",
-          padding: isMobile ? "10px 14px" : "11px 24px",
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          position: "sticky", top: 0, zIndex: 100, minHeight: 48,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {!isMobile && (
-              <button
-                onClick={() => setCollapsed(c => !c)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "#666", padding: 6, borderRadius: 6, minWidth: 32, minHeight: 32, display: "flex", alignItems: "center", justifyContent: "center" }}
-                aria-label="Toggle menu"
-              >
-                <Icon name="menu" size={20} />
-              </button>
-            )}
-            {isMobile && (
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#0d2b1a" }}>
-                {page === "dashboard" && "Dashboard"}
-                {page === "dokumen" && !viewDoc && "Dokumen"}
-                {page === "dokumen" && viewDoc && "Detail Dokumen"}
-                {page === "upload" && "Upload Dokumen"}
-                {page === "pencarian" && "Pencarian"}
-                {page === "publik" && "Portal Publik"}
-                {page === "pengguna" && "Pengguna"}
-                {page === "kategori-dokumen" && "Tipe Dokumen"}
-                {page === "sektor" && "Sektor"}
-                {page === "audit" && "Audit Trail"}
-                {page === "panduan" && "Panduan Pengguna"}
-                {page === "bankdata" && "Bank Data"}
-              </div>
-            )}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 14 }}>
-            {pendingCount > 0 && (
-              <div style={{ position: "relative", cursor: "pointer" }} onClick={() => goPage("dokumen")} title="Dokumen perlu review">
-                <Icon name="layers" size={isMobile ? 17 : 18} style={{ color: "#f59e0b" }} />
-                <span style={{ position: "absolute", top: -5, right: -5, width: 16, height: 16, background: "#f59e0b", borderRadius: 50, fontSize: 9, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
-                  {pendingCount}
-                </span>
-              </div>
-            )}
-            <NotificationDropdown userId={user.id} />
-            {!isMobile && (
-              <>
-                <div style={{ fontSize: 13, color: "#666" }}>
-                  Halo, <b>{user.name.split(" ")[0]}</b>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", paddingBottom: isMobile ? 64 : 0 }}>
+          {/* Topbar */}
+          <div style={{
+            background: "#fff", borderBottom: "1px solid #e8e8e8",
+            padding: isMobile ? "10px 14px" : "11px 24px",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            position: "sticky", top: 0, zIndex: 100, minHeight: 48,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {!isMobile && (
+                <button
+                  onClick={() => setCollapsed(c => !c)}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "#666", padding: 6, borderRadius: 6, minWidth: 32, minHeight: 32, display: "flex", alignItems: "center", justifyContent: "center" }}
+                  aria-label="Toggle menu"
+                >
+                  <Icon name="menu" size={20} />
+                </button>
+              )}
+              {isMobile && (
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#0d2b1a" }}>
+                  {page === "dashboard" && "Dashboard"}
+                  {page === "dokumen" && !viewDoc && "Dokumen"}
+                  {page === "dokumen" && viewDoc && "Detail Dokumen"}
+                  {page === "upload" && "Upload Dokumen"}
+                  {page === "pencarian" && "Pencarian"}
+                  {page === "publik" && "Portal Publik"}
+                  {page === "pengguna" && "Pengguna"}
+                  {page === "kategori-dokumen" && "Tipe Dokumen"}
+                  {page === "sektor" && "Sektor"}
+                  {page === "audit" && "Audit Trail"}
+                  {page === "panduan" && "Panduan Pengguna"}
+                  {page === "bankdata" && "Bank Data"}
                 </div>
-                <Badge label={user.role} colors={ROLE_COLOR[user.role]} />
-              </>
-            )}
-            {isMobile && <ProfileMenu user={user} onLogout={handleLogout} />}
+              )}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 14 }}>
+              {pendingCount > 0 && (
+                <div style={{ position: "relative", cursor: "pointer" }} onClick={() => goPage("dokumen")} title="Dokumen perlu review">
+                  <Icon name="layers" size={isMobile ? 17 : 18} style={{ color: "#f59e0b" }} />
+                  <span style={{ position: "absolute", top: -5, right: -5, width: 16, height: 16, background: "#f59e0b", borderRadius: 50, fontSize: 9, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
+                    {pendingCount}
+                  </span>
+                </div>
+              )}
+              <NotificationDropdown userId={user.id} />
+              {!isMobile && (
+                <>
+                  <div style={{ fontSize: 13, color: "#666" }}>
+                    Halo, <b>{user.name.split(" ")[0]}</b>
+                  </div>
+                  <Badge label={user.role} colors={ROLE_COLOR[user.role]} />
+                </>
+              )}
+              {isMobile && <ProfileMenu user={user} onLogout={handleLogout} />}
+            </div>
           </div>
+
+          {/* Main */}
+          <div style={{ flex: 1, padding: isMobile ? "10px 14px 14px" : "14px 24px 24px", overflowY: "auto" }}>
+            {page === "dashboard" && !viewDoc && (
+              <Dashboard docs={docs} onNav={goPage} sectors={sectors} categories={categories} />
+            )}
+            {page === "dokumen" && !viewDoc && (
+              <DocList docs={docs} onView={d => { setViewDoc(d); history.pushState({ page: "dokumen", docId: d.id }, "", "#dokumen"); }} onNav={goPage} user={user} categories={categories} sectors={sectors} bidangs={bidangs} loading={docsLoading} />
+            )}
+            {page === "dokumen" && viewDoc && (
+              <DocDetail
+                doc={liveDoc}
+                onBack={() => setViewDoc(null)}
+                onApprove={handleApprove}
+                onReject={handleReject}
+                onDownload={handleDownload}
+                onPreview={handlePreview}
+                onTogglePublik={handleTogglePublik}
+                onDelete={handleDelete}
+                onEdit={handleEdit}
+                user={user}
+                categories={categories}
+                sectors={sectors}
+                bidangs={bidangs}
+                docs={docs}
+              />
+            )}
+            {page === "upload" && (
+              <UploadForm onSubmit={handleUpload} user={user} categories={categories} sectors={sectors} bidangs={bidangs} initialFiles={window.__droppedFiles} />
+            )}
+            {page === "pencarian" && (
+              <Pencarian docs={docs} onView={d => { setViewDoc(d); setPage("dokumen"); }} />
+            )}
+            {page === "publik" && (
+              <PortalPublik docs={docs} onDownload={handleDownload} />
+            )}
+            {page === "panduan" && (
+              <PanduanPengguna />
+            )}
+            {page === "bankdata" && user.role === "Admin" && (
+              <BankData showToast={showToast} />
+            )}
+            {page === "pengguna" && user.role === "Admin" && (
+              <ManajemenPengguna users={users} onReload={() => queryClient.invalidateQueries({ queryKey: ['users'] })} showToast={showToast} />
+            )}
+            {page === "kategori-dokumen" && user.role === "Admin" && (
+              <ManajemenKategoriDokumen categories={categories} onReload={() => queryClient.invalidateQueries({ queryKey: ['categories'] })} showToast={showToast} />
+            )}
+            {page === "sektor" && user.role === "Admin" && (
+              <ManajemenSektor sectors={sectors} onReload={() => queryClient.invalidateQueries({ queryKey: ['sectors'] })} showToast={showToast} />
+            )}
+            {page === "audit" && user.role === "Admin" && (
+              <AuditTrail logs={logs} />
+            )}
+          </div>
+
+          {/* FAB: + */}
+          {!viewDoc && page !== "upload" && (
+            <button
+              onClick={() => goPage("upload")}
+              style={{
+                position: "fixed",
+                bottom: isMobile ? 80 : 24,
+                right: 24,
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                background: "#2563eb",
+                color: "#fff",
+                border: "none",
+                boxShadow: "0 4px 14px rgba(37,99,235,0.4)",
+                fontSize: 28,
+                cursor: "pointer",
+                zIndex: 999,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "transform 0.15s",
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = "scale(1.1)"}
+              onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
+            >+</button>
+          )}
+
+          {/* Bottom Nav */}
+          {isMobile && (
+            <BottomNav active={viewDoc ? "dokumen" : page} onNav={goPage} user={user} />
+          )}
         </div>
 
-        {/* Main */}
-        <div style={{ flex: 1, padding: isMobile ? "10px 14px 14px" : "14px 24px 24px", overflowY: "auto" }}>
-          {page === "dashboard" && !viewDoc && (
-            <Dashboard docs={docs} onNav={goPage} sectors={sectors} categories={categories} />
-          )}
-          {page === "dokumen" && !viewDoc && (
-            <DocList docs={docs} onView={d => { setViewDoc(d); history.pushState({ page: "dokumen", docId: d.id }, "", "#dokumen"); }} onNav={goPage} user={user} categories={categories} sectors={sectors} bidangs={bidangs} loading={docsLoading} />
-          )}
-          {page === "dokumen" && viewDoc && (
-            <DocDetail
-              doc={liveDoc}
-              onBack={() => setViewDoc(null)}
-              onApprove={handleApprove}
-              onReject={handleReject}
-              onDownload={handleDownload}
-              onPreview={handlePreview}
-              onTogglePublik={handleTogglePublik}
-              onDelete={handleDelete}
-              onEdit={handleEdit}
-              user={user}
-              categories={categories}
-              sectors={sectors}
-              bidangs={bidangs}
-              docs={docs}
-            />
-          )}
-          {page === "upload" && (
-            <UploadForm onSubmit={handleUpload} user={user} categories={categories} sectors={sectors} bidangs={bidangs} initialFiles={window.__droppedFiles} />
-          )}
-          {page === "pencarian" && (
-            <Pencarian docs={docs} onView={d => { setViewDoc(d); setPage("dokumen"); }} />
-          )}
-          {page === "publik" && (
-            <PortalPublik docs={docs} onDownload={handleDownload} />
-          )}
-          {page === "panduan" && (
-            <PanduanPengguna />
-          )}
-          {page === "bankdata" && user.role === "Admin" && (
-            <BankData showToast={showToast} />
-          )}
-          {page === "pengguna" && user.role === "Admin" && (
-            <ManajemenPengguna users={users} onReload={() => queryClient.invalidateQueries({ queryKey: ['users'] })} showToast={showToast} />
-          )}
-          {page === "kategori-dokumen" && user.role === "Admin" && (
-            <ManajemenKategoriDokumen categories={categories} onReload={() => queryClient.invalidateQueries({ queryKey: ['categories'] })} showToast={showToast} />
-          )}
-          {page === "sektor" && user.role === "Admin" && (
-            <ManajemenSektor sectors={sectors} onReload={() => queryClient.invalidateQueries({ queryKey: ['sectors'] })} showToast={showToast} />
-          )}
-          {page === "audit" && user.role === "Admin" && (
-            <AuditTrail logs={logs} />
-          )}
-        </div>
-
-        {/* FAB: + */}
-        {!viewDoc && page !== "upload" && (
-          <button
-            onClick={() => goPage("upload")}
-            style={{
-              position: "fixed",
-              bottom: isMobile ? 80 : 24,
-              right: 24,
-              width: 56,
-              height: 56,
-              borderRadius: 28,
-              background: "#2563eb",
-              color: "#fff",
-              border: "none",
-              boxShadow: "0 4px 14px rgba(37,99,235,0.4)",
-              fontSize: 28,
-              cursor: "pointer",
-              zIndex: 999,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "transform 0.15s",
-            }}
-            onMouseEnter={e => e.currentTarget.style.transform = "scale(1.1)"}
-            onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
-          >+</button>
-        )}
-
-        {/* Bottom Nav */}
-        {isMobile && (
-          <BottomNav active={viewDoc ? "dokumen" : page} onNav={goPage} user={user} />
-        )}
+        <Toast msg={toast} onClose={() => setToast("")} />
       </div>
-
-      <Toast msg={toast} onClose={() => setToast("")} />
-    </div>
+    </ThemeContext.Provider>
   );
 }
