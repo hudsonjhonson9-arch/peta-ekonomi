@@ -1,106 +1,46 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useContext } from "react";
 import { Icon, Badge, GoogleDriveEmbed, isGDriveUrl, formatBytes, extractGDriveFileId, extractGDriveFolderId, gdriveDirectUrl, isImageFile, isOfficeFile, isPdfFile, getUniversalPreviewUrl } from "./ui.jsx";
 import { YEARS, STATUS_LIST, STATUS_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
+import { ThemeContext } from "../App.jsx";
 
-// ─── DAFTAR DOKUMEN ───────────────────────────────────────────────────────────
-// ── Shared Design Tokens ────────────────────────────────────────────────────
-const T = {
-  bg: "#F8FAFC",
-  card: "#FFFFFF",
-  border: "#E4ECFC",
-  borderHover: "#C7D7FC",
-  primary: "#2563EB",
-  primaryHover: "#1D4ED8",
-  primaryLight: "#EFF6FF",
-  primaryRing: "rgba(37,99,235,0.15)",
-  danger: "#DC2626",
-  dangerBg: "#FEF2F2",
-  dangerBorder: "#FECACA",
-  dangerHover: "#FEE2E2",
-  dangerRing: "rgba(220,38,38,0.15)",
-  text: "#0F172A",
-  textSecondary: "#64748B",
-  textMuted: "#94A3B8",
-  surfaceHover: "#F8FAFC",
-  success: "#059669",
-  successBg: "#ECFDF5",
-  successBorder: "#A7F3D0",
-  focusRing: "0 0 0 3px rgba(37,99,235,0.15)",
-  shadowSm: "0 1px 2px rgba(0,0,0,0.05)",
-  shadowMd: "0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05)",
-  shadowLg: "0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.04)",
-  radius: "10px",
-  radiusLg: "14px",
-  font: "'Lexend', 'Source Sans 3', system-ui, -apple-system, sans-serif",
-};
-
-const btnBase = {
-  fontFamily: T.font,
-  fontWeight: 600,
-  borderRadius: T.radius,
-  border: "none",
-  cursor: "pointer",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 6,
-  transition: "all 0.15s ease",
-  outline: "none",
-  whiteSpace: "nowrap",
-};
-
-const btnPrimary = {
-  ...btnBase,
-  background: T.primary,
-  color: "#fff",
-  padding: "10px 18px",
-  fontSize: 13,
-  boxShadow: "0 1px 3px rgba(37,99,235,0.3)",
-};
-
-const btnGhost = {
-  ...btnBase,
-  background: "transparent",
-  color: T.textSecondary,
-  padding: "8px 12px",
-  fontSize: 12,
-};
-
-const cardStyle = {
-  background: T.card,
-  borderRadius: T.radiusLg,
-  border: `1px solid ${T.border}`,
-  boxShadow: T.shadowSm,
-};
-
-const inputStyle = {
-  width: "100%",
-  padding: "10px 14px 10px 36px",
-  fontFamily: T.font,
-  border: `1.5px solid ${T.border}`,
-  borderRadius: T.radius,
-  fontSize: 14,
-  outline: "none",
-  boxSizing: "border-box",
-  transition: "border-color 0.15s, box-shadow 0.15s",
-  color: T.text,
-  background: "#fff",
-};
-
-const selStyle = {
-  fontFamily: T.font,
-  fontSize: 13,
-  padding: "8px 12px",
-  border: `1.5px solid ${T.border}`,
-  borderRadius: T.radius,
-  background: "#fff",
-  color: T.text,
-  cursor: "pointer",
-  outline: "none",
-  transition: "border-color 0.15s",
-  minWidth: 120,
-};
+// ── Shared Design Token Helpers (derived from theme T) ─────────────────────
+function makeBtnBase(T) {
+  return {
+    fontFamily: "'Lexend', 'Source Sans 3', system-ui, -apple-system, sans-serif",
+    fontWeight: 600,
+    borderRadius: "10px",
+    border: "none",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    transition: "all 0.15s ease",
+    outline: "none",
+    whiteSpace: "nowrap",
+  };
+}
+function makeCardStyle(T) {
+  return { background: T.card, borderRadius: "14px", border: `1px solid ${T.border}`, boxShadow: T.shadowSm };
+}
+function makeInputStyle(T) {
+  return {
+    width: "100%", padding: "10px 14px 10px 36px",
+    fontFamily: "'Lexend', 'Source Sans 3', system-ui, -apple-system, sans-serif",
+    border: `1.5px solid ${T.border}`, borderRadius: "10px", fontSize: 14,
+    outline: "none", boxSizing: "border-box", transition: "border-color 0.15s, box-shadow 0.15s",
+    color: T.text, background: "#fff",
+  };
+}
+function makeSelStyle(T) {
+  return {
+    fontFamily: "'Lexend', 'Source Sans 3', system-ui, -apple-system, sans-serif",
+    fontSize: 13, padding: "8px 12px", border: `1.5px solid ${T.border}`, borderRadius: "10px",
+    background: "#fff", color: T.text, cursor: "pointer", outline: "none",
+    transition: "border-color 0.15s", minWidth: 120,
+  };
+}
 
 const FILE_TYPE_COLORS = {
   "Laporan": { bg: "#EFF6FF", text: "#2563EB" },
@@ -275,7 +215,12 @@ function SkeletonList({ count = 8 }) {
 }
 
 export function DocList({ docs, onView, onNav, categories = [], sectors = [], bidangs = [], loading = false }) {
+  const { T } = useContext(ThemeContext);
   const { isMobile } = useResponsive();
+  const cardStyle = useMemo(() => makeCardStyle(T), [T]);
+  const inputStyle = useMemo(() => makeInputStyle(T), [T]);
+  const selStyle = useMemo(() => makeSelStyle(T), [T]);
+  const btnBase = useMemo(() => makeBtnBase(T), [T]);
   const [showFilter, setShowFilter] = useState(!isMobile);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("doc_viewMode") || "grid");
   const [gridSize, setGridSize] = useState(() => Number(localStorage.getItem("doc_gridSize")) || 240);
@@ -985,7 +930,10 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
 // ─── DETAIL DOKUMEN ───────────────────────────────────────────────────────────
 
 export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPreview, onTogglePublik, onDelete, onEdit, user, categories = [], sectors = [], bidangs = [], docs = [] }) {
+  const { T } = useContext(ThemeContext);
   const { isMobile } = useResponsive();
+  const cardStyle = useMemo(() => makeCardStyle(T), [T]);
+  const btnBase = useMemo(() => makeBtnBase(T), [T]);
   const [catatan, setCatatan] = useState("");
   const [showEmbed, setShowEmbed] = useState(false);
   const [editing, setEditing] = useState(false);
