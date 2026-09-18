@@ -230,17 +230,6 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {/* Tambah Button */}
-          {onNav && (
-            <button onClick={() => onNav("upload")} style={{
-              ...btnBase, padding: "8px 14px", fontSize: 13, fontWeight: 600,
-              background: T.primary, color: "#fff", boxShadow: "0 1px 3px rgba(37,99,235,0.3)",
-            }}
-              onMouseEnter={e => { e.currentTarget.style.background = T.primaryHover; }}
-              onMouseLeave={e => { e.currentTarget.style.background = T.primary; }}>
-              <Icon name="plus" size={15} /> {!isMobile && "Tambah"}
-            </button>
-          )}
           {/* Grid Size Slider */}
           {viewMode === "grid" && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: "6px 10px" }}>
