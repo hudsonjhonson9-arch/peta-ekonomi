@@ -248,6 +248,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
   const [filterBidang, setFilterBidang] = useState("Semua Bidang");
   const [filterYear,   setFilterYear]   = useState("Semua Tahun");
   const [filterStatus, setFilterStatus] = useState("Semua Status");
+  const [sortOpt, setSortOpt] = useState("date-desc");
   const [selectedBidang, setSelectedBidang] = useState(null); // null = show folders
 
   const selectBidang = (b) => {
@@ -302,9 +303,22 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
     });
   }, [docs, search, filterType, filterSector, filterBidang, filterYear, filterStatus]);
 
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    switch (sortOpt) {
+      case "date-desc": return arr.sort((a, b) => b.id - a.id);
+      case "date-asc": return arr.sort((a, b) => a.id - b.id);
+      case "title-asc": return arr.sort((a, b) => a.title.localeCompare(b.title));
+      case "title-desc": return arr.sort((a, b) => b.title.localeCompare(a.title));
+      case "size-desc": return arr.sort((a, b) => (b.ukuran || 0) - (a.ukuran || 0));
+      case "size-asc": return arr.sort((a, b) => (a.ukuran || 0) - (b.ukuran || 0));
+      default: return arr;
+    }
+  }, [filtered, sortOpt]);
+
   const tanpaBidangDocs = useMemo(() => {
-    return filtered.filter(d => !d.bidang || d.bidang === "Umum");
-  }, [filtered]);
+    return sorted.filter(d => !d.bidang || d.bidang === "Umum");
+  }, [sorted]);
 
   const bidangFolders = useMemo(() => {
     const map = {};
@@ -316,8 +330,8 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
 
   const folderDocs = useMemo(() => {
     if (!selectedBidang) return [];
-    return filtered.filter(d => d.bidang === selectedBidang);
-  }, [filtered, selectedBidang]);
+    return sorted.filter(d => d.bidang === selectedBidang);
+  }, [sorted, selectedBidang]);
 
   return (
     <div
@@ -467,6 +481,14 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
               <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={selStyle}>
                 {STATUS_LIST.map(s => <option key={s}>{s}</option>)}
               </select>
+              <select value={sortOpt} onChange={e => setSortOpt(e.target.value)} style={{ ...selStyle, minWidth: 130 }}>
+                <option value="date-desc">Terbaru ↓</option>
+                <option value="date-asc">Terlama ↑</option>
+                <option value="title-asc">Judul A-Z</option>
+                <option value="title-desc">Judul Z-A</option>
+                <option value="size-desc">Ukuran ↓</option>
+                <option value="size-asc">Ukuran ↑</option>
+              </select>
             </>
           )}
         </div>
@@ -480,7 +502,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
       )}
 
       {/* Empty State */}
-      {!loading && filtered.length === 0 && (
+      {!loading && sorted.length === 0 && (
         <div style={{ ...cardStyle, textAlign: "center", padding: 48 }}>
           <div style={{ width: 64, height: 64, background: T.primaryLight, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
             <Icon name="search" size={28} style={{ color: T.primary }} />
