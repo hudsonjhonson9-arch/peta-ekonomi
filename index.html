@@ -22,6 +22,13 @@
       @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
       @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
       @keyframes slideDown { from { transform: translateY(0); } to { transform: translateY(100%); } }
+      html[data-theme="dark"] {
+        color-scheme: dark;
+      }
+      html[data-theme="dark"] body {
+        background: #0F172A;
+        color: #F1F5F9;
+      }
     </style>
   </head>
   <body>
