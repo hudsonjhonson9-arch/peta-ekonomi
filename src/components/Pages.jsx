@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext, useMemo } from "react";
+import { useState, useEffect, useContext, useMemo, useRef } from "react";
 import { Icon, Badge } from "./ui.jsx";
 import { STATUS_COLOR, ROLE_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
@@ -75,23 +75,48 @@ function makeStyles(T) {
 export function Pencarian({ docs, onView }) {
   const { isMobile } = useResponsive();
   const { T } = useContext(ThemeContext);
-  const [q,        setQ]        = useState("");
-  const [results,  setResults]  = useState([]);
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState([]);
   const [searched, setSearched] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [includeContent, setIncludeContent] = useState(true);
+  const timerRef = useRef(null);
 
-  const doSearch = (query = q) => {
-    const ql = query.toLowerCase().trim();
+  const doSearch = async (query = q, contentSearch = includeContent) => {
+    const ql = query.trim();
     if (!ql) return;
-    const r = docs.filter(d =>
-      d.title.toLowerCase().includes(ql)  ||
-      d.desc.toLowerCase().includes(ql)   ||
-      d.type.toLowerCase().includes(ql)   ||
-      d.sector.toLowerCase().includes(ql) ||
-      d.tags.some(t => t.includes(ql))    ||
-      d.uploader.toLowerCase().includes(ql)
-    );
-    setResults(r);
     setSearched(true);
+    setLoading(true);
+    try {
+      if (contentSearch) {
+        const r = await fetch(`/api/search?q=${encodeURIComponent(ql)}&limit=30`);
+        if (!r.ok) throw new Error();
+        const data = await r.json();
+        setResults(data.results || []);
+      } else {
+        // client-side metadata-only
+        const qlLower = ql.toLowerCase();
+        setResults(docs.filter(d =>
+          d.title.toLowerCase().includes(qlLower) ||
+          d.desc.toLowerCase().includes(qlLower) ||
+          d.type.toLowerCase().includes(qlLower) ||
+          d.sector.toLowerCase().includes(qlLower) ||
+          d.tags.some(t => t.includes(qlLower)) ||
+          d.uploader.toLowerCase().includes(qlLower)
+        ).map(d => ({ doc: d, score: 0, hits: [] })));
+      }
+    } catch {
+      setResults([]);
+    }
+    setLoading(false);
+  };
+
+  const handleInput = (val) => {
+    setQ(val);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (val.trim().length >= 2 && includeContent) {
+      timerRef.current = setTimeout(() => doSearch(val, true), 400);
+    }
   };
 
   const suggestions = ["RPJMD", "pariwisata", "UMKM", "kajian", "evaluasi", "pertanian", "2024"];
@@ -109,7 +134,7 @@ export function Pencarian({ docs, onView }) {
             <Icon name="search" size={isMobile ? 14 : 16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: T.textMuted }} />
             <input
               value={q}
-              onChange={e => setQ(e.target.value)}
+              onChange={e => handleInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && doSearch()}
               placeholder="Cari dokumen..."
               style={{ width: "100%", padding: "10px 12px 10px 38px", border: `1.5px solid ${T.primary}`, borderRadius: 8, fontSize: isMobile ? 16 : 14, outline: "none", boxSizing: "border-box" }}
@@ -117,10 +142,22 @@ export function Pencarian({ docs, onView }) {
           </div>
           <button
             onClick={() => doSearch()}
-            style={{ padding: "10px 18px", background: T.primary, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+            disabled={loading}
+            style={{ padding: "10px 18px", background: T.primary, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: loading ? "default" : "pointer", whiteSpace: "nowrap", opacity: loading ? 0.6 : 1 }}
           >
-            Cari
+            {loading ? "Mencari..." : "Cari"}
           </button>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.textSecondary, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={includeContent}
+              onChange={e => { setIncludeContent(e.target.checked); if (searched) doSearch(q, e.target.checked); }}
+              style={{ accentColor: T.primary }}
+            />
+            Cari sampai isi dokumen
+          </label>
         </div>
         <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>Coba cari:</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -139,28 +176,43 @@ export function Pencarian({ docs, onView }) {
       {searched && (
         <div>
           <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 12 }}>
-            {results.length > 0
+            {loading ? "Mencari..." : results.length > 0
               ? `${results.length} dokumen ditemukan untuk "${q}"`
               : `Tidak ada dokumen untuk "${q}"`}
           </div>
-          {results.map(d => (
+          {results.map((r, i) => (
             <div
-              key={d.id}
-              onClick={() => onView(d)}
-              style={{ background: T.card, borderRadius: 10, padding: isMobile ? 12 : 16, border: `1px solid ${T.border}`, marginBottom: 8, cursor: "pointer", display: "flex", gap: 10, alignItems: "center" }}
+              key={r.doc.id || i}
+              onClick={() => onView(r.doc)}
+              style={{ background: T.card, borderRadius: 10, padding: isMobile ? 12 : 16, border: `1px solid ${T.border}`, marginBottom: 8, cursor: "pointer" }}
             >
-              <div style={{ width: isMobile ? 34 : 40, height: isMobile ? 34 : 40, background: T.primaryLight, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Icon name="file" size={isMobile ? 15 : 18} style={{ color: T.primary }} />
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <div style={{ width: isMobile ? 34 : 40, height: isMobile ? 34 : 40, background: T.primaryLight, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Icon name="file" size={isMobile ? 15 : 18} style={{ color: T.primary }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 700, color: T.text, marginBottom: 2 }}><HighlightText text={r.doc.title} query={q} /></div>
+                  <div style={{ fontSize: isMobile ? 11 : 12, color: T.textMuted, marginBottom: 3 }}>{r.doc.type} · {r.doc.sector} · {r.doc.year}</div>
+                  <div style={{ fontSize: isMobile ? 11 : 12, color: T.textSecondary, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{r.doc.desc}</div>
+                </div>
+                <Badge label={r.doc.status} colors={STATUS_COLOR[r.doc.status]} />
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 700, color: T.text, marginBottom: 2 }}><HighlightText text={d.title} query={q} /></div>
-                <div style={{ fontSize: isMobile ? 11 : 12, color: T.textMuted, marginBottom: 3 }}>{d.type} · {d.sector} · {d.year}</div>
-                <div style={{ fontSize: isMobile ? 11 : 12, color: T.textSecondary, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{d.desc}</div>
-              </div>
-              <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
+              {r.hits && r.hits.length > 0 && (
+                <div style={{ marginTop: 10, paddingLeft: isMobile ? 44 : 50 }}>
+                  {r.hits.map((h, j) => (
+                    <div key={j} style={{ display: "flex", gap: 6, alignItems: "flex-start", marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, color: T.primary, fontWeight: 600, background: T.primaryLight, borderRadius: 4, padding: "1px 6px", whiteSpace: "nowrap", flexShrink: 0 }}>hlm {h.page_no}</span>
+                      <span
+                        style={{ fontSize: 12, color: T.textSecondary, lineHeight: "1.4" }}
+                        dangerouslySetInnerHTML={{ __html: h.snippet || "" }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
-          {results.length === 0 && (
+          {!loading && results.length === 0 && (
             <div style={{ textAlign: "center", padding: 32, background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, color: T.textMuted }}>
               <Icon name="search" size={32} style={{ color: T.textMuted, marginBottom: 10 }} />
               <div style={{ fontSize: 14, fontWeight: 600 }}>Dokumen tidak ditemukan</div>

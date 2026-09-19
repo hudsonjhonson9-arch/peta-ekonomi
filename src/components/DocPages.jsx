@@ -1,8 +1,10 @@
 import { useState, useMemo, useRef, useEffect, useContext } from "react";
+import * as pdfjsLib from "pdfjs-dist";
 import { Icon, Badge, GoogleDriveEmbed, isGDriveUrl, formatBytes, extractGDriveFileId, extractGDriveFolderId, gdriveDirectUrl, isImageFile, isOfficeFile, isPdfFile, getUniversalPreviewUrl } from "./ui.jsx";
 import { YEARS, STATUS_LIST, STATUS_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
 import { ThemeContext } from "../App.jsx";
+import { queryClient } from "../main.jsx";
 import HighlightText from "./HighlightText.jsx";
 
 // ── Shared Design Token Helpers (derived from theme T) ─────────────────────
@@ -795,6 +797,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                 </div>
                 {/* Footer */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTop: `1px solid ${T.border}` }}>
+                  {d.versi > 1 && <span style={{ fontSize: 10, fontWeight: 700, color: T.primary, background: T.primaryLight, border: `1px solid ${T.primaryRing}`, borderRadius: 4, padding: "1px 5px" }}>v{d.versi}</span>}
                   <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
                   <span style={{ fontSize: 10, color: T.textMuted }}>{d.size}</span>
                 </div>
@@ -862,7 +865,8 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                       <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}><HighlightText text={d.title} query={search} /></div>
                       <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 2 }}>{d.type} · {d.sector}</div>
                     </div>
-                    <div style={{ flexShrink: 0 }}>
+                    <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}>
+                      {d.versi > 1 && <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, background: T.primaryLight, border: `1px solid ${T.primaryRing}`, borderRadius: 4, padding: "2px 6px" }}>v{d.versi}</span>}
                       <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
                     </div>
                   </div>
@@ -1060,7 +1064,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
 
 // ─── DETAIL DOKUMEN ───────────────────────────────────────────────────────────
 
-export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPreview, onTogglePublik, onDelete, onEdit, user, categories = [], sectors = [], bidangs = [], docs = [] }) {
+export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPreview, onTogglePublik, onDelete, onEdit, user, categories = [], sectors = [], bidangs = [], docs = [], showToast }) {
   const { T } = useContext(ThemeContext);
   const { isMobile } = useResponsive();
   const cardStyle = useMemo(() => makeCardStyle(T), [T]);
@@ -1068,8 +1072,15 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
   const [catatan, setCatatan] = useState("");
   const [showEmbed, setShowEmbed] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ judul: "", kategori: "", tipe: "", bidang: "" });
+  const [editForm, setEditForm] = useState({ judul: "", kategori: "", tipe: "", bidang: "", desc: "", tags: "", nomor: "", tanggal: "", fileType: "" });
   const [activeFile, setActiveFile] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [versions, setVersions] = useState([]);
+  const [showVersionModal, setShowVersionModal] = useState(false);
+  const [versionFile, setVersionFile] = useState(null);
+  const [versionNote, setVersionNote] = useState("");
+  const [versionProgress, setVersionProgress] = useState(0);
+  const [versionUploading, setVersionUploading] = useState(false);
   const sidebarRef = useRef(null);
   const [sidebarH, setSidebarH] = useState(0);
 
@@ -1079,6 +1090,122 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
     ro.observe(sidebarRef.current);
     return () => ro.disconnect();
   }, []);
+
+  // Fetch history
+  useEffect(() => {
+    if (!doc?.id) return;
+    fetch(`/api/docs/${doc.id}/history`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setHistory)
+      .catch(() => {});
+  }, [doc?.id]);
+
+  // Fetch versions
+  useEffect(() => {
+    if (!doc?.id) return;
+    fetch(`/api/docs/${doc.id}/versions`)
+      .then(r => r.ok ? r.json() : { versions: [] })
+      .then(d => setVersions(d.versions || []))
+      .catch(() => {});
+  }, [doc?.id]);
+
+  const handleRestoreVersion = async (versionNo) => {
+    if (!window.confirm(`Pulihkan ke v${versionNo}?`)) return;
+    try {
+      const r = await fetch(`/api/docs/${doc.id}/versions/${versionNo}/restore`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actor_id: user?.nip || "", actor_name: user?.name || "" }),
+      });
+      if (!r.ok) throw new Error();
+      const d = await r.json();
+      showToast(d.message);
+      queryClient.invalidateQueries({ queryKey: ['docs'] });
+      onBack();
+    } catch { showToast("Gagal memulihkan versi"); }
+  };
+
+  const handleUploadVersion = async () => {
+    if (!versionFile || !doc?.id) return;
+    setVersionUploading(true);
+    setVersionProgress(10);
+    try {
+      var GAS_URL = "https://script.google.com/macros/s/AKfycbyjrDE_5NnsTsKSyRvEwLLMJH3lWeGsg7jpM44btardExAFX1Vxvp246pazjQdH4UL5/exec";
+      var isSmall = versionFile.size <= 30 * 1024 * 1024;
+      var pageCount = 0;
+      if (/\.pdf$/i.test(versionFile.name)) {
+        try {
+          var d = await versionFile.arrayBuffer();
+          var pdfDoc = await pdfjsLib.getDocument({ data: d }).promise;
+          pageCount = pdfDoc.numPages;
+          pdfDoc.destroy();
+        } catch { /* ignore */ }
+      }
+
+      var fileUrl;
+      if (isSmall) {
+        var base64 = await new Promise(function (resolve, reject) {
+          var reader = new FileReader();
+          reader.onload = function () { resolve(reader.result.split(",")[1]); };
+          reader.onerror = function () { reject(new Error("Gagal baca file")); };
+          reader.readAsDataURL(versionFile);
+        });
+        var res = await new Promise(function (resolve, reject) {
+          var xhr = new XMLHttpRequest();
+          xhr.open("POST", GAS_URL); xhr.timeout = 300000;
+          xhr.onload = function () { try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new Error("Response bukan JSON")); } };
+          xhr.onerror = function () { reject(new Error("Network error")); };
+          xhr.send(JSON.stringify({ action: "direct", file: base64, filename: versionFile.name, mimeType: versionFile.type, title: doc.title + " v" + ((doc.versi||1)+1), type: doc.type, sector: doc.sector, year: doc.year, uploader: user.name, group: true }));
+        });
+        fileUrl = res.fileUrl;
+      } else {
+        // Resumable — use same flow as upload
+        var initRes = await new Promise(function (resolve, reject) {
+          var xhr = new XMLHttpRequest(); xhr.open("POST", GAS_URL); xhr.timeout = 30000;
+          xhr.onload = function () { try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new Error("Init failed")); } };
+          xhr.onerror = function () { reject(new Error("Network error")); };
+          xhr.send(JSON.stringify({ action: "initiate", filename: versionFile.name, mimeType: versionFile.type, fileSize: versionFile.size }));
+        });
+        var uploadUrl = initRes.uploadUrl;
+        var CHUNK = 5 * 1024 * 1024, start = 0, fid = null;
+        while (start < versionFile.size) {
+          var end = Math.min(start + CHUNK, versionFile.size);
+          var chunk = versionFile.slice(start, end);
+          var cb64 = await new Promise(function (r, j) { var rd = new FileReader(); rd.onload = function () { r(rd.result.split(",")[1]); }; rd.onerror = j; rd.readAsDataURL(chunk); });
+          var cr = await new Promise(function (resolve, reject) {
+            var xhr = new XMLHttpRequest(); xhr.open("POST", GAS_URL); xhr.timeout = 300000;
+            xhr.onload = function () { try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new Error("Chunk failed")); } };
+            xhr.onerror = function () { reject(new Error("Network error")); };
+            xhr.send(JSON.stringify({ action: "chunk", uploadUrl: uploadUrl, chunkBase64: cb64, start: start, end: end, totalSize: versionFile.size, mimeType: versionFile.type }));
+          });
+          if (cr.status === 200 || cr.status === 201) { fid = cr.fileId; break; }
+          setVersionProgress(Math.round((end / versionFile.size) * 80));
+          start = end;
+        }
+        var finRes = await new Promise(function (resolve, reject) {
+          var xhr = new XMLHttpRequest(); xhr.open("POST", GAS_URL); xhr.timeout = 30000;
+          xhr.onload = function () { try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new Error("Finalize failed")); } };
+          xhr.onerror = function () { reject(new Error("Network error")); };
+          xhr.send(JSON.stringify({ action: "finalize", fileId: fid, title: doc.title + " v" + ((doc.versi||1)+1), type: doc.type, sector: doc.sector, year: doc.year, uploader: user.name, group: true }));
+        });
+        fileUrl = finRes.fileUrl;
+      }
+
+      setVersionProgress(90);
+      var vr = await fetch(`/api/docs/${doc.id}/versions`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: fileUrl, ukuran: formatBytes(versionFile.size), pages: pageCount, note: versionNote, uploader_name: user.name, uploader_id: user.nip || "" }),
+      });
+      if (!vr.ok) throw new Error();
+      var vd = await vr.json();
+      showToast(vd.message);
+      queryClient.invalidateQueries({ queryKey: ['docs'] });
+      setShowVersionModal(false);
+      setVersionFile(null); setVersionNote(""); setVersionProgress(0);
+      onBack();
+    } catch (e) { showToast("Gagal mengunggah versi baru"); }
+    setVersionUploading(false);
+  };
 
   const canApprove =
     (user.role === "Reviewer" || user.role === "Admin") &&
@@ -1099,13 +1226,6 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
   // public URL route through Google Docs Viewer as a fallback.
   const previewUrl = getUniversalPreviewUrl(pUrl);
   const canPreviewInline = !!previewUrl;
-
-  const steps = [
-    { label: "Diunggah",               done: true,                        date: doc.uploadDate },
-    { label: "Review Kabid",           done: doc.reviewedBy !== "—",      date: doc.reviewedBy !== "—" ? "Selesai" : "Menunggu" },
-    { label: "Persetujuan Kepala",     done: doc.status === "Diarsipkan", date: doc.status === "Diarsipkan" ? "Disetujui" : doc.status === "Ditolak" ? "Ditolak" : "Menunggu" },
-    { label: "Diarsipkan",             done: doc.status === "Diarsipkan", date: doc.status === "Diarsipkan" ? "✓" : "—" },
-  ];
 
   return (
     <div style={{ padding: isMobile ? 16 : "28px 36px", fontFamily: T.font, background: T.bg, minHeight: "100%" }}>
@@ -1134,8 +1254,9 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, lineHeight: 1.3, letterSpacing: "-0.02em" }}><HighlightText text={doc.title} query={""} /></h1>
-            <div style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
               <Badge label={doc.status} colors={STATUS_COLOR[doc.status]} />
+              {doc.versi > 1 && <span style={{ fontSize: 12, fontWeight: 700, color: T.primary, background: T.primaryLight, border: `1px solid ${T.primaryRing}`, borderRadius: 4, padding: "2px 8px" }}>v{doc.versi}</span>}
             </div>
           </div>
           <div style={{ width: 52, height: 52, background: T.primaryLight, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginLeft: 16 }}>
@@ -1189,7 +1310,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
           {canEdit && (
             <>
               <button onClick={() => {
-                setEditForm({ judul: doc.title || doc.judul, kategori: doc.sector || doc.kategori, tipe: doc.type || doc.tipe, bidang: doc.bidang || "" });
+                setEditForm({ judul: doc.title || doc.judul, kategori: doc.sector || doc.kategori, tipe: doc.type || doc.tipe, bidang: doc.bidang || "", desc: doc.desc || "", tags: Array.isArray(doc.tags) ? doc.tags.join(", ") : (doc.tags || ""), nomor: doc.nomorDokumen || "", tanggal: doc.tanggalDokumen || "", fileType: doc.fileType || "" });
                 setEditing(true);
               }} style={{ ...btnBase, padding: "10px 16px", fontSize: 13, background: T.card, color: T.textSecondary, border: `1.5px solid ${T.border}` }}
                 onMouseEnter={e => { e.currentTarget.style.background = T.surfaceHover; }}
@@ -1205,6 +1326,25 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
           )}
         </div>
       </div>
+
+      {/* Rejected Banner */}
+      {doc.status === "Ditolak" && doc.reviewNote && (
+        <div style={{ ...cardStyle, padding: isMobile ? 16 : 20, background: T.dangerBg, border: `1.5px solid ${T.dangerBorder}`, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <Icon name="x" size={18} style={{ color: T.danger, flexShrink: 0, marginTop: 2 }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: T.danger, marginBottom: 4 }}>Dokumen Ditolak</div>
+              <div style={{ fontSize: 13, color: T.text, lineHeight: 1.5 }}>{doc.reviewNote}</div>
+              {(user.role === "Uploader" || user.role === "Admin") && (
+                <button onClick={() => { fetch(`/api/docs/${doc.id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "Menunggu Review", note: "Diajukan ulang", actor_id: user.nip || "", actor_name: user.name }) }).then(r => r.ok ? r.json() : Promise.reject()).then(() => { queryClient.invalidateQueries({ queryKey: ['docs'] }); showToast("Berhasil diajukan ulang"); onBack(); }).catch(() => showToast("Gagal mengajukan ulang")); }}
+                  style={{ ...btnBase, marginTop: 12, padding: "8px 16px", fontSize: 13, background: T.primary, color: "#fff" }}>
+                  <Icon name="refresh" size={13} /> Ajukan Ulang
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content: Preview + Metadata */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 20, alignItems: "stretch" }}>
@@ -1273,18 +1413,23 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {[
                 ["Jenis Dokumen", doc.type],
+                ["Tipe File",     doc.fileType || "—"],
                 ["Sektor",        doc.sector],
                 ["Bidang",        doc.bidang || "—"],
                 ["Tahun",         doc.year],
+                ["Nomor Dokumen", doc.nomorDokumen || "—"],
+                ["Tanggal Dokumen", doc.tanggalDokumen || "—"],
+                ["Versi",         doc.versi > 1 ? `v${doc.versi}` : "—"],
                 ["Ukuran File",   doc.size],
                 ["Jumlah Halaman",`${doc.pages} halaman`],
                 ["Tanggal Upload", doc.uploadDate],
                 ["Diunggah oleh", doc.uploader],
                 ["Di-review oleh",doc.reviewedBy],
+                ["Status Indeks", doc.indexStatus === "ok" ? "Terindeks" : doc.indexStatus === "needs_ocr" ? "PDF hasil pindai" : doc.indexStatus === "unsupported" ? "Tidak didukung" : "Belum diindeks"],
               ].map(([k, v]) => (
                 <div key={k} style={{ padding: "10px 14px", background: T.bg, borderRadius: T.radius, border: `1px solid ${T.border}` }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>{k}</div>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: T.text }}>{v}</div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: k === "Status Indeks" && doc.indexStatus === "ok" ? "#16a34a" : k === "Status Indeks" && doc.indexStatus === "needs_ocr" ? "#d97706" : T.text }}>{v}</div>
                 </div>
               ))}
             </div>
@@ -1324,12 +1469,12 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
                 onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
               />
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
-                <button onClick={() => onApprove(doc)} style={{ ...btnBase, width: "100%", padding: "11px 16px", background: T.primary, color: "#fff", fontSize: 13, boxShadow: "0 1px 3px rgba(37,99,235,0.3)" }}
+                <button onClick={() => { if (!catatan.trim()) { showToast("Catatan wajib diisi untuk persetujuan"); return; } onApprove(doc, catatan); setCatatan(""); }} style={{ ...btnBase, width: "100%", padding: "11px 16px", background: T.primary, color: "#fff", fontSize: 13, boxShadow: "0 1px 3px rgba(37,99,235,0.3)" }}
                   onMouseEnter={e => { e.currentTarget.style.background = T.primaryHover; e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,0.35)"; }}
                   onMouseLeave={e => { e.currentTarget.style.background = T.primary; e.currentTarget.style.boxShadow = "0 1px 3px rgba(37,99,235,0.3)"; }}>
                   <Icon name="check" size={14} /> Setujui & Arsipkan
                 </button>
-                <button onClick={() => onReject(doc)} style={{ ...btnBase, width: "100%", padding: "11px 16px", background: T.dangerBg, color: T.danger, fontSize: 13, border: `1px solid ${T.dangerBorder}` }}
+                <button onClick={() => { if (!catatan.trim() || catatan.trim().length < 5) { showToast("Penolakan wajib diisi catatan (minimal 5 karakter)"); return; } onReject(doc, catatan); setCatatan(""); }} style={{ ...btnBase, width: "100%", padding: "11px 16px", background: T.dangerBg, color: T.danger, fontSize: 13, border: `1px solid ${T.dangerBorder}` }}
                   onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = "#F87171"; }}
                   onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; e.currentTarget.style.borderColor = T.dangerBorder; }}>
                   <Icon name="x" size={14} /> Tolak Dokumen
@@ -1338,17 +1483,53 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
             </div>
           )}
 
+          {/* Version History */}
+          {versions.length > 0 && (
+            <div style={{ ...cardStyle, padding: isMobile ? 20 : 28 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 14px" }}>Riwayat Versi</h2>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {versions.map((v, i) => (
+                  <div key={v.version_no} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: v.active ? T.primaryLight : T.bg, borderRadius: T.radius, border: `1px solid ${v.active ? T.primary + "30" : T.border}` }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: v.active ? T.primary : T.text, minWidth: 28 }}>v{v.version_no}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, color: T.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {v.uploader_name || "—"} · {v.note || "—"}
+                      </div>
+                      <div style={{ fontSize: 11, color: T.textMuted }}>{v.created_at || "Aktif"}</div>
+                    </div>
+                    {v.active && <span style={{ fontSize: 10, fontWeight: 600, color: T.primary, background: "#fff", border: `1px solid ${T.primary}30`, borderRadius: 4, padding: "2px 6px" }}>AKTIF</span>}
+                    {!v.active && (user?.role === "Admin" || user?.nip === doc.uploaderId) && (
+                      <button onClick={() => handleRestoreVersion(v.version_no)} style={{ fontSize: 11, padding: "4px 10px", background: T.bg, color: T.primary, border: `1px solid ${T.border}`, borderRadius: 6, cursor: "pointer" }}>Pulihkan</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {/* Upload New Version Button */}
+              {(user?.role === "Admin" || user?.nip === doc.uploaderId) && !Array.isArray(doc.files) && (
+                <button onClick={() => setShowVersionModal(true)} style={{ ...btnBase, width: "100%", padding: "10px 16px", background: T.bg, color: T.primary, border: `1.5px dashed ${T.primary}`, fontSize: 13, marginTop: 12 }}>
+                  <Icon name="upload" size={14} /> Unggah Versi Baru
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Status History */}
           <div style={{ ...cardStyle, padding: 20 }}>
             <h3 style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Riwayat Status</h3>
-            {steps.map((s, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: i < steps.length - 1 ? 14 : 0 }}>
-                <div style={{ width: 22, height: 22, borderRadius: 99, background: s.done ? T.primary : T.border, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
-                  {s.done && <Icon name="check" size={11} style={{ color: "#fff" }} />}
+            {history.length === 0 ? (
+              <div style={{ fontSize: 13, color: T.textMuted }}>Belum ada riwayat</div>
+            ) : history.map((h, i) => (
+              <div key={h.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: i < history.length - 1 ? 14 : 0 }}>
+                <div style={{ width: 22, height: 22, borderRadius: 99, background: h.action === 'upload' ? T.primaryLight : h.action === 'approve' ? T.primary : h.action === 'reject' ? T.danger : T.warningBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                  <Icon name={h.action === 'upload' ? 'upload' : h.action === 'approve' ? 'check' : h.action === 'reject' ? 'x' : 'refresh'} size={11} style={{ color: "#fff" }} />
                 </div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: s.done ? T.text : T.textMuted }}>{s.label}</div>
-                  <div style={{ fontSize: 12, color: T.textMuted }}>{s.date}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>
+                    {h.action === 'upload' ? 'Diunggah' : h.action === 'approve' ? 'Disetujui' : h.action === 'reject' ? 'Ditolak' : h.action === 'resubmit' ? 'Diajukan Ulang' : h.action === 'version' ? 'Versi Baru' : h.action}
+                    {h.actor_name && <span style={{ fontWeight: 400, color: T.textMuted }}> oleh {h.actor_name}</span>}
+                  </div>
+                  <div style={{ fontSize: 12, color: T.textMuted }}>{h.created_at}</div>
+                  {h.note && <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 2, fontStyle: "italic" }}>"{h.note}"</div>}
                 </div>
               </div>
             ))}
@@ -1375,16 +1556,16 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
               { key: "judul", label: "Judul Dokumen", type: "text" },
               { key: "kategori", label: "Sektor", type: "select", opts: sectors.map(s => s.nama || s.name || s) },
               { key: "tipe", label: "Jenis Dokumen", type: "select", opts: categories.map(c => c.nama || c.name || c) },
+              { key: "fileType", label: "Tipe File", type: "select", opts: ["PDF", "Word", "Excel", "PowerPoint", "Lainnya"] },
               { key: "bidang", label: "Bidang", type: "select", opts: ["Umum", ...bidangs.map(b => b.nama || b.name || b)] },
+              { key: "nomor", label: "Nomor Dokumen", type: "text" },
+              { key: "tanggal", label: "Tanggal Dokumen", type: "date" },
+              { key: "desc", label: "Deskripsi", type: "textarea" },
+              { key: "tags", label: "Tags (pisah koma)", type: "text" },
             ].map(f => (
               <div key={f.key} style={{ marginBottom: 14 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: T.textSecondary, display: "block", marginBottom: 6 }}>{f.label}</label>
-                {f.type === "text" ? (
-                  <input value={editForm[f.key]} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))}
-                    style={{ width: "100%", padding: "10px 14px", fontSize: 14, borderRadius: T.radius, border: `1.5px solid ${T.border}`, background: T.bg, color: T.text, outline: "none", boxSizing: "border-box" }}
-                    onFocus={e => e.target.style.borderColor = T.primary}
-                    onBlur={e => e.target.style.borderColor = T.border} />
-                ) : (
+                {f.type === "select" ? (
                   <select value={editForm[f.key]} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))}
                     style={{ width: "100%", padding: "10px 14px", fontSize: 14, borderRadius: T.radius, border: `1.5px solid ${T.border}`, background: T.bg, color: T.text, outline: "none", boxSizing: "border-box" }}
                     onFocus={e => e.target.style.borderColor = T.primary}
@@ -1392,6 +1573,17 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
                     <option value="">Pilih {f.label}</option>
                     {f.opts.map(o => <option key={o} value={o}>{o}</option>)}
                   </select>
+                ) : f.type === "textarea" ? (
+                  <textarea value={editForm[f.key]} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))}
+                    rows={3}
+                    style={{ width: "100%", padding: "10px 14px", fontSize: 14, borderRadius: T.radius, border: `1.5px solid ${T.border}`, background: T.bg, color: T.text, outline: "none", boxSizing: "border-box", resize: "vertical" }}
+                    onFocus={e => e.target.style.borderColor = T.primary}
+                    onBlur={e => e.target.style.borderColor = T.border} />
+                ) : (
+                  <input type={f.type === "date" ? "date" : "text"} value={editForm[f.key]} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))}
+                    style={{ width: "100%", padding: "10px 14px", fontSize: 14, borderRadius: T.radius, border: `1.5px solid ${T.border}`, background: T.bg, color: T.text, outline: "none", boxSizing: "border-box" }}
+                    onFocus={e => e.target.style.borderColor = T.primary}
+                    onBlur={e => e.target.style.borderColor = T.border} />
                 )}
               </div>
             ))}
@@ -1405,6 +1597,43 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
               }} style={{ flex: 1, padding: "10px 16px", fontSize: 14, fontWeight: 600, borderRadius: T.radius, border: "none", background: T.primary, color: "#fff", cursor: "pointer", boxShadow: "0 1px 3px rgba(37,99,235,0.3)" }}
                 onMouseEnter={e => e.currentTarget.style.background = T.primaryHover}
                 onMouseLeave={e => e.currentTarget.style.background = T.primary}>Simpan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Version Upload Modal */}
+      {showVersionModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 16 }}
+          onClick={e => { if (e.target === e.currentTarget) { setShowVersionModal(false); setVersionFile(null); setVersionNote(""); } }}>
+          <div style={{ background: T.card, borderRadius: T.radiusLg, border: `1px solid ${T.border}`, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", width: "100%", maxWidth: 440, padding: isMobile ? 20 : 28, fontFamily: T.font }}>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: "0 0 20px" }}>Unggah Versi Baru</h3>
+            <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 14 }}>
+              Versi aktif saat ini: <b>v{doc.versi || 1}</b>. File versi baru akan menggantikan file aktif, versi lama tetap tersimpan di riwayat.
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>Pilih File</label>
+              <input type="file" onChange={e => setVersionFile(e.target.files?.[0] || null)}
+                style={{ width: "100%", fontSize: 13, color: T.text }} />
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>Catatan Revisi</label>
+              <textarea value={versionNote} onChange={e => setVersionNote(e.target.value)} rows={3} placeholder="Jelaskan perubahan pada versi ini..."
+                style={{ width: "100%", padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radius, fontSize: 13, fontFamily: T.font, resize: "vertical", boxSizing: "border-box", outline: "none", color: T.text }} />
+            </div>
+            {versionUploading && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ height: 6, background: T.border, borderRadius: 99, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${versionProgress}%`, background: T.primary, borderRadius: 99, transition: "width 0.3s" }} />
+                </div>
+                <div style={{ fontSize: 11, color: T.textMuted, marginTop: 4, textAlign: "center" }}>{versionProgress}%</div>
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => { setShowVersionModal(false); setVersionFile(null); setVersionNote(""); }} style={{ flex: 1, padding: "10px 16px", fontSize: 13, fontWeight: 600, borderRadius: T.radius, border: `1px solid ${T.border}`, background: T.bg, color: T.text, cursor: "pointer" }}>Batal</button>
+              <button onClick={handleUploadVersion} disabled={!versionFile || versionUploading} style={{ flex: 1, padding: "10px 16px", fontSize: 13, fontWeight: 600, borderRadius: T.radius, border: "none", background: (!versionFile || versionUploading) ? T.border : T.primary, color: "#fff", cursor: (!versionFile || versionUploading) ? "default" : "pointer" }}>
+                {versionUploading ? "Mengunggah..." : "Unggah"}
+              </button>
             </div>
           </div>
         </div>

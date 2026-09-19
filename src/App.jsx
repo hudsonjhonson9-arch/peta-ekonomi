@@ -23,6 +23,31 @@ async function countPdfPages(file) {
     return count;
   } catch (_) { return 0; }
 }
+
+async function extractPdfText(file, onProgress) {
+  try {
+    var data = await file.arrayBuffer();
+    var doc = await pdfjsLib.getDocument({ data }).promise;
+    var maxPages = Math.min(doc.numPages, 500);
+    var pages = [];
+    var BATCH = 40;
+    for (var start = 1; start <= maxPages; start += BATCH) {
+      var end = Math.min(start + BATCH, maxPages + 1);
+      for (var i = start; i < end; i++) {
+        var page = await doc.getPage(i);
+        var tc = await page.getTextContent();
+        var text = tc.items.map(function (it) { return it.str; }).join(" ").trim();
+        if (text.length >= 20) pages.push({ page: i, text: text });
+      }
+      if (onProgress) onProgress(Math.min(start + BATCH - 1, maxPages), maxPages);
+    }
+    doc.destroy();
+    var isScanned = pages.length === 0 || pages.reduce(function (s, p) { return s + p.text.length; }, 0) / Math.max(pages.length, 1) < 20;
+    return { pages: pages, status: isScanned ? "needs_ocr" : "ok" };
+  } catch (_) {
+    return { pages: [], status: "unsupported" };
+  }
+}
 import { Pencarian, PortalPublik, ManajemenPengguna, AuditTrail, ManajemenKategoriDokumen, ManajemenSektor } from "./components/Pages.jsx";
 import PanduanPengguna   from "./components/PanduanPengguna.jsx";
 import BankData          from "./components/BankData.jsx";
@@ -185,20 +210,26 @@ export default function App() {
   }, []);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  const handleApprove = doc => {
+  const handleApprove = (doc, note) => {
     setDocs(d => d.map(x => x.id === doc.id ? { ...x, status: "Diarsipkan", reviewedBy: user.name } : x));
     addLog("Approve dokumen", doc);
-    api(`/api/docs/${doc.id}/status`, "PATCH", { status: "Diarsipkan" }).catch(() => {});
+    api(`/api/docs/${doc.id}/status`, "PATCH", {
+      status: "Diarsipkan", note: note || "",
+      actor_id: user.nip || "", actor_name: user.name
+    }).catch(() => {});
     queryClient.invalidateQueries({ queryKey: ['docs'] });
     setViewDoc(null);
     setPage("dokumen");
     showToast("Dokumen berhasil disetujui dan diarsipkan.");
   };
 
-  const handleReject = doc => {
+  const handleReject = (doc, note) => {
     setDocs(d => d.map(x => x.id === doc.id ? { ...x, status: "Ditolak" } : x));
     addLog("Tolak dokumen", doc);
-    api(`/api/docs/${doc.id}/status`, "PATCH", { status: "Ditolak" }).catch(() => {});
+    api(`/api/docs/${doc.id}/status`, "PATCH", {
+      status: "Ditolak", note: note || "",
+      actor_id: user.nip || "", actor_name: user.name
+    }).catch(() => {});
     queryClient.invalidateQueries({ queryKey: ['docs'] });
     setViewDoc(null);
     setPage("dokumen");
@@ -228,13 +259,17 @@ export default function App() {
     if (!window.confirm(`Hapus dokumen "${doc.title}"?`)) return;
     try {
       const res = await api(`/api/docs/${doc.id}`, "DELETE", { user: user.name });
-      // Clean up Drive files if Apps Script supports it
+      // Clean up Drive files (all versions)
       try {
         var GAS_URL = "https://script.google.com/macros/s/AKfycbyjrDE_5NnsTsKSyRvEwLLMJH3lWeGsg7jpM44btardExAFX1Vxvp246pazjQdH4UL5/exec";
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', GAS_URL, true);
-        xhr.timeout = 30000;
-        xhr.send(JSON.stringify({ action: "deleteFile", fileId: doc.url }));
+        var urls = res.allUrls || [doc.url];
+        for (var u of urls) {
+          if (!u) continue;
+          var xhr = new XMLHttpRequest();
+          xhr.open('POST', GAS_URL, true);
+          xhr.timeout = 30000;
+          xhr.send(JSON.stringify({ action: "deleteFile", fileId: u }));
+        }
       } catch (_) { /* Drive cleanup best-effort */ }
       setDocs(d => d.filter(x => x.id !== doc.id));
       queryClient.invalidateQueries({ queryKey: ['docs'] });
@@ -301,32 +336,26 @@ export default function App() {
       });
     }
 
-    // Google Drive URL mode — skip GAS upload
+    // Google Drive URL mode — skip GAS upload, save directly to server
     if (form.fileUrl) {
       onProgress(100);
-      var newDoc = {
-        id:         Date.now(),
-        title:      form.title,
-        type:       form.type,
-        sector:     form.sector,
-        year:       form.year,
-        status:     "Menunggu Review",
-        uploader:   user.name,
-        reviewedBy: "—",
-        size:       "—",
-        pages:      0,
-        uploadDate: new Date().toLocaleDateString("id-ID"),
-        desc:       form.desc || "—",
-        tags:       form.tags ? form.tags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [],
-        url:        form.fileUrl,
-        publik:     false,
-        bidang:     form.bidang || "",
-      };
-      setDocs(function (d) { return [newDoc].concat(d); });
-      addLog("Upload dokumen (Google Drive Link)", newDoc);
-      queryClient.invalidateQueries({ queryKey: ['docs'] });
-      setPage("dokumen");
-      showToast("Dokumen berhasil ditambahkan via Google Drive link.");
+      try {
+        var payload = {
+          title: form.title, type: form.type, sector: form.sector, year: form.year,
+          uploader: user.name, url: form.fileUrl, ukuran: "—", bidang: form.bidang || "",
+          pages: 0, desc: form.desc || "", tags: form.tags || "",
+          uploader_id: user.nip || "", nomor_dokumen: form.nomor_dokumen || "",
+          tanggal_dokumen: form.tanggal_dokumen || "", fileType: form.fileType || "",
+        };
+        var srvRes = await api('/api/docs', 'POST', payload);
+        var newDoc = { ...srvRes.doc, tags: payload.tags ? payload.tags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [] };
+        setDocs(function (d) { return [newDoc].concat(d); });
+        queryClient.invalidateQueries({ queryKey: ['docs'] });
+        setPage("dokumen");
+        showToast("Dokumen berhasil ditambahkan via Google Drive link.");
+      } catch (err) {
+        showToast("Gagal menyimpan dokumen: " + (err.message || err));
+      }
       return;
     }
 
@@ -379,6 +408,12 @@ export default function App() {
             uploader: user.name,
             bidang:   form.bidang || "",
             pages:    pageCount,
+            desc:     form.desc || "",
+            tags:     form.tags || "",
+            uploader_id: user.nip || "",
+            nomor_dokumen: form.nomor_dokumen || "",
+            tanggal_dokumen: form.tanggal_dokumen || "",
+            fileType: form.fileType || "",
             folderId: groupMode ? folderId : undefined,
             group:    groupMode,
           });
@@ -458,6 +493,12 @@ export default function App() {
             uploader: user.name,
             bidang:   form.bidang || "",
             pages:    pageCount,
+            desc:     form.desc || "",
+            tags:     form.tags || "",
+            uploader_id: user.nip || "",
+            nomor_dokumen: form.nomor_dokumen || "",
+            tanggal_dokumen: form.tanggal_dokumen || "",
+            fileType: form.fileType || "",
             group: groupMode,
           });
         }
@@ -487,6 +528,22 @@ export default function App() {
           publik:     false,
           bidang:     form.bidang || "",
         });
+
+        // Auto-index PDF content in background (non-blocking)
+        if (/\.pdf$/i.test(fobj.name) && result.docId) {
+          (async function () {
+            try {
+              var extracted = await extractPdfText(fobj);
+              if (extracted.pages.length > 0) {
+                await fetch("/api/docs/" + result.docId + "/content", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ version_no: 1, pages: extracted.pages, status: extracted.status }),
+                });
+              }
+            } catch (_) { /* index silently */ }
+          })();
+        }
       }
 
       if (groupMode) {
@@ -500,6 +557,12 @@ export default function App() {
           bidang:    form.bidang || "",
           folderUrl: folderUrl,
           files:     groupFiles,
+          desc:      form.desc || "",
+          tags:      form.tags || "",
+          uploader_id: user.nip || "",
+          nomor_dokumen: form.nomor_dokumen || "",
+          tanggal_dokumen: form.tanggal_dokumen || "",
+          fileType: form.fileType || "",
         });
         if (reg.error) throw new Error(reg.error);
 
@@ -646,6 +709,7 @@ export default function App() {
                 sectors={sectors}
                 bidangs={bidangs}
                 docs={docs}
+                showToast={showToast}
               />
             )}
             {page === "upload" && (

@@ -190,7 +190,13 @@ function doPost(e) {
           ukuran:   sizeLabel,
           uploader: params.uploader || 'System',
           bidang:   params.bidang  || '',
-          pages:    params.pages   || 0
+          pages:    params.pages   || 0,
+          desc:     params.desc    || '',
+          tags:     params.tags    || '',
+          uploader_id: params.uploader_id || '',
+          nomor_dokumen: params.nomor_dokumen || '',
+          tanggal_dokumen: params.tanggal_dokumen || '',
+          fileType: params.fileType || '',
         };
 
         var apiOpts = {
@@ -204,11 +210,25 @@ function doPost(e) {
           apiOpts.headers = { 'X-Upload-Key': API_KEY };
         }
 
-        UrlFetchApp.fetch(API_BASE_URL + '/api/docs', apiOpts);
+        var apiRes = UrlFetchApp.fetch(API_BASE_URL + '/api/docs', apiOpts);
+        var apiCode = apiRes.getResponseCode();
+        var apiBody = JSON.parse(apiRes.getContentText());
+
+        if (apiCode < 200 || apiCode >= 300) {
+          return res(apiCode, { error: apiBody.error || 'Gagal menyimpan metadata dokumen' });
+        }
+
+        return res(200, {
+          message: 'Dokumen berhasil diunggah dan disimpan ke PostgreSQL',
+          fileUrl: fileUrl,
+          fileId:  params.fileId,
+          size:    sizeLabel,
+          docId:   apiBody.doc ? apiBody.doc.id : null
+        });
       }
 
       return res(200, {
-        message: 'Dokumen berhasil diunggah dan disimpan ke PostgreSQL',
+        message: 'Dokumen berhasil diunggah',
         fileUrl: fileUrl,
         fileId:  params.fileId,
         size:    sizeLabel
@@ -239,7 +259,13 @@ function doPost(e) {
         uploader: params.uploader || 'System',
         bidang:   params.bidang  || '',
         files:    files,
-        pages:    params.pages   || 0
+        pages:    params.pages   || 0,
+        desc:     params.desc    || '',
+        tags:     params.tags    || '',
+        uploader_id: params.uploader_id || '',
+        nomor_dokumen: params.nomor_dokumen || '',
+        tanggal_dokumen: params.tanggal_dokumen || '',
+        fileType: params.fileType || '',
       };
 
       var apiOpts = {
@@ -253,13 +279,20 @@ function doPost(e) {
         apiOpts.headers = { 'X-Upload-Key': API_KEY };
       }
 
-      UrlFetchApp.fetch(API_BASE_URL + '/api/docs', apiOpts);
+      var apiRes = UrlFetchApp.fetch(API_BASE_URL + '/api/docs', apiOpts);
+      var apiCode = apiRes.getResponseCode();
+      var apiBody = JSON.parse(apiRes.getContentText());
+
+      if (apiCode < 200 || apiCode >= 300) {
+        return res(apiCode, { error: apiBody.error || 'Gagal menyimpan metadata folder' });
+      }
 
       return res(200, {
         message: 'Folder berhasil didaftarkan',
         url:     apiPayload.url,
         ukuran:  sizeLabel,
-        files:   files.length
+        files:   files.length,
+        docId:   apiBody.doc ? apiBody.doc.id : null
       });
     }
 
@@ -293,7 +326,13 @@ function doPost(e) {
         ukuran:   sizeLabel,
         uploader: params.uploader || 'System',
         bidang:   params.bidang  || '',
-        pages:    params.pages   || 0
+        pages:    params.pages   || 0,
+        desc:     params.desc    || '',
+        tags:     params.tags    || '',
+        uploader_id: params.uploader_id || '',
+        nomor_dokumen: params.nomor_dokumen || '',
+        tanggal_dokumen: params.tanggal_dokumen || '',
+        fileType: params.fileType || '',
       };
 
       var apiOpts = {
@@ -307,7 +346,21 @@ function doPost(e) {
         apiOpts.headers = { 'X-Upload-Key': API_KEY };
       }
 
-      UrlFetchApp.fetch(API_BASE_URL + '/api/docs', apiOpts);
+      var apiRes = UrlFetchApp.fetch(API_BASE_URL + '/api/docs', apiOpts);
+      var apiCode = apiRes.getResponseCode();
+      var apiBody = JSON.parse(apiRes.getContentText());
+
+      if (apiCode < 200 || apiCode >= 300) {
+        return res(apiCode, { error: apiBody.error || 'Gagal menyimpan metadata dokumen' });
+      }
+
+      return res(200, {
+        message: 'Dokumen berhasil diunggah',
+        fileUrl: fileUrl,
+        fileId:  file.getId(),
+        size:    sizeLabel,
+        docId:   apiBody.doc ? apiBody.doc.id : null
+      });
     }
 
     return res(200, {

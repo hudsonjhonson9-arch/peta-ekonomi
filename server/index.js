@@ -114,26 +114,34 @@ app.get('/api/docs', async (_, res) => {
         judul                               AS title,
         kategori                            AS type,
         tipe                                AS sector,
+        file_type                           AS "fileType",
         TO_CHAR(tanggal, 'YYYY')            AS year,
         status,
-        '—'                                 AS uploader,
-        '—'                                 AS "reviewedBy",
+        COALESCE(uploader_id, '')           AS "uploaderId",
+        COALESCE("desc", '')                AS "desc",
+        COALESCE(tags, '')                  AS "tagsRaw",
+        COALESCE(nomor_dokumen, '')         AS "nomorDokumen",
+        TO_CHAR(tanggal_dokumen, 'DD Mon YYYY') AS "tanggalDokumen",
+        COALESCE(versi, 1)                  AS versi,
+        COALESCE(reviewed_by, '—')        AS "reviewedBy",
+        COALESCE(review_note, '')          AS "reviewNote",
         ukuran                              AS size,
         COALESCE(pages, 0)                  AS pages,
         TO_CHAR(tanggal, 'DD Mon YYYY')     AS "uploadDate",
-        ''                                  AS desc,
         url,
         files,
         icon_data,
         COALESCE(publik, false)             AS publik,
-        COALESCE(bidang, '')                AS bidang
+        COALESCE(bidang, '')                AS bidang,
+        index_status                        AS "indexStatus"
       FROM bapperida_dokumen
       ORDER BY id DESC
     `);
     res.json(docs.map(d => {
       let files = [];
       if (d.files) { try { files = JSON.parse(d.files); } catch (_) { files = []; } }
-      return { ...d, files, tags: d.type ? [d.type] : [] };
+      const tags = d.tagsRaw ? d.tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : [];
+      return { ...d, files, tags };
     }));
   } catch (err) {
     console.error('Docs error:', err);
@@ -148,20 +156,37 @@ app.post('/api/docs', async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: invalid upload key' });
   }
 
-  const { title, type, sector, uploader, url, ukuran, bidang, files, pages } = req.body;
+  const { title, type, sector, uploader, url, ukuran, bidang, files, pages,
+          desc, tags, uploader_id, nomor_dokumen, tanggal_dokumen, tahun,
+          fileType } = req.body;
   try {
     const result = await pool.query(
-      `INSERT INTO bapperida_dokumen (judul, kategori, tipe, tanggal, ukuran, url, created_at, bidang, files, pages)
-       VALUES ($1, $2, $3, NOW(), $4, $5, NOW(), $6, $7, $8) RETURNING *`,
-      [title, type, sector, ukuran || '0 MB', url || '', bidang || '', files ? JSON.stringify(files) : null, pages || 0]
+      `INSERT INTO bapperida_dokumen
+       (judul, kategori, tipe, file_type, tanggal, ukuran, url, created_at, bidang, files, pages,
+        "desc", tags, uploader_id, nomor_dokumen, tanggal_dokumen)
+       VALUES ($1, $2, $3, $14, COALESCE($10::date, NOW()), $4, $5, NOW(), $6, $7, $8,
+               $9, $11, $12, $13, $10::date)
+       RETURNING *`,
+      [title, type, sector, ukuran || '0 MB', url || '', bidang || '',
+       files ? JSON.stringify(files) : null, pages || 0,
+       desc || '', tanggal_dokumen || null, tags || '',
+       uploader_id || '', nomor_dokumen || '', fileType || '']
     );
+    // Insert doc_history
+    try {
+      await pool.query(
+        `INSERT INTO doc_history (doc_id, action, from_status, to_status, actor_id, actor_name)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [result.rows[0].id, 'upload', null, 'Menunggu Review', uploader_id || '', uploader || 'System']
+      );
+    } catch (_) {}
     await pool.query(
       `INSERT INTO audit_logs (user_name, action, doc_title) VALUES ($1, $2, $3)`,
       [uploader || 'System', 'Upload dokumen', title]
     );
     // Notify all admins about new upload
     try {
-      const admins = await queryDB(`SELECT id FROM user_list WHERE role = 'Admin' OR id = (SELECT id FROM user_list WHERE "NIP" = $1)`, [uploader]);
+      const admins = await queryDB(`SELECT id FROM user_list WHERE role = 'Admin' OR id = (SELECT id FROM user_list WHERE "NIP" = $1)`, [uploader_id || uploader]);
       for (const a of admins) {
         createNotification(a.id, 'Dokumen Baru', `"${title}" diunggah oleh ${uploader || 'System'}.`, 'info', result.rows[0].id);
       }
@@ -219,6 +244,12 @@ app.patch('/api/docs/:id/publik', async (req, res) => {
 app.delete('/api/docs/:id', async (req, res) => {
   const { id } = req.params;
   try {
+    // Collect all URLs (active + versions) for frontend Drive cleanup
+    const verUrls = await pool.query(
+      `SELECT url FROM doc_versions WHERE doc_id = $1`, [id]
+    );
+    const versionUrls = verUrls.rows.map(r => r.url).filter(Boolean);
+
     const result = await pool.query(
       `DELETE FROM bapperida_dokumen WHERE id = $1 RETURNING judul, url, files`,
       [id]
@@ -226,30 +257,128 @@ app.delete('/api/docs/:id', async (req, res) => {
     if (!result.rows.length)
       return res.status(404).json({ error: 'Dokumen tidak ditemukan' });
     const doc = result.rows[0];
+
+    // Clean up related rows
+    await pool.query(`DELETE FROM doc_versions WHERE doc_id = $1`, [id]);
+    await pool.query(`DELETE FROM doc_history WHERE doc_id = $1`, [id]);
+    await pool.query(`DELETE FROM doc_content WHERE doc_id = $1`, [id]);
+
     await pool.query(
       `INSERT INTO audit_logs (user_name, action, doc_title) VALUES ($1, $2, $3)`,
       [req.body.user || 'Admin', 'Hapus dokumen', doc.judul]
     );
-    res.json({ message: 'Dokumen berhasil dihapus', gdriveUrl: doc.url, files: doc.files });
+    const allUrls = [doc.url, ...versionUrls].filter(Boolean);
+    res.json({ message: 'Dokumen berhasil dihapus', gdriveUrl: doc.url, files: doc.files, allUrls });
   } catch (err) {
     console.error('Delete doc error:', err);
     res.status(500).json({ error: 'Gagal menghapus dokumen' });
   }
 });
 
+// ── Riwayat Dokumen ──────────────────────────────────────────────────────
+app.get('/api/docs/:id/history', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const rows = await queryDB(
+      `SELECT id, doc_id, action, from_status, to_status, actor_id, actor_name, note,
+              TO_CHAR(created_at, 'DD Mon YYYY HH24:MI') AS created_at
+       FROM doc_history WHERE doc_id = $1 ORDER BY created_at ASC`,
+      [id]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Get history error:', err);
+    res.status(500).json({ error: 'Gagal mengambil riwayat' });
+  }
+});
+
+// ── Update Status Dokumen ────────────────────────────────────────────────
+app.patch('/api/docs/:id/status', async (req, res) => {
+  const { id } = req.params;
+  const { status, note, actor_id, actor_name } = req.body;
+
+  const VALID_TRANSITIONS = {
+    'Menunggu Review':    ['Diarsipkan', 'Ditolak'],
+    'Menunggu Persetujuan':['Diarsipkan', 'Ditolak'],
+    'Ditolak':            ['Menunggu Review'],
+  };
+
+  try {
+    // Get current status
+    const current = await pool.query(
+      `SELECT status, judul, uploader_id FROM bapperida_dokumen WHERE id = $1`,
+      [id]
+    );
+    if (!current.rows.length)
+      return res.status(404).json({ error: 'Dokumen tidak ditemukan' });
+
+    const cur = current.rows[0];
+    const from = cur.status;
+
+    // Validate transition
+    const allowed = VALID_TRANSITIONS[from] || [];
+    if (!allowed.includes(status))
+      return res.status(400).json({ error: `Transisi dari "${from}" ke "${status}" tidak diizinkan` });
+
+    // Reject requires note (min 5 chars)
+    if (status === 'Ditolak' && (!note || note.trim().length < 5))
+      return res.status(400).json({ error: 'Penolakan wajib diisi catatan (minimal 5 karakter)' });
+
+    // Update doc status + review fields
+    await pool.query(
+      `UPDATE bapperida_dokumen
+       SET status = $1,
+           reviewed_by = $2,
+           reviewed_at = NOW(),
+           review_note = $3
+       WHERE id = $4`,
+      [status, actor_name || '', note || '', id]
+    );
+
+    // Insert history
+    await pool.query(
+      `INSERT INTO doc_history (doc_id, action, from_status, to_status, actor_id, actor_name, note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [id, status === 'Diarsipkan' ? 'approve' : 'reject', from, status, actor_id || '', actor_name || '', note || '']
+    );
+
+    // Notify uploader
+    if (cur.uploader_id) {
+      const label = status === 'Diarsipkan' ? 'disetujui' : 'ditolak';
+      await pool.query(
+        `INSERT INTO notifications (user_id, title, message, type, doc_id)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [cur.uploader_id, `Dokumen ${label}`, `"${cur.judul}" ${label}${note ? ': ' + note : ''}`,
+         status === 'Diarsipkan' ? 'success' : 'warning', id]
+      ).catch(() => {});
+    }
+
+    res.json({ message: `Status berhasil diubah ke "${status}"`, status });
+  } catch (err) {
+    console.error('Update status error:', err);
+    res.status(500).json({ error: 'Gagal mengubah status' });
+  }
+});
+
 // ── Edit Dokumen ────────────────────────────────────────────────────────────
 app.put('/api/docs/:id', async (req, res) => {
   const { id } = req.params;
-  const { judul, kategori, tipe, bidang } = req.body;
+  const { judul, kategori, tipe, bidang, desc, tags, nomor, tanggal, tahun, fileType } = req.body;
   try {
     const result = await pool.query(
       `UPDATE bapperida_dokumen
        SET judul = COALESCE($1, judul),
            kategori = COALESCE($2, kategori),
            tipe = COALESCE($3, tipe),
-           bidang = COALESCE($4, bidang)
-       WHERE id = $5 RETURNING *`,
-      [judul, kategori, tipe, bidang, id]
+           file_type = COALESCE($10, file_type),
+           bidang = COALESCE($4, bidang),
+           "desc" = COALESCE($5, "desc"),
+           tags = COALESCE($6, tags),
+           nomor_dokumen = COALESCE($7, nomor_dokumen),
+           tanggal_dokumen = COALESCE($8::date, tanggal_dokumen),
+           tanggal = COALESCE($8::date, tanggal)
+       WHERE id = $9 RETURNING *`,
+      [judul, kategori, tipe, bidang, desc, tags, nomor, tanggal || null, id, fileType || null]
     );
     if (!result.rows.length)
       return res.status(404).json({ error: 'Dokumen tidak ditemukan' });
@@ -261,6 +390,322 @@ app.put('/api/docs/:id', async (req, res) => {
   } catch (err) {
     console.error('Edit doc error:', err);
     res.status(500).json({ error: 'Gagal memperbarui dokumen' });
+  }
+});
+
+// ── Simpan Isi Dokumen per Halaman ──────────────────────────────────────
+app.post('/api/docs/:id/content', async (req, res) => {
+  const { id } = req.params;
+  const { version_no, pages, status } = req.body;
+  if (!Array.isArray(pages) || pages.length === 0)
+    return res.status(400).json({ error: 'pages harus array' });
+
+  try {
+    for (const p of pages) {
+      await pool.query(
+        `INSERT INTO doc_content (doc_id, version_no, page_no, content)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (doc_id, version_no, page_no) DO UPDATE SET content = $4`,
+        [id, version_no || 1, p.page, p.text]
+      );
+    }
+    await pool.query(
+      `UPDATE bapperida_dokumen SET index_status = $1 WHERE id = $2`,
+      [status || 'ok', id]
+    );
+    res.json({ message: `${pages.length} halaman tersimpan`, indexStatus: status || 'ok' });
+  } catch (err) {
+    console.error('Save content error:', err);
+    res.status(500).json({ error: 'Gagal menyimpan isi dokumen' });
+  }
+});
+
+// ── Status Indeks Dokumen ──────────────────────────────────────────────
+app.get('/api/docs/:id/index-status', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const r = await pool.query(
+      `SELECT index_status, COALESCE(versi, 1) AS versi FROM bapperida_dokumen WHERE id = $1`, [id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Dokumen tidak ditemukan' });
+    const { index_status, versi } = r.rows[0];
+    const count = await pool.query(
+      `SELECT COUNT(*)::int AS total FROM doc_content WHERE doc_id = $1 AND version_no = $2`,
+      [id, versi]
+    );
+    res.json({ status: index_status, version: versi, pages: count.rows[0].total });
+  } catch (err) {
+    console.error('Get index status error:', err);
+    res.status(500).json({ error: 'Gagal mengambil status indeks' });
+  }
+});
+
+// ── Pencarian Full-Text ────────────────────────────────────────────────
+app.get('/api/search', async (req, res) => {
+  const { q, type, sector, bidang, year, status, limit = 20, offset = 0 } = req.query;
+  if (!q || q.trim().length === 0)
+    return res.status(400).json({ error: 'Parameter q wajib diisi' });
+
+  const searchTerm = q.trim();
+  const safeLimit = Math.min(parseInt(limit) || 20, 100);
+  const safeOffset = parseInt(offset) || 0;
+
+  try {
+    // Build metadata filter conditions
+    const metaFilters = [];
+    const metaParams = [];
+    let paramIdx = 1;
+
+    if (type) { metaFilters.push(`d.kategori = $${paramIdx++}`); metaParams.push(type); }
+    if (sector) { metaFilters.push(`d.tipe = $${paramIdx++}`); metaParams.push(sector); }
+    if (bidang) { metaFilters.push(`d.bidang = $${paramIdx++}`); metaParams.push(bidang); }
+    if (year) { metaFilters.push(`d.tahun::text = $${paramIdx++}`); metaParams.push(year); }
+    if (status) { metaFilters.push(`d.status = $${paramIdx++}`); metaParams.push(status); }
+
+    const whereClause = metaFilters.length > 0 ? `AND ${metaFilters.join(' AND ')}` : '';
+
+    // Full-text search combining content + metadata
+    const sql = `
+      WITH search AS (
+        SELECT
+          d.id,
+          d.judul,
+          d.kategori,
+          d.tipe,
+          d.bidang,
+          d.tahun,
+          d.status,
+          d.versi,
+          d.index_status,
+          COALESCE(d.uploader_id, '') AS uploader_id,
+          COALESCE(d."desc", '') AS "desc",
+          COALESCE(d.tags, '') AS tags,
+          COALESCE(d.nomor_dokumen, '') AS nomor_dokumen,
+          TO_CHAR(d.tanggal, 'YYYY') AS upload_year,
+          TO_CHAR(d.tanggal, 'DD Mon YYYY') AS upload_date,
+          COALESCE(d.file_type, '') AS file_type,
+          COALESCE(d.url, '') AS url,
+          d.ukuran AS size,
+          COALESCE(d.pages, 0) AS pages,
+          COALESCE(d.publik, false) AS publik,
+          CASE
+            WHEN d.judul ILIKE $${paramIdx} THEN 10
+            WHEN d.nomor_dokumen ILIKE $${paramIdx} THEN 8
+            WHEN d."desc" ILIKE $${paramIdx} THEN 5
+            WHEN d.tags ILIKE $${paramIdx} THEN 3
+            ELSE 0
+          END AS meta_score,
+          COALESCE(MAX(ts_rank_cd(c.tsv, websearch_to_tsquery('simple', $${paramIdx}))), 0) AS content_score
+        FROM bapperida_dokumen d
+        LEFT JOIN doc_content c ON c.doc_id = d.id AND c.version_no = COALESCE(d.versi, 1)
+        WHERE (
+          d.judul ILIKE $${paramIdx}
+          OR d.nomor_dokumen ILIKE $${paramIdx}
+          OR d."desc" ILIKE $${paramIdx}
+          OR d.tags ILIKE $${paramIdx}
+          OR c.tsv @@ websearch_to_tsquery('simple', $${paramIdx})
+        )
+        ${whereClause}
+        GROUP BY d.id
+        ORDER BY (meta_score + content_score * 20) DESC
+        LIMIT $${paramIdx + 1} OFFSET $${paramIdx + 2}
+      ),
+      hits AS (
+        SELECT
+          c.doc_id,
+          c.page_no,
+          ts_headline('simple', c.content, websearch_to_tsquery('simple', $${paramIdx}),
+            'MaxFragments=1,MaxWords=30,MinWords=12,StartSel=<mark>,StopSel=</mark>') AS snippet
+        FROM doc_content c
+        WHERE c.tsv @@ websearch_to_tsquery('simple', $${paramIdx})
+          AND c.doc_id IN (SELECT id FROM search)
+        ORDER BY ts_rank_cd(c.tsv, websearch_to_tsquery('simple', $${paramIdx})) DESC
+      )
+      SELECT
+        s.*,
+        COALESCE(
+          (SELECT json_agg(h.* ORDER BY h.page_no) FROM hits h WHERE h.doc_id = s.id LIMIT 3),
+          '[]'::json
+        ) AS hits
+      FROM search s
+    `;
+
+    const likePattern = `%${searchTerm}%`;
+    const params = [...metaParams, likePattern, safeLimit, safeOffset];
+    const result = await pool.query(sql, params);
+
+    res.json({
+      results: result.rows.map(r => ({
+        doc: {
+          id: r.id, title: r.judul, type: r.kategori, sector: r.tipe,
+          bidang: r.bidang, year: r.tahun || r.upload_year, status: r.status,
+          versi: r.versi, indexStatus: r.index_status, uploaderId: r.uploader_id,
+          desc: r.desc, tags: r.tags, nomorDokumen: r.nomor_dokumen,
+          fileType: r.file_type, url: r.url, size: r.size, pages: r.pages,
+          publik: r.publik, uploadDate: r.upload_date,
+        },
+        score: r.meta_score + r.content_score * 20,
+        hits: r.hits || [],
+      })),
+      total: result.rows.length,
+      query: searchTerm,
+    });
+  } catch (err) {
+    console.error('Search error:', err);
+    res.status(500).json({ error: 'Gagal menjalankan pencarian' });
+  }
+});
+
+// ── Versi Dokumen ──────────────────────────────────────────────────────
+app.get('/api/docs/:id/versions', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const doc = await pool.query(
+      `SELECT COALESCE(versi,1) AS versi, url, ukuran, COALESCE(pages,0) AS pages,
+              COALESCE(uploader_id,'') AS uploader_id, COALESCE(uploader_name,'') AS uploader_name
+       FROM bapperida_dokumen WHERE id = $1`, [id]
+    );
+    if (!doc.rows.length) return res.status(404).json({ error: 'Dokumen tidak ditemukan' });
+    const d = doc.rows[0];
+
+    const versions = await pool.query(
+      `SELECT version_no, url, ukuran, pages, uploader_name, note, created_at
+       FROM doc_versions WHERE doc_id = $1 ORDER BY version_no DESC`, [id]
+    );
+
+    // Prepend active version as first entry
+    const result = [
+      { version_no: d.versi, url: d.url, ukuran: d.ukuran, pages: d.pages,
+        uploader_name: d.uploader_name, note: null, created_at: null, active: true },
+      ...versions.rows.map(v => ({ ...v, active: false })),
+    ];
+    res.json({ versions: result });
+  } catch (err) {
+    console.error('Get versions error:', err);
+    res.status(500).json({ error: 'Gagal mengambil riwayat versi' });
+  }
+});
+
+app.post('/api/docs/:id/versions', async (req, res) => {
+  const { id } = req.params;
+  const { url, ukuran, pages, note, uploader_name, uploader_id } = req.body;
+  if (!url) return res.status(400).json({ error: 'url wajib diisi' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Get current active version
+    const cur = await client.query(
+      `SELECT versi, url, ukuran, pages, uploader_id, uploader_name
+       FROM bapperida_dokumen WHERE id = $1 FOR UPDATE`, [id]
+    );
+    if (!cur.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Dokumen tidak ditemukan' }); }
+    const c = cur.rows[0];
+    const newVer = (c.versi || 1) + 1;
+
+    // Snapshot current active version into doc_versions
+    await client.query(
+      `INSERT INTO doc_versions (doc_id, version_no, url, ukuran, pages, uploader_id, uploader_name, note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (doc_id, version_no) DO UPDATE SET url=$3, ukuran=$4, pages=$5`,
+      [id, c.versi, c.url, c.ukuran, c.pages, c.uploader_id, c.uploader_name, null]
+    );
+
+    // Update doc to new version
+    await client.query(
+      `UPDATE bapperida_dokumen
+       SET url = $1, ukuran = $2, pages = $3, versi = $4,
+           status = 'Menunggu Review', publik = false
+       WHERE id = $5`,
+      [url, ukuran || '—', pages || 0, newVer, id]
+    );
+
+    // Insert history
+    await client.query(
+      `INSERT INTO doc_history (doc_id, action, from_status, to_status, actor_id, actor_name, note)
+       VALUES ($1, 'version', 'Diarsipkan', 'Menunggu Review', $2, $3, $4)`,
+      [id, uploader_id || '', uploader_name || '', note || `Versi ${newVer}`]
+    );
+
+    // Notify admin/reviewer
+    const titleRes = await client.query(`SELECT judul FROM bapperida_dokumen WHERE id=$1`, [id]);
+    const judul = titleRes.rows[0]?.judul || '';
+    const notifRes = await client.query(
+      `SELECT nip FROM user_credentials WHERE role IN ('Admin','Reviewer') AND active = true`
+    );
+    for (const r of notifRes.rows) {
+      await client.query(
+        `INSERT INTO notifications (user_id, title, message, type, doc_id)
+         VALUES ($1, 'Versi baru', $2, 'info', $3)`,
+        [r.nip, `"${judul}" memiliki versi baru (v${newVer})`, id]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: `Versi ${newVer} berhasil diunggah`, version: newVer });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Create version error:', err);
+    res.status(500).json({ error: 'Gagal membuat versi baru' });
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/docs/:id/versions/:no/restore', async (req, res) => {
+  const { id, no } = req.params;
+  const { actor_id, actor_name } = req.body;
+  const versionNo = parseInt(no);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const ver = await client.query(
+      `SELECT url, ukuran, pages FROM doc_versions WHERE doc_id=$1 AND version_no=$2`, [id, versionNo]
+    );
+    if (!ver.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Versi tidak ditemukan' }); }
+    const v = ver.rows[0];
+
+    const cur = await client.query(
+      `SELECT versi FROM bapperida_dokumen WHERE id=$1 FOR UPDATE`, [id]
+    );
+    const newVer = (cur.rows[0]?.versi || 1) + 1;
+
+    // Snapshot current active before overwrite
+    const c = await client.query(
+      `SELECT versi, url, ukuran, pages, uploader_id, uploader_name FROM bapperida_dokumen WHERE id=$1`, [id]
+    );
+    const cc = c.rows[0];
+    await client.query(
+      `INSERT INTO doc_versions (doc_id, version_no, url, ukuran, pages, uploader_id, uploader_name, note)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (doc_id, version_no) DO UPDATE SET url=$3`,
+      [id, cc.versi, cc.url, cc.ukuran, cc.pages, cc.uploader_id, cc.uploader_name, null]
+    );
+
+    // Overwrite with restored version
+    await client.query(
+      `UPDATE bapperida_dokumen SET url=$1, ukuran=$2, pages=$3, versi=$4,
+       status='Menunggu Review', publik=false WHERE id=$5`,
+      [v.url, v.ukuran, v.pages, newVer, id]
+    );
+
+    await client.query(
+      `INSERT INTO doc_history (doc_id, action, from_status, to_status, actor_id, actor_name, note)
+       VALUES ($1,'restore','Diarsipkan','Menunggu Review',$2,$3,$4)`,
+      [id, actor_id||'', actor_name||'', `Pemulihan dari v${versionNo}`]
+    );
+
+    await client.query('COMMIT');
+    res.json({ message: `Berhasil dipulihkan dari v${versionNo} → v${newVer}`, version: newVer });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Restore version error:', err);
+    res.status(500).json({ error: 'Gagal memulihkan versi' });
+  } finally {
+    client.release();
   }
 });
 

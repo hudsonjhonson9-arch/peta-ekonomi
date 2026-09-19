@@ -29,6 +29,8 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
     title: "", type: "", sector: "", bidang: "",
     year: (new Date().getFullYear() + 1).toString(),
     desc: "", tags: "",
+    nomor_dokumen: "", tanggal_dokumen: "",
+    fileType: "",
   });
   const [files,     setFiles]     = useState([]);
   const [errors,    setErrors]    = useState({});
@@ -62,7 +64,7 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
   };
 
   const resetForm = () => {
-    setForm({ title: "", type: "", sector: "", bidang: "", year: (new Date().getFullYear() + 1).toString(), desc: "", tags: "" });
+    setForm({ title: "", type: "", sector: "", bidang: "", year: (new Date().getFullYear() + 1).toString(), desc: "", tags: "", nomor_dokumen: "", tanggal_dokumen: "", fileType: "" });
     setFiles([]);
     setErrors({});
     setGdriveUrl("");
@@ -189,6 +191,26 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
               </div>}
             </div>
 
+            {/* Tipe File */}
+            <div>
+              <label style={labelStyle}>Tipe File</label>
+              <select
+                value={form.fileType}
+                onChange={e => set("fileType", e.target.value)}
+                onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = `0 0 0 3px ${T.primaryRing}`; }}
+                onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
+                style={inpStyle()}
+                disabled={uploading}
+              >
+                <option value="">— Pilih Tipe —</option>
+                <option value="PDF">PDF</option>
+                <option value="Word">Word</option>
+                <option value="Excel">Excel</option>
+                <option value="PowerPoint">PowerPoint</option>
+                <option value="Lainnya">Lainnya</option>
+              </select>
+            </div>
+
             {/* Sektor */}
             <div>
               <label style={labelStyle}>
@@ -255,6 +277,34 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
                 disabled={uploading}
               />
               <div style={{ fontSize: 12, color: T.textMuted, marginTop: 4 }}>Pisahkan dengan koma</div>
+            </div>
+
+            {/* Nomor Dokumen */}
+            <div style={{ gridColumn: isMobile ? "1 / -1" : "auto" }}>
+              <label style={labelStyle}>Nomor Dokumen</label>
+              <input
+                value={form.nomor_dokumen}
+                onChange={e => set("nomor_dokumen", e.target.value)}
+                onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = `0 0 0 3px ${T.primaryRing}`; }}
+                onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
+                style={inpStyle()}
+                placeholder="005/XXXX/2024"
+                disabled={uploading}
+              />
+            </div>
+
+            {/* Tanggal Dokumen */}
+            <div style={{ gridColumn: isMobile ? "1 / -1" : "auto" }}>
+              <label style={labelStyle}>Tanggal Dokumen</label>
+              <input
+                type="date"
+                value={form.tanggal_dokumen}
+                onChange={e => set("tanggal_dokumen", e.target.value)}
+                onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = `0 0 0 3px ${T.primaryRing}`; }}
+                onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
+                style={inpStyle()}
+                disabled={uploading}
+              />
             </div>
 
             {/* Deskripsi */}
