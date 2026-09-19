@@ -1,6 +1,7 @@
 import express from 'express';
 import cors    from 'cors';
 import dotenv  from 'dotenv';
+import crypto from 'crypto';
 import pg      from 'pg';
 import bcrypt from 'bcryptjs';
 import path    from 'path';
@@ -784,6 +785,68 @@ app.post('/api/docs/bulk', async (req, res) => {
     res.status(500).json({ error: 'Gagal menjalankan bulk action' });
   } finally {
     client.release();
+  }
+});
+
+// ── Share Links ──────────────────────────────────────────────────────────
+app.post('/api/docs/:id/shares', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { expiresIn, customExpiresAt } = req.body;
+    const userId = req.headers['x-user-id'] || 'system';
+
+    const token = crypto.randomBytes(4).toString('hex').toUpperCase();
+    const rawCode = crypto.randomBytes(4).toString('hex').toUpperCase();
+    const verifCode = `${rawCode.slice(0,4)}-${rawCode.slice(4)}`;
+
+    let expiresAt = null;
+    if (expiresIn && expiresIn !== 'none') {
+      const durations = {
+        '1h': 60 * 60 * 1000,
+        '24h': 24 * 60 * 60 * 1000,
+        '7d': 7 * 24 * 60 * 60 * 1000,
+        '30d': 30 * 24 * 60 * 60 * 1000,
+      };
+      if (expiresIn === 'custom' && customExpiresAt) {
+        expiresAt = new Date(customExpiresAt);
+      } else if (durations[expiresIn]) {
+        expiresAt = new Date(Date.now() + durations[expiresIn]);
+      }
+    }
+
+    const result = await pool.query(
+      `INSERT INTO doc_shares (doc_id, token, verif_code, expires_at, created_by)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [id, token, verifCode, expiresAt, userId]
+    );
+
+    res.json({ share: result.rows[0] });
+  } catch (e) {
+    console.error('Create share error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/docs/:id/shares', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      `SELECT * FROM doc_shares WHERE doc_id = $1 AND is_active = TRUE ORDER BY created_at DESC`,
+      [id]
+    );
+    res.json({ shares: result.rows });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/docs/:id/shares/:shareId', async (req, res) => {
+  try {
+    const { shareId } = req.params;
+    await pool.query(`UPDATE doc_shares SET is_active = FALSE WHERE id = $1`, [shareId]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
