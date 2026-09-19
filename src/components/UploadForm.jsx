@@ -204,26 +204,6 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
               </div>}
             </div>
 
-            {/* Tipe File */}
-            <div>
-              <label style={labelStyle}>Tipe File</label>
-              <select
-                value={form.fileType}
-                onChange={e => set("fileType", e.target.value)}
-                onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = `0 0 0 3px ${T.primaryRing}`; }}
-                onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
-                style={inpStyle()}
-                disabled={uploading}
-              >
-                <option value="">— Pilih Tipe —</option>
-                <option value="PDF">PDF</option>
-                <option value="Word">Word</option>
-                <option value="Excel">Excel</option>
-                <option value="PowerPoint">PowerPoint</option>
-                <option value="Lainnya">Lainnya</option>
-              </select>
-            </div>
-
             {/* Sektor */}
             <div>
               <label style={labelStyle}>
