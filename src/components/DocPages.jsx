@@ -428,6 +428,13 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
               />
             </div>
           )}
+          <button
+            onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
+            style={{ ...btnBase, padding: "8px 14px", fontSize: 13, background: selectionMode ? T.primary : T.card, color: selectionMode ? "#fff" : T.textSecondary, border: `1.5px solid ${selectionMode ? T.primary : T.border}`, borderRadius: 10 }}
+          >
+            <Icon name={selectionMode ? "x" : "check"} size={14} />
+            {selectionMode ? "Batal" : "Pilih"}
+          </button>
           {/* View Toggle */}
           <div style={{ display: "flex", background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius, overflow: "hidden" }}>
             <button
@@ -537,13 +544,6 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                 <option value="size-desc">Ukuran ↓</option>
                 <option value="size-asc">Ukuran ↑</option>
               </select>
-              <button
-                onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
-                style={{ ...btnBase, padding: "8px 14px", fontSize: 13, background: selectionMode ? T.primary : T.card, color: selectionMode ? "#fff" : T.textSecondary, border: `1.5px solid ${selectionMode ? T.primary : T.border}`, borderRadius: 10 }}
-              >
-                <Icon name={selectionMode ? "x" : "check"} size={14} />
-                {selectionMode ? "Batal" : "Pilih"}
-              </button>
             </>
           )}
         </div>
