@@ -655,7 +655,7 @@ export default function App() {
                   {page === "pencarian" && "Pencarian"}
                   {page === "publik" && "Portal Publik"}
                   {page === "pengguna" && "Pengguna"}
-                  {page === "kategori-dokumen" && "Tipe Dokumen"}
+                   {page === "kategori-dokumen" && "Jenis Dokumen"}
                   {page === "sektor" && "Sektor"}
                   {page === "audit" && "Audit Trail"}
                   {page === "panduan" && "Panduan Pengguna"}

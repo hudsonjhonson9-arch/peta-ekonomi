@@ -44,12 +44,23 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
   // pick up files dropped on DocList
   useEffect(() => {
     if (window.__droppedFiles?.length) {
-      setFiles(prev => [...prev, ...window.__droppedFiles]);
+      const dropped = window.__droppedFiles;
+      setFiles(prev => [...prev, ...dropped]);
       window.__droppedFiles = null;
+      if (!form.fileType && dropped.length) set("fileType", detectFileType(dropped[0].name));
     }
   }, []);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const detectFileType = (filename) => {
+    const ext = (filename || "").split(".").pop()?.toLowerCase();
+    if (ext === "pdf") return "PDF";
+    if (["doc", "docx"].includes(ext)) return "Word";
+    if (["xls", "xlsx"].includes(ext)) return "Excel";
+    if (["ppt", "pptx"].includes(ext)) return "PowerPoint";
+    return "Lainnya";
+  };
 
   const validate = () => {
     const e = {};
@@ -95,8 +106,10 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
     e.preventDefault();
     setDragOver(false);
     if (!uploading && e.dataTransfer.files?.length) {
-      setFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
+      const newFiles = Array.from(e.dataTransfer.files);
+      setFiles(prev => [...prev, ...newFiles]);
       setProgress(0);
+      if (!form.fileType && newFiles.length) set("fileType", detectFileType(newFiles[0].name));
     }
   };
 
@@ -378,7 +391,12 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
                 type="file" ref={fileRef}
                 multiple
                 accept=".pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png,.gif,.webp"
-                onChange={e => { setFiles(prev => [...prev, ...Array.from(e.target.files)]); setProgress(0); }}
+                onChange={e => {
+                  const newFiles = Array.from(e.target.files);
+                  setFiles(prev => [...prev, ...newFiles]);
+                  setProgress(0);
+                  if (!form.fileType && newFiles.length) set("fileType", detectFileType(newFiles[0].name));
+                }}
                 style={{ display: "none" }}
               />
               <div

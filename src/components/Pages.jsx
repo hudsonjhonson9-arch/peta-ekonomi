@@ -637,7 +637,7 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
 
   const validate = () => {
     const e = {};
-    if (!form.name.trim()) e.name = "Nama Tipe Dokumen wajib diisi";
+    if (!form.name.trim()) e.name = "Nama Jenis Dokumen wajib diisi";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -689,7 +689,7 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, letterSpacing: "-0.02em" }}>Tipe Dokumen</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, letterSpacing: "-0.02em" }}>Jenis Dokumen</h1>
           <p style={{ fontSize: 13, color: T.textSecondary, margin: "4px 0 0" }}>{categories.length} tipe dokumen dikonfigurasi</p>
         </div>
         <button onClick={openAdd} style={s.btnPrimary}
@@ -794,7 +794,7 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
           }}>
             {/* Modal Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: 0 }}>{isEdit ? "Edit Tipe Dokumen" : "Tambah Tipe Dokumen"}</h2>
+              <h2 style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: 0 }}>{isEdit ? "Edit Jenis Dokumen" : "Tambah Jenis Dokumen"}</h2>
               <button onClick={() => setModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textMuted, transition: "all 0.15s" }}
                 onMouseEnter={e => { e.currentTarget.style.background = T.surfaceHover; e.currentTarget.style.color = T.text; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.textMuted; }}>
@@ -804,7 +804,7 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
 
             {/* Form */}
             <div>
-              <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>Nama Tipe Dokumen <span style={{ color: T.danger }}>*</span></label>
+              <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>Nama Jenis Dokumen <span style={{ color: T.danger }}>*</span></label>
               <input
                 value={form.name}
                 onChange={e => setForm({ ...form, name: e.target.value })}
