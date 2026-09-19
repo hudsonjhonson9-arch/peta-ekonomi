@@ -3,9 +3,11 @@ import * as pdfjsLib from "pdfjs-dist";
 import { Icon, Badge, GoogleDriveEmbed, isGDriveUrl, formatBytes, extractGDriveFileId, extractGDriveFolderId, gdriveDirectUrl, isImageFile, isOfficeFile, isPdfFile, getUniversalPreviewUrl } from "./ui.jsx";
 import { YEARS, STATUS_LIST, STATUS_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
+import { api } from "../hooks.js";
 import { ThemeContext } from "../App.jsx";
 import { queryClient } from "../main.jsx";
 import HighlightText from "./HighlightText.jsx";
+import ShareModal from "./ShareModal";
 
 // ── Shared Design Token Helpers (derived from theme T) ─────────────────────
 function makeBtnBase(T) {
@@ -1071,6 +1073,9 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
   const btnBase = useMemo(() => makeBtnBase(T), [T]);
   const [catatan, setCatatan] = useState("");
   const [showEmbed, setShowEmbed] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareDocId, setShareDocId] = useState(null);
+  const [shareDocTitle, setShareDocTitle] = useState("");
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ judul: "", kategori: "", tipe: "", bidang: "", desc: "", tags: "", nomor: "", tanggal: "", fileType: "" });
   const [activeFile, setActiveFile] = useState(null);
@@ -1289,6 +1294,14 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
               onMouseLeave={e => { e.currentTarget.style.background = T.successBg; e.currentTarget.style.borderColor = T.successBorder; }}>
               <Icon name="external-link" size={14} /> Tab Baru
             </a>
+          )}
+          {doc.status === "Diarsipkan" && (
+            <button onClick={() => { setShareDocId(doc.id); setShareDocTitle(doc.title); setShowShareModal(true); }}
+              style={{ ...btnBase, padding: "10px 16px", fontSize: 13, background: T.primary, color: "#fff", boxShadow: "0 1px 3px rgba(37,99,235,0.3)" }}
+              onMouseEnter={e => { e.currentTarget.style.background = T.primaryHover; }}
+              onMouseLeave={e => { e.currentTarget.style.background = T.primary; }}>
+              <Icon name="share" size={14} /> Bagikan
+            </button>
           )}
           {!canPreviewInline && (
             <button onClick={() => onPreview && onPreview(doc)} style={{ ...btnBase, padding: "10px 16px", background: T.card, color: T.textSecondary, fontSize: 13 }}>
@@ -1637,6 +1650,16 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
             </div>
           </div>
         </div>
+      )}
+
+      {/* Share Modal */}
+      {showShareModal && (
+        <ShareModal
+          docId={shareDocId}
+          docTitle={shareDocTitle}
+          api={api}
+          onClose={() => setShowShareModal(false)}
+        />
       )}
     </div>
   );
