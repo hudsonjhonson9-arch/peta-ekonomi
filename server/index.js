@@ -4,6 +4,7 @@ import dotenv  from 'dotenv';
 import pg      from 'pg';
 import bcrypt from 'bcryptjs';
 import path    from 'path';
+import fs      from 'fs';
 import { fileURLToPath } from 'url';
 
 dotenv.config();
@@ -55,6 +56,18 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
       console.log('Migration: notifications.user_id -> TEXT');
     }
   } catch (e) { console.error('Migration notifications.user_id error:', e.message); }
+})();
+
+// Tahap 1: doc_shares table
+(async () => {
+  try {
+    const tahap1 = fs.readFileSync(path.join(__dirname, 'migrations', 'tahap_1.sql'), 'utf8');
+    await pool.query(tahap1);
+    console.log('Migration: tahap_1 doc_shares ready');
+  } catch (e) {
+    if (e.code === '42710' || e.code === '42P07') return;
+    console.error('tahap_1 error:', e.message);
+  }
 })();
 
 const queryDB = async (sql, params = []) => {
