@@ -229,9 +229,30 @@ export function Pencarian({ docs, onView }) {
 export function PortalPublik({ docs, onDownload }) {
   const { isMobile } = useResponsive();
   const { T } = useContext(ThemeContext);
+  const [verifCode, setVerifCode] = useState("");
+  const [verifResult, setVerifResult] = useState(null);
+  const [verifLoading, setVerifLoading] = useState(false);
+  const [verifError, setVerifError] = useState("");
+
   const publik = docs.filter(d =>
     d.status === "Diarsipkan" && d.publik
   );
+
+  async function handleVerify() {
+    if (!verifCode.trim()) return;
+    setVerifLoading(true);
+    setVerifError("");
+    setVerifResult(null);
+    try {
+      const res = await fetch(`/api/publik/verify?code=${encodeURIComponent(verifCode.trim())}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Verifikasi gagal");
+      setVerifResult(data);
+    } catch (e) {
+      setVerifError(e.message);
+    }
+    setVerifLoading(false);
+  }
 
   return (
     <div>
@@ -243,6 +264,55 @@ export function PortalPublik({ docs, onDownload }) {
         <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 6 }}>
           BAPPERIDA Kabupaten Sumba Barat · NTT
         </div>
+      </div>
+
+      {/* Verifikasi Dokumen */}
+      <div style={{ background: "#1e293b", borderRadius: 12, padding: 20, marginBottom: 24, border: "1px solid #334155" }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9", marginBottom: 8 }}>
+          Verifikasi Dokumen
+        </div>
+        <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 12 }}>
+          Masukkan kode verifikasi untuk memeriksa keaslian dokumen
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            value={verifCode}
+            onChange={e => setVerifCode(e.target.value)}
+            placeholder="Contoh: A3K9-M2X7"
+            maxLength={9}
+            style={{ flex: 1, padding: "10px 14px", background: "#0f172a", border: "1px solid #334155", borderRadius: 8, color: "#f1f5f9", fontSize: 14, fontFamily: "monospace", letterSpacing: 2 }}
+            onKeyDown={e => e.key === "Enter" && handleVerify()}
+          />
+          <button onClick={handleVerify} disabled={verifLoading}
+            style={{ padding: "10px 20px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer", opacity: verifLoading ? 0.6 : 1 }}>
+            {verifLoading ? "Memeriksa..." : "Verifikasi"}
+          </button>
+        </div>
+
+        {verifError && (
+          <div style={{ marginTop: 12, padding: "10px 14px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444", fontSize: 13 }}>
+            {verifError}
+          </div>
+        )}
+
+        {verifResult && (
+          <div style={{ marginTop: 12, padding: "14px", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 18 }}>&#10003;</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#22c55e" }}>Dokumen Terverifikasi</span>
+            </div>
+            <div style={{ fontSize: 13, color: "#f1f5f9", marginBottom: 4 }}>{verifResult.doc?.judul}</div>
+            <div style={{ fontSize: 12, color: "#94a3b8" }}>Tipe: {verifResult.doc?.file_type} | Versi: {verifResult.doc?.versi}</div>
+            {verifResult.share?.expires_at && (
+              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
+                Berlaku hingga: {new Date(verifResult.share.expires_at).toLocaleString("id-ID")}
+              </div>
+            )}
+            {verifResult.expired && (
+              <div style={{ fontSize: 12, color: "#ef4444", marginTop: 4 }}>Catatan: Tautan ini sudah kedaluwarsa</div>
+            )}
+          </div>
+        )}
       </div>
 
       <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 14 }}>{publik.length} dokumen tersedia untuk publik</div>
