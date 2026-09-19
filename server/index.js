@@ -42,6 +42,21 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   } catch (e) { console.error('Migration files error:', e.message); }
 })();
 
+// ── Auto-migration: notifications.user_id TEXT (WhatsApp IDs overflow int32)
+(async () => {
+  try {
+    const col = await pool.query(
+      `SELECT data_type FROM information_schema.columns WHERE table_name='notifications' AND column_name='user_id'`
+    );
+    if (col.rows[0]?.data_type === 'integer') {
+      // Drop FK first, then alter type
+      await pool.query(`ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_user_id_fkey`);
+      await pool.query(`ALTER TABLE notifications ALTER COLUMN user_id TYPE TEXT USING user_id::text`);
+      console.log('Migration: notifications.user_id -> TEXT');
+    }
+  } catch (e) { console.error('Migration notifications.user_id error:', e.message); }
+})();
+
 const queryDB = async (sql, params = []) => {
   const result = await pool.query(sql, params);
   return result.rows;
@@ -459,7 +474,7 @@ app.get('/api/search', async (req, res) => {
     if (type) { metaFilters.push(`d.kategori = $${paramIdx++}`); metaParams.push(type); }
     if (sector) { metaFilters.push(`d.tipe = $${paramIdx++}`); metaParams.push(sector); }
     if (bidang) { metaFilters.push(`d.bidang = $${paramIdx++}`); metaParams.push(bidang); }
-    if (year) { metaFilters.push(`d.tahun::text = $${paramIdx++}`); metaParams.push(year); }
+    if (year) { metaFilters.push(`TO_CHAR(d.tanggal, 'YYYY') = $${paramIdx++}`); metaParams.push(year); }
     if (status) { metaFilters.push(`d.status = $${paramIdx++}`); metaParams.push(status); }
 
     const whereClause = metaFilters.length > 0 ? `AND ${metaFilters.join(' AND ')}` : '';
@@ -473,7 +488,7 @@ app.get('/api/search', async (req, res) => {
           d.kategori,
           d.tipe,
           d.bidang,
-          d.tahun,
+          TO_CHAR(d.tanggal, 'YYYY') AS tahun,
           d.status,
           d.versi,
           d.index_status,
@@ -507,7 +522,15 @@ app.get('/api/search', async (req, res) => {
         )
         ${whereClause}
         GROUP BY d.id
-        ORDER BY (meta_score + content_score * 20) DESC
+        ORDER BY (
+          CASE
+            WHEN d.judul ILIKE $${paramIdx} THEN 10
+            WHEN d.nomor_dokumen ILIKE $${paramIdx} THEN 8
+            WHEN d."desc" ILIKE $${paramIdx} THEN 5
+            WHEN d.tags ILIKE $${paramIdx} THEN 3
+            ELSE 0
+          END + COALESCE(MAX(ts_rank_cd(c.tsv, websearch_to_tsquery('simple', $${paramIdx}))), 0) * 20
+        ) DESC
         LIMIT $${paramIdx + 1} OFFSET $${paramIdx + 2}
       ),
       hits AS (
@@ -552,7 +575,7 @@ app.get('/api/search', async (req, res) => {
     });
   } catch (err) {
     console.error('Search error:', err);
-    res.status(500).json({ error: 'Gagal menjalankan pencarian' });
+    res.status(500).json({ error: 'Gagal menjalankan pencarian', detail: err.message });
   }
 });
 

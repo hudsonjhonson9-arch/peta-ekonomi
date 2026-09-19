@@ -60,7 +60,7 @@ CREATE INDEX IF NOT EXISTS doc_content_tsv_idx ON doc_content USING GIN (tsv);
 -- 5. Tabel notifikasi
 CREATE TABLE IF NOT EXISTS notifications (
   id SERIAL PRIMARY KEY,
-  user_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,  -- TEXT because WhatsApp IDs overflow INTEGER
   title TEXT NOT NULL,
   message TEXT NOT NULL,
   type TEXT DEFAULT 'info',
@@ -68,3 +68,15 @@ CREATE TABLE IF NOT EXISTS notifications (
   is_read BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Fix for pre-existing INTEGER user_id column with FK constraint
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'notifications' AND column_name = 'user_id' AND data_type = 'integer'
+  ) THEN
+    ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_user_id_fkey;
+    ALTER TABLE notifications ALTER COLUMN user_id TYPE TEXT USING user_id::text;
+  END IF;
+END $$;
