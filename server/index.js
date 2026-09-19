@@ -1382,6 +1382,72 @@ async function createNotification(userId, title, message, type = 'info', docId =
   }
 }
 
+// ── Public: Token Access ─────────────────────────────────────────────────
+app.get('/api/publik', async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) return res.status(400).json({ error: 'Token required' });
+
+    const result = await pool.query(
+      `SELECT s.*, d.judul, d.file_type, d.versi, d."desc", d.tags, d.nomor_dokumen
+       FROM doc_shares s
+       JOIN bapperida_dokumen d ON d.id = s.doc_id
+       WHERE s.token = $1 AND s.is_active = TRUE`,
+      [token.toUpperCase()]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Tautan tidak valid atau sudah kedaluwarsa' });
+    }
+
+    const share = result.rows[0];
+    if (share.expires_at && new Date(share.expires_at) < new Date()) {
+      return res.status(404).json({ error: 'Tautan sudah kedaluwarsa' });
+    }
+
+    const doc = await pool.query(`SELECT * FROM bapperida_dokumen WHERE id = $1`, [share.doc_id]);
+    res.json({
+      doc: doc.rows[0],
+      share: { token: share.token, verif_code: share.verif_code, expires_at: share.expires_at }
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Public: Verification ────────────────────────────────────────────────
+app.get('/api/publik/verify', async (req, res) => {
+  try {
+    const { code } = req.query;
+    if (!code) return res.status(400).json({ error: 'Kode verifikasi required' });
+
+    const result = await pool.query(
+      `SELECT s.*, d.judul, d.file_type, d.versi, d."desc", d.tags
+       FROM doc_shares s
+       JOIN bapperida_dokumen d ON d.id = s.doc_id
+       WHERE UPPER(s.verif_code) = UPPER($1) AND s.is_active = TRUE`,
+      [code.replace(/\s/g, '')]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Kode verifikasi tidak valid' });
+    }
+
+    const share = result.rows[0];
+    const expired = share.expires_at && new Date(share.expires_at) < new Date();
+
+    res.json({
+      doc: { id: share.doc_id, judul: share.judul, file_type: share.file_type, versi: share.versi, desc: share.desc, tags: share.tags },
+      verified: true,
+      expired,
+      verified_at: new Date().toISOString(),
+      share: { created_at: share.created_at, expires_at: share.expires_at }
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── SPA fallback: semua route non-API → index.html (production only) ──────
 if (isProd) {
   app.get('/{*path}', (_, res) => {
