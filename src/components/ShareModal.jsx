@@ -1,11 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import QRCode from "qrcode";
-
-const T = {
-  bg: "#0f172a", card: "#1e293b", border: "#334155", text: "#f1f5f9",
-  textSecondary: "#94a3b8", primary: "#3b82f6", primaryLight: "rgba(59,130,246,0.1)",
-  danger: "#ef4444", radius: 12, shadow: "0 4px 24px rgba(0,0,0,0.25)",
-};
+import { ThemeContext } from "../App.jsx";
 
 const btnBase = {
   display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer",
@@ -20,6 +15,8 @@ const DURATIONS = [
 ];
 
 export default function ShareModal({ docId, docTitle, api, onClose }) {
+  const { T: TH } = useContext(ThemeContext);
+  const T = { ...TH, shadow: TH.shadowLg };
   const [duration, setDuration] = useState("24h");
   const [customDate, setCustomDate] = useState("");
   const [shares, setShares] = useState([]);
@@ -42,7 +39,7 @@ export default function ShareModal({ docId, docTitle, api, onClose }) {
       const body = duration === "custom" && customDate
         ? { expiresIn: "custom", customExpiresAt: new Date(customDate).toISOString() }
         : { expiresIn: duration };
-      await api(`/api/docs/${docId}/shares`, { method: "POST", body: JSON.stringify(body) });
+      await api(`/api/docs/${docId}/shares`, "POST", body);
       await loadShares();
     } catch (e) { alert("Gagal membuat tautan: " + e.message); }
     setLoading(false);
@@ -50,8 +47,10 @@ export default function ShareModal({ docId, docTitle, api, onClose }) {
 
   async function revokeShare(shareId) {
     if (!confirm("Hapus tautan ini?")) return;
-    await api(`/api/docs/${docId}/shares/${shareId}`, { method: "DELETE" });
-    await loadShares();
+    try {
+      await api(`/api/docs/${docId}/shares/${shareId}`, "DELETE");
+      await loadShares();
+    } catch (e) { alert("Gagal menghapus tautan: " + e.message); }
   }
 
   function copyText(text, id) {
@@ -64,7 +63,7 @@ export default function ShareModal({ docId, docTitle, api, onClose }) {
     const baseUrl = window.location.origin;
     const url = `${baseUrl}/#/publik?token=${share.token}`;
     const verifUrl = `${baseUrl}/#/publik?verify=${share.verif_code}`;
-    const dataUrl = await QRCode.toDataURL(url, { width: 180, margin: 1, color: { dark: "#f1f5f9", light: "#1e293b" } });
+    const dataUrl = await QRCode.toDataURL(url, { width: 180, margin: 1, color: { dark: "#000000", light: "#ffffff" } });
     setQrImages(prev => ({ ...prev, [share.id]: { url: dataUrl, verif: verifUrl } }));
   }
 
@@ -139,7 +138,7 @@ export default function ShareModal({ docId, docTitle, api, onClose }) {
                   {/* QR Display */}
                   {qrImages[s.id] && (
                     <div style={{ marginTop: 10, textAlign: "center" }}>
-                      <img src={qrImages[s.id].url} alt="QR Code" style={{ borderRadius: 8, border: `1px solid ${T.border}` }} />
+                      <img src={qrImages[s.id].url} alt="QR Code" style={{ borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff" }} />
                       <div style={{ marginTop: 6, fontSize: 12, color: T.textSecondary }}>
                         Kode: <strong style={{ color: T.primary }}>{s.verif_code}</strong>
                       </div>

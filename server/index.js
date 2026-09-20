@@ -227,32 +227,6 @@ app.post('/api/docs', async (req, res) => {
   }
 });
 
-app.patch('/api/docs/:id/status', async (req, res) => {
-  const { status, user_id } = req.body;
-  const { id } = req.params;
-  const allowed = ['Menunggu Review', 'Diarsipkan', 'Ditolak'];
-  if (!allowed.includes(status))
-    return res.status(400).json({ error: 'Status tidak valid' });
-  try {
-    const result = await pool.query(
-      `UPDATE bapperida_dokumen SET status = $1 WHERE id = $2 RETURNING *`,
-      [status, id]
-    );
-    if (!result.rows.length)
-      return res.status(404).json({ error: 'Dokumen tidak ditemukan' });
-    const doc = result.rows[0];
-    // Notify uploader
-    if (user_id && status !== 'Menunggu Review') {
-      const label = status === 'Diarsipkan' ? 'Diarsipkan' : 'Ditolak';
-      createNotification(user_id, `Dokumen ${label}`, `"${doc.judul}" telah ${label}.`, status === 'Diarsipkan' ? 'success' : 'warning', doc.id);
-    }
-    res.json({ message: 'Status diperbarui', doc });
-  } catch (err) {
-    console.error('Status update error:', err);
-    res.status(500).json({ error: 'Gagal memperbarui status' });
-  }
-});
-
 app.patch('/api/docs/:id/publik', async (req, res) => {
   const { id } = req.params;
   try {

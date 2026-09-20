@@ -72,6 +72,13 @@ function makeStyles(T) {
 }
 
 // ─── PENCARIAN ────────────────────────────────────────────────────────────────
+// Snippet dari server hanya boleh berisi <mark>; escape sisanya (cegah XSS)
+function safeSnippet(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/&lt;mark&gt;/g, "<mark>").replace(/&lt;\/mark&gt;/g, "</mark>");
+}
+
 export function Pencarian({ docs, onView }) {
   const { isMobile } = useResponsive();
   const { T } = useContext(ThemeContext);
@@ -137,7 +144,7 @@ export function Pencarian({ docs, onView }) {
               onChange={e => handleInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && doSearch()}
               placeholder="Cari dokumen..."
-              style={{ width: "100%", padding: "10px 12px 10px 38px", border: `1.5px solid ${T.primary}`, borderRadius: 8, fontSize: isMobile ? 16 : 14, outline: "none", boxSizing: "border-box" }}
+              style={{ width: "100%", padding: "10px 12px 10px 38px", border: `1.5px solid ${T.primary}`, borderRadius: 8, fontSize: isMobile ? 16 : 14, outline: "none", boxSizing: "border-box", background: T.inputBg, color: T.text }}
             />
           </div>
           <button
@@ -204,7 +211,7 @@ export function Pencarian({ docs, onView }) {
                       <span style={{ fontSize: 11, color: T.primary, fontWeight: 600, background: T.primaryLight, borderRadius: 4, padding: "1px 6px", whiteSpace: "nowrap", flexShrink: 0 }}>hlm {h.page_no}</span>
                       <span
                         style={{ fontSize: 12, color: T.textSecondary, lineHeight: "1.4" }}
-                        dangerouslySetInnerHTML={{ __html: h.snippet || "" }}
+                        dangerouslySetInnerHTML={{ __html: safeSnippet(h.snippet) }}
                       />
                     </div>
                   ))}
@@ -267,11 +274,11 @@ export function PortalPublik({ docs, onDownload }) {
       </div>
 
       {/* Verifikasi Dokumen */}
-      <div style={{ background: "#1e293b", borderRadius: 12, padding: 20, marginBottom: 24, border: "1px solid #334155" }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9", marginBottom: 8 }}>
+      <div style={{ background: T.card, borderRadius: 12, padding: 20, marginBottom: 24, border: `1px solid ${T.border}` }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 8 }}>
           Verifikasi Dokumen
         </div>
-        <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 12 }}>
+        <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 12 }}>
           Masukkan kode verifikasi untuk memeriksa keaslian dokumen
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -280,36 +287,36 @@ export function PortalPublik({ docs, onDownload }) {
             onChange={e => setVerifCode(e.target.value)}
             placeholder="Contoh: A3K9-M2X7"
             maxLength={9}
-            style={{ flex: 1, padding: "10px 14px", background: "#0f172a", border: "1px solid #334155", borderRadius: 8, color: "#f1f5f9", fontSize: 14, fontFamily: "monospace", letterSpacing: 2 }}
+            style={{ flex: 1, padding: "10px 14px", background: T.inputBg, border: `1.5px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 14, fontFamily: "monospace", letterSpacing: 2, outline: "none" }}
             onKeyDown={e => e.key === "Enter" && handleVerify()}
           />
           <button onClick={handleVerify} disabled={verifLoading}
-            style={{ padding: "10px 20px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer", opacity: verifLoading ? 0.6 : 1 }}>
+            style={{ padding: "10px 20px", background: T.primary, color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer", opacity: verifLoading ? 0.6 : 1 }}>
             {verifLoading ? "Memeriksa..." : "Verifikasi"}
           </button>
         </div>
 
         {verifError && (
-          <div style={{ marginTop: 12, padding: "10px 14px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444", fontSize: 13 }}>
+          <div style={{ marginTop: 12, padding: "10px 14px", background: T.dangerBg, border: `1px solid ${T.dangerBorder}`, borderRadius: 8, color: T.danger, fontSize: 13 }}>
             {verifError}
           </div>
         )}
 
         {verifResult && (
-          <div style={{ marginTop: 12, padding: "14px", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 8 }}>
+          <div style={{ marginTop: 12, padding: "14px", background: T.successBg, border: `1px solid ${T.successBorder}`, borderRadius: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 18 }}>&#10003;</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "#22c55e" }}>Dokumen Terverifikasi</span>
+              <span style={{ fontSize: 18, color: T.success }}>&#10003;</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: T.success }}>Dokumen Terverifikasi</span>
             </div>
-            <div style={{ fontSize: 13, color: "#f1f5f9", marginBottom: 4 }}>{verifResult.doc?.judul}</div>
-            <div style={{ fontSize: 12, color: "#94a3b8" }}>Tipe: {verifResult.doc?.file_type} | Versi: {verifResult.doc?.versi}</div>
+            <div style={{ fontSize: 13, color: T.text, marginBottom: 4 }}>{verifResult.doc?.judul}</div>
+            <div style={{ fontSize: 12, color: T.textSecondary }}>Tipe: {verifResult.doc?.file_type} | Versi: {verifResult.doc?.versi}</div>
             {verifResult.share?.expires_at && (
-              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 4 }}>
                 Berlaku hingga: {new Date(verifResult.share.expires_at).toLocaleString("id-ID")}
               </div>
             )}
             {verifResult.expired && (
-              <div style={{ fontSize: 12, color: "#ef4444", marginTop: 4 }}>Catatan: Tautan ini sudah kedaluwarsa</div>
+              <div style={{ fontSize: 12, color: T.danger, marginTop: 4 }}>Catatan: Tautan ini sudah kedaluwarsa</div>
             )}
           </div>
         )}
