@@ -1380,8 +1380,14 @@ app.get('/api/publik', async (req, res) => {
     }
 
     const doc = await pool.query(`SELECT * FROM bapperida_dokumen WHERE id = $1`, [share.doc_id]);
+    const d = doc.rows[0] || {};
     res.json({
-      doc: doc.rows[0],
+      doc: {
+        id: d.id, judul: d.judul, kategori: d.kategori, tipe: d.tipe, bidang: d.bidang,
+        file_type: d.file_type, versi: d.versi || 1, desc: d.desc, tags: d.tags,
+        nomor_dokumen: d.nomor_dokumen, ukuran: d.ukuran, pages: d.pages,
+        url: d.url, files: d.files,
+      },
       share: { token: share.token, verif_code: share.verif_code, expires_at: share.expires_at }
     });
   } catch (e) {

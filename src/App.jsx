@@ -10,6 +10,7 @@ import Dashboard        from "./components/Dashboard.jsx";
 import { DocList, DocDetail } from "./components/DocPages.jsx";
 import UploadForm       from "./components/UploadForm.jsx";
 import NotificationDropdown from "./components/NotificationDropdown.jsx";
+import PublicShare from "./components/PublicShare.jsx";
 import * as pdfjsLib    from "pdfjs-dist";
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
 
@@ -604,6 +605,21 @@ export default function App() {
       showToast("Gagal mengunggah: " + err.message);
     }
   };
+
+  // ── Halaman publik tautan berbagi (tanpa login): #/publik?token=… atau ?verify=… ──
+  const publicMatch = window.location.hash.match(/^#\/publik\?(.*)$/);
+  if (publicMatch) {
+    const sp = new URLSearchParams(publicMatch[1]);
+    const shareToken = sp.get("token");
+    const shareVerify = sp.get("verify");
+    if (shareToken || shareVerify) {
+      return (
+        <ThemeContext.Provider value={{ T, isDark, theme, setTheme }}>
+          <PublicShare token={shareToken} verify={shareVerify} />
+        </ThemeContext.Provider>
+      );
+    }
+  }
 
   // ── Not logged in ─────────────────────────────────────────────────────────
   if (!user) return <LoginPage onLogin={handleLogin} />;
