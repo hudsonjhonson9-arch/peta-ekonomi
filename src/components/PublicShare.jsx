@@ -48,7 +48,7 @@ export default function PublicShare({ token, verify }) {
   ].filter(([, v]) => v) : [];
 
   return (
-    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: T.font }}>
+    <div style={{ width: "100%", flex: 1, minWidth: 0, minHeight: "100vh", background: T.bg, fontFamily: T.font }}>
       <div style={{ background: `linear-gradient(135deg, ${T.sidebarBg}, ${T.primary})`, color: "#fff", padding: isMobile ? "20px 16px" : "26px 32px" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
           <div style={{ fontSize: isMobile ? 17 : 20, fontWeight: 700 }}>ARSIP DIGITAL BAPPERIDA</div>
