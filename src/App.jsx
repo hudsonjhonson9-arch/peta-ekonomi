@@ -101,7 +101,7 @@ export default function App() {
     const saved = localStorage.getItem("user");
     return saved ? JSON.parse(saved) : null;
   });
-  const [page,      setPage]      = useState(() => sessionStorage.getItem("page") || "dashboard");
+  const [page,      setPage]      = useState(() => /^#dokumen\/\d+/.test(window.location.hash) ? "dokumen" : (sessionStorage.getItem("page") || "dashboard"));
   const [docs,      setDocs]      = useState([]);
   const [users,     setUsers]     = useState([]);
   const [logs,      setLogs]      = useState([]);
@@ -109,6 +109,16 @@ export default function App() {
   const [sectors, setSectors] = useState([]);
   const [bidangs, setBidangs] = useState([]);
   const [viewDoc,   setViewDoc]   = useState(null);
+  // Dokumen yang dibuka dibaca dari hash (#dokumen/ID) supaya tetap terbuka setelah refresh
+  const [pendingDocId, setPendingDocId] = useState(() => { const m = window.location.hash.match(/^#dokumen\/(\d+)/); return m ? m[1] : null; });
+  // Halaman publik tautan berbagi dibaca sekali saat mount (hash ditimpa oleh routing internal)
+  const [publicParams] = useState(() => {
+    const m = window.location.hash.match(/^#\/publik\?(.*)$/);
+    if (!m) return null;
+    const sp = new URLSearchParams(m[1]);
+    const token = sp.get("token"), verify = sp.get("verify");
+    return token || verify ? { token, verify } : null;
+  });
   const [collapsed, setCollapsed] = useState(false);
   const [toast,     setToast]     = useState("");
   const [theme, setThemeState] = useState(() => localStorage.getItem("theme") || "system");
@@ -188,8 +198,21 @@ export default function App() {
   const goPage = (p, pushState = true) => {
     setPage(p);
     setViewDoc(null);
+    setPendingDocId(null);
     sessionStorage.setItem("page", p);
     if (pushState) history.pushState({ page: p }, "", `#${p}`);
+  };
+
+  const openDoc = (d) => {
+    setPage("dokumen");
+    setViewDoc(d);
+    sessionStorage.setItem("page", "dokumen");
+    history.pushState({ page: "dokumen", docId: d.id }, "", `#dokumen/${d.id}`);
+  };
+
+  const closeDoc = () => {
+    setViewDoc(null);
+    history.replaceState({ page: "dokumen" }, "", "#dokumen");
   };
 
   // browser back/forward
@@ -197,18 +220,37 @@ export default function App() {
     const onPop = (e) => {
       const p = e.state?.page || "dashboard";
       setPage(p);
-      setViewDoc(null);
       sessionStorage.setItem("page", p);
+      if (e.state?.docId) setPendingDocId(String(e.state.docId));
+      else { setViewDoc(null); setPendingDocId(null); }
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  // push initial state on mount
+  // push initial state on mount (jangan timpa hash halaman publik / dokumen)
   useEffect(() => {
+    if (publicParams) return;
+    const m = window.location.hash.match(/^#dokumen\/(\d+)/);
+    if (m) { history.replaceState({ page: "dokumen", docId: m[1] }, "", window.location.hash); return; }
     const p = sessionStorage.getItem("page") || "dashboard";
     history.replaceState({ page: p }, "", `#${p}`);
   }, []);
+
+  // buka dokumen dari hash begitu daftar dokumen sudah dimuat
+  useEffect(() => {
+    if (!pendingDocId || docs.length === 0) return;
+    const d = docs.find(x => String(x.id) === String(pendingDocId));
+    if (d) setViewDoc(d);
+    setPendingDocId(null);
+  }, [pendingDocId, docs]);
+
+  // bersihkan hash #dokumen/ID bila tidak ada dokumen yang terbuka
+  useEffect(() => {
+    if (!viewDoc && !pendingDocId && /^#dokumen\/\d+/.test(window.location.hash)) {
+      history.replaceState({ page }, "", `#${page}`);
+    }
+  }, [viewDoc, pendingDocId, page]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleApprove = (doc, note) => {
@@ -607,18 +649,12 @@ export default function App() {
   };
 
   // ── Halaman publik tautan berbagi (tanpa login): #/publik?token=… atau ?verify=… ──
-  const publicMatch = window.location.hash.match(/^#\/publik\?(.*)$/);
-  if (publicMatch) {
-    const sp = new URLSearchParams(publicMatch[1]);
-    const shareToken = sp.get("token");
-    const shareVerify = sp.get("verify");
-    if (shareToken || shareVerify) {
-      return (
-        <ThemeContext.Provider value={{ T, isDark, theme, setTheme }}>
-          <PublicShare token={shareToken} verify={shareVerify} />
-        </ThemeContext.Provider>
-      );
-    }
+  if (publicParams) {
+    return (
+      <ThemeContext.Provider value={{ T, isDark, theme, setTheme }}>
+        <PublicShare token={publicParams.token} verify={publicParams.verify} />
+      </ThemeContext.Provider>
+    );
   }
 
   // ── Not logged in ─────────────────────────────────────────────────────────
@@ -707,12 +743,12 @@ export default function App() {
               <Dashboard docs={docs} onNav={goPage} sectors={sectors} categories={categories} />
             )}
             {page === "dokumen" && !viewDoc && (
-              <DocList docs={docs} onView={d => { setViewDoc(d); history.pushState({ page: "dokumen", docId: d.id }, "", "#dokumen"); }} onNav={goPage} user={user} categories={categories} sectors={sectors} bidangs={bidangs} loading={docsLoading} onBulkAction={handleBulkAction} />
+              <DocList docs={docs} onView={openDoc} onNav={goPage} user={user} categories={categories} sectors={sectors} bidangs={bidangs} loading={docsLoading} onBulkAction={handleBulkAction} />
             )}
             {page === "dokumen" && viewDoc && (
               <DocDetail
                 doc={liveDoc}
-                onBack={() => setViewDoc(null)}
+                onBack={closeDoc}
                 onApprove={handleApprove}
                 onReject={handleReject}
                 onDownload={handleDownload}
@@ -732,7 +768,7 @@ export default function App() {
               <UploadForm onSubmit={handleUpload} user={user} categories={categories} sectors={sectors} bidangs={bidangs} initialFiles={window.__droppedFiles} />
             )}
             {page === "pencarian" && (
-              <Pencarian docs={docs} onView={d => { setViewDoc(d); setPage("dokumen"); }} />
+              <Pencarian docs={docs} onView={openDoc} />
             )}
             {page === "publik" && (
               <PortalPublik docs={docs} onDownload={handleDownload} />
