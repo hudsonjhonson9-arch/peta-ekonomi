@@ -1,211 +1,239 @@
-import { useState, useContext } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Icon } from "./ui.jsx";
-import useResponsive from "../useResponsive.js";
-import { ThemeContext } from "../App.jsx";
+import { useState, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
+import { ChevronDown, Database, Layers, Building2 } from "lucide-react";
 
-const TAHUN_LIST = [2020, 2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030];
+// =========================================================
+// SETUP: tambahkan @supabase/supabase-js ke package.json
+//   npm install @supabase/supabase-js
+// dan simpan kredensial di .env (Vite):
+//   VITE_SUPABASE_URL=...
+//   VITE_SUPABASE_ANON_KEY=...
+// =========================================================
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
-export default function BankData({ showToast }) {
-  const { T } = useContext(ThemeContext);
-  const { isMobile } = useResponsive();
-  const queryClient = useQueryClient();
-  const { data: indikator = [], isLoading } = useQuery({
-    queryKey: ['indikator'],
-    queryFn: () => fetch('/api/indikator').then(r => r.json())
-  });
-  const [showForm, setShowForm] = useState(false);
-  const [nama, setNama] = useState("");
-  const [satuan, setSatuan] = useState("");
-  const [editId, setEditId] = useState(null);
-  const [expandedId, setExpandedId] = useState(null);
+const C = {
+  navy: "#0B2447",
+  navyDark: "#061529",
+  navyMid: "#0D2E5A",
+  gold: "#C9A227",
+  goldLight: "#E3B83A",
+  offWhite: "#F7F4EE",
+  warmGray: "#E8E3D9",
+  white: "#FFFFFF",
+  textDark: "#0D1B2A",
+  textMid: "#4A5568",
+  textLight: "#8898AA",
+};
 
-  const reload = () => queryClient.invalidateQueries({ queryKey: ['indikator'] });
+export default function BankData() {
+  const [data, setData] = useState([]); // bidang -> opd -> iku -> ikk -> detail (nested)
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const handleAdd = async () => {
-    if (!nama.trim() || !satuan.trim()) return showToast("Nama dan satuan wajib diisi");
-    const res = await fetch('/api/indikator', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nama: nama.trim(), satuan: satuan.trim() })
-    });
-    const json = await res.json();
-    if (!res.ok) return showToast(json.error);
-    setNama(""); setSatuan(""); setShowForm(false);
-    reload();
-    showToast("Indikator berhasil ditambahkan");
+  // Tracks: bidang id terbuka, opd id terbuka, iku id terbuka, ikk id terbuka
+  const [openBidang, setOpenBidang] = useState(null);
+  const [openOpd, setOpenOpd] = useState(null);
+  const [openIku, setOpenIku] = useState(null);
+  const [openIkk, setOpenIkk] = useState(null);
+
+  useEffect(() => {
+    loadBankData();
+  }, []);
+
+  async function loadBankData() {
+    setLoading(true);
+    setError(null);
+    try {
+      // Satu query nested pakai Supabase's relational select — jauh lebih hemat
+      // daripada 5x query terpisah.
+      const { data: bidangData, error: err } = await supabase
+        .from("bidang_list")
+        .select(`
+          id, nama_bidang, instansi_id,
+          bank_data_opd (
+            id, nama, urutan,
+            bank_data_iku (
+              id, nama, urutan,
+              bank_data_ikk (
+                id, nama, urutan,
+                bank_data_detail ( id, indikator, data, sumber_data, aspek, tahun, urutan )
+              )
+            )
+          )
+        `)
+        .order("id");
+
+      if (err) throw err;
+      setData(bidangData || []);
+    } catch (e) {
+      setError(e.message || "Gagal memuat data bank");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const toggle = (level, id) => {
+    if (level === "bidang") {
+      setOpenBidang(openBidang === id ? null : id);
+      setOpenOpd(null); setOpenIku(null); setOpenIkk(null);
+    } else if (level === "opd") {
+      setOpenOpd(openOpd === id ? null : id);
+      setOpenIku(null); setOpenIkk(null);
+    } else if (level === "iku") {
+      setOpenIku(openIku === id ? null : id);
+      setOpenIkk(null);
+    } else if (level === "ikk") {
+      setOpenIkk(openIkk === id ? null : id);
+    }
   };
 
-  const handleEdit = async () => {
-    if (!nama.trim() || !satuan.trim()) return showToast("Nama dan satuan wajib diisi");
-    const res = await fetch(`/api/indikator/${editId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nama: nama.trim(), satuan: satuan.trim() })
-    });
-    if (!res.ok) return showToast((await res.json()).error);
-    setEditId(null); setNama(""); setSatuan("");
-    reload();
-    showToast("Indikator berhasil diperbarui");
-  };
-
-  const handleDelete = async (id, nama) => {
-    if (!confirm(`Hapus indikator "${nama}" beserta semua nilainya?`)) return;
-    const res = await fetch(`/api/indikator/${id}`, { method: 'DELETE' });
-    if (!res.ok) return showToast((await res.json()).error);
-    reload();
-    showToast("Indikator berhasil dihapus");
-  };
-
-  const handleToggleTampil = async (id, tampil) => {
-    const res = await fetch('/api/indikator/tampil', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ indikator_id: id, tampil })
-    });
-    if (!res.ok) return showToast((await res.json()).error);
-    reload();
-  };
-
-  const handleUpsertNilai = async (indikatorId, tahun, nilai) => {
-    const res = await fetch('/api/nilai', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ indikator_id: indikatorId, tahun, nilai: nilai === "" ? null : Number(nilai) })
-    });
-    if (!res.ok) return showToast((await res.json()).error);
-    reload();
-  };
-
-  const handleDeleteNilai = async (id) => {
-    const res = await fetch(`/api/nilai/${id}`, { method: 'DELETE' });
-    if (!res.ok) return showToast((await res.json()).error);
-    reload();
-  };
-
-  if (isLoading) return <div style={{ padding: 40, textAlign: "center", color: T.textMuted, fontSize: 13 }}>Memuat data...</div>;
+  if (loading) {
+    return <div style={{ padding: 48, textAlign: "center", color: C.textMid }}>Memuat bank data...</div>;
+  }
+  if (error) {
+    return <div style={{ padding: 48, textAlign: "center", color: "#b91c1c" }}>Gagal memuat: {error}</div>;
+  }
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 10 }}>
-        <div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: T.text }}>Bank Data</div>
-          <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>Kelola indikator dan data statistik pembangunan</div>
-        </div>
-        <button onClick={() => { setShowForm(v => !v); setEditId(null); setNama(""); setSatuan(""); }}
-          style={{ padding: "8px 16px", background: T.primary, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-          <Icon name="plus" size={14} /> Tambah Indikator
-        </button>
-      </div>
+    <div style={{ maxWidth: 1000, margin: "0 auto", padding: "40px 20px" }}>
+      <h2 className="display" style={{ fontSize: 28, fontWeight: 700, color: C.navy, marginBottom: 8 }}>
+        Bank Data Pembangunan
+      </h2>
+      <p style={{ color: C.textMid, marginBottom: 28 }}>
+        Data kinerja disusun per Bidang, OPD mitra, Indikator Kinerja Utama (IKU), dan Indikator Kinerja Kegiatan (IKK).
+      </p>
 
-      {(showForm || editId) && (
-        <div style={{ background: T.card, borderRadius: 12, padding: 20, border: `1px solid ${T.border}`, marginBottom: 16, display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 4 }}>Nama Indikator</div>
-            <input value={nama} onChange={e => setNama(e.target.value)} placeholder="Contoh: PDRB Per Kapita"
-              style={{ width: "100%", padding: "9px 12px", border: `1px solid ${T.inputBorder}`, borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box", background: T.inputBg, color: T.text }} />
-          </div>
-          <div style={{ width: 130 }}>
-            <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 4 }}>Satuan</div>
-            <input value={satuan} onChange={e => setSatuan(e.target.value)} placeholder="Contoh: %"
-              style={{ width: "100%", padding: "9px 12px", border: `1px solid ${T.inputBorder}`, borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box", background: T.inputBg, color: T.text }} />
-          </div>
-          <button onClick={editId ? handleEdit : handleAdd}
-            style={{ padding: "9px 18px", background: T.primary, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-            {editId ? "Simpan" : "Tambah"}
+      {data.map((bidang) => (
+        <div key={bidang.id} style={{ marginBottom: 12, border: `1px solid ${C.warmGray}`, borderRadius: 12, overflow: "hidden" }}>
+          {/* LEVEL 1: BIDANG */}
+          <button
+            onClick={() => toggle("bidang", bidang.id)}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "16px 20px", background: C.navy, color: C.white, border: "none",
+              cursor: "pointer", fontWeight: 700, fontSize: 16, textAlign: "left",
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Layers size={18} /> {bidang.nama_bidang}
+            </span>
+            <ChevronDown size={18} style={{ transform: openBidang === bidang.id ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
           </button>
-          <button onClick={() => { setShowForm(false); setEditId(null); setNama(""); setSatuan(""); }}
-            style={{ padding: "9px 14px", background: T.surfaceHover, color: T.textSecondary, border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer" }}>
-            Batal
-          </button>
-        </div>
-      )}
 
-      {indikator.map(i => (
-        <div key={i.id} style={{ background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, marginBottom: 8, overflow: "hidden" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", cursor: "pointer" }}
-            onClick={() => setExpandedId(expandedId === i.id ? null : i.id)}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <Icon name="chart" size={16} style={{ color: T.primary }} />
-              <div>
-                <span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{i.nama}</span>
-                <span style={{ fontSize: 11, color: T.textMuted, marginLeft: 8 }}>({i.satuan})</span>
-              </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <button onClick={e => { e.stopPropagation(); handleToggleTampil(i.id, !i.tampil_di_dashboard); }}
-                style={{ padding: "5px 10px", fontSize: 11, fontWeight: 600, borderRadius: 6, border: "none", cursor: "pointer",
-                  background: i.tampil_di_dashboard ? T.primaryLight : T.surfaceHover,
-                  color: i.tampil_di_dashboard ? T.success : T.textMuted }}>
-                {i.tampil_di_dashboard ? "Tampil" : "Sembunyi"}
-              </button>
-              <button onClick={e => { e.stopPropagation(); setEditId(i.id); setNama(i.nama); setSatuan(i.satuan); setShowForm(false); }}
-                style={{ padding: 5, background: "none", border: "none", cursor: "pointer", color: T.textMuted }}>
-                <Icon name="edit" size={14} />
-              </button>
-              <button onClick={e => { e.stopPropagation(); handleDelete(i.id, i.nama); }}
-                style={{ padding: 5, background: "none", border: "none", cursor: "pointer", color: T.danger }}>
-                <Icon name="x" size={14} />
-              </button>
-              <Icon name="chevronRight" size={14} style={{ color: T.textMuted, transform: expandedId === i.id ? "rotate(90deg)" : "", transition: "transform .2s" }} />
-            </div>
-          </div>
+          {openBidang === bidang.id && (
+            <div style={{ padding: "8px 16px 16px", background: C.offWhite }}>
+              {(bidang.bank_data_opd || []).map((opd) => (
+                <div key={opd.id} style={{ marginTop: 8, border: `1px solid ${C.warmGray}`, borderRadius: 10, overflow: "hidden", background: C.white }}>
+                  {/* LEVEL 2: OPD */}
+                  <button
+                    onClick={() => toggle("opd", opd.id)}
+                    style={{
+                      width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "12px 16px", background: C.navyMid, color: C.white, border: "none",
+                      cursor: "pointer", fontWeight: 600, fontSize: 14.5, textAlign: "left",
+                    }}
+                  >
+                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <Building2 size={16} /> {opd.nama}
+                    </span>
+                    <ChevronDown size={16} style={{ transform: openOpd === opd.id ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+                  </button>
 
-          {expandedId === i.id && (
-            <div style={{ borderTop: `1px solid ${T.border}`, padding: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 12 }}>Nilai per Tahun</div>
-              {TAHUN_LIST.map(tahun => {
-                const existing = i.nilai.find(n => n.tahun === tahun);
-                return (
-                  <NilaiRow key={tahun}
-                    tahun={tahun}
-                    nilai={existing?.nilai ?? ""}
-                    nilaiId={existing?.id}
-                    indikatorId={i.id}
-                    onSave={(val) => handleUpsertNilai(i.id, tahun, val)}
-                    onDelete={existing?.id ? () => handleDeleteNilai(existing.id) : null}
-                  />
-                );
-              })}
+                  {openOpd === opd.id && (
+                    <div style={{ padding: "8px 14px 14px" }}>
+                      {(opd.bank_data_iku || []).map((iku) => (
+                        <div key={iku.id} style={{ marginTop: 8, border: `1px solid ${C.warmGray}`, borderRadius: 8, overflow: "hidden" }}>
+                          {/* LEVEL 3: IKU */}
+                          <button
+                            onClick={() => toggle("iku", iku.id)}
+                            style={{
+                              width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                              padding: "10px 14px", background: C.warmGray, color: C.textDark, border: "none",
+                              cursor: "pointer", fontWeight: 600, fontSize: 14, textAlign: "left",
+                            }}
+                          >
+                            <span>IKU: {iku.nama}</span>
+                            <ChevronDown size={15} style={{ transform: openIku === iku.id ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+                          </button>
+
+                          {openIku === iku.id && (
+                            <div style={{ padding: "6px 12px 12px" }}>
+                              {(iku.bank_data_ikk || []).map((ikk) => (
+                                <div key={ikk.id} style={{ marginTop: 6 }}>
+                                  {/* LEVEL 4: IKK */}
+                                  <button
+                                    onClick={() => toggle("ikk", ikk.id)}
+                                    style={{
+                                      width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                                      padding: "8px 12px", background: C.offWhite, color: C.textDark, border: `1px dashed ${C.gold}`,
+                                      borderRadius: 6, cursor: "pointer", fontWeight: 500, fontSize: 13.5, textAlign: "left",
+                                    }}
+                                  >
+                                    <span>IKK: {ikk.nama}</span>
+                                    <ChevronDown size={14} style={{ transform: openIkk === ikk.id ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+                                  </button>
+
+                                  {/* LEVEL 5: DETAIL — tabel Indikator / Data / Sumber Data / Aspek */}
+                                  {openIkk === ikk.id && (
+                                    <div style={{ overflowX: "auto", marginTop: 6 }}>
+                                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                                        <thead>
+                                          <tr style={{ background: C.navy, color: C.white }}>
+                                            <th style={thStyle}>Indikator</th>
+                                            <th style={thStyle}>Data</th>
+                                            <th style={thStyle}>Sumber Data</th>
+                                            <th style={thStyle}>Aspek</th>
+                                            <th style={thStyle}>Tahun</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {(ikk.bank_data_detail || []).map((row) => (
+                                            <tr key={row.id} style={{ borderBottom: `1px solid ${C.warmGray}` }}>
+                                              <td style={tdStyle}>{row.indikator}</td>
+                                              <td style={{ ...tdStyle, fontWeight: 600, color: C.navy }}>{row.data}</td>
+                                              <td style={tdStyle}>{row.sumber_data}</td>
+                                              <td style={tdStyle}>
+                                                <span style={{ background: C.gold, color: C.white, padding: "2px 8px", borderRadius: 20, fontSize: 11.5 }}>
+                                                  {row.aspek}
+                                                </span>
+                                              </td>
+                                              <td style={tdStyle}>{row.tahun || "-"}</td>
+                                            </tr>
+                                          ))}
+                                          {(!ikk.bank_data_detail || ikk.bank_data_detail.length === 0) && (
+                                            <tr><td colSpan={5} style={{ ...tdStyle, textAlign: "center", color: C.textLight }}>Belum ada data</td></tr>
+                                          )}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>
       ))}
 
-      {indikator.length === 0 && (
-        <div style={{ background: T.card, borderRadius: 12, padding: 40, border: `1px solid ${T.border}`, textAlign: "center", color: T.textMuted, fontSize: 13 }}>
-          Belum ada indikator. Klik "Tambah Indikator" untuk memulai.
+      {data.length === 0 && (
+        <div style={{ textAlign: "center", padding: 40, color: C.textLight }}>
+          <Database size={32} style={{ marginBottom: 8 }} />
+          <p>Belum ada data bank yang diinput.</p>
         </div>
       )}
     </div>
   );
 }
 
-function NilaiRow({ tahun, nilai, onSave, onDelete }) {
-  const { T } = useContext(ThemeContext);
-  const [val, setVal] = useState(nilai ?? "");
-  const [saved, setSaved] = useState(false);
-
-  const save = () => {
-    onSave(val);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-      <div style={{ width: 50, fontSize: 13, fontWeight: 600, color: T.text }}>{tahun}</div>
-      <input value={val} onChange={e => setVal(e.target.value)} type="number" step="any" placeholder="Nilai"
-        style={{ flex: 1, maxWidth: 200, padding: "7px 10px", border: `1px solid ${T.inputBorder}`, borderRadius: 6, fontSize: 13, outline: "none", background: T.inputBg, color: T.text }} />
-      <button onClick={save}
-        style={{ padding: "7px 14px", background: T.primary, color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-        {saved ? "✓ Tersimpan" : "Simpan"}
-      </button>
-      {onDelete && (
-        <button onClick={onDelete} style={{ padding: "7px 10px", background: T.dangerBg, color: T.danger, border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>
-          Hapus
-        </button>
-      )}
-    </div>
-  );
-}
+const thStyle = { padding: "8px 10px", textAlign: "left", fontWeight: 600, fontSize: 12.5 };
+const tdStyle = { padding: "8px 10px", color: "#0D1B2A" };
