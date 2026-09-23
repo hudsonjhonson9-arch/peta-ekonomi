@@ -119,8 +119,11 @@ function ValueTable({ rows, tahunList, conf, T }) {
   const confA = conf === "iku" ? { k: "target", label: "Target" } : conf === "ikk" ? { k: "capaian", label: "Capaian" } : { k: "data", label: "Data" };
   const confB = conf === "iku" ? { k: "capaian", label: "Capaian" } : conf === "ikk" ? { k: "realisasi", label: "Realisasi" } : null;
   const years = tahunList.length > 0 ? tahunList : [...new Set(rows.flatMap(r => r.nilai.map(n => n.tahun)))].sort();
+  const [detail, setDetail] = useState(null); // { ind, tahun }
 
   if (years.length === 0) return null;
+
+  const openDetail = (ind, tahun) => setDetail(d => (d && d.ind.id === ind.id && d.tahun === tahun ? null : { ind, tahun }));
 
   return (
     <div style={{ overflowX: "auto", margin: "4px 0 8px" }}>
@@ -131,7 +134,7 @@ function ValueTable({ rows, tahunList, conf, T }) {
             <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: `1px solid ${T.border}`, color: T.textMuted, fontWeight: 600 }}>Aspek</th>
             <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: `1px solid ${T.border}`, color: T.textMuted, fontWeight: 600 }}>Sumber</th>
             {years.map(y => (
-              <th key={y} style={{ textAlign: "left", padding: "6px 8px", borderBottom: `1px solid ${T.border}`, color: T.textMuted, fontWeight: 600 }}>
+              <th key={y} style={{ textAlign: "left", padding: "6px 8px", borderBottom: `1px solid ${T.border}`, color: T.textMuted, fontWeight: 600, cursor: "pointer" }} onClick={() => setDetail(null)}>
                 {y}
                 <div style={{ fontSize: 10, fontWeight: 500, color: T.textMuted }}>{confA.label} {confB ? "· " + confB.label : ""}</div>
               </th>
@@ -148,10 +151,16 @@ function ValueTable({ rows, tahunList, conf, T }) {
                 const n = r.nilai.find(v => v.tahun === y);
                 const a = n && n[confA.k] !== undefined && n[confA.k] !== null ? n[confA.k] : "—";
                 const b = confB && n && n[confB.k] !== undefined && n[confB.k] !== null ? n[confB.k] : null;
+                const hasTw = n && n.tw && Object.keys(n.tw).length > 0;
+                const isOpen = detail && detail.ind.id === r.id && detail.tahun === y;
                 return (
                   <td key={y} style={{ padding: "6px 8px", borderBottom: `1px solid ${T.border}`, color: T.text }}>
-                    <span style={{ fontWeight: 600 }}>{a}</span>
-                    {b !== null && <span style={{ color: T.textMuted, marginLeft: 4 }}> / {b}</span>}
+                    <button onClick={() => openDetail(r, y)}
+                      style={{ background: "none", border: hasTw ? `1px solid ${T.inputBorder}` : "none", cursor: hasTw || n ? "pointer" : "default", padding: hasTw ? "3px 8px" : 0, borderRadius: 6, color: T.text, fontSize: 12, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <span>{a}</span>
+                      {b !== null && <span style={{ color: T.textMuted, marginLeft: 2 }}> / {b}</span>}
+                      {hasTw && <Icon name="chevronRight" size={11} style={{ color: T.primary, transform: isOpen ? "rotate(90deg)" : "", transition: "transform .2s" }} />}
+                    </button>
                   </td>
                 );
               })}
@@ -159,6 +168,62 @@ function ValueTable({ rows, tahunList, conf, T }) {
           ))}
         </tbody>
       </table>
+
+      {detail && (
+        <TriwulanDetail detail={detail} confA={confA} confB={confB} T={T} />
+      )}
+    </div>
+  );
+}
+
+function TriwulanDetail({ detail, confA, confB, T }) {
+  const { ind, tahun } = detail;
+  const n = ind.nilai.find(v => v.tahun === tahun);
+  const tw = (n && n.tw) || {};
+  const footerA = n && n[confA.k] !== undefined && n[confA.k] !== null ? n[confA.k] : "—";
+  const footerB = confB && n && n[confB.k] !== undefined && n[confB.k] !== null ? n[confB.k] : "—";
+
+  return (
+    <div style={{ marginTop: 6, background: T.surfaceHover, border: `1px solid ${T.inputBorder}`, borderRadius: 8, padding: 10 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 8 }}>
+        Detail Triwulan {tahun} — {ind.indikator}
+      </div>
+      {Object.keys(tw).length === 0 ? (
+        <div style={{ fontSize: 12, color: T.textMuted }}>Belum ada data triwulan.</div>
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: T.textMuted, fontWeight: 600, borderBottom: `1px solid ${T.border}` }}>Triwulan</th>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: T.textMuted, fontWeight: 600, borderBottom: `1px solid ${T.border}` }}>{confA.label}</th>
+              {confB && <th style={{ textAlign: "left", padding: "4px 6px", color: T.textMuted, fontWeight: 600, borderBottom: `1px solid ${T.border}` }}>{confB.label}</th>}
+              <th style={{ textAlign: "left", padding: "4px 6px", color: T.textMuted, fontWeight: 600, borderBottom: `1px solid ${T.border}` }}>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {["tw1", "tw2", "tw3", "tw4"].map((twN, i) => {
+              const cell = tw[twN] || {};
+              const a = cell[confA.k] !== undefined ? cell[confA.k] : "—";
+              const b = confB ? (cell[confB.k] !== undefined ? cell[confB.k] : "—") : null;
+              const any = cell[confA.k] !== undefined || (confB && cell[confB.k] !== undefined);
+              return (
+                <tr key={twN}>
+                  <td style={{ padding: "4px 6px", fontWeight: 600, color: T.text }}>TW{i + 1}</td>
+                  <td style={{ padding: "4px 6px", color: a === "—" ? T.textMuted : T.text }}>{a}</td>
+                  {confB && <td style={{ padding: "4px 6px", color: b === "—" ? T.textMuted : T.text }}>{b}</td>}
+                  <td style={{ padding: "4px 6px", color: T.textMuted }}>{any ? (a !== "—" ? a : "") + (confB && b !== "—" ? ` / ${b}` : "") : "—"}</td>
+                </tr>
+              );
+            })}
+            <tr>
+              <td style={{ padding: "4px 6px", fontWeight: 700, color: T.text, borderTop: `1px solid ${T.border}` }}>Total (Tahunan)</td>
+              <td style={{ padding: "4px 6px", fontWeight: 600, color: T.text, borderTop: `1px solid ${T.border}` }}>{footerA}</td>
+              {confB && <td style={{ padding: "4px 6px", fontWeight: 600, color: T.text, borderTop: `1px solid ${T.border}` }}>{footerB}</td>}
+              <td style={{ padding: "4px 6px", borderTop: `1px solid ${T.border}` }}></td>
+            </tr>
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

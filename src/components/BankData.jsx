@@ -1,4 +1,4 @@
-import { useState, useContext } from "react";
+import { useState, useContext, Fragment } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Icon } from "./ui.jsx";
 import useResponsive from "../useResponsive.js";
@@ -72,6 +72,15 @@ export default function BankData({ showToast }) {
     const res = await fetch(`/api/bankdata/nilai/${level}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ indikator_id: indikatorId, tahun, valA, valB })
+    });
+    if (!res.ok) return showToast((await res.json()).error);
+    reload();
+  };
+
+  const saveTriwulan = async (level, indikatorId, tahun, tw) => {
+    const res = await fetch(`/api/bankdata/triwulan/${level}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ indikator_id: indikatorId, tahun, tw })
     });
     if (!res.ok) return showToast((await res.json()).error);
     reload();
@@ -182,6 +191,7 @@ export default function BankData({ showToast }) {
                               <IndikatorPanel level="sektoral" parentId={s.id} parentLabel="Data Sektoral"
                                 list={s.indikator} tahunList={keys} form={form} setForm={setForm} openForm={openForm} cancelForm={cancelForm} submitIndikator={submitIndikator}
                                 onSaveNilai={(indId, tahun, valA, valB) => saveNilai("sektoral", indId, tahun, valA, valB)}
+                                onSaveTw={(indId, tahun, tw) => saveTriwulan("sektoral", indId, tahun, tw)}
                                 onDelInd={(id, nama) => delIndikator("sektoral", id, nama)} T={T} />
                             </div>
                           )}
@@ -216,6 +226,7 @@ export default function BankData({ showToast }) {
                               <IndikatorPanel level="iku" parentId={iku.id} parentLabel="IKU"
                                 list={iku.indikator} tahunList={keys} form={form} setForm={setForm} openForm={openForm} cancelForm={cancelForm} submitIndikator={submitIndikator}
                                 onSaveNilai={(indId, tahun, valA, valB) => saveNilai("iku", indId, tahun, valA, valB)}
+                                onSaveTw={(indId, tahun, tw) => saveTriwulan("iku", indId, tahun, tw)}
                                 onDelInd={(id, nama) => delIndikator("iku", id, nama)} T={T} />
 
                               {/* IKK di bawah IKU */}
@@ -243,6 +254,7 @@ export default function BankData({ showToast }) {
                                       <IndikatorPanel level="ikk" parentId={ikk.id} parentLabel="IKK"
                                         list={ikk.indikator} tahunList={keys} form={form} setForm={setForm} openForm={openForm} cancelForm={cancelForm} submitIndikator={submitIndikator}
                                         onSaveNilai={(indId, tahun, valA, valB) => saveNilai("ikk", indId, tahun, valA, valB)}
+                                        onSaveTw={(indId, tahun, tw) => saveTriwulan("ikk", indId, tahun, tw)}
                                         onDelInd={(id, nama) => delIndikator("ikk", id, nama)} T={T} />
                                     </div>
                                   )}
@@ -336,7 +348,7 @@ function InlineEntityAdd({ label, show, onOpen, onCancel, T, form, setVal, title
 }
 
 /* ── Panel daftar indikator + input nilai per tahun ────────────────────── */
-function IndikatorPanel({ level, parentId, parentLabel, list, tahunList, form, setForm, openForm, cancelForm, submitIndikator, onSaveNilai, onDelInd, T }) {
+function IndikatorPanel({ level, parentId, parentLabel, list, tahunList, form, setForm, openForm, cancelForm, submitIndikator, onSaveNilai, onSaveTw, onDelInd, T }) {
   const conf = LEVEL_CONF[level];
   const showAddForm = form && form.level === level && form.parentId === parentId && !form.editId;
   const editForm = form && form.level === level && form.parentId === parentId && form.editId;
@@ -379,7 +391,7 @@ function IndikatorPanel({ level, parentId, parentLabel, list, tahunList, form, s
                   </button>
                 </div>
               </div>
-              <NilaiTable level={level} ind={ind} conf={conf} tahunList={tahunList} onSave={onSaveNilai} T={T} />
+              <NilaiTable level={level} ind={ind} conf={conf} tahunList={tahunList} onSave={onSaveNilai} onSaveTw={onSaveTw} T={T} />
             </div>
           );
         })}
@@ -414,10 +426,13 @@ function IndikatorForm({ title, values, setVal, submit, cancel, T }) {
   );
 }
 
-/* ── Tabel input nilai per tahun ───────────────────────────────────────── */
-function NilaiTable({ level, ind, conf, tahunList, onSave, T }) {
+/* ── Tabel input nilai per tahun + detail triwulan ─────────────────────── */
+function NilaiTable({ level, ind, conf, tahunList, onSave, onSaveTw, T }) {
   const [draft, setDraft] = useState({});
   const [saved, setSaved] = useState({});
+  const [twOpen, setTwOpen] = useState({});       // {tahun: true}
+  const [twDraft, setTwDraft] = useState({});     // {tahun:twN:key: value}
+  const [twSaved, setTwSaved] = useState({});     // {tahun: true}
 
   const getVal = (tahun, k) => {
     if (draft[`${tahun}:${k}`] !== undefined) return draft[`${tahun}:${k}`];
@@ -435,41 +450,126 @@ function NilaiTable({ level, ind, conf, tahunList, onSave, T }) {
     setTimeout(() => setSaved(s => ({ ...s, [tahun]: false })), 1500);
   };
 
+  const getTw = (tahun, twN, k) => {
+    const dk = `${tahun}:${twN}:${k}`;
+    if (twDraft[dk] !== undefined) return twDraft[dk];
+    const row = ind.nilai.find(n => n.tahun === tahun);
+    const cell = row && row.tw && row.tw[twN];
+    return cell && cell[k] !== undefined && cell[k] !== null ? cell[k] : "";
+  };
+
+  const setTw = (tahun, twN, k, v) => setTwDraft(d => ({ ...d, [`${tahun}:${twN}:${k}`]: v }));
+
+  const saveTwRow = (tahun) => {
+    const tw = {};
+    for (let i = 1; i <= 4; i++) {
+      const a = getTw(tahun, `tw${i}`, conf.valA.k);
+      const cell = { [conf.valA.k]: a === "" ? null : String(a) };
+      if (conf.valB) {
+        const b = getTw(tahun, `tw${i}`, conf.valB.k);
+        cell[conf.valB.k] = b === "" ? null : String(b);
+      }
+      if (cell[conf.valA.k] !== null || (conf.valB && cell[conf.valB.k] !== null)) tw[`tw${i}`] = cell;
+    }
+    if (Object.keys(tw).length === 0) return;
+    setTwSaved(s => ({ ...s, [tahun]: true }));
+    onSaveTw(ind.id, tahun, tw);
+    setTimeout(() => setTwSaved(s => ({ ...s, [tahun]: false })), 1500);
+  };
+
   if (tahunList.length === 0) {
     return <div style={{ fontSize: 11, color: T.textMuted }}>Tambahkan tahun di bagian Daftar Tahun terlebih dahulu.</div>;
   }
+
+  const nCols = 3 + (conf.valB ? 1 : 0);
 
   return (
     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
       <thead>
         <tr>
           <th style={{ textAlign: "left", padding: "4px 6px", color: T.textMuted, fontWeight: 600, borderBottom: `1px solid ${T.border}` }}>Tahun</th>
-          <th style={{ textAlign: "left", padding: "4px 6px", color: T.textMuted, fontWeight: 600, borderBottom: `1px solid ${T.border}` }}>{conf.valA.label}</th>
-          {conf.valB && <th style={{ textAlign: "left", padding: "4px 6px", color: T.textMuted, fontWeight: 600, borderBottom: `1px solid ${T.border}` }}>{conf.valB.label}</th>}
+          <th style={{ textAlign: "left", padding: "4px 6px", color: T.textMuted, fontWeight: 600, borderBottom: `1px solid ${T.border}` }}>{conf.valA.label}{conf.valB ? " (Total)" : ""}</th>
+          {conf.valB && <th style={{ textAlign: "left", padding: "4px 6px", color: T.textMuted, fontWeight: 600, borderBottom: `1px solid ${T.border}` }}>{conf.valB.label}{" (Total)"}</th>}
           <th style={{ textAlign: "right", padding: "4px 6px", borderBottom: `1px solid ${T.border}` }}></th>
         </tr>
       </thead>
       <tbody>
         {tahunList.map(t => (
-          <tr key={t}>
-            <td style={{ padding: "4px 6px", fontWeight: 600, color: T.text }}>{t}</td>
-            <td style={{ padding: "4px 6px" }}>
-              <input value={getVal(t, conf.valA.k)} onChange={e => setVal(t, conf.valA.k, e.target.value)}
-                style={{ width: "100%", minWidth: 80, padding: "5px 8px", border: `1px solid ${T.inputBorder}`, borderRadius: 6, fontSize: 12, outline: "none", background: T.inputBg, color: T.text, boxSizing: "border-box" }} />
-            </td>
-            {conf.valB && (
+          <Fragment key={t}>
+            <tr>
+              <td style={{ padding: "4px 6px", fontWeight: 600, color: T.text }}>
+                <button onClick={() => setTwOpen(o => ({ ...o, [t]: !o[t] }))}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "inline-flex", alignItems: "center", gap: 4, color: T.primary, fontWeight: 700, fontSize: 12 }}>
+                  <Icon name="chevronRight" size={11} style={{ transform: twOpen[t] ? "rotate(90deg)" : "", transition: "transform .2s" }} />
+                  {t}
+                </button>
+              </td>
               <td style={{ padding: "4px 6px" }}>
-                <input value={getVal(t, conf.valB.k)} onChange={e => setVal(t, conf.valB.k, e.target.value)}
+                <input value={getVal(t, conf.valA.k)} onChange={e => setVal(t, conf.valA.k, e.target.value)}
                   style={{ width: "100%", minWidth: 80, padding: "5px 8px", border: `1px solid ${T.inputBorder}`, borderRadius: 6, fontSize: 12, outline: "none", background: T.inputBg, color: T.text, boxSizing: "border-box" }} />
               </td>
+              {conf.valB && (
+                <td style={{ padding: "4px 6px" }}>
+                  <input value={getVal(t, conf.valB.k)} onChange={e => setVal(t, conf.valB.k, e.target.value)}
+                    style={{ width: "100%", minWidth: 80, padding: "5px 8px", border: `1px solid ${T.inputBorder}`, borderRadius: 6, fontSize: 12, outline: "none", background: T.inputBg, color: T.text, boxSizing: "border-box" }} />
+                </td>
+              )}
+              <td style={{ padding: "4px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
+                <button onClick={() => saveRow(t)} disabled={!!saved[t]}
+                  style={{ padding: "5px 10px", background: saved[t] ? "#16a34a" : T.primary, color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  {saved[t] ? "✓" : "Simpan"}
+                </button>
+              </td>
+            </tr>
+
+            {twOpen[t] && (
+              <tr>
+                <td colSpan={nCols} style={{ padding: "2px 6px 8px" }}>
+                  <div style={{ background: T.surfaceHover, border: `1px solid ${T.inputBorder}`, borderRadius: 8, padding: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 6 }}>
+                      Detail Triwulan {t} — {conf.valA.label}{conf.valB ? ` & ${conf.valB.label}` : ""}
+                    </div>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: "left", padding: "3px 6px", color: T.textMuted, fontWeight: 600, borderBottom: `1px solid ${T.border}` }}>Triwulan</th>
+                          <th style={{ textAlign: "left", padding: "3px 6px", color: T.textMuted, fontWeight: 600, borderBottom: `1px solid ${T.border}` }}>{conf.valA.label}</th>
+                          {conf.valB && <th style={{ textAlign: "left", padding: "3px 6px", color: T.textMuted, fontWeight: 600, borderBottom: `1px solid ${T.border}` }}>{conf.valB.label}</th>}
+                          <th style={{ textAlign: "left", padding: "3px 6px", color: T.textMuted, fontWeight: 600, borderBottom: `1px solid ${T.border}` }}>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {["tw1", "tw2", "tw3", "tw4"].map((twN, i) => (
+                          <tr key={twN}>
+                            <td style={{ padding: "3px 6px", fontWeight: 600, color: T.text }}>TW{i + 1}</td>
+                            <td style={{ padding: "3px 6px" }}>
+                              <input value={getTw(t, twN, conf.valA.k)} onChange={e => setTw(t, twN, conf.valA.k, e.target.value)}
+                                style={{ width: "100%", minWidth: 70, padding: "4px 7px", border: `1px solid ${T.inputBorder}`, borderRadius: 6, fontSize: 12, outline: "none", background: T.inputBg, color: T.text, boxSizing: "border-box" }} />
+                            </td>
+                            {conf.valB && (
+                              <td style={{ padding: "3px 6px" }}>
+                                <input value={getTw(t, twN, conf.valB.k)} onChange={e => setTw(t, twN, conf.valB.k, e.target.value)}
+                                  style={{ width: "100%", minWidth: 70, padding: "4px 7px", border: `1px solid ${T.inputBorder}`, borderRadius: 6, fontSize: 12, outline: "none", background: T.inputBg, color: T.text, boxSizing: "border-box" }} />
+                              </td>
+                            )}
+                            <td style={{ padding: "3px 6px", color: getTw(t, twN, conf.valA.k) ? T.text : T.textMuted }}>
+                              {getTw(t, twN, conf.valA.k) ? (getTw(t, twN, conf.valA.k) + (conf.valB && getTw(t, twN, conf.valB.k) ? ` / ${getTw(t, twN, conf.valB.k)}` : "")) : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+                      <button onClick={() => saveTwRow(t)} disabled={!!twSaved[t]}
+                        style={{ padding: "5px 12px", background: twSaved[t] ? "#16a34a" : T.primary, color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                        {twSaved[t] ? "✓" : "Simpan Triwulan"}
+                      </button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
             )}
-            <td style={{ padding: "4px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
-              <button onClick={() => saveRow(t)} disabled={!!saved[t]}
-                style={{ padding: "5px 10px", background: saved[t] ? "#16a34a" : T.primary, color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-                {saved[t] ? "✓" : "Simpan"}
-              </button>
-            </td>
-          </tr>
+          </Fragment>
         ))}
       </tbody>
     </table>

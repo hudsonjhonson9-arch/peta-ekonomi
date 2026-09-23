@@ -1,9 +1,9 @@
 -- ============================================================
 -- MIGRASI — Bank Data Hierarki v2
 -- Struktur: Bidang → OPD → IKU → IKK  +  Data Sektoral (setara IKU)
--- IKU  indikator : target & capaian per tahun
--- IKK  indikator : capaian & realisasi per tahun
--- Data Sektoral  : data per tahun
+-- IKU  indikator : target & capaian per tahun + triwulan (TW1-TW4)
+-- IKK  indikator : capaian & realisasi per tahun + triwulan
+-- Data Sektoral  : data per tahun + triwulan
 -- Tahun diatur admin via tabel bank_data_tahun
 -- ============================================================
 
@@ -33,6 +33,15 @@ CREATE TABLE IF NOT EXISTS bank_data_iku_nilai (
     capaian      TEXT,
     UNIQUE (indikator_id, tahun)
 );
+-- Triwulan (TW1-TW4) per tahun untuk indikator IKU
+CREATE TABLE IF NOT EXISTS bank_data_iku_triwulan (
+    id           BIGSERIAL PRIMARY KEY,
+    indikator_id BIGINT NOT NULL REFERENCES bank_data_iku_indikator(id) ON DELETE CASCADE,
+    tahun        INTEGER NOT NULL,
+    target_tw1 TEXT, target_tw2 TEXT, target_tw3 TEXT, target_tw4 TEXT,
+    capaian_tw1 TEXT, capaian_tw2 TEXT, capaian_tw3 TEXT, capaian_tw4 TEXT,
+    UNIQUE (indikator_id, tahun)
+);
 
 -- ── IKK (di bawah IKU) ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS bank_data_ikk_indikator (
@@ -50,6 +59,15 @@ CREATE TABLE IF NOT EXISTS bank_data_ikk_nilai (
     tahun        INTEGER NOT NULL,
     capaian      TEXT,
     realisasi    TEXT,
+    UNIQUE (indikator_id, tahun)
+);
+-- Triwulan (TW1-TW4) per tahun untuk indikator IKK
+CREATE TABLE IF NOT EXISTS bank_data_ikk_triwulan (
+    id           BIGSERIAL PRIMARY KEY,
+    indikator_id BIGINT NOT NULL REFERENCES bank_data_ikk_indikator(id) ON DELETE CASCADE,
+    tahun        INTEGER NOT NULL,
+    capaian_tw1 TEXT, capaian_tw2 TEXT, capaian_tw3 TEXT, capaian_tw4 TEXT,
+    realisasi_tw1 TEXT, realisasi_tw2 TEXT, realisasi_tw3 TEXT, realisasi_tw4 TEXT,
     UNIQUE (indikator_id, tahun)
 );
 
@@ -73,5 +91,13 @@ CREATE TABLE IF NOT EXISTS bank_data_sektoral_nilai (
     indikator_id BIGINT NOT NULL REFERENCES bank_data_sektoral_indikator(id) ON DELETE CASCADE,
     tahun        INTEGER NOT NULL,
     data         TEXT,
+    UNIQUE (indikator_id, tahun)
+);
+-- Triwulan (TW1-TW4) per tahun untuk indikator sektoral
+CREATE TABLE IF NOT EXISTS bank_data_sektoral_triwulan (
+    id           BIGSERIAL PRIMARY KEY,
+    indikator_id BIGINT NOT NULL REFERENCES bank_data_sektoral_indikator(id) ON DELETE CASCADE,
+    tahun        INTEGER NOT NULL,
+    data_tw1 TEXT, data_tw2 TEXT, data_tw3 TEXT, data_tw4 TEXT,
     UNIQUE (indikator_id, tahun)
 );
