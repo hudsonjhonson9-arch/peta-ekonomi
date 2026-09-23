@@ -1291,6 +1291,217 @@ app.post('/api/indikator/tampil', async (req, res) => {
   }
 });
 
+// ── Bank Data: Hierarki bidang→OPD→IKU→IKK→Detail ──────────────────────────
+app.get('/api/bankdata', async (_, res) => {
+  try {
+    const [bidangs, opds, ikus, ikks, details] = await Promise.all([
+      queryDB(`SELECT id, nama_bidang AS nama FROM bidang_list WHERE instansi_id = 'bapperida' ORDER BY id`),
+      queryDB(`SELECT id, bidang_id, nama, urutan FROM bank_data_opd ORDER BY bidang_id, urutan, id`),
+      queryDB(`SELECT id, opd_id, nama, urutan FROM bank_data_iku ORDER BY opd_id, urutan, id`),
+      queryDB(`SELECT id, iku_id, nama, urutan FROM bank_data_ikk ORDER BY iku_id, urutan, id`),
+      queryDB(`SELECT id, ikk_id, indikator, data, sumber_data, aspek, tahun, urutan FROM bank_data_detail ORDER BY ikk_id, urutan, id`)
+    ]);
+
+    const tree = bidangs.map(b => ({ ...b, opds: [] }));
+    const opdMap = new Map();
+    for (const o of opds) {
+      const node = { ...o, ikus: [] };
+      opdMap.set(String(o.id), node);
+      const bid = tree.find(b => String(b.id) === String(o.bidang_id));
+      if (bid) bid.opds.push(node);
+    }
+    const ikuMap = new Map();
+    for (const i of ikus) {
+      const node = { ...i, ikks: [] };
+      ikuMap.set(String(i.id), node);
+      const opd = opdMap.get(String(i.opd_id));
+      if (opd) opd.ikus.push(node);
+    }
+    const ikkMap = new Map();
+    for (const i2 of ikks) {
+      const node = { ...i2, details: [] };
+      ikkMap.set(String(i2.id), node);
+      const iku = ikuMap.get(String(i2.iku_id));
+      if (iku) iku.ikks.push(node);
+    }
+    for (const d of details) {
+      const ikk = ikkMap.get(String(d.ikk_id));
+      if (ikk) ikk.details.push(d);
+    }
+
+    res.json(tree);
+  } catch (err) {
+    console.error('Get bankdata tree error:', err);
+    res.status(500).json({ error: 'Gagal mengambil data bank data' });
+  }
+});
+
+app.post('/api/bankdata/opd', async (req, res) => {
+  const { bidang_id, nama } = req.body;
+  if (!bidang_id || !nama) return res.status(400).json({ error: 'Bidang dan nama wajib diisi' });
+  try {
+    const max = await queryDB('SELECT COALESCE(MAX(urutan), 0) + 1 AS next FROM bank_data_opd WHERE bidang_id = $1', [bidang_id]);
+    const result = await queryDB(
+      'INSERT INTO bank_data_opd (bidang_id, nama, urutan) VALUES ($1, $2, $3) RETURNING *',
+      [bidang_id, nama.trim(), max[0].next]
+    );
+    res.json({ message: 'OPD berhasil ditambahkan', opd: result[0] });
+  } catch (err) {
+    console.error('Create OPD error:', err);
+    res.status(500).json({ error: 'Gagal menambahkan OPD' });
+  }
+});
+
+app.put('/api/bankdata/opd/:id', async (req, res) => {
+  const { id } = req.params;
+  const { nama } = req.body;
+  if (!nama) return res.status(400).json({ error: 'Nama wajib diisi' });
+  try {
+    await queryDB('UPDATE bank_data_opd SET nama = $1 WHERE id = $2', [nama.trim(), id]);
+    res.json({ message: 'OPD berhasil diperbarui' });
+  } catch (err) {
+    console.error('Update OPD error:', err);
+    res.status(500).json({ error: 'Gagal memperbarui OPD' });
+  }
+});
+
+app.delete('/api/bankdata/opd/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await queryDB('DELETE FROM bank_data_opd WHERE id = $1', [id]);
+    res.json({ message: 'OPD berhasil dihapus' });
+  } catch (err) {
+    console.error('Delete OPD error:', err);
+    res.status(500).json({ error: 'Gagal menghapus OPD' });
+  }
+});
+
+app.post('/api/bankdata/iku', async (req, res) => {
+  const { opd_id, nama } = req.body;
+  if (!opd_id || !nama) return res.status(400).json({ error: 'OPD dan nama wajib diisi' });
+  try {
+    const max = await queryDB('SELECT COALESCE(MAX(urutan), 0) + 1 AS next FROM bank_data_iku WHERE opd_id = $1', [opd_id]);
+    const result = await queryDB(
+      'INSERT INTO bank_data_iku (opd_id, nama, urutan) VALUES ($1, $2, $3) RETURNING *',
+      [opd_id, nama.trim(), max[0].next]
+    );
+    res.json({ message: 'IKU berhasil ditambahkan', iku: result[0] });
+  } catch (err) {
+    console.error('Create IKU error:', err);
+    res.status(500).json({ error: 'Gagal menambahkan IKU' });
+  }
+});
+
+app.put('/api/bankdata/iku/:id', async (req, res) => {
+  const { id } = req.params;
+  const { nama } = req.body;
+  if (!nama) return res.status(400).json({ error: 'Nama wajib diisi' });
+  try {
+    await queryDB('UPDATE bank_data_iku SET nama = $1 WHERE id = $2', [nama.trim(), id]);
+    res.json({ message: 'IKU berhasil diperbarui' });
+  } catch (err) {
+    console.error('Update IKU error:', err);
+    res.status(500).json({ error: 'Gagal memperbarui IKU' });
+  }
+});
+
+app.delete('/api/bankdata/iku/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await queryDB('DELETE FROM bank_data_iku WHERE id = $1', [id]);
+    res.json({ message: 'IKU berhasil dihapus' });
+  } catch (err) {
+    console.error('Delete IKU error:', err);
+    res.status(500).json({ error: 'Gagal menghapus IKU' });
+  }
+});
+
+app.post('/api/bankdata/ikk', async (req, res) => {
+  const { iku_id, nama } = req.body;
+  if (!iku_id || !nama) return res.status(400).json({ error: 'IKU dan nama wajib diisi' });
+  try {
+    const max = await queryDB('SELECT COALESCE(MAX(urutan), 0) + 1 AS next FROM bank_data_ikk WHERE iku_id = $1', [iku_id]);
+    const result = await queryDB(
+      'INSERT INTO bank_data_ikk (iku_id, nama, urutan) VALUES ($1, $2, $3) RETURNING *',
+      [iku_id, nama.trim(), max[0].next]
+    );
+    res.json({ message: 'IKK berhasil ditambahkan', ikk: result[0] });
+  } catch (err) {
+    console.error('Create IKK error:', err);
+    res.status(500).json({ error: 'Gagal menambahkan IKK' });
+  }
+});
+
+app.put('/api/bankdata/ikk/:id', async (req, res) => {
+  const { id } = req.params;
+  const { nama } = req.body;
+  if (!nama) return res.status(400).json({ error: 'Nama wajib diisi' });
+  try {
+    await queryDB('UPDATE bank_data_ikk SET nama = $1 WHERE id = $2', [nama.trim(), id]);
+    res.json({ message: 'IKK berhasil diperbarui' });
+  } catch (err) {
+    console.error('Update IKK error:', err);
+    res.status(500).json({ error: 'Gagal memperbarui IKK' });
+  }
+});
+
+app.delete('/api/bankdata/ikk/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await queryDB('DELETE FROM bank_data_ikk WHERE id = $1', [id]);
+    res.json({ message: 'IKK berhasil dihapus' });
+  } catch (err) {
+    console.error('Delete IKK error:', err);
+    res.status(500).json({ error: 'Gagal menghapus IKK' });
+  }
+});
+
+app.post('/api/bankdata/detail', async (req, res) => {
+  const { ikk_id, indikator, data, sumber_data, aspek, tahun } = req.body;
+  if (!ikk_id || !indikator) return res.status(400).json({ error: 'IKK dan indikator wajib diisi' });
+  try {
+    const max = await queryDB('SELECT COALESCE(MAX(urutan), 0) + 1 AS next FROM bank_data_detail WHERE ikk_id = $1', [ikk_id]);
+    const result = await queryDB(
+      `INSERT INTO bank_data_detail (ikk_id, indikator, data, sumber_data, aspek, tahun, urutan)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [ikk_id, indikator.trim(), data ?? null, sumber_data ?? null, aspek ?? null, tahun ?? null, max[0].next]
+    );
+    res.json({ message: 'Detail berhasil ditambahkan', detail: result[0] });
+  } catch (err) {
+    console.error('Create detail error:', err);
+    res.status(500).json({ error: 'Gagal menambahkan detail' });
+  }
+});
+
+app.put('/api/bankdata/detail/:id', async (req, res) => {
+  const { id } = req.params;
+  const { indikator, data, sumber_data, aspek, tahun } = req.body;
+  if (!indikator) return res.status(400).json({ error: 'Indikator wajib diisi' });
+  try {
+    await queryDB(
+      `UPDATE bank_data_detail
+       SET indikator = $1, data = $2, sumber_data = $3, aspek = $4, tahun = $5, updated_at = NOW()
+       WHERE id = $6`,
+      [indikator.trim(), data ?? null, sumber_data ?? null, aspek ?? null, tahun ?? null, id]
+    );
+    res.json({ message: 'Detail berhasil diperbarui' });
+  } catch (err) {
+    console.error('Update detail error:', err);
+    res.status(500).json({ error: 'Gagal memperbarui detail' });
+  }
+});
+
+app.delete('/api/bankdata/detail/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await queryDB('DELETE FROM bank_data_detail WHERE id = $1', [id]);
+    res.json({ message: 'Detail berhasil dihapus' });
+  } catch (err) {
+    console.error('Delete detail error:', err);
+    res.status(500).json({ error: 'Gagal menghapus detail' });
+  }
+});
+
 // ── Notifications ────────────────────────────────────────────────────────
 app.get('/api/notifications', async (req, res) => {
   const userId = req.query.user_id;
