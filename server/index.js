@@ -1544,6 +1544,7 @@ app.get('/api/bankdata', async (_, res) => {
         id: i.id, nama: i.nama,
         sumber_data: i.sumber_data ?? null,
         aspek: i.aspek ?? null,
+        ikks: [],
         nilai: nils.map(n => {
           const o = { id: n.id, tahun: n.tahun };
           if (n.target !== null && n.target !== undefined) o.target = n.target;
@@ -1555,7 +1556,7 @@ app.get('/api/bankdata', async (_, res) => {
       };
     });
     const ikuMap = new Map(ikuNodes.map(n => [String(n.id), n]));
-    for (const i of ikks) { const p = ikuMap.get(String(i.iku_id)); if (p) p.ikks = [...(p.ikks || []), ikkMap.get(String(i.id))]; }
+    for (const i of ikks) { const p = ikuMap.get(String(i.iku_id)); if (p) p.ikks.push(ikkMap.get(String(i.id))); }
 
     const sektMap = new Map(sektorals.map(s => [String(s.id), { id: s.id, nama: s.nama, indikator: indSekt.get(String(s.id)) || [] }]));
     const opdMap = new Map(opds.map(o => [String(o.id), { id: o.id, nama: o.nama, ikus: [], sektorals: [] }]));

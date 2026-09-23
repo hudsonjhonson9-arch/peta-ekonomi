@@ -98,7 +98,7 @@ export default function BankData({ showToast }) {
 
   if (isLoading) return <div style={{ padding: 40, textAlign: "center", color: T.textMuted, fontSize: 13 }}>Memuat data...</div>;
 
-  const ikusDesc = (iku) => `${iku.ikks.length} IKK`;
+  const ikusDesc = (iku) => `${(iku.ikks || []).length} IKK`;
 
   return (
     <div>
@@ -464,7 +464,7 @@ function BidangList({ tree, onSelect, T }) {
       {tree.map(b => {
         const indCount = b.opds.reduce((s, o) =>
           s + o.sektorals.reduce((x, q) => x + q.indikator.length, 0) +
-          o.ikus.reduce((x, i) => x + i.ikks.reduce((y, k) => y + (k.nilai ? k.nilai.length : 0), 0), 0), 0);
+          o.ikus.reduce((x, i) => x + (i.ikks || []).reduce((y, k) => y + (k.nilai ? k.nilai.length : 0), 0), 0), 0);
         return (
           <button key={b.id} onClick={() => onSelect(b.id)} style={{
             textAlign: "left", background: T.card, borderRadius: 12, border: `1px solid ${T.border}`,
@@ -644,14 +644,14 @@ function OpdContent(props) {
                       setForm(null); reload(); showToast("IKK ditambahkan");
                     }} />
 
-                  {iku.ikks.map(ikk => (
+                  {(iku.ikks || []).map(ikk => (
                     <IkkRow key={ikk.id} ikk={ikk} ikuId={iku.id}
                       form={form} setForm={setForm} cancelForm={cancelForm} openFormForEntity={openFormForEntity}
                       reload={reload} delEntity={delEntity}
                       tahunList={tahunList} saveNilai={saveNilai} saveTriwulan={saveTriwulan}
                       showToast={showToast} T={T} />
                   ))}
-                  {iku.ikks.length === 0 && <div style={{ fontSize: 12, color: T.textMuted, padding: "4px 2px 8px" }}>Belum ada IKK. Tambahkan IKK lalu isi nilainya per tahun.</div>}
+                  {(iku.ikks || []).length === 0 && <div style={{ fontSize: 12, color: T.textMuted, padding: "4px 2px 8px" }}>Belum ada IKK. Tambahkan IKK lalu isi nilainya per tahun.</div>}
                 </>
               )}
             </div>
@@ -810,7 +810,7 @@ function SearchResults({ tree, q, T }) {
           rows: iku.nilai, ikks: iku.ikks
         });
       }
-      for (const ikk of iku.ikks) {
+      for (const ikk of (iku.ikks || [])) {
         if (`${ikk.nama} ${ikk.aspek || ""} ${ikk.sumber_data || ""}`.toLowerCase().includes(nq)) {
           hits.push({
             kind: "ikk", path: `${path} → ${iku.nama}`, name: ikk.nama, id: `k${ikk.id}`,
@@ -847,7 +847,7 @@ function SearchResults({ tree, q, T }) {
               <>
                 <ValueSummary rows={h.rows} conf={KIND_META.iku.conf} T={T} />
                 <div style={{ fontSize: 11, color: T.textSecondary, marginTop: 6 }}>
-                  {h.ikks.length ? h.ikks.map(k => k.nama).join(" · ") : "Belum ada IKK."}
+                  {h.ikks && h.ikks.length ? h.ikks.map(k => k.nama).join(" · ") : "Belum ada IKK."}
                 </div>
               </>
             ) : (

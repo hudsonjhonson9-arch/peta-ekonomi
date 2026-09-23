@@ -26,7 +26,7 @@ export default function BankDataDashboard({ emptyMessage = null }) {
   const shown = searching ? tree.map(b => {
     const opds = b.opds.map(o => {
       const ikus = o.ikus.map(i => {
-        const ikks = i.ikks.filter(hitIkk);
+        const ikks = (i.ikks || []).filter(hitIkk);
         if (hitIku(i)) return i;
         if (ikks.length) return { ...i, ikks };
         return null;
@@ -45,7 +45,7 @@ export default function BankDataDashboard({ emptyMessage = null }) {
 
   const hasData = shown.some(b => b.opds.some(o =>
     o.sektorals.some(s => s.indikator.length) ||
-    o.ikus.some(i => i.ikks.length || (i.nilai && i.nilai.length))
+    o.ikus.some(i => (i.ikks || []).length || (i.nilai && i.nilai.length))
   ));
   if (!hasData) {
     return emptyMessage ? (
@@ -104,7 +104,7 @@ function OPDView({ o, tahunList, forceOpen, T }) {
   const isOpen = (k) => forceOpen || !!expanded[k];
   const tahunList2 = tahunList.map(t => t.tahun);
 
-  const oHas = o.sektorals.some(s => s.indikator.length) || o.ikus.some(i => i.ikks.length || (i.nilai && i.nilai.length));
+  const oHas = o.sektorals.some(s => s.indikator.length) || o.ikus.some(i => (i.ikks || []).length || (i.nilai && i.nilai.length));
   if (!oHas) return null;
 
   // IKK kini langsung menjadi baris nilai (nama = label baris)
@@ -135,7 +135,7 @@ function OPDView({ o, tahunList, forceOpen, T }) {
             <>
               <ValueTable rows={[{ id: iku.id, indikator: iku.nama, aspek: iku.aspek, sumber_data: iku.sumber_data, nilai: iku.nilai }]}
                 tahunList={tahunList2} conf="iku" T={T} />
-              {iku.ikks.length > 0 && <ValueTable rows={asIkkRows(iku.ikks)} tahunList={tahunList2} conf="ikk" T={T} />}
+              {iku.ikks && iku.ikks.length > 0 && <ValueTable rows={asIkkRows(iku.ikks)} tahunList={tahunList2} conf="ikk" T={T} />}
             </>
           )}
         </div>
