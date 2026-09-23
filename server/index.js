@@ -44,6 +44,77 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   } catch (e) { console.error('Migration files error:', e.message); }
 })();
 
+// ── Auto-migration: Bank Data hierarki v2 ──────────────────────────────────
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS bank_data_tahun (
+        id          SERIAL PRIMARY KEY,
+        tahun       INTEGER UNIQUE NOT NULL,
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS bank_data_iku_indikator (
+        id          BIGSERIAL PRIMARY KEY,
+        iku_id      BIGINT NOT NULL REFERENCES bank_data_iku(id) ON DELETE CASCADE,
+        indikator   TEXT   NOT NULL,
+        sumber_data TEXT,
+        aspek       TEXT,
+        urutan      INTEGER DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS bank_data_iku_nilai (
+        id           BIGSERIAL PRIMARY KEY,
+        indikator_id BIGINT NOT NULL REFERENCES bank_data_iku_indikator(id) ON DELETE CASCADE,
+        tahun        INTEGER NOT NULL,
+        target       TEXT,
+        capaian      TEXT,
+        UNIQUE (indikator_id, tahun)
+      );
+      CREATE TABLE IF NOT EXISTS bank_data_ikk_indikator (
+        id          BIGSERIAL PRIMARY KEY,
+        ikk_id      BIGINT NOT NULL REFERENCES bank_data_ikk(id) ON DELETE CASCADE,
+        indikator   TEXT   NOT NULL,
+        sumber_data TEXT,
+        aspek       TEXT,
+        urutan      INTEGER DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS bank_data_ikk_nilai (
+        id           BIGSERIAL PRIMARY KEY,
+        indikator_id BIGINT NOT NULL REFERENCES bank_data_ikk_indikator(id) ON DELETE CASCADE,
+        tahun        INTEGER NOT NULL,
+        capaian      TEXT,
+        realisasi    TEXT,
+        UNIQUE (indikator_id, tahun)
+      );
+      CREATE TABLE IF NOT EXISTS bank_data_sektoral (
+        id          BIGSERIAL PRIMARY KEY,
+        opd_id      BIGINT NOT NULL REFERENCES bank_data_opd(id) ON DELETE CASCADE,
+        nama        TEXT   NOT NULL,
+        urutan      INTEGER DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS bank_data_sektoral_indikator (
+        id          BIGSERIAL PRIMARY KEY,
+        sektoral_id BIGINT NOT NULL REFERENCES bank_data_sektoral(id) ON DELETE CASCADE,
+        indikator   TEXT   NOT NULL,
+        sumber_data TEXT,
+        aspek       TEXT,
+        urutan      INTEGER DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS bank_data_sektoral_nilai (
+        id           BIGSERIAL PRIMARY KEY,
+        indikator_id BIGINT NOT NULL REFERENCES bank_data_sektoral_indikator(id) ON DELETE CASCADE,
+        tahun        INTEGER NOT NULL,
+        data         TEXT,
+        UNIQUE (indikator_id, tahun)
+      );
+    `);
+    await pool.query(`
+      INSERT INTO bank_data_tahun (tahun) VALUES (2024), (2025)
+      ON CONFLICT (tahun) DO NOTHING
+    `);
+    console.log('Migration: bank data v2 ready');
+  } catch (e) { console.error('Migration bank data v2 error:', e.message); }
+})();
+
 // ── Auto-migration: notifications.user_id TEXT (WhatsApp IDs overflow int32)
 (async () => {
   try {
@@ -1291,43 +1362,108 @@ app.post('/api/indikator/tampil', async (req, res) => {
   }
 });
 
-// ── Bank Data: Hierarki bidang→OPD→IKU→IKK→Detail ──────────────────────────
+// ── Bank Data: Hierarki v2 ────────────────────────────────────────────────
+// Bidang → OPD → IKU(indikator: target&capaian/tahun) → IKK(indikator: capaian&realisasi/tahun)
+//        → OPD → Data Sektoral (setara IKU; indikator: data/tahun)
+// KEY = level: 'iku' | 'ikk' | 'sektoral'
+const BD_CONF = {
+  iku: {
+    indTable: 'bank_data_iku_indikator',  nilTable: 'bank_data_iku_nilai',
+    indParentKey: 'iku_id',    valA: 'target',  valB: 'capaian',
+    parentTable: 'bank_data_iku'
+  },
+  ikk: {
+    indTable: 'bank_data_ikk_indikator',  nilTable: 'bank_data_ikk_nilai',
+    indParentKey: 'ikk_id',    valA: 'capaian',  valB: 'realisasi',
+    parentTable: 'bank_data_ikk'
+  },
+  sektoral: {
+    indTable: 'bank_data_sektoral_indikator',  nilTable: 'bank_data_sektoral_nilai',
+    indParentKey: 'sektoral_id', valA: null,     valB: null,
+    parentTable: 'bank_data_sektoral'
+  }
+};
+
+app.get('/api/bankdata/tahun', async (_, res) => {
+  try {
+    const rows = await queryDB('SELECT id, tahun FROM bank_data_tahun ORDER BY tahun');
+    res.json(rows);
+  } catch (err) {
+    console.error('Get tahun error:', err);
+    res.status(500).json({ error: 'Gagal mengambil daftar tahun' });
+  }
+});
+
+app.post('/api/bankdata/tahun', async (req, res) => {
+  const { tahun } = req.body;
+  if (!tahun) return res.status(400).json({ error: 'Tahun wajib diisi' });
+  try {
+    await queryDB('INSERT INTO bank_data_tahun (tahun) VALUES ($1) ON CONFLICT (tahun) DO NOTHING', [tahun]);
+    res.json({ message: 'Tahun berhasil ditambahkan' });
+  } catch (err) {
+    console.error('Add tahun error:', err);
+    res.status(500).json({ error: 'Gagal menambahkan tahun' });
+  }
+});
+
+app.delete('/api/bankdata/tahun/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await queryDB('DELETE FROM bank_data_tahun WHERE id = $1', [id]);
+    res.json({ message: 'Tahun berhasil dihapus' });
+  } catch (err) {
+    console.error('Delete tahun error:', err);
+    res.status(500).json({ error: 'Gagal menghapus tahun' });
+  }
+});
+
 app.get('/api/bankdata', async (_, res) => {
   try {
-    const [bidangs, opds, ikus, ikks, details] = await Promise.all([
+    const [bidangs, opds, ikus, ikks, indIkuR, nilIkuR, indIkkR, nilIkkR, sektorals, indSektR, nilSektR] = await Promise.all([
       queryDB(`SELECT id, nama_bidang AS nama FROM bidang_list WHERE instansi_id = 'bapperida' ORDER BY id`),
       queryDB(`SELECT id, bidang_id, nama, urutan FROM bank_data_opd ORDER BY bidang_id, urutan, id`),
       queryDB(`SELECT id, opd_id, nama, urutan FROM bank_data_iku ORDER BY opd_id, urutan, id`),
       queryDB(`SELECT id, iku_id, nama, urutan FROM bank_data_ikk ORDER BY iku_id, urutan, id`),
-      queryDB(`SELECT id, ikk_id, indikator, data, sumber_data, aspek, tahun, urutan FROM bank_data_detail ORDER BY ikk_id, urutan, id`)
+      queryDB(`SELECT id, iku_id, indikator, sumber_data, aspek, urutan FROM bank_data_iku_indikator ORDER BY iku_id, urutan, id`),
+      queryDB(`SELECT id, indikator_id, tahun, target, capaian FROM bank_data_iku_nilai ORDER BY indikator_id, tahun`),
+      queryDB(`SELECT id, ikk_id, indikator, sumber_data, aspek, urutan FROM bank_data_ikk_indikator ORDER BY ikk_id, urutan, id`),
+      queryDB(`SELECT id, indikator_id, tahun, capaian, realisasi FROM bank_data_ikk_nilai ORDER BY indikator_id, tahun`),
+      queryDB(`SELECT id, opd_id, nama, urutan FROM bank_data_sektoral ORDER BY opd_id, urutan, id`),
+      queryDB(`SELECT id, sektoral_id, indikator, sumber_data, aspek, urutan FROM bank_data_sektoral_indikator ORDER BY sektoral_id, urutan, id`),
+      queryDB(`SELECT id, indikator_id, tahun, data FROM bank_data_sektoral_nilai ORDER BY indikator_id, tahun`)
     ]);
 
+    const nilMap = (arr) => { const m = new Map(); for (const r of arr) { const k = String(r.indikator_id); (m.get(k) || m.set(k, []).get(k)).push(r); } return m; };
+    const indMap = (rows, parentKey, nil, strip) => {
+      const m = new Map();
+      for (const r of rows) {
+        const pd = String(r[parentKey]);
+        const nils = nil.get(String(r.id)) || [];
+        const node = { ...r, nilai: nils.map(n => { const o = { id: n.id, tahun: n.tahun }; if (n[strip.a] !== null && n[strip.a] !== undefined) o[strip.a] = n[strip.a]; if (n[strip.b] !== null && n[strip.b] !== undefined) o[strip.b] = n[strip.b]; return o; }) };
+        delete node[parentKey];
+        delete node.urutan;
+        delete node.indikator_id;
+        (m.get(pd) || m.set(pd, []).get(pd)).push(node);
+      }
+      return m;
+    };
+
+    const nilIku = nilMap(nilIkuR), nilIkk = nilMap(nilIkkR), nilSekt = nilMap(nilSektR);
+    const indIku = indMap(indIkuR, 'iku_id', nilIku, { a: 'target', b: 'capaian' });
+    const indIkk = indMap(indIkkR, 'ikk_id', nilIkk, { a: 'capaian', b: 'realisasi' });
+    const indSekt = indMap(indSektR, 'sektoral_id', nilSekt, { a: 'data', b: null });
+
+    const ikkMap = new Map(ikks.map(i => [String(i.id), { id: i.id, nama: i.nama, indikator: indIkk.get(String(i.id)) || [] }]));
+    const ikuMap = new Map(ikus.map(i => [String(i.id), { id: i.id, nama: i.nama, ikks: [], indikator: indIku.get(String(i.id)) || [] }]));
+    for (const i of ikks) { const p = ikuMap.get(String(i.iku_id)); if (p) p.ikks.push(ikkMap.get(String(i.id))); }
+
+    const sektMap = new Map(sektorals.map(s => [String(s.id), { id: s.id, nama: s.nama, indikator: indSekt.get(String(s.id)) || [] }]));
+    const opdMap = new Map(opds.map(o => [String(o.id), { id: o.id, nama: o.nama, ikus: [], sektorals: [] }]));
+    for (const i of ikus) { const p = opdMap.get(String(i.opd_id)); if (p) p.ikus.push(ikuMap.get(String(i.id))); }
+    for (const s of sektorals) { const p = opdMap.get(String(s.opd_id)); if (p) p.sektorals.push(sektMap.get(String(s.id))); }
+
     const tree = bidangs.map(b => ({ ...b, opds: [] }));
-    const opdMap = new Map();
-    for (const o of opds) {
-      const node = { ...o, ikus: [] };
-      opdMap.set(String(o.id), node);
-      const bid = tree.find(b => String(b.id) === String(o.bidang_id));
-      if (bid) bid.opds.push(node);
-    }
-    const ikuMap = new Map();
-    for (const i of ikus) {
-      const node = { ...i, ikks: [] };
-      ikuMap.set(String(i.id), node);
-      const opd = opdMap.get(String(i.opd_id));
-      if (opd) opd.ikus.push(node);
-    }
-    const ikkMap = new Map();
-    for (const i2 of ikks) {
-      const node = { ...i2, details: [] };
-      ikkMap.set(String(i2.id), node);
-      const iku = ikuMap.get(String(i2.iku_id));
-      if (iku) iku.ikks.push(node);
-    }
-    for (const d of details) {
-      const ikk = ikkMap.get(String(d.ikk_id));
-      if (ikk) ikk.details.push(d);
-    }
+    for (const o of opds) { const b = tree.find(x => String(x.id) === String(o.bidang_id)); if (b) b.opds.push(opdMap.get(String(o.id))); }
 
     res.json(tree);
   } catch (err) {
@@ -1336,6 +1472,7 @@ app.get('/api/bankdata', async (_, res) => {
   }
 });
 
+// ── OPD ─────────────────────────────────────────────────────────────────
 app.post('/api/bankdata/opd', async (req, res) => {
   const { bidang_id, nama } = req.body;
   if (!bidang_id || !nama) return res.status(400).json({ error: 'Bidang dan nama wajib diisi' });
@@ -1376,6 +1513,7 @@ app.delete('/api/bankdata/opd/:id', async (req, res) => {
   }
 });
 
+// ── IKU ──────────────────────────────────────────────────────────────────
 app.post('/api/bankdata/iku', async (req, res) => {
   const { opd_id, nama } = req.body;
   if (!opd_id || !nama) return res.status(400).json({ error: 'OPD dan nama wajib diisi' });
@@ -1416,6 +1554,7 @@ app.delete('/api/bankdata/iku/:id', async (req, res) => {
   }
 });
 
+// ── IKK ──────────────────────────────────────────────────────────────────
 app.post('/api/bankdata/ikk', async (req, res) => {
   const { iku_id, nama } = req.body;
   if (!iku_id || !nama) return res.status(400).json({ error: 'IKU dan nama wajib diisi' });
@@ -1456,49 +1595,140 @@ app.delete('/api/bankdata/ikk/:id', async (req, res) => {
   }
 });
 
-app.post('/api/bankdata/detail', async (req, res) => {
-  const { ikk_id, indikator, data, sumber_data, aspek, tahun } = req.body;
-  if (!ikk_id || !indikator) return res.status(400).json({ error: 'IKK dan indikator wajib diisi' });
+// ── Data Sektoral (setara IKU) ───────────────────────────────────────────
+app.post('/api/bankdata/sektoral', async (req, res) => {
+  const { opd_id, nama } = req.body;
+  if (!opd_id || !nama) return res.status(400).json({ error: 'OPD dan nama wajib diisi' });
   try {
-    const max = await queryDB('SELECT COALESCE(MAX(urutan), 0) + 1 AS next FROM bank_data_detail WHERE ikk_id = $1', [ikk_id]);
+    const max = await queryDB('SELECT COALESCE(MAX(urutan), 0) + 1 AS next FROM bank_data_sektoral WHERE opd_id = $1', [opd_id]);
     const result = await queryDB(
-      `INSERT INTO bank_data_detail (ikk_id, indikator, data, sumber_data, aspek, tahun, urutan)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [ikk_id, indikator.trim(), data ?? null, sumber_data ?? null, aspek ?? null, tahun ?? null, max[0].next]
+      'INSERT INTO bank_data_sektoral (opd_id, nama, urutan) VALUES ($1, $2, $3) RETURNING *',
+      [opd_id, nama.trim(), max[0].next]
     );
-    res.json({ message: 'Detail berhasil ditambahkan', detail: result[0] });
+    res.json({ message: 'Data Sektoral berhasil ditambahkan', sektoral: result[0] });
   } catch (err) {
-    console.error('Create detail error:', err);
-    res.status(500).json({ error: 'Gagal menambahkan detail' });
+    console.error('Create sektoral error:', err);
+    res.status(500).json({ error: 'Gagal menambahkan data sektoral' });
   }
 });
 
-app.put('/api/bankdata/detail/:id', async (req, res) => {
+app.put('/api/bankdata/sektoral/:id', async (req, res) => {
   const { id } = req.params;
-  const { indikator, data, sumber_data, aspek, tahun } = req.body;
+  const { nama } = req.body;
+  if (!nama) return res.status(400).json({ error: 'Nama wajib diisi' });
+  try {
+    await queryDB('UPDATE bank_data_sektoral SET nama = $1 WHERE id = $2', [nama.trim(), id]);
+    res.json({ message: 'Data Sektoral berhasil diperbarui' });
+  } catch (err) {
+    console.error('Update sektoral error:', err);
+    res.status(500).json({ error: 'Gagal memperbarui data sektoral' });
+  }
+});
+
+app.delete('/api/bankdata/sektoral/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await queryDB('DELETE FROM bank_data_sektoral WHERE id = $1', [id]);
+    res.json({ message: 'Data Sektoral berhasil dihapus' });
+  } catch (err) {
+    console.error('Delete sektoral error:', err);
+    res.status(500).json({ error: 'Gagal menghapus data sektoral' });
+  }
+});
+
+// ── Indikator (generic untuk iku / ikk / sektoral) ───────────────────────
+app.post('/api/bankdata/indikator/:level', async (req, res) => {
+  const { level } = req.params;
+  const conf = BD_CONF[level];
+  if (!conf) return res.status(400).json({ error: 'Level tidak dikenal' });
+  const { indikator, sumber_data, aspek } = req.body;
+  const parentId = req.body[conf.indParentKey];
+  if (!parentId || !indikator) return res.status(400).json({ error: 'Indikator wajib diisi' });
+  try {
+    const max = await queryDB(`SELECT COALESCE(MAX(urutan), 0) + 1 AS next FROM ${conf.indTable} WHERE ${conf.indParentKey} = $1`, [parentId]);
+    const result = await queryDB(
+      `INSERT INTO ${conf.indTable} (${conf.indParentKey}, indikator, sumber_data, aspek, urutan)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [parentId, indikator.trim(), sumber_data ?? null, aspek ?? null, max[0].next]
+    );
+    res.json({ message: 'Indikator berhasil ditambahkan', indikator: result[0] });
+  } catch (err) {
+    console.error('Create indikator error:', err);
+    res.status(500).json({ error: 'Gagal menambahkan indikator' });
+  }
+});
+
+app.put('/api/bankdata/indikator/:level/:id', async (req, res) => {
+  const { level, id } = req.params;
+  const conf = BD_CONF[level];
+  if (!conf) return res.status(400).json({ error: 'Level tidak dikenal' });
+  const { indikator, sumber_data, aspek } = req.body;
   if (!indikator) return res.status(400).json({ error: 'Indikator wajib diisi' });
   try {
     await queryDB(
-      `UPDATE bank_data_detail
-       SET indikator = $1, data = $2, sumber_data = $3, aspek = $4, tahun = $5, updated_at = NOW()
-       WHERE id = $6`,
-      [indikator.trim(), data ?? null, sumber_data ?? null, aspek ?? null, tahun ?? null, id]
+      `UPDATE ${conf.indTable} SET indikator = $1, sumber_data = $2, aspek = $3 WHERE id = $4`,
+      [indikator.trim(), sumber_data ?? null, aspek ?? null, id]
     );
-    res.json({ message: 'Detail berhasil diperbarui' });
+    res.json({ message: 'Indikator berhasil diperbarui' });
   } catch (err) {
-    console.error('Update detail error:', err);
-    res.status(500).json({ error: 'Gagal memperbarui detail' });
+    console.error('Update indikator error:', err);
+    res.status(500).json({ error: 'Gagal memperbarui indikator' });
   }
 });
 
-app.delete('/api/bankdata/detail/:id', async (req, res) => {
-  const { id } = req.params;
+app.delete('/api/bankdata/indikator/:level/:id', async (req, res) => {
+  const { level, id } = req.params;
+  const conf = BD_CONF[level];
+  if (!conf) return res.status(400).json({ error: 'Level tidak dikenal' });
   try {
-    await queryDB('DELETE FROM bank_data_detail WHERE id = $1', [id]);
-    res.json({ message: 'Detail berhasil dihapus' });
+    await queryDB(`DELETE FROM ${conf.indTable} WHERE id = $1`, [id]);
+    res.json({ message: 'Indikator berhasil dihapus' });
   } catch (err) {
-    console.error('Delete detail error:', err);
-    res.status(500).json({ error: 'Gagal menghapus detail' });
+    console.error('Delete indikator error:', err);
+    res.status(500).json({ error: 'Gagal menghapus indikator' });
+  }
+});
+
+// ── Nilai per tahun (generic untuk iku / ikk / sektoral) ─────────────────
+app.post('/api/bankdata/nilai/:level', async (req, res) => {
+  const { level } = req.params;
+  const conf = BD_CONF[level];
+  if (!conf) return res.status(400).json({ error: 'Level tidak dikenal' });
+  const { indikator_id, tahun, valA, valB } = req.body;
+  if (!indikator_id || !tahun) return res.status(400).json({ error: 'Indikator dan tahun wajib diisi' });
+  try {
+    if (level === 'sektoral') {
+      await queryDB(
+        `INSERT INTO ${conf.nilTable} (indikator_id, tahun, data)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (indikator_id, tahun) DO UPDATE SET data = $3`,
+        [indikator_id, tahun, valA ?? null]
+      );
+    } else {
+      await queryDB(
+        `INSERT INTO ${conf.nilTable} (indikator_id, tahun, ${conf.valA}, ${conf.valB})
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (indikator_id, tahun) DO UPDATE SET ${conf.valA} = $3, ${conf.valB} = $4`,
+        [indikator_id, tahun, valA ?? null, valB ?? null]
+      );
+    }
+    res.json({ message: 'Nilai berhasil disimpan' });
+  } catch (err) {
+    console.error('Upsert nilai error:', err);
+    res.status(500).json({ error: 'Gagal menyimpan nilai' });
+  }
+});
+
+app.delete('/api/bankdata/nilai/:level/:id', async (req, res) => {
+  const { level, id } = req.params;
+  const conf = BD_CONF[level];
+  if (!conf) return res.status(400).json({ error: 'Level tidak dikenal' });
+  try {
+    await queryDB(`DELETE FROM ${conf.nilTable} WHERE id = $1`, [id]);
+    res.json({ message: 'Nilai berhasil dihapus' });
+  } catch (err) {
+    console.error('Delete nilai error:', err);
+    res.status(500).json({ error: 'Gagal menghapus nilai' });
   }
 });
 
