@@ -1,4 +1,4 @@
-import { useState, useContext, Fragment } from "react";
+import { useState, useContext, Fragment, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Icon } from "./ui.jsx";
 import useResponsive from "../useResponsive.js";
@@ -24,8 +24,10 @@ export default function BankData({ showToast }) {
   });
 
   const [expanded, setExpanded] = useState({});
+  const [activeBidang, setActiveBidang] = useState(null);
   const [newTahun, setNewTahun] = useState("");
   const [form, setForm] = useState(null); // { level, parentId, type, editId, values }
+  const [ensureDone, setEnsureDone] = useState({}); // opd_id -> true setelah sektoral default dipastikan
 
   const reload = () => {
     queryClient.invalidateQueries({ queryKey: ['bankdata'] });
@@ -130,151 +132,20 @@ export default function BankData({ showToast }) {
         </div>
       </div>
 
-      {/* Tree */}
-      {tree.map(b => (
-        <div key={b.id} style={{ background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, marginBottom: 8, overflow: "hidden" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", cursor: "pointer" }}
-            onClick={() => toggle(`b${b.id}`)}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <Icon name="building" size={16} style={{ color: T.primary }} />
-              <div>
-                <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{b.nama}</span>
-                <span style={{ fontSize: 11, color: T.textMuted, marginLeft: 8 }}>{b.opds.length} OPD</span>
-              </div>
-            </div>
-            <Icon name="chevronRight" size={14} style={{ color: T.textMuted, transform: expanded[`b${b.id}`] ? "rotate(90deg)" : "", transition: "transform .2s" }} />
-          </div>
-
-          {expanded[`b${b.id}`] && (
-            <div style={{ borderTop: `1px solid ${T.border}`, padding: 12 }}>
-              {/* Tambah OPD */}
-              <InlineEntityAdd label="Tambah OPD" show={form && form.level === "opd" && form.parentId === b.id && !form.editId}
-                onOpen={() => openFormForEntity("opd", b.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
-                title="OPD baru" fields={[{ k: "nama", label: "Nama OPD" }]} submit={async () => {
-                  const body = { bidang_id: b.id, nama: (form.values.nama || "").trim() };
-                  if (!body.nama) return showToast("Nama OPD wajib diisi");
-                  const res = await fetch('/api/bankdata/opd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                  if (!res.ok) return showToast((await res.json()).error);
-                  setForm(null); reload(); showToast("OPD ditambahkan");
-                }} />
-
-              {b.opds.map(o => (
-                <div key={o.id} style={{ marginBottom: 8 }}>
-                  <EntityHead level="opd" node={o} expandedKey={`o${o.id}`} expanded={expanded[`o${o.id}`]} onToggle={() => toggle(`o${o.id}`)}
-                    extraCount={`${o.ikus.length} IKU · ${o.sektorals.length} DS`}
-                    onEdit={() => openFormForEntity("opd", b.id, o.id, { nama: o.nama })}
-                    onDel={() => delEntity("opd", o.id, o.nama, "OPD")} T={T} />
-
-                  {expanded[`o${o.id}`] && (
-                    <div style={{ padding: "4px 0 8px 18px", borderLeft: `1px solid ${T.border}`, marginLeft: 18 }}>
-                      {/* Data Sektoral */}
-                      <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, margin: "10px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
-                        <Icon name="chart" size={13} style={{ color: T.primary }} /> DATA SEKTORAL
-                      </div>
-                      <InlineEntityAdd label="Tambah Data Sektoral" show={form && form.level === "sektoral-ent" && form.parentId === o.id && !form.editId}
-                        onOpen={() => openFormForEntity("sektoral-ent", o.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
-                        title="Data Sektoral baru" fields={[{ k: "nama", label: "Nama Data Sektoral" }]} submit={async () => {
-                          const body = { opd_id: o.id, nama: (form.values.nama || "").trim() };
-                          if (!body.nama) return showToast("Nama wajib diisi");
-                          const res = await fetch('/api/bankdata/sektoral', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                          if (!res.ok) return showToast((await res.json()).error);
-                          setForm(null); reload(); showToast("Data Sektoral ditambahkan");
-                        }} />
-                      {o.sektorals.map(s => (
-                        <div key={s.id} style={{ marginBottom: 8 }}>
-                          <EntityHead level="sektoral" node={s} expandedKey={`s${s.id}`} expanded={expanded[`s${s.id}`]} onToggle={() => toggle(`s${s.id}`)}
-                            extraCount={`${s.indikator.length} indikator`}
-                            onEdit={() => openFormForEntity("sektoral-ent", o.id, s.id, { nama: s.nama })}
-                            onDel={() => delEntity("sektoral", s.id, s.nama, "Data Sektoral")} T={T} />
-                          {expanded[`s${s.id}`] && (
-                            <div style={{ padding: "4px 0 8px 18px", borderLeft: `1px solid ${T.border}`, marginLeft: 18 }}>
-                              <IndikatorPanel level="sektoral" parentId={s.id} parentLabel="Data Sektoral"
-                                list={s.indikator} tahunList={keys} form={form} setForm={setForm} openForm={openForm} cancelForm={cancelForm} submitIndikator={submitIndikator}
-                                onSaveNilai={(indId, tahun, valA, valB) => saveNilai("sektoral", indId, tahun, valA, valB)}
-                                onSaveTw={(indId, tahun, tw) => saveTriwulan("sektoral", indId, tahun, tw)}
-                                onDelInd={(id, nama) => delIndikator("sektoral", id, nama)} T={T} />
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                      {o.sektorals.length === 0 && <div style={{ fontSize: 12, color: T.textMuted, padding: "4px 2px 8px" }}>Belum ada data sektoral.</div>}
-
-                      {/* IKU */}
-                      <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, margin: "10px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
-                        <Icon name="layers" size={13} style={{ color: T.primary }} /> IKU (INDIKATOR KINERJA UTAMA)
-                      </div>
-                      <InlineEntityAdd label="Tambah IKU" show={form && form.level === "iku" && form.parentId === o.id && !form.editId}
-                        onOpen={() => openFormForEntity("iku", o.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
-                        title="IKU baru" fields={[{ k: "nama", label: "Nama IKU" }]} submit={async () => {
-                          const body = { opd_id: o.id, nama: (form.values.nama || "").trim() };
-                          if (!body.nama) return showToast("Nama IKU wajib diisi");
-                          const res = await fetch('/api/bankdata/iku', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                          if (!res.ok) return showToast((await res.json()).error);
-                          setForm(null); reload(); showToast("IKU ditambahkan");
-                        }} />
-
-                      {o.ikus.map(iku => (
-                        <div key={iku.id} style={{ marginBottom: 8 }}>
-                          <EntityHead level="iku" node={iku} expandedKey={`i${iku.id}`} expanded={expanded[`i${iku.id}`]} onToggle={() => toggle(`i${iku.id}`)}
-                            extraCount={ikusDesc(iku)}
-                            onEdit={() => openFormForEntity("iku", o.id, iku.id, { nama: iku.nama })}
-                            onDel={() => delEntity("iku", iku.id, iku.nama, "IKU")} T={T} />
-
-                          {expanded[`i${iku.id}`] && (
-                            <div style={{ padding: "4px 0 8px 18px", borderLeft: `1px solid ${T.border}`, marginLeft: 18 }}>
-                              {/* Indikator IKU */}
-                              <IndikatorPanel level="iku" parentId={iku.id} parentLabel="IKU"
-                                list={iku.indikator} tahunList={keys} form={form} setForm={setForm} openForm={openForm} cancelForm={cancelForm} submitIndikator={submitIndikator}
-                                onSaveNilai={(indId, tahun, valA, valB) => saveNilai("iku", indId, tahun, valA, valB)}
-                                onSaveTw={(indId, tahun, tw) => saveTriwulan("iku", indId, tahun, tw)}
-                                onDelInd={(id, nama) => delIndikator("iku", id, nama)} T={T} />
-
-                              {/* IKK di bawah IKU */}
-                              <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, margin: "10px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
-                                <Icon name="list" size={13} style={{ color: T.primary }} /> IKK (INDIKATOR KINERJA KUNCI)
-                              </div>
-                              <InlineEntityAdd label="Tambah IKK" show={form && form.level === "ikk" && form.parentId === iku.id && !form.editId}
-                                onOpen={() => openFormForEntity("ikk", iku.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
-                                title="IKK baru" fields={[{ k: "nama", label: "Nama IKK" }]} submit={async () => {
-                                  const body = { iku_id: iku.id, nama: (form.values.nama || "").trim() };
-                                  if (!body.nama) return showToast("Nama IKK wajib diisi");
-                                  const res = await fetch('/api/bankdata/ikk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                                  if (!res.ok) return showToast((await res.json()).error);
-                                  setForm(null); reload(); showToast("IKK ditambahkan");
-                                }} />
-
-                              {iku.ikks.map(ikk => (
-                                <div key={ikk.id} style={{ marginBottom: 8 }}>
-                                  <EntityHead level="ikk" node={ikk} expandedKey={`k${ikk.id}`} expanded={expanded[`k${ikk.id}`]} onToggle={() => toggle(`k${ikk.id}`)}
-                                    extraCount={`${ikk.indikator.length} indikator`}
-                                    onEdit={() => openFormForEntity("ikk", iku.id, ikk.id, { nama: ikk.nama })}
-                                    onDel={() => delEntity("ikk", ikk.id, ikk.nama, "IKK")} T={T} />
-                                  {expanded[`k${ikk.id}`] && (
-                                    <div style={{ padding: "4px 0 8px 18px", borderLeft: `1px solid ${T.border}`, marginLeft: 18 }}>
-                                      <IndikatorPanel level="ikk" parentId={ikk.id} parentLabel="IKK"
-                                        list={ikk.indikator} tahunList={keys} form={form} setForm={setForm} openForm={openForm} cancelForm={cancelForm} submitIndikator={submitIndikator}
-                                        onSaveNilai={(indId, tahun, valA, valB) => saveNilai("ikk", indId, tahun, valA, valB)}
-                                        onSaveTw={(indId, tahun, tw) => saveTriwulan("ikk", indId, tahun, tw)}
-                                        onDelInd={(id, nama) => delIndikator("ikk", id, nama)} T={T} />
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                              {iku.ikks.length === 0 && <div style={{ fontSize: 12, color: T.textMuted, padding: "4px 2px 8px" }}>Belum ada IKK.</div>}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                      {o.ikus.length === 0 && <div style={{ fontSize: 12, color: T.textMuted, padding: "4px 2px 8px" }}>Belum ada IKU.</div>}
-                    </div>
-                  )}
-                </div>
-              ))}
-              {b.opds.length === 0 && <div style={{ fontSize: 12, color: T.textMuted, padding: "4px 2px 8px" }}>Belum ada OPD.</div>}
-            </div>
-          )}
-        </div>
-      ))}
+      {!activeBidang ? (
+        <BidangList tree={tree} onSelect={setActiveBidang} icons={{ building: "building" }} T={T} />
+      ) : (
+        <BidangDetail
+          bidang={tree.find(b => String(b.id) === String(activeBidang))}
+          onBack={() => setActiveBidang(null)}
+          form={form} setForm={setForm} expanded={expanded} toggle={toggle}
+          ikusDesc={ikusDesc} openForm={openForm} cancelForm={cancelForm} submitIndikator={submitIndikator}
+          reload={reload} setEnsureDone={setEnsureDone} ensureDone={ensureDone}
+          saveNilai={saveNilai} saveTriwulan={saveTriwulan}
+          delEntity={delEntity} delIndikator={delIndikator} openFormForEntity={openFormForEntity}
+          tahunList={keys} showToast={showToast} T={T}
+        />
+      )}
 
       {tree.length === 0 && (
         <div style={{ background: T.card, borderRadius: 12, padding: 40, border: `1px solid ${T.border}`, textAlign: "center", color: T.textMuted, fontSize: 13 }}>
@@ -574,4 +445,221 @@ function NilaiTable({ level, ind, conf, tahunList, onSave, onSaveTw, T }) {
       </tbody>
     </table>
   );
+}
+
+/* ── Daftar bidang koordinasi (drill-down admin) ───────────────────────── */
+function BidangList({ tree, onSelect, T }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px,1fr))", gap: 12 }}>
+      {tree.map(b => {
+        const indCount = b.opds.reduce((s, o) =>
+          s + o.sektorals.reduce((x, q) => x + q.indikator.length, 0) +
+          o.ikus.reduce((x, i) => x + i.indikator.length + i.ikks.reduce((y, k) => y + k.indikator.length, 0), 0), 0);
+        return (
+          <button key={b.id} onClick={() => onSelect(b.id)} style={{
+            textAlign: "left", background: T.card, borderRadius: 12, border: `1px solid ${T.border}`,
+            padding: 16, cursor: "pointer", transition: "border-color .15s",
+          }} onMouseEnter={e => e.currentTarget.style.borderColor = T.primary}
+            onMouseLeave={e => e.currentTarget.style.borderColor = T.border}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <Icon name="building" size={16} style={{ color: T.primary }} />
+              <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{b.nama}</span>
+            </div>
+            <div style={{ fontSize: 12, color: T.textSecondary }}>
+              {b.opds.length} OPD · {indCount} indikator
+            </div>
+            <div style={{ marginTop: 10, fontSize: 12, fontWeight: 600, color: T.primary }}>Kelola →</div>
+          </button>
+        );
+      })}
+      {tree.length === 0 && (
+        <div style={{ background: T.card, borderRadius: 12, padding: 24, color: T.textMuted, fontSize: 13, border: `1px solid ${T.border}` }}>
+          Belum ada bidang koordinasi.
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Detail satu bidang (isi OPD + IKU/IKK + Data Sektoral flat) ───────── */
+function BidangDetail(props) {
+  const {
+    bidang, onBack, form, setForm, expanded, toggle, ikusDesc,
+    openForm, cancelForm, submitIndikator, reload, setEnsureDone, ensureDone,
+    saveNilai, saveTriwulan, delEntity, delIndikator, openFormForEntity,
+    tahunList, showToast, T,
+  } = props;
+
+  if (!bidang) {
+    return (
+      <div style={{ background: T.card, borderRadius: 12, padding: 24, color: T.textMuted, fontSize: 13, border: `1px solid ${T.border}` }}>
+        Bidang tidak ditemukan. <button onClick={onBack} style={{ color: T.primary, background: "none", border: "none", cursor: "pointer" }}>Kembali</button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: T.surfaceHover, border: `1px solid ${T.border}`, color: T.textSecondary, borderRadius: 8, padding: "7px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+          <Icon name="chevronRight" size={13} style={{ transform: "rotate(180deg)" }} /> Kembali ke Bidang
+        </button>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <Icon name="building" size={18} style={{ color: T.primary }} />
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{bidang.nama}</div>
+          <div style={{ fontSize: 12, color: T.textSecondary }}>{bidang.opds.length} OPD pada bidang koordinasi ini</div>
+        </div>
+      </div>
+
+      <InlineEntityAdd label="Tambah OPD" show={form && form.level === "opd" && form.parentId === bidang.id && !form.editId}
+        onOpen={() => openFormForEntity("opd", bidang.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
+        title="OPD baru" fields={[{ k: "nama", label: "Nama OPD" }]} submit={async () => {
+          const body = { bidang_id: bidang.id, nama: (form.values.nama || "").trim() };
+          if (!body.nama) return showToast("Nama OPD wajib diisi");
+          const res = await fetch('/api/bankdata/opd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+          if (!res.ok) return showToast((await res.json()).error);
+          setForm(null); reload(); showToast("OPD ditambahkan");
+        }} />
+
+      {bidang.opds.map(o => (
+        <div key={o.id} style={{ marginBottom: 8 }}>
+          <EntityHead level="opd" node={o} expandedKey={`o${o.id}`} expanded={expanded[`o${o.id}`]} onToggle={() => toggle(`o${o.id}`)}
+            extraCount={`${o.ikus.length} IKU · ${o.sektorals.length} DS`}
+            onEdit={() => openFormForEntity("opd", bidang.id, o.id, { nama: o.nama })}
+            onDel={() => delEntity("opd", o.id, o.nama, "OPD")} T={T} />
+
+          {expanded[`o${o.id}`] && (
+            <OpdContent
+              o={o} form={form} setForm={setForm} expanded={expanded} toggle={toggle}
+              ikusDesc={ikusDesc} openForm={openForm} cancelForm={cancelForm} submitIndikator={submitIndikator}
+              reload={reload} ensureDone={ensureDone} setEnsureDone={setEnsureDone} saveNilai={saveNilai} saveTriwulan={saveTriwulan}
+              delEntity={delEntity} delIndikator={delIndikator} openFormForEntity={openFormForEntity}
+              tahunList={tahunList} showToast={showToast} T={T}
+            />
+          )}
+        </div>
+      ))}
+
+      {bidang.opds.length === 0 && (
+        <div style={{ fontSize: 12, color: T.textMuted, padding: "6px 2px" }}>Belum ada OPD pada bidang ini.</div>
+      )}
+    </div>
+  );
+}
+
+/* ── Isi OPD: Data Sektoral (flat) + IKU/IKK ───────────────────────────── */
+function OpdContent(props) {
+  const {
+    o, form, setForm, expanded, toggle, ikusDesc,
+    openForm, cancelForm, submitIndikator, reload, ensureDone, setEnsureDone,
+    saveNilai, saveTriwulan, delEntity, delIndikator, openFormForEntity,
+    tahunList, showToast, T,
+  } = props;
+
+  const ds = o.sektorals[0];
+
+  useEffect(() => {
+    if (o.sektorals.length === 0) { ensureSektoralNow(o.id, ensureDone, setEnsureDone, reload, showToast); }
+  }, [o.id]);
+
+  return (
+    <div style={{ padding: "4px 0 8px 18px", borderLeft: `1px solid ${T.border}`, marginLeft: 18 }}>
+      {/* Data Sektoral — flat, indikator langsung */}
+      <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, margin: "10px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
+        <Icon name="chart" size={13} style={{ color: T.primary }} /> DATA SEKTORAL
+        <span style={{ fontSize: 10, fontWeight: 400, color: T.textMuted }}>(indikator langsung di OPD)</span>
+      </div>
+      {ds ? (
+        <IndikatorPanel level="sektoral" parentId={ds.id} parentLabel="Data Sektoral"
+          list={ds.indikator} tahunList={tahunList} form={form} setForm={setForm} openForm={openForm} cancelForm={cancelForm} submitIndikator={submitIndikator}
+          onSaveNilai={(indId, tahun, valA, valB) => saveNilai("sektoral", indId, tahun, valA, valB)}
+          onSaveTw={(indId, tahun, tw) => saveTriwulan("sektoral", indId, tahun, tw)}
+          onDelInd={(id, nama) => delIndikator("sektoral", id, nama)} T={T} />
+      ) : (
+        <div style={{ fontSize: 12, color: T.textMuted, padding: "4px 2px 8px" }}>Menyiapkan Data Sektoral...</div>
+      )}
+
+      {/* IKU */}
+      <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, margin: "10px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
+        <Icon name="layers" size={13} style={{ color: T.primary }} /> IKU (INDIKATOR KINERJA UTAMA)
+      </div>
+      <InlineEntityAdd label="Tambah IKU" show={form && form.level === "iku" && form.parentId === o.id && !form.editId}
+        onOpen={() => openFormForEntity("iku", o.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
+        title="IKU baru" fields={[{ k: "nama", label: "Nama IKU" }]} submit={async () => {
+          const body = { opd_id: o.id, nama: (form.values.nama || "").trim() };
+          if (!body.nama) return showToast("Nama IKU wajib diisi");
+          const res = await fetch('/api/bankdata/iku', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+          if (!res.ok) return showToast((await res.json()).error);
+          setForm(null); reload(); showToast("IKU ditambahkan");
+        }} />
+
+      {o.ikus.map(iku => (
+        <div key={iku.id} style={{ marginBottom: 8 }}>
+          <EntityHead level="iku" node={iku} expandedKey={`i${iku.id}`} expanded={expanded[`i${iku.id}`]} onToggle={() => toggle(`i${iku.id}`)}
+            extraCount={ikusDesc(iku)}
+            onEdit={() => openFormForEntity("iku", o.id, iku.id, { nama: iku.nama })}
+            onDel={() => delEntity("iku", iku.id, iku.nama, "IKU")} T={T} />
+
+          {expanded[`i${iku.id}`] && (
+            <div style={{ padding: "4px 0 8px 18px", borderLeft: `1px solid ${T.border}`, marginLeft: 18 }}>
+              <IndikatorPanel level="iku" parentId={iku.id} parentLabel="IKU"
+                list={iku.indikator} tahunList={tahunList} form={form} setForm={setForm} openForm={openForm} cancelForm={cancelForm} submitIndikator={submitIndikator}
+                onSaveNilai={(indId, tahun, valA, valB) => saveNilai("iku", indId, tahun, valA, valB)}
+                onSaveTw={(indId, tahun, tw) => saveTriwulan("iku", indId, tahun, tw)}
+                onDelInd={(id, nama) => delIndikator("iku", id, nama)} T={T} />
+
+              <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, margin: "10px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
+                <Icon name="list" size={13} style={{ color: T.primary }} /> IKK (INDIKATOR KINERJA KUNCI)
+              </div>
+              <InlineEntityAdd label="Tambah IKK" show={form && form.level === "ikk" && form.parentId === iku.id && !form.editId}
+                onOpen={() => openFormForEntity("ikk", iku.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
+                title="IKK baru" fields={[{ k: "nama", label: "Nama IKK" }]} submit={async () => {
+                  const body = { iku_id: iku.id, nama: (form.values.nama || "").trim() };
+                  if (!body.nama) return showToast("Nama IKK wajib diisi");
+                  const res = await fetch('/api/bankdata/ikk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                  if (!res.ok) return showToast((await res.json()).error);
+                  setForm(null); reload(); showToast("IKK ditambahkan");
+                }} />
+
+              {iku.ikks.map(ikk => (
+                <div key={ikk.id} style={{ marginBottom: 8 }}>
+                  <EntityHead level="ikk" node={ikk} expandedKey={`k${ikk.id}`} expanded={expanded[`k${ikk.id}`]} onToggle={() => toggle(`k${ikk.id}`)}
+                    extraCount={`${ikk.indikator.length} indikator`}
+                    onEdit={() => openFormForEntity("ikk", iku.id, ikk.id, { nama: ikk.nama })}
+                    onDel={() => delEntity("ikk", ikk.id, ikk.nama, "IKK")} T={T} />
+                  {expanded[`k${ikk.id}`] && (
+                    <div style={{ padding: "4px 0 8px 18px", borderLeft: `1px solid ${T.border}`, marginLeft: 18 }}>
+                      <IndikatorPanel level="ikk" parentId={ikk.id} parentLabel="IKK"
+                        list={ikk.indikator} tahunList={tahunList} form={form} setForm={setForm} openForm={openForm} cancelForm={cancelForm} submitIndikator={submitIndikator}
+                        onSaveNilai={(indId, tahun, valA, valB) => saveNilai("ikk", indId, tahun, valA, valB)}
+                        onSaveTw={(indId, tahun, tw) => saveTriwulan("ikk", indId, tahun, tw)}
+                        onDelInd={(id, nama) => delIndikator("ikk", id, nama)} T={T} />
+                    </div>
+                  )}
+                </div>
+              ))}
+              {iku.ikks.length === 0 && <div style={{ fontSize: 12, color: T.textMuted, padding: "4px 2px 8px" }}>Belum ada IKK.</div>}
+            </div>
+          )}
+        </div>
+      ))}
+      {o.ikus.length === 0 && <div style={{ fontSize: 12, color: T.textMuted, padding: "4px 2px 8px" }}>Belum ada IKU.</div>}
+    </div>
+  );
+}
+
+async function ensureSektoralNow(opdId, ensureDone, setEnsureDone, reload, showToast) {
+  if (ensureDone[opdId]) return;
+  const res = await fetch('/api/bankdata/sektoral/ensure', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ opd_id: opdId })
+  });
+  if (res.ok) {
+    setEnsureDone(d => ({ ...d, [opdId]: true }));
+    reload();
+  } else if (showToast) {
+    showToast((await res.json()).error);
+  }
 }

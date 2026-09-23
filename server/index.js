@@ -1691,6 +1691,26 @@ app.delete('/api/bankdata/sektoral/:id', async (req, res) => {
   }
 });
 
+// Pastikan tiap OPD punya 1 Data Sektoral default (indikator sektoral flat di OPD)
+app.post('/api/bankdata/sektoral/ensure', async (req, res) => {
+  const { opd_id } = req.body;
+  if (!opd_id) return res.status(400).json({ error: 'OPD wajib diisi' });
+  try {
+    let rows = await queryDB('SELECT * FROM bank_data_sektoral WHERE opd_id = $1 ORDER BY urutan, id LIMIT 1', [opd_id]);
+    if (rows.length === 0) {
+      const result = await queryDB(
+        'INSERT INTO bank_data_sektoral (opd_id, nama, urutan) VALUES ($1, $2, $3) RETURNING *',
+        [opd_id, 'Data Sektoral', 1]
+      );
+      rows = result;
+    }
+    res.json({ sektoral: rows[0] });
+  } catch (err) {
+    console.error('Ensure sektoral error:', err);
+    res.status(500).json({ error: 'Gagal menyiapkan data sektoral' });
+  }
+});
+
 // ── Indikator (generic untuk iku / ikk / sektoral) ───────────────────────
 app.post('/api/bankdata/indikator/:level', async (req, res) => {
   const { level } = req.params;
