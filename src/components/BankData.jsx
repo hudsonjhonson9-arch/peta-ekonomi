@@ -28,6 +28,7 @@ export default function BankData({ showToast }) {
   const [newTahun, setNewTahun] = useState("");
   const [form, setForm] = useState(null); // { level, parentId, type, editId, values }
   const [ensureDone, setEnsureDone] = useState({}); // opd_id -> true setelah sektoral default dipastikan
+  const [q, setQ] = useState("");
 
   const reload = () => {
     queryClient.invalidateQueries({ queryKey: ['bankdata'] });
@@ -70,19 +71,19 @@ export default function BankData({ showToast }) {
     setForm(null); reload(); showToast(form.editId ? "Indikator diperbarui" : "Indikator ditambahkan");
   };
 
-  const saveNilai = async (level, indikatorId, tahun, valA, valB) => {
+  const saveNilai = async (level, targetId, tahun, valA, valB) => {
     const res = await fetch(`/api/bankdata/nilai/${level}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ indikator_id: indikatorId, tahun, valA, valB })
+      body: JSON.stringify({ target_id: targetId, tahun, valA, valB })
     });
     if (!res.ok) return showToast((await res.json()).error);
     reload();
   };
 
-  const saveTriwulan = async (level, indikatorId, tahun, tw) => {
+  const saveTriwulan = async (level, targetId, tahun, tw) => {
     const res = await fetch(`/api/bankdata/triwulan/${level}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ indikator_id: indikatorId, tahun, tw })
+      body: JSON.stringify({ target_id: targetId, tahun, tw })
     });
     if (!res.ok) return showToast((await res.json()).error);
     reload();
@@ -97,20 +98,28 @@ export default function BankData({ showToast }) {
 
   if (isLoading) return <div style={{ padding: 40, textAlign: "center", color: T.textMuted, fontSize: 13 }}>Memuat data...</div>;
 
-  const ikusDesc = (iku) => `${iku.indikator.length} indikator${iku.ikks.some(k => k.indikator.length) ? `, ${iku.ikks.reduce((s, k) => s + k.indikator.length, 0)} IKK` : ""}`;
+  const ikusDesc = (iku) => `${iku.ikks.length} IKK`;
 
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: T.text }}>Bank Data</div>
-        <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>Input terarah: Bidang → OPD → IKU → IKK, dan Data Sektoral per OPD</div>
+        <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>Hierarki: Bidang → OPD → IKU → IKK (nilai per tahun), dan Data Sektoral per OPD</div>
+      </div>
+
+      {/* Pencarian */}
+      <div style={{ position: "relative", marginBottom: 16 }}>
+        <Icon name="search" size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: T.textMuted }} />
+        <input value={q} onChange={e => setQ(e.target.value)}
+          placeholder="Cari nama IKU, IKK, Data Sektoral, atau aspek... (kosongkan untuk kembali ke daftar)"
+          style={{ width: "100%", padding: "10px 12px 10px 36px", border: `1.5px solid ${T.primary}`, borderRadius: 10, fontSize: 13, outline: "none", boxSizing: "border-box", background: T.card, color: T.text, boxShadow: T.shadowSm }} />
       </div>
 
       {/* Tahun global */}
       <div style={{ background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, padding: 16, marginBottom: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 4 }}>Daftar Tahun</div>
         <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 10 }}>
-          Tahun dipakai untuk semua indikator (target, capaian, realisasi, dan data sektoral).
+          Tahun dipakai untuk semua data (IKK capaian/realisasi triwulan & tahunan, dan data sektoral).
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
           {tahunList.map(t => (
@@ -132,7 +141,9 @@ export default function BankData({ showToast }) {
         </div>
       </div>
 
-      {!activeBidang ? (
+      {q.trim() ? (
+        <SearchResults tree={tree} q={q} T={T} />
+      ) : !activeBidang ? (
         <BidangList tree={tree} onSelect={setActiveBidang} icons={{ building: "building" }} T={T} />
       ) : (
         <BidangDetail
@@ -249,11 +260,11 @@ function IndikatorPanel({ level, parentId, parentLabel, list, tahunList, form, s
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{ind.indikator}</div>
                   <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
-                    {[ind.sumber_data ? `Sumber: ${ind.sumber_data}` : "", ind.aspek ? `Aspek: ${ind.aspek}` : ""].filter(Boolean).join(" · ") || "—"}
+                    {ind.sumber_data ? `Sumber: ${ind.sumber_data}` : "" || "—"}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
-                  <button onClick={() => openForm(level, parentId, ind.id, { indikator: ind.indikator, sumber_data: ind.sumber_data || "", aspek: ind.aspek || "" })}
+                  <button onClick={() => openForm(level, parentId, ind.id, { indikator: ind.indikator, sumber_data: ind.sumber_data || "" })}
                     style={{ padding: 4, background: "none", border: "none", cursor: "pointer", color: T.textMuted, display: "flex" }}>
                     <Icon name="edit" size={13} />
                   </button>
@@ -280,8 +291,7 @@ function IndikatorForm({ title, values, setVal, submit, cancel, T }) {
       <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, marginBottom: 10 }}>{title}</div>
       {[
         { k: "indikator", label: "Indikator" },
-        { k: "sumber_data", label: "Sumber Data" },
-        { k: "aspek", label: "Aspek" }
+        { k: "sumber_data", label: "Sumber Data" }
       ].map(f => (
         <label key={f.k} style={{ display: "block", marginBottom: 8 }}>
           <span style={{ fontSize: 11, color: T.textSecondary, marginBottom: 3, display: "block" }}>{f.label}</span>
@@ -454,7 +464,7 @@ function BidangList({ tree, onSelect, T }) {
       {tree.map(b => {
         const indCount = b.opds.reduce((s, o) =>
           s + o.sektorals.reduce((x, q) => x + q.indikator.length, 0) +
-          o.ikus.reduce((x, i) => x + i.indikator.length + i.ikks.reduce((y, k) => y + k.indikator.length, 0), 0), 0);
+          o.ikus.reduce((x, i) => x + i.ikks.reduce((y, k) => y + (k.nilai ? k.nilai.length : 0), 0), 0), 0);
         return (
           <button key={b.id} onClick={() => onSelect(b.id)} style={{
             textAlign: "left", background: T.card, borderRadius: 12, border: `1px solid ${T.border}`,
@@ -604,19 +614,13 @@ function OpdContent(props) {
 
           {expanded[`i${iku.id}`] && (
             <div style={{ padding: "4px 0 8px 18px", borderLeft: `1px solid ${T.border}`, marginLeft: 18 }}>
-              <IndikatorPanel level="iku" parentId={iku.id} parentLabel="IKU"
-                list={iku.indikator} tahunList={tahunList} form={form} setForm={setForm} openForm={openForm} cancelForm={cancelForm} submitIndikator={submitIndikator}
-                onSaveNilai={(indId, tahun, valA, valB) => saveNilai("iku", indId, tahun, valA, valB)}
-                onSaveTw={(indId, tahun, tw) => saveTriwulan("iku", indId, tahun, tw)}
-                onDelInd={(id, nama) => delIndikator("iku", id, nama)} T={T} />
-
-              <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, margin: "10px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
-                <Icon name="list" size={13} style={{ color: T.primary }} /> IKK (INDIKATOR KINERJA KUNCI)
+              <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, margin: "4px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
+                <Icon name="list" size={13} style={{ color: T.primary }} /> IKK (INDIKATOR KINERJA KUNCI) — diisi nilainya langsung per tahun
               </div>
               <InlineEntityAdd label="Tambah IKK" show={form && form.level === "ikk" && form.parentId === iku.id && !form.editId}
                 onOpen={() => openFormForEntity("ikk", iku.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
-                title="IKK baru" fields={[{ k: "nama", label: "Nama IKK" }]} submit={async () => {
-                  const body = { iku_id: iku.id, nama: (form.values.nama || "").trim() };
+                title="IKK baru" fields={[{ k: "nama", label: "Nama IKK" }, { k: "sumber_data", label: "Sumber Data" }, { k: "aspek", label: "Aspek" }]} submit={async () => {
+                  const body = { iku_id: iku.id, nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, aspek: (form.values.aspek || "").trim() || null };
                   if (!body.nama) return showToast("Nama IKK wajib diisi");
                   const res = await fetch('/api/bankdata/ikk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                   if (!res.ok) return showToast((await res.json()).error);
@@ -624,23 +628,13 @@ function OpdContent(props) {
                 }} />
 
               {iku.ikks.map(ikk => (
-                <div key={ikk.id} style={{ marginBottom: 8 }}>
-                  <EntityHead level="ikk" node={ikk} expandedKey={`k${ikk.id}`} expanded={expanded[`k${ikk.id}`]} onToggle={() => toggle(`k${ikk.id}`)}
-                    extraCount={`${ikk.indikator.length} indikator`}
-                    onEdit={() => openFormForEntity("ikk", iku.id, ikk.id, { nama: ikk.nama })}
-                    onDel={() => delEntity("ikk", ikk.id, ikk.nama, "IKK")} T={T} />
-                  {expanded[`k${ikk.id}`] && (
-                    <div style={{ padding: "4px 0 8px 18px", borderLeft: `1px solid ${T.border}`, marginLeft: 18 }}>
-                      <IndikatorPanel level="ikk" parentId={ikk.id} parentLabel="IKK"
-                        list={ikk.indikator} tahunList={tahunList} form={form} setForm={setForm} openForm={openForm} cancelForm={cancelForm} submitIndikator={submitIndikator}
-                        onSaveNilai={(indId, tahun, valA, valB) => saveNilai("ikk", indId, tahun, valA, valB)}
-                        onSaveTw={(indId, tahun, tw) => saveTriwulan("ikk", indId, tahun, tw)}
-                        onDelInd={(id, nama) => delIndikator("ikk", id, nama)} T={T} />
-                    </div>
-                  )}
-                </div>
+                <IkkRow key={ikk.id} ikk={ikk} ikuId={iku.id}
+                  form={form} setForm={setForm} cancelForm={cancelForm} openFormForEntity={openFormForEntity}
+                  reload={reload} delEntity={delEntity}
+                  tahunList={tahunList} saveNilai={saveNilai} saveTriwulan={saveTriwulan}
+                  showToast={showToast} T={T} />
               ))}
-              {iku.ikks.length === 0 && <div style={{ fontSize: 12, color: T.textMuted, padding: "4px 2px 8px" }}>Belum ada IKK.</div>}
+              {iku.ikks.length === 0 && <div style={{ fontSize: 12, color: T.textMuted, padding: "4px 2px 8px" }}>Belum ada IKK. Tambahkan IKK lalu isi nilainya per tahun.</div>}
             </div>
           )}
         </div>
@@ -662,4 +656,148 @@ async function ensureSektoralNow(opdId, ensureDone, setEnsureDone, reload, showT
   } else if (showToast) {
     showToast((await res.json()).error);
   }
+}
+
+/* ── Baris IKK: nama + sumber/aspek + tabel nilai langsung per tahun ────── */
+function IkkRow({ ikk, ikuId, form, setForm, cancelForm, openFormForEntity, reload, delEntity, tahunList, saveNilai, saveTriwulan, showToast, T }) {
+  const isEdit = form && form.level === "ikk" && form.editId === ikk.id;
+  const setVal = (k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p);
+
+  const submitEdit = async () => {
+    const body = { nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, aspek: (form.values.aspek || "").trim() || null };
+    if (!body.nama) return showToast("Nama IKK wajib diisi");
+    const res = await fetch(`/api/bankdata/ikk/${ikk.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!res.ok) return showToast((await res.json()).error);
+    setForm(null); reload(); showToast("IKK diperbarui");
+  };
+
+  if (isEdit) {
+    return (
+      <div style={{ background: T.card, borderRadius: 10, border: `1px solid ${T.inputBorder}`, padding: 12, margin: "2px 0 10px" }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, marginBottom: 10 }}>Edit IKK</div>
+        {[
+          { k: "nama", label: "Nama IKK" },
+          { k: "sumber_data", label: "Sumber Data" },
+          { k: "aspek", label: "Aspek" }
+        ].map(f => (
+          <label key={f.k} style={{ display: "block", marginBottom: 8 }}>
+            <span style={{ fontSize: 11, color: T.textSecondary, marginBottom: 3, display: "block" }}>{f.label}</span>
+            <input value={form.values[f.k] || ""} onChange={e => setVal(f.k, e.target.value)}
+              style={{ width: "100%", padding: "8px 11px", border: `1px solid ${T.inputBorder}`, borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box", background: T.inputBg, color: T.text }} />
+          </label>
+        ))}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={submitEdit} style={{ padding: "7px 14px", background: T.primary, color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Simpan</button>
+          <button onClick={cancelForm} style={{ padding: "7px 12px", background: T.surfaceHover, color: T.textSecondary, border: "none", borderRadius: 8, fontSize: 12, cursor: "pointer" }}>Batal</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginBottom: 8, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: T.surfaceHover }}>
+        <Icon name="list" size={14} style={{ color: T.primary, flexShrink: 0 }} />
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{ikk.nama}</div>
+          <div style={{ fontSize: 11, color: T.textMuted }}>
+            {[ikk.sumber_data ? `Sumber: ${ikk.sumber_data}` : "", ikk.aspek ? `Aspek: ${ikk.aspek}` : ""].filter(Boolean).join(" · ") || "Isi Capaian/Realisasi per tahun di bawah"}
+          </div>
+        </div>
+        <button onClick={() => openFormForEntity("ikk", ikuId, ikk.id, { nama: ikk.nama, sumber_data: ikk.sumber_data || "", aspek: ikk.aspek || "" })}
+          style={{ padding: 4, background: "none", border: "none", cursor: "pointer", color: T.textMuted, display: "flex" }}>
+          <Icon name="edit" size={13} />
+        </button>
+        <button onClick={() => delEntity("ikk", ikk.id, ikk.nama, "IKK")} style={{ padding: 4, background: "none", border: "none", cursor: "pointer", color: T.danger, display: "flex" }}>
+          <Icon name="trash" size={13} />
+        </button>
+      </div>
+      <div style={{ padding: "8px 10px", background: T.card }}>
+        <NilaiTable level="ikk" ind={ikk} conf={LEVEL_CONF.ikk} tahunList={tahunList}
+          onSave={(id, tahun, valA, valB) => saveNilai("ikk", id, tahun, valA, valB)}
+          onSaveTw={(id, tahun, tw) => saveTriwulan("ikk", id, tahun, tw)} T={T} />
+      </div>
+    </div>
+  );
+}
+
+/* ── Pencarian global: nama IKU/IKK/Data Sektoral + aspek ──────────────── */
+const KIND_META = {
+  iku:      { label: "IKU",           icon: "layers", conf: null },
+  ikk:      { label: "IKK",           icon: "list",   conf: LEVEL_CONF.ikk },
+  sektoral: { label: "Data Sektoral", icon: "chart",  conf: LEVEL_CONF.sektoral }
+};
+
+function SearchResults({ tree, q, T }) {
+  const nq = q.trim().toLowerCase();
+  const hits = [];
+  for (const b of tree) for (const o of b.opds) {
+    const path = `${b.nama} → ${o.nama}`;
+    for (const s of o.sektorals) for (const ind of s.indikator) {
+      if (`${ind.indikator} ${ind.aspek || ""}`.toLowerCase().includes(nq)) {
+        hits.push({ kind: "sektoral", path, name: ind.indikator, meta: ind.sumber_data ? `Sumber: ${ind.sumber_data}` : "", rows: ind.nilai, id: `s${ind.id}` });
+      }
+    }
+    for (const iku of o.ikus) {
+      if (iku.nama.toLowerCase().includes(nq)) {
+        hits.push({ kind: "iku", path, name: iku.nama, meta: `${iku.ikks.length} IKK`, ikks: iku.ikks });
+      }
+      for (const ikk of iku.ikks) {
+        if (`${ikk.nama} ${ikk.aspek || ""}`.toLowerCase().includes(nq)) {
+          hits.push({
+            kind: "ikk", path: `${path} → ${iku.nama}`, name: ikk.nama, id: `k${ikk.id}`,
+            meta: [ikk.sumber_data ? `Sumber: ${ikk.sumber_data}` : "", ikk.aspek ? `Aspek: ${ikk.aspek}` : ""].filter(Boolean).join(" · "),
+            rows: ikk.nilai
+          });
+        }
+      }
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 10 }}>
+        Hasil pencarian "<span style={{ color: T.primary }}>{q.trim()}</span>" · {hits.length} hasil
+      </div>
+      {hits.length === 0 && (
+        <div style={{ background: T.card, borderRadius: 12, padding: 24, color: T.textMuted, fontSize: 13, border: `1px solid ${T.border}` }}>
+          Tidak ada hasil. Coba nama IKU / IKK / Data Sektoral lain, atau aspek.
+        </div>
+      )}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {hits.map((h, i) => (
+          <div key={h.id + i} style={{ background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, padding: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: T.primaryLight, color: T.primary, borderRadius: 99, padding: "3px 9px", fontSize: 10, fontWeight: 700 }}>
+                <Icon name={KIND_META[h.kind].icon} size={11} /> {KIND_META[h.kind].label}
+              </span>
+              <span style={{ fontSize: 11, color: T.textMuted }}>{h.path}</span>
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>{h.name}</div>
+            {h.meta && <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 6 }}>{h.meta}</div>}
+            {h.kind === "iku" ? (
+              <div style={{ fontSize: 11, color: T.textSecondary }}>
+                {h.ikks.length ? h.ikks.map(k => k.nama).join(" · ") : "Belum ada IKK."}
+              </div>
+            ) : (
+              <ValueSummary rows={h.rows} conf={KIND_META[h.kind].conf} T={T} />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ValueSummary({ rows, conf, T }) {
+  if (!rows || rows.length === 0) return <span style={{ fontSize: 11, color: T.textMuted }}>Belum ada nilai.</span>;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      {rows.map(r => (
+        <span key={r.id} style={{ background: T.surfaceHover, borderRadius: 99, padding: "3px 9px", fontSize: 11, color: T.text }}>
+          <b>{r.tahun}·</b> {r[conf.valA.k] ?? "—"}{conf.valB && r[conf.valB.k] != null ? ` / ${r[conf.valB.k]}` : ""}
+        </span>
+      ))}
+    </div>
+  );
 }

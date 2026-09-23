@@ -45,46 +45,46 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 })();
 
 // ── Auto-migration: Bank Data hierarki v2 ──────────────────────────────────
+// Struktur baru: Bidang → OPD → IKU (nama saja) → IKK (nilai langsung per tahun + triwulan)
+//                + Data Sektoral (indikator langsung di OPD, tanpa aspek)
 (async () => {
   try {
+    // Tabel indikator IKU/IKK lama tidak dipakai lagi (IKK kini mengisi nilai langsung).
+    // Data lama disimpan sebagai *_legacy supaya tidak bentrok dengan tabel baru.
+    for (const t of [
+      'bank_data_iku_indikator', 'bank_data_iku_nilai', 'bank_data_iku_triwulan',
+      'bank_data_ikk_indikator', 'bank_data_ikk_nilai', 'bank_data_ikk_triwulan',
+    ]) {
+      try { await pool.query(`ALTER TABLE IF EXISTS ${t} RENAME TO ${t}_legacy`); } catch (e) {}
+    }
     await pool.query(`
       CREATE TABLE IF NOT EXISTS bank_data_tahun (
         id          SERIAL PRIMARY KEY,
         tahun       INTEGER UNIQUE NOT NULL,
         created_at  TIMESTAMPTZ DEFAULT NOW()
       );
-      CREATE TABLE IF NOT EXISTS bank_data_iku_indikator (
-        id          BIGSERIAL PRIMARY KEY,
-        iku_id      BIGINT NOT NULL REFERENCES bank_data_iku(id) ON DELETE CASCADE,
-        indikator   TEXT   NOT NULL,
-        sumber_data TEXT,
-        aspek       TEXT,
-        urutan      INTEGER DEFAULT 0
-      );
-      CREATE TABLE IF NOT EXISTS bank_data_iku_nilai (
-        id           BIGSERIAL PRIMARY KEY,
-        indikator_id BIGINT NOT NULL REFERENCES bank_data_iku_indikator(id) ON DELETE CASCADE,
-        tahun        INTEGER NOT NULL,
-        target       TEXT,
-        capaian      TEXT,
-        UNIQUE (indikator_id, tahun)
-      );
-      CREATE TABLE IF NOT EXISTS bank_data_ikk_indikator (
-        id          BIGSERIAL PRIMARY KEY,
-        ikk_id      BIGINT NOT NULL REFERENCES bank_data_ikk(id) ON DELETE CASCADE,
-        indikator   TEXT   NOT NULL,
-        sumber_data TEXT,
-        aspek       TEXT,
-        urutan      INTEGER DEFAULT 0
-      );
+
+      -- IKK kini menjadi baris data langsung: nama + sumber_data + aspek + nilai per tahun
+      ALTER TABLE bank_data_ikk ADD COLUMN IF NOT EXISTS sumber_data TEXT;
+      ALTER TABLE bank_data_ikk ADD COLUMN IF NOT EXISTS aspek       TEXT;
       CREATE TABLE IF NOT EXISTS bank_data_ikk_nilai (
-        id           BIGSERIAL PRIMARY KEY,
-        indikator_id BIGINT NOT NULL REFERENCES bank_data_ikk_indikator(id) ON DELETE CASCADE,
-        tahun        INTEGER NOT NULL,
-        capaian      TEXT,
-        realisasi    TEXT,
-        UNIQUE (indikator_id, tahun)
+        id         BIGSERIAL PRIMARY KEY,
+        ikk_id     BIGINT NOT NULL REFERENCES bank_data_ikk(id) ON DELETE CASCADE,
+        tahun      INTEGER NOT NULL,
+        capaian    TEXT,
+        realisasi  TEXT,
+        UNIQUE (ikk_id, tahun)
       );
+      CREATE TABLE IF NOT EXISTS bank_data_ikk_triwulan (
+        id           BIGSERIAL PRIMARY KEY,
+        ikk_id       BIGINT NOT NULL REFERENCES bank_data_ikk(id) ON DELETE CASCADE,
+        tahun        INTEGER NOT NULL,
+        capaian_tw1 TEXT, capaian_tw2 TEXT, capaian_tw3 TEXT, capaian_tw4 TEXT,
+        realisasi_tw1 TEXT, realisasi_tw2 TEXT, realisasi_tw3 TEXT, realisasi_tw4 TEXT,
+        UNIQUE (ikk_id, tahun)
+      );
+
+      -- Data Sektoral tetap memakai indikator langsung di bawah OPD
       CREATE TABLE IF NOT EXISTS bank_data_sektoral (
         id          BIGSERIAL PRIMARY KEY,
         opd_id      BIGINT NOT NULL REFERENCES bank_data_opd(id) ON DELETE CASCADE,
@@ -106,22 +106,6 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
         data         TEXT,
         UNIQUE (indikator_id, tahun)
       );
-      CREATE TABLE IF NOT EXISTS bank_data_iku_triwulan (
-        id           BIGSERIAL PRIMARY KEY,
-        indikator_id BIGINT NOT NULL REFERENCES bank_data_iku_indikator(id) ON DELETE CASCADE,
-        tahun        INTEGER NOT NULL,
-        target_tw1 TEXT, target_tw2 TEXT, target_tw3 TEXT, target_tw4 TEXT,
-        capaian_tw1 TEXT, capaian_tw2 TEXT, capaian_tw3 TEXT, capaian_tw4 TEXT,
-        UNIQUE (indikator_id, tahun)
-      );
-      CREATE TABLE IF NOT EXISTS bank_data_ikk_triwulan (
-        id           BIGSERIAL PRIMARY KEY,
-        indikator_id BIGINT NOT NULL REFERENCES bank_data_ikk_indikator(id) ON DELETE CASCADE,
-        tahun        INTEGER NOT NULL,
-        capaian_tw1 TEXT, capaian_tw2 TEXT, capaian_tw3 TEXT, capaian_tw4 TEXT,
-        realisasi_tw1 TEXT, realisasi_tw2 TEXT, realisasi_tw3 TEXT, realisasi_tw4 TEXT,
-        UNIQUE (indikator_id, tahun)
-      );
       CREATE TABLE IF NOT EXISTS bank_data_sektoral_triwulan (
         id           BIGSERIAL PRIMARY KEY,
         indikator_id BIGINT NOT NULL REFERENCES bank_data_sektoral_indikator(id) ON DELETE CASCADE,
@@ -134,8 +118,8 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
       INSERT INTO bank_data_tahun (tahun) VALUES (2024), (2025)
       ON CONFLICT (tahun) DO NOTHING
     `);
-    console.log('Migration: bank data v2 ready');
-  } catch (e) { console.error('Migration bank data v2 error:', e.message); }
+    console.log('Migration: bank data v3 ready (IKK direct data)');
+  } catch (e) { console.error('Migration bank data v3 error:', e.message); }
 })();
 
 // ── Auto-migration: notifications.user_id TEXT (WhatsApp IDs overflow int32)
@@ -1397,8 +1381,9 @@ const BD_CONF = {
     parentTable: 'bank_data_iku'
   },
   ikk: {
-    indTable: 'bank_data_ikk_indikator',  nilTable: 'bank_data_ikk_nilai',  twTable: 'bank_data_ikk_triwulan',
-    indParentKey: 'ikk_id',    valA: 'capaian',  valB: 'realisasi',
+    // IKK kini mengisi nilai langsung (tanpa indikator)
+    nilTable: 'bank_data_ikk_nilai',  twTable: 'bank_data_ikk_triwulan',
+    idKey: 'ikk_id',  valA: 'capaian',  valB: 'realisasi',
     parentTable: 'bank_data_ikk'
   },
   sektoral: {
@@ -1443,29 +1428,26 @@ app.delete('/api/bankdata/tahun/:id', async (req, res) => {
 
 app.get('/api/bankdata', async (_, res) => {
   try {
-    const [bidangs, opds, ikus, ikks, indIkuR, nilIkuR, twIkuR, indIkkR, nilIkkR, twIkkR, sektorals, indSektR, nilSektR, twSektR] = await Promise.all([
+    const [bidangs, opds, ikus, ikks, nilIkkR, twIkkR, sektorals, indSektR, nilSektR, twSektR] = await Promise.all([
       queryDB(`SELECT id, nama_bidang AS nama FROM bidang_list WHERE instansi_id = 'bapperida' AND id = ANY($1::int[]) ORDER BY id`, [BIDANG_BANKDATA]),
       queryDB(`SELECT id, bidang_id, nama, urutan FROM bank_data_opd ORDER BY bidang_id, urutan, id`),
       queryDB(`SELECT id, opd_id, nama, urutan FROM bank_data_iku ORDER BY opd_id, urutan, id`),
-      queryDB(`SELECT id, iku_id, nama, urutan FROM bank_data_ikk ORDER BY iku_id, urutan, id`),
-      queryDB(`SELECT id, iku_id, indikator, sumber_data, aspek, urutan FROM bank_data_iku_indikator ORDER BY iku_id, urutan, id`),
-      queryDB(`SELECT id, indikator_id, tahun, target, capaian FROM bank_data_iku_nilai ORDER BY indikator_id, tahun`),
-      queryDB(`SELECT * FROM bank_data_iku_triwulan ORDER BY indikator_id, tahun`),
-      queryDB(`SELECT id, ikk_id, indikator, sumber_data, aspek, urutan FROM bank_data_ikk_indikator ORDER BY ikk_id, urutan, id`),
-      queryDB(`SELECT id, indikator_id, tahun, capaian, realisasi FROM bank_data_ikk_nilai ORDER BY indikator_id, tahun`),
-      queryDB(`SELECT * FROM bank_data_ikk_triwulan ORDER BY indikator_id, tahun`),
+      queryDB(`SELECT id, iku_id, nama, sumber_data, aspek, urutan FROM bank_data_ikk ORDER BY iku_id, urutan, id`),
+      queryDB(`SELECT id, ikk_id, tahun, capaian, realisasi FROM bank_data_ikk_nilai ORDER BY ikk_id, tahun`),
+      queryDB(`SELECT * FROM bank_data_ikk_triwulan ORDER BY ikk_id, tahun`),
       queryDB(`SELECT id, opd_id, nama, urutan FROM bank_data_sektoral ORDER BY opd_id, urutan, id`),
       queryDB(`SELECT id, sektoral_id, indikator, sumber_data, aspek, urutan FROM bank_data_sektoral_indikator ORDER BY sektoral_id, urutan, id`),
       queryDB(`SELECT id, indikator_id, tahun, data FROM bank_data_sektoral_nilai ORDER BY indikator_id, tahun`),
       queryDB(`SELECT * FROM bank_data_sektoral_triwulan ORDER BY indikator_id, tahun`)
     ]);
 
-    const nilMap = (arr) => { const m = new Map(); for (const r of arr) { const k = String(r.indikator_id); (m.get(k) || m.set(k, []).get(k)).push(r); } return m; };
-    // triwulan → Map<indikator_id, Map<tahun, {tw1:{a,b},tw2:{a,b},tw3:{a,b},tw4:{a,b}}>>
-    const twMap = (rows, conf) => {
+    // Map nilai: { key -> [rows] } dengan kunci kolom target (ikk_id / indikator_id)
+    const nilMap = (arr, key = 'indikator_id') => { const m = new Map(); for (const r of arr) { const k = String(r[key]); (m.get(k) || m.set(k, []).get(k)).push(r); } return m; };
+    // triwulan → Map<targetId, Map<tahun, {tw1:{a,b},tw2:{a,b},tw3:{a,b},tw4:{a,b}}>>
+    const twMap = (rows, conf, key = 'indikator_id') => {
       const m = new Map();
       for (const r of rows) {
-        const k = String(r.indikator_id);
+        const k = String(r[key]);
         if (!m.has(k)) m.set(k, new Map());
         const obj = {};
         for (let i = 1; i <= 4; i++) {
@@ -1502,14 +1484,33 @@ app.get('/api/bankdata', async (_, res) => {
       return m;
     };
 
-    const nilIku = nilMap(nilIkuR), nilIkk = nilMap(nilIkkR), nilSekt = nilMap(nilSektR);
-    const twIku = twMap(twIkuR, BD_CONF.iku), twIkk = twMap(twIkkR, BD_CONF.ikk), twSekt = twMap(twSektR, BD_CONF.sektoral);
-    const indIku = indMap(indIkuR, 'iku_id', nilIku, { a: 'target', b: 'capaian' }, twIku);
-    const indIkk = indMap(indIkkR, 'ikk_id', nilIkk, { a: 'capaian', b: 'realisasi' }, twIkk);
+    const nilIkk = nilMap(nilIkkR, 'ikk_id');
+    const twIkk = twMap(twIkkR, BD_CONF.ikk, 'ikk_id');
+    const ikkNodes = ikks.map(i => {
+      const nils = nilIkk.get(String(i.id)) || [];
+      const twByYear = twIkk.get(String(i.id));
+      const node = {
+        id: i.id, nama: i.nama,
+        sumber_data: i.sumber_data ?? null,
+        aspek: i.aspek ?? null,
+        nilai: nils.map(n => {
+          const o = { id: n.id, tahun: n.tahun };
+          if (n.capaian !== null && n.capaian !== undefined) o.capaian = n.capaian;
+          if (n.realisasi !== null && n.realisasi !== undefined) o.realisasi = n.realisasi;
+          const t = twByYear?.get(n.tahun);
+          if (t) o.tw = t;
+          return o;
+        })
+      };
+      return node;
+    });
+    const ikkMap = new Map(ikkNodes.map(n => [String(n.id), n]));
+
+    const nilSekt = nilMap(nilSektR);
+    const twSekt = twMap(twSektR, BD_CONF.sektoral);
     const indSekt = indMap(indSektR, 'sektoral_id', nilSekt, { a: 'data', b: null }, twSekt);
 
-    const ikkMap = new Map(ikks.map(i => [String(i.id), { id: i.id, nama: i.nama, indikator: indIkk.get(String(i.id)) || [] }]));
-    const ikuMap = new Map(ikus.map(i => [String(i.id), { id: i.id, nama: i.nama, ikks: [], indikator: indIku.get(String(i.id)) || [] }]));
+    const ikuMap = new Map(ikus.map(i => [String(i.id), { id: i.id, nama: i.nama, ikks: [] }]));
     for (const i of ikks) { const p = ikuMap.get(String(i.iku_id)); if (p) p.ikks.push(ikkMap.get(String(i.id))); }
 
     const sektMap = new Map(sektorals.map(s => [String(s.id), { id: s.id, nama: s.nama, indikator: indSekt.get(String(s.id)) || [] }]));
@@ -1611,13 +1612,13 @@ app.delete('/api/bankdata/iku/:id', async (req, res) => {
 
 // ── IKK ──────────────────────────────────────────────────────────────────
 app.post('/api/bankdata/ikk', async (req, res) => {
-  const { iku_id, nama } = req.body;
+  const { iku_id, nama, sumber_data, aspek } = req.body;
   if (!iku_id || !nama) return res.status(400).json({ error: 'IKU dan nama wajib diisi' });
   try {
     const max = await queryDB('SELECT COALESCE(MAX(urutan), 0) + 1 AS next FROM bank_data_ikk WHERE iku_id = $1', [iku_id]);
     const result = await queryDB(
-      'INSERT INTO bank_data_ikk (iku_id, nama, urutan) VALUES ($1, $2, $3) RETURNING *',
-      [iku_id, nama.trim(), max[0].next]
+      'INSERT INTO bank_data_ikk (iku_id, nama, sumber_data, aspek, urutan) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [iku_id, nama.trim(), sumber_data ?? null, aspek ?? null, max[0].next]
     );
     res.json({ message: 'IKK berhasil ditambahkan', ikk: result[0] });
   } catch (err) {
@@ -1628,10 +1629,10 @@ app.post('/api/bankdata/ikk', async (req, res) => {
 
 app.put('/api/bankdata/ikk/:id', async (req, res) => {
   const { id } = req.params;
-  const { nama } = req.body;
+  const { nama, sumber_data, aspek } = req.body;
   if (!nama) return res.status(400).json({ error: 'Nama wajib diisi' });
   try {
-    await queryDB('UPDATE bank_data_ikk SET nama = $1 WHERE id = $2', [nama.trim(), id]);
+    await queryDB('UPDATE bank_data_ikk SET nama = $1, sumber_data = $2, aspek = $3 WHERE id = $4', [nama.trim(), sumber_data ?? null, aspek ?? null, id]);
     res.json({ message: 'IKK berhasil diperbarui' });
   } catch (err) {
     console.error('Update IKK error:', err);
@@ -1764,27 +1765,28 @@ app.delete('/api/bankdata/indikator/:level/:id', async (req, res) => {
   }
 });
 
-// ── Nilai per tahun (generic untuk iku / ikk / sektoral) ─────────────────
+// ── Nilai per tahun (IKK langsung / Data Sektoral via indikator) ─────────
 app.post('/api/bankdata/nilai/:level', async (req, res) => {
   const { level } = req.params;
   const conf = BD_CONF[level];
+  if (level === 'iku') return res.status(400).json({ error: 'IKU tidak lagi memakai indikator/nilai langsung' });
   if (!conf) return res.status(400).json({ error: 'Level tidak dikenal' });
-  const { indikator_id, tahun, valA, valB } = req.body;
-  if (!indikator_id || !tahun) return res.status(400).json({ error: 'Indikator dan tahun wajib diisi' });
+  const { target_id, tahun, valA, valB } = req.body;
+  if (!target_id || !tahun) return res.status(400).json({ error: 'Data dan tahun wajib diisi' });
   try {
     if (level === 'sektoral') {
       await queryDB(
-        `INSERT INTO ${conf.nilTable} (indikator_id, tahun, data)
+        `INSERT INTO bank_data_sektoral_nilai (indikator_id, tahun, data)
          VALUES ($1, $2, $3)
          ON CONFLICT (indikator_id, tahun) DO UPDATE SET data = $3`,
-        [indikator_id, tahun, valA ?? null]
+        [target_id, tahun, valA ?? null]
       );
     } else {
       await queryDB(
-        `INSERT INTO ${conf.nilTable} (indikator_id, tahun, ${conf.valA}, ${conf.valB})
+        `INSERT INTO bank_data_ikk_nilai (ikk_id, tahun, capaian, realisasi)
          VALUES ($1, $2, $3, $4)
-         ON CONFLICT (indikator_id, tahun) DO UPDATE SET ${conf.valA} = $3, ${conf.valB} = $4`,
-        [indikator_id, tahun, valA ?? null, valB ?? null]
+         ON CONFLICT (ikk_id, tahun) DO UPDATE SET capaian = $3, realisasi = $4`,
+        [target_id, tahun, valA ?? null, valB ?? null]
       );
     }
     res.json({ message: 'Nilai berhasil disimpan' });
@@ -1807,16 +1809,18 @@ app.delete('/api/bankdata/nilai/:level/:id', async (req, res) => {
   }
 });
 
-// ── Triwulan per tahun (generic untuk iku / ikk / sektoral) ───────────────
-// body: { indikator_id, tahun, tw: { tw1:{a,b}, tw2:{a,b}, tw3:{a,b}, tw4:{a,b} } }
-// sektoral hanya memakai .a (data), iku = target/capaian, ikk = capaian/realisasi
+// ── Triwulan per tahun (IKK langsung / Data Sektoral via indikator) ──────
+// body: { target_id, tahun, tw: { tw1:{a,b}, tw2:{a,b}, tw3:{a,b}, tw4:{a,b} } }
+// sektoral hanya memakai .a (data), ikk = capaian/realisasi
 app.post('/api/bankdata/triwulan/:level', async (req, res) => {
   const { level } = req.params;
   const conf = BD_CONF[level];
+  if (level === 'iku') return res.status(400).json({ error: 'IKU tidak lagi memakai indikator/triwulan langsung' });
   if (!conf) return res.status(400).json({ error: 'Level tidak dikenal' });
-  const { indikator_id, tahun, tw } = req.body;
-  if (!indikator_id || !tahun || !tw) return res.status(400).json({ error: 'Indikator, tahun, dan triwulan wajib diisi' });
+  const { target_id, tahun, tw } = req.body;
+  if (!target_id || !tahun || !tw) return res.status(400).json({ error: 'Data, tahun, dan triwulan wajib diisi' });
   try {
+    const idKey = level === 'ikk' ? 'ikk_id' : 'indikator_id';
     const cols = [];
     const vals = [];
     for (let i = 1; i <= 4; i++) {
@@ -1834,10 +1838,10 @@ app.post('/api/bankdata/triwulan/:level', async (req, res) => {
     const insCols = cols.join(', ');
     const insVals = cols.map((_, i) => `$${i + 3}`).join(', ');
     await queryDB(
-      `INSERT INTO ${conf.twTable} (indikator_id, tahun, ${insCols})
+      `INSERT INTO ${conf.twTable} (${idKey}, tahun, ${insCols})
        VALUES ($1, $2, ${insVals})
-       ON CONFLICT (indikator_id, tahun) DO UPDATE SET ${setCols}`,
-      [indikator_id, tahun, ...vals]
+       ON CONFLICT (${idKey}, tahun) DO UPDATE SET ${setCols}`,
+      [target_id, tahun, ...vals]
     );
     res.json({ message: 'Triwulan berhasil disimpan' });
   } catch (err) {
