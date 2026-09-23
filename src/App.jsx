@@ -52,6 +52,7 @@ async function extractPdfText(file, onProgress) {
 import { Pencarian, PortalPublik, ManajemenPengguna, AuditTrail, ManajemenKategoriDokumen, ManajemenSektor } from "./components/Pages.jsx";
 import PanduanPengguna   from "./components/PanduanPengguna.jsx";
 import BankData          from "./components/BankData.jsx";
+import BankDataDashboard from "./components/BankDataDashboard.jsx";
 import { Icon, Toast }  from "./components/ui.jsx";
 import { ROLE_COLOR } from "./data.js";
 import { Badge } from "./components/ui.jsx";
@@ -779,6 +780,9 @@ export default function App() {
             {page === "bankdata" && user.role === "Admin" && (
               <BankData showToast={showToast} />
             )}
+            {page === "bankdata" && user.role !== "Admin" && (
+              <BankDataReadOnly />
+            )}
             {page === "pengguna" && user.role === "Admin" && (
               <ManajemenPengguna users={users} onReload={() => queryClient.invalidateQueries({ queryKey: ['users'] })} showToast={showToast} />
             )}
@@ -830,5 +834,20 @@ export default function App() {
         <Toast msg={toast} onClose={() => setToast("")} />
       </div>
     </ThemeContext.Provider>
+  );
+}
+
+function BankDataReadOnly() {
+  const { T } = useContext(ThemeContext);
+  return (
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: T.text }}>Bank Data</div>
+        <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>
+          Data sektoral dan indikator kinerja per OPD di BAPPERIDA
+        </div>
+      </div>
+      <BankDataDashboard emptyMessage="Belum ada data bank data. Hubungi admin untuk melengkapi data." />
+    </div>
   );
 }

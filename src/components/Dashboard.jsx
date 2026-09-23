@@ -12,20 +12,7 @@ export default function Dashboard({ docs, onNav, sectors = [], categories = [] }
   const pending   = docs.filter(d => d.status !== "Diarsipkan" && d.status !== "Ditolak").length;
   const rejected  = docs.filter(d => d.status === "Ditolak").length;
 
-  const byType = categories
-    .map(c => ({ type: c.nama, count: docs.filter(d => d.type === c.nama).length }))
-    .filter(x => x.count > 0)
-    .sort((a, b) => b.count - a.count);
-
-  const bySector = sectors
-    .map(s => ({ sector: s.nama, count: docs.filter(d => d.sector === s.nama).length }))
-    .filter(x => x.count > 0)
-    .sort((a, b) => b.count - a.count);
-
   const recent = [...docs].sort((a, b) => b.id - a.id).slice(0, 5);
-
-  const maxType   = Math.max(...byType.map(x => x.count), 1);
-  const maxSector = Math.max(...bySector.map(x => x.count), 1);
 
   return (
     <div>
@@ -54,39 +41,6 @@ export default function Dashboard({ docs, onNav, sectors = [], categories = [] }
             <div style={{ fontSize: 28, fontWeight: 700, color: s.color }}>{s.value}</div>
           </div>
         ))}
-      </div>
-
-      {/* Charts */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16, marginBottom: 24 }}>
-        <div style={{ background: T.card, borderRadius: 12, padding: 20, border: `1px solid ${T.border}` }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 14 }}>Dokumen per Jenis</div>
-          {byType.map((x, i) => (
-            <div key={i} style={{ marginBottom: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                <span style={{ color: T.textSecondary }}>{x.type}</span>
-                <span style={{ fontWeight: 600, color: T.primary }}>{x.count}</span>
-              </div>
-              <div style={{ height: 6, background: T.border, borderRadius: 99 }}>
-                <div style={{ height: "100%", background: T.primary, borderRadius: 99, width: `${(x.count / maxType) * 100}%`, transition: "width .5s" }} />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ background: T.card, borderRadius: 12, padding: 20, border: `1px solid ${T.border}` }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 14 }}>Dokumen per Sektor</div>
-          {bySector.map((x, i) => (
-            <div key={i} style={{ marginBottom: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                <span style={{ color: T.textSecondary }}>{x.sector}</span>
-                <span style={{ fontWeight: 600, color: T.primary }}>{x.count}</span>
-              </div>
-              <div style={{ height: 6, background: T.border, borderRadius: 99 }}>
-                <div style={{ height: "100%", background: T.primary, borderRadius: 99, width: `${(x.count / maxSector) * 100}%`, transition: "width .5s" }} />
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Bank Data */}

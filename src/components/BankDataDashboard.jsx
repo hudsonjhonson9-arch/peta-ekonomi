@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Icon } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
 
-export default function BankDataDashboard() {
+export default function BankDataDashboard({ emptyMessage = null }) {
   const { T } = useContext(ThemeContext);
   const { data: tree = [] } = useQuery({
     queryKey: ['bankdata-dashboard'],
@@ -19,7 +19,13 @@ export default function BankDataDashboard() {
     o.sektorals.some(s => s.indikator.length) ||
     o.ikus.some(i => i.indikator.length || i.ikks.some(k => k.indikator.length))
   ));
-  if (!hasData) return null;
+  if (!hasData) {
+    return emptyMessage ? (
+      <div style={{ background: T.card, borderRadius: 12, padding: 40, border: `1px solid ${T.border}`, textAlign: "center", color: T.textMuted, fontSize: 13 }}>
+        {emptyMessage}
+      </div>
+    ) : null;
+  }
 
   const toggle = (key) => setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
 

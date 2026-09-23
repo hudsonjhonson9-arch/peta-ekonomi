@@ -12,7 +12,7 @@ const MAIN = [
 const MORE = [
   { key: "publik",            label: "Portal Publik",   icon: "world" },
   { key: "panduan",           label: "Panduan",         icon: "file" },
-  { key: "bankdata",          label: "Bank Data",       icon: "chart",  adminOnly: true },
+  { key: "bankdata",          label: "Bank Data",       icon: "chart"  },
   { key: "pengguna",          label: "Pengguna",        icon: "users",  adminOnly: true },
   { key: "kategori-dokumen",  label: "Jenis Dokumen",    icon: "tag",    adminOnly: true },
   { key: "sektor",            label: "Sektor",          icon: "layers", adminOnly: true },
