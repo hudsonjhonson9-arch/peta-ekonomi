@@ -120,7 +120,14 @@ export default function App() {
     const token = sp.get("token"), verify = sp.get("verify");
     return token || verify ? { token, verify } : null;
   });
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem("sidebarCollapsed") === "1");
+  const toggleCollapsed = () => {
+    setCollapsed(c => {
+      const next = !c;
+      localStorage.setItem("sidebarCollapsed", next ? "1" : "0");
+      return next;
+    });
+  };
   const [toast,     setToast]     = useState("");
   const [theme, setThemeState] = useState(() => localStorage.getItem("theme") || "system");
   const T = useMemo(() => getTheme(theme), [theme]);
@@ -692,7 +699,7 @@ export default function App() {
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               {!isMobile && (
                 <button
-                  onClick={() => setCollapsed(c => !c)}
+                  onClick={toggleCollapsed}
                   style={{ background: "none", border: "none", cursor: "pointer", color: T.textSecondary, padding: 6, borderRadius: 6, minWidth: 32, minHeight: 32, display: "flex", alignItems: "center", justifyContent: "center" }}
                   aria-label="Toggle menu"
                 >
