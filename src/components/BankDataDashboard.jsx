@@ -107,9 +107,6 @@ function OPDView({ o, tahunList, forceOpen, T }) {
   const oHas = o.sektorals.some(s => s.indikator.length) || o.ikus.some(i => (i.ikks || []).length || (i.nilai && i.nilai.length));
   if (!oHas) return null;
 
-  // IKK kini langsung menjadi baris nilai (nama = label baris)
-  const asIkkRows = (ikks) => ikks.map(k => ({ id: k.id, indikator: k.nama, aspek: k.aspek, sumber_data: k.sumber_data, nilai: k.nilai }));
-
   return (
     <div style={{ marginBottom: 6 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}` }}>
@@ -135,7 +132,15 @@ function OPDView({ o, tahunList, forceOpen, T }) {
             <>
               <ValueTable rows={[{ id: iku.id, indikator: iku.nama, aspek: iku.aspek, sumber_data: iku.sumber_data, nilai: iku.nilai }]}
                 tahunList={tahunList2} conf="iku" T={T} />
-              {iku.ikks && iku.ikks.length > 0 && <ValueTable rows={asIkkRows(iku.ikks)} tahunList={tahunList2} conf="ikk" T={T} />}
+              {(iku.ikks || []).map(k => (
+                <div key={`ikk${iku.id}-${k.id}`} style={{ margin: "4px 0 0 12px", borderLeft: `1px solid ${T.border}`, paddingLeft: 10 }}>
+                  <SubHeader icon="list" label="IKK" name={k.nama} expanded={isOpen(`ikk${iku.id}-${k.id}`)} onToggle={() => toggle(`ikk${iku.id}-${k.id}`)} T={T} />
+                  {isOpen(`ikk${iku.id}-${k.id}`) && (
+                    <ValueTable rows={[{ id: k.id, indikator: k.nama, aspek: k.aspek, sumber_data: k.sumber_data, nilai: k.nilai }]}
+                      tahunList={tahunList2} conf="ikk" T={T} />
+                  )}
+                </div>
+              ))}
             </>
           )}
         </div>

@@ -632,7 +632,7 @@ function OpdContent(props) {
                     saveTriwulan={(id, tahun, tw) => saveTriwulan("iku", id, tahun, tw)} T={T} />
 
                   <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, margin: "10px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
-                    <Icon name="list" size={13} style={{ color: T.primary }} /> IKK (INDIKATOR KINERJA KUNCI) — diisi nilainya langsung per tahun
+                    <Icon name="list" size={13} style={{ color: T.primary }} /> IKK (INDIKATOR KINERJA KUNCI) — di bawah IKU, klik tiap IKK untuk mengisi data
                   </div>
                   <InlineEntityAdd label="Tambah IKK" show={form && form.level === "ikk" && form.parentId === iku.id && !form.editId}
                     onOpen={() => openFormForEntity("ikk", iku.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
@@ -681,6 +681,8 @@ async function ensureSektoralNow(opdId, ensureDone, setEnsureDone, reload, showT
 function IkkRow({ ikk, ikuId, form, setForm, cancelForm, openFormForEntity, reload, delEntity, tahunList, saveNilai, saveTriwulan, showToast, T }) {
   const isEdit = form && form.level === "ikk" && form.editId === ikk.id;
   const setVal = (k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p);
+  const [open, setOpen] = useState(false);
+  const diisi = (ikk.nilai || []).length;
 
   const submitEdit = async () => {
     const body = { nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, aspek: (form.values.aspek || "").trim() || null };
@@ -715,27 +717,31 @@ function IkkRow({ ikk, ikuId, form, setForm, cancelForm, openFormForEntity, relo
 
   return (
     <div style={{ marginBottom: 8, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: T.surfaceHover }}>
+      <div onClick={() => setOpen(o => !o)}
+        style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: T.surfaceHover, cursor: "pointer", userSelect: "none" }}>
+        <Icon name={open ? "chevronDown" : "chevronRight"} size={14} style={{ color: T.textMuted, flexShrink: 0 }} />
         <Icon name="list" size={14} style={{ color: T.primary, flexShrink: 0 }} />
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{ikk.nama}</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{ikk.nama}<span style={{ fontWeight: 500, color: T.textMuted, marginLeft: 6 }}>{diisi ? `· ${diisi} tahun diisi` : ""}</span></div>
           <div style={{ fontSize: 11, color: T.textMuted }}>
-            {[ikk.sumber_data ? `Sumber: ${ikk.sumber_data}` : "", ikk.aspek ? `Aspek: ${ikk.aspek}` : ""].filter(Boolean).join(" · ") || "Isi Target/Capaian per tahun di bawah"}
+            {[ikk.sumber_data ? `Sumber: ${ikk.sumber_data}` : "", ikk.aspek ? `Aspek: ${ikk.aspek}` : ""].filter(Boolean).join(" · ") || "Klik untuk mengisi Target/Capaian per tahun"}
           </div>
         </div>
-        <button onClick={() => openFormForEntity("ikk", ikuId, ikk.id, { nama: ikk.nama, sumber_data: ikk.sumber_data || "", aspek: ikk.aspek || "" })}
+        <button onClick={e => { e.stopPropagation(); openFormForEntity("ikk", ikuId, ikk.id, { nama: ikk.nama, sumber_data: ikk.sumber_data || "", aspek: ikk.aspek || "" }); }}
           style={{ padding: 4, background: "none", border: "none", cursor: "pointer", color: T.textMuted, display: "flex" }}>
           <Icon name="edit" size={13} />
         </button>
-        <button onClick={() => delEntity("ikk", ikk.id, ikk.nama, "IKK")} style={{ padding: 4, background: "none", border: "none", cursor: "pointer", color: T.danger, display: "flex" }}>
+        <button onClick={e => { e.stopPropagation(); delEntity("ikk", ikk.id, ikk.nama, "IKK"); }} style={{ padding: 4, background: "none", border: "none", cursor: "pointer", color: T.danger, display: "flex" }}>
           <Icon name="trash" size={13} />
         </button>
       </div>
-      <div style={{ padding: "8px 10px", background: T.card }}>
-        <NilaiTable level="ikk" ind={ikk} conf={LEVEL_CONF.ikk} tahunList={tahunList}
-          onSave={(id, tahun, valA, valB) => saveNilai("ikk", id, tahun, valA, valB)}
-          onSaveTw={(id, tahun, tw) => saveTriwulan("ikk", id, tahun, tw)} T={T} />
-      </div>
+      {open && (
+        <div style={{ padding: "8px 10px", background: T.card }}>
+          <NilaiTable level="ikk" ind={ikk} conf={LEVEL_CONF.ikk} tahunList={tahunList}
+            onSave={(id, tahun, valA, valB) => saveNilai("ikk", id, tahun, valA, valB)}
+            onSaveTw={(id, tahun, tw) => saveTriwulan("ikk", id, tahun, tw)} T={T} />
+        </div>
+      )}
     </div>
   );
 }
