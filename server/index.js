@@ -65,25 +65,43 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
         created_at  TIMESTAMPTZ DEFAULT NOW()
       );
 
-      -- IKK kini menjadi baris data langsung: nama + sumber_data + aspek + nilai per tahun
+      -- IKK kini menjadi baris data langsung: nama + sumber_data + aspek + nilai per tahun (target/capaian)
       ALTER TABLE bank_data_ikk ADD COLUMN IF NOT EXISTS sumber_data TEXT;
       ALTER TABLE bank_data_ikk ADD COLUMN IF NOT EXISTS aspek       TEXT;
       CREATE TABLE IF NOT EXISTS bank_data_ikk_nilai (
         id         BIGSERIAL PRIMARY KEY,
         ikk_id     BIGINT NOT NULL REFERENCES bank_data_ikk(id) ON DELETE CASCADE,
         tahun      INTEGER NOT NULL,
+        target     TEXT,
         capaian    TEXT,
-        realisasi  TEXT,
         UNIQUE (ikk_id, tahun)
       );
       CREATE TABLE IF NOT EXISTS bank_data_ikk_triwulan (
         id           BIGSERIAL PRIMARY KEY,
         ikk_id       BIGINT NOT NULL REFERENCES bank_data_ikk(id) ON DELETE CASCADE,
         tahun        INTEGER NOT NULL,
+        target_tw1 TEXT, target_tw2 TEXT, target_tw3 TEXT, target_tw4 TEXT,
         capaian_tw1 TEXT, capaian_tw2 TEXT, capaian_tw3 TEXT, capaian_tw4 TEXT,
-        realisasi_tw1 TEXT, realisasi_tw2 TEXT, realisasi_tw3 TEXT, realisasi_tw4 TEXT,
         UNIQUE (ikk_id, tahun)
       );
+      -- Upgrade DB lama: jika IKK masih berkolom realisasi, rename ke target/capaian
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'bank_data_ikk_nilai' AND column_name = 'realisasi') THEN
+          ALTER TABLE bank_data_ikk_nilai RENAME COLUMN capaian TO target;
+          ALTER TABLE bank_data_ikk_nilai RENAME COLUMN realisasi TO capaian;
+        END IF;
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'bank_data_ikk_triwulan' AND column_name = 'realisasi_tw1') THEN
+          ALTER TABLE bank_data_ikk_triwulan RENAME COLUMN capaian_tw1 TO target_tw1;
+          ALTER TABLE bank_data_ikk_triwulan RENAME COLUMN capaian_tw2 TO target_tw2;
+          ALTER TABLE bank_data_ikk_triwulan RENAME COLUMN capaian_tw3 TO target_tw3;
+          ALTER TABLE bank_data_ikk_triwulan RENAME COLUMN capaian_tw4 TO target_tw4;
+          ALTER TABLE bank_data_ikk_triwulan RENAME COLUMN realisasi_tw1 TO capaian_tw1;
+          ALTER TABLE bank_data_ikk_triwulan RENAME COLUMN realisasi_tw2 TO capaian_tw2;
+          ALTER TABLE bank_data_ikk_triwulan RENAME COLUMN realisasi_tw3 TO capaian_tw3;
+          ALTER TABLE bank_data_ikk_triwulan RENAME COLUMN realisasi_tw4 TO capaian_tw4;
+        END IF;
+      END $$;
 
       -- IKU juga mengisi nilai langsung: target/capaian + sumber_data/aspek
       ALTER TABLE bank_data_iku ADD COLUMN IF NOT EXISTS sumber_data TEXT;
@@ -1390,8 +1408,9 @@ app.post('/api/indikator/tampil', async (req, res) => {
   }
 });
 
-// ── Bank Data: Hierarki v2 ────────────────────────────────────────────────
-// Bidang → OPD → IKU(indikator: target&capaian/tahun + triwulan) → IKK(indikator: capaian&realisasi/tahun + triwulan)
+// ── Bank Data: Hierarki v4 ────────────────────────────────────────────────
+// Bidang → OPD → IKU (nilai: target&capaian/tahun + triwulan, sumber/aspek)
+//        → OPD → IKK (nilai: target&capaian/tahun + triwulan, sumber/aspek)
 //        → OPD → Data Sektoral (setara IKU; indikator: data/tahun + triwulan)
 // KEY = level: 'iku' | 'ikk' | 'sektoral'
 const BIDANG_BANKDATA = [3, 4, 5]; // hanya bidang bikor (Perekonomian&SDA, Pemerintahan&Pembangunan Manusia, Infrastruktur&Kewilayahan)
@@ -1403,9 +1422,9 @@ const BD_CONF = {
     parentTable: 'bank_data_iku'
   },
   ikk: {
-    // IKK kini mengisi nilai langsung: capaian/realisasi per tahun + triwulan
+    // IKK kini mengisi nilai langsung: target/capaian per tahun + triwulan (sama seperti IKU)
     nilTable: 'bank_data_ikk_nilai',  twTable: 'bank_data_ikk_triwulan',
-    idKey: 'ikk_id',  valA: 'capaian',  valB: 'realisasi',
+    idKey: 'ikk_id',  valA: 'target',  valB: 'capaian',
     parentTable: 'bank_data_ikk'
   },
   sektoral: {
@@ -1457,7 +1476,7 @@ app.get('/api/bankdata', async (_, res) => {
       queryDB(`SELECT id, iku_id, nama, sumber_data, aspek, urutan FROM bank_data_ikk ORDER BY iku_id, urutan, id`),
       queryDB(`SELECT id, iku_id, tahun, target, capaian FROM bank_data_iku_nilai ORDER BY iku_id, tahun`),
       queryDB(`SELECT * FROM bank_data_iku_triwulan ORDER BY iku_id, tahun`),
-      queryDB(`SELECT id, ikk_id, tahun, capaian, realisasi FROM bank_data_ikk_nilai ORDER BY ikk_id, tahun`),
+      queryDB(`SELECT id, ikk_id, tahun, target, capaian FROM bank_data_ikk_nilai ORDER BY ikk_id, tahun`),
       queryDB(`SELECT * FROM bank_data_ikk_triwulan ORDER BY ikk_id, tahun`),
       queryDB(`SELECT id, opd_id, nama, urutan FROM bank_data_sektoral ORDER BY opd_id, urutan, id`),
       queryDB(`SELECT id, sektoral_id, indikator, sumber_data, aspek, urutan FROM bank_data_sektoral_indikator ORDER BY sektoral_id, urutan, id`),
@@ -1519,8 +1538,8 @@ app.get('/api/bankdata', async (_, res) => {
         aspek: i.aspek ?? null,
         nilai: nils.map(n => {
           const o = { id: n.id, tahun: n.tahun };
+          if (n.target !== null && n.target !== undefined) o.target = n.target;
           if (n.capaian !== null && n.capaian !== undefined) o.capaian = n.capaian;
-          if (n.realisasi !== null && n.realisasi !== undefined) o.realisasi = n.realisasi;
           const t = twByYear?.get(n.tahun);
           if (t) o.tw = t;
           return o;
@@ -1811,7 +1830,7 @@ app.delete('/api/bankdata/indikator/:level/:id', async (req, res) => {
 });
 
 // ── Nilai per tahun (generic untuk iku / ikk / sektoral) ─────────────────
-// iku = target/capaian, ikk = capaian/realisasi, sektoral = data (via indikator)
+// iku = target/capaian, ikk = target/capaian, sektoral = data (via indikator)
 app.post('/api/bankdata/nilai/:level', async (req, res) => {
   const { level } = req.params;
   const conf = BD_CONF[level];
@@ -1856,7 +1875,7 @@ app.delete('/api/bankdata/nilai/:level/:id', async (req, res) => {
 
 // ── Triwulan per tahun (generic untuk iku / ikk / sektoral) ──────────────
 // body: { target_id, tahun, tw: { tw1:{a,b}, tw2:{a,b}, tw3:{a,b}, tw4:{a,b} } }
-// sektoral hanya memakai .a (data), iku = target/capaian, ikk = capaian/realisasi
+// sektoral hanya memakai .a (data), iku & ikk = target/capaian
 app.post('/api/bankdata/triwulan/:level', async (req, res) => {
   const { level } = req.params;
   const conf = BD_CONF[level];

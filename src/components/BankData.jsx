@@ -6,7 +6,7 @@ import { ThemeContext } from "../App.jsx";
 
 const LEVEL_CONF = {
   iku:      { icon: "layers",   label: "IKU",            parentKey: "iku_id",      parentLabel: "IKU",  valA: { k: "target",  label: "Target" },  valB: { k: "capaian", label: "Capaian" } },
-  ikk:      { icon: "list",     label: "IKK",            parentKey: "ikk_id",      parentLabel: "IKK",  valA: { k: "capaian", label: "Capaian" }, valB: { k: "realisasi", label: "Realisasi" } },
+  ikk:      { icon: "list",     label: "IKK",            parentKey: "ikk_id",      parentLabel: "IKK",  valA: { k: "target", label: "Target" },    valB: { k: "capaian", label: "Capaian" } },
   sektoral: { icon: "chart",    label: "Data Sektoral",  parentKey: "sektoral_id", parentLabel: "Data Sektoral", valA: { k: "data", label: "Data" }, valB: null }
 };
 
@@ -104,7 +104,7 @@ export default function BankData({ showToast }) {
     <div>
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: T.text }}>Bank Data</div>
-        <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>Hierarki: Bidang → OPD → IKU (target/capaian) → IKK (capaian/realisasi), dan Data Sektoral per OPD</div>
+        <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>Hierarki: Bidang → OPD → IKU (target/capaian) → IKK (target/capaian), dan Data Sektoral per OPD</div>
       </div>
 
       {/* Pencarian */}
@@ -119,7 +119,7 @@ export default function BankData({ showToast }) {
       <div style={{ background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, padding: 16, marginBottom: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 4 }}>Daftar Tahun</div>
         <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 10 }}>
-          Tahun dipakai untuk semua data (IKU target/capaian, IKK capaian/realisasi baik tahunan maupun triwulan, dan data sektoral).
+          Tahun dipakai untuk semua data (IKU & IKK target/capaian baik tahunan maupun triwulan, dan data sektoral).
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
           {tahunList.map(t => (
@@ -720,7 +720,7 @@ function IkkRow({ ikk, ikuId, form, setForm, cancelForm, openFormForEntity, relo
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{ikk.nama}</div>
           <div style={{ fontSize: 11, color: T.textMuted }}>
-            {[ikk.sumber_data ? `Sumber: ${ikk.sumber_data}` : "", ikk.aspek ? `Aspek: ${ikk.aspek}` : ""].filter(Boolean).join(" · ") || "Isi Capaian/Realisasi per tahun di bawah"}
+            {[ikk.sumber_data ? `Sumber: ${ikk.sumber_data}` : "", ikk.aspek ? `Aspek: ${ikk.aspek}` : ""].filter(Boolean).join(" · ") || "Isi Target/Capaian per tahun di bawah"}
           </div>
         </div>
         <button onClick={() => openFormForEntity("ikk", ikuId, ikk.id, { nama: ikk.nama, sumber_data: ikk.sumber_data || "", aspek: ikk.aspek || "" })}

@@ -158,8 +158,8 @@ function SubHeader({ icon, label, name, expanded, onToggle, T }) {
 }
 
 function ValueTable({ rows, tahunList, conf, hideAspek, T }) {
-  const confA = conf === "iku" ? { k: "target", label: "Target" } : conf === "ikk" ? { k: "capaian", label: "Capaian" } : { k: "data", label: "Data" };
-  const confB = conf === "iku" ? { k: "capaian", label: "Capaian" } : conf === "ikk" ? { k: "realisasi", label: "Realisasi" } : null;
+  const confA = conf === "iku" ? { k: "target", label: "Target" } : conf === "ikk" ? { k: "target", label: "Target" } : { k: "data", label: "Data" };
+  const confB = conf === "iku" ? { k: "capaian", label: "Capaian" } : conf === "ikk" ? { k: "capaian", label: "Capaian" } : null;
   const years = tahunList.length > 0 ? tahunList : [...new Set(rows.flatMap(r => r.nilai.map(n => n.tahun)))].sort();
   const [detail, setDetail] = useState(null); // { ind, tahun }
 
