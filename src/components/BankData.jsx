@@ -104,7 +104,7 @@ export default function BankData({ showToast }) {
     <div>
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: T.text }}>Bank Data</div>
-        <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>Hierarki: Bidang → OPD → IKU → IKK (nilai per tahun), dan Data Sektoral per OPD</div>
+        <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>Hierarki: Bidang → OPD → IKU (target/capaian) → IKK (capaian/realisasi), dan Data Sektoral per OPD</div>
       </div>
 
       {/* Pencarian */}
@@ -119,7 +119,7 @@ export default function BankData({ showToast }) {
       <div style={{ background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, padding: 16, marginBottom: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 4 }}>Daftar Tahun</div>
         <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 10 }}>
-          Tahun dipakai untuk semua data (IKK capaian/realisasi triwulan & tahunan, dan data sektoral).
+          Tahun dipakai untuk semua data (IKU target/capaian, IKK capaian/realisasi baik tahunan maupun triwulan, dan data sektoral).
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
           {tahunList.map(t => (
@@ -570,6 +570,14 @@ function OpdContent(props) {
 
   const ds = o.sektorals[0];
 
+  const submitIkuEdit = (id) => async () => {
+    const body = { nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, aspek: (form.values.aspek || "").trim() || null };
+    if (!body.nama) return showToast("Nama IKU wajib diisi");
+    const res = await fetch(`/api/bankdata/iku/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!res.ok) return showToast((await res.json()).error);
+    setForm(null); reload(); showToast("IKU diperbarui");
+  };
+
   useEffect(() => {
     if (o.sektorals.length === 0) { ensureSektoralNow(o.id, ensureDone, setEnsureDone, reload, showToast); }
   }, [o.id]);
@@ -593,12 +601,12 @@ function OpdContent(props) {
 
       {/* IKU */}
       <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, margin: "10px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
-        <Icon name="layers" size={13} style={{ color: T.primary }} /> IKU (INDIKATOR KINERJA UTAMA)
+        <Icon name="layers" size={13} style={{ color: T.primary }} /> IKU (INDIKATOR KINERJA UTAMA) — punya Target/Capaian sendiri per tahun
       </div>
       <InlineEntityAdd label="Tambah IKU" show={form && form.level === "iku" && form.parentId === o.id && !form.editId}
         onOpen={() => openFormForEntity("iku", o.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
-        title="IKU baru" fields={[{ k: "nama", label: "Nama IKU" }]} submit={async () => {
-          const body = { opd_id: o.id, nama: (form.values.nama || "").trim() };
+        title="IKU baru" fields={[{ k: "nama", label: "Nama IKU" }, { k: "sumber_data", label: "Sumber Data" }, { k: "aspek", label: "Aspek" }]} submit={async () => {
+          const body = { opd_id: o.id, nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, aspek: (form.values.aspek || "").trim() || null };
           if (!body.nama) return showToast("Nama IKU wajib diisi");
           const res = await fetch('/api/bankdata/iku', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
           if (!res.ok) return showToast((await res.json()).error);
@@ -609,32 +617,43 @@ function OpdContent(props) {
         <div key={iku.id} style={{ marginBottom: 8 }}>
           <EntityHead level="iku" node={iku} expandedKey={`i${iku.id}`} expanded={expanded[`i${iku.id}`]} onToggle={() => toggle(`i${iku.id}`)}
             extraCount={ikusDesc(iku)}
-            onEdit={() => openFormForEntity("iku", o.id, iku.id, { nama: iku.nama })}
+            onEdit={() => { setExpanded(p => ({ ...p, [`i${iku.id}`]: true })); openFormForEntity("iku", o.id, iku.id, { nama: iku.nama, sumber_data: iku.sumber_data || "", aspek: iku.aspek || "" }); }}
             onDel={() => delEntity("iku", iku.id, iku.nama, "IKU")} T={T} />
 
           {expanded[`i${iku.id}`] && (
             <div style={{ padding: "4px 0 8px 18px", borderLeft: `1px solid ${T.border}`, marginLeft: 18 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, margin: "4px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
-                <Icon name="list" size={13} style={{ color: T.primary }} /> IKK (INDIKATOR KINERJA KUNCI) — diisi nilainya langsung per tahun
-              </div>
-              <InlineEntityAdd label="Tambah IKK" show={form && form.level === "ikk" && form.parentId === iku.id && !form.editId}
-                onOpen={() => openFormForEntity("ikk", iku.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
-                title="IKK baru" fields={[{ k: "nama", label: "Nama IKK" }, { k: "sumber_data", label: "Sumber Data" }, { k: "aspek", label: "Aspek" }]} submit={async () => {
-                  const body = { iku_id: iku.id, nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, aspek: (form.values.aspek || "").trim() || null };
-                  if (!body.nama) return showToast("Nama IKK wajib diisi");
-                  const res = await fetch('/api/bankdata/ikk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                  if (!res.ok) return showToast((await res.json()).error);
-                  setForm(null); reload(); showToast("IKK ditambahkan");
-                }} />
+              {form && form.level === "iku" && form.editId === iku.id ? (
+                <IkuEdit iku={iku} values={form.values} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
+                  submit={submitIkuEdit(iku.id)} cancel={cancelForm} T={T} />
+              ) : (
+                <>
+                  <IkuDataRow iku={iku} tahunList={tahunList}
+                    saveNilai={(id, tahun, valA, valB) => saveNilai("iku", id, tahun, valA, valB)}
+                    saveTriwulan={(id, tahun, tw) => saveTriwulan("iku", id, tahun, tw)} T={T} />
 
-              {iku.ikks.map(ikk => (
-                <IkkRow key={ikk.id} ikk={ikk} ikuId={iku.id}
-                  form={form} setForm={setForm} cancelForm={cancelForm} openFormForEntity={openFormForEntity}
-                  reload={reload} delEntity={delEntity}
-                  tahunList={tahunList} saveNilai={saveNilai} saveTriwulan={saveTriwulan}
-                  showToast={showToast} T={T} />
-              ))}
-              {iku.ikks.length === 0 && <div style={{ fontSize: 12, color: T.textMuted, padding: "4px 2px 8px" }}>Belum ada IKK. Tambahkan IKK lalu isi nilainya per tahun.</div>}
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, margin: "10px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
+                    <Icon name="list" size={13} style={{ color: T.primary }} /> IKK (INDIKATOR KINERJA KUNCI) — diisi nilainya langsung per tahun
+                  </div>
+                  <InlineEntityAdd label="Tambah IKK" show={form && form.level === "ikk" && form.parentId === iku.id && !form.editId}
+                    onOpen={() => openFormForEntity("ikk", iku.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
+                    title="IKK baru" fields={[{ k: "nama", label: "Nama IKK" }, { k: "sumber_data", label: "Sumber Data" }, { k: "aspek", label: "Aspek" }]} submit={async () => {
+                      const body = { iku_id: iku.id, nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, aspek: (form.values.aspek || "").trim() || null };
+                      if (!body.nama) return showToast("Nama IKK wajib diisi");
+                      const res = await fetch('/api/bankdata/ikk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                      if (!res.ok) return showToast((await res.json()).error);
+                      setForm(null); reload(); showToast("IKK ditambahkan");
+                    }} />
+
+                  {iku.ikks.map(ikk => (
+                    <IkkRow key={ikk.id} ikk={ikk} ikuId={iku.id}
+                      form={form} setForm={setForm} cancelForm={cancelForm} openFormForEntity={openFormForEntity}
+                      reload={reload} delEntity={delEntity}
+                      tahunList={tahunList} saveNilai={saveNilai} saveTriwulan={saveTriwulan}
+                      showToast={showToast} T={T} />
+                  ))}
+                  {iku.ikks.length === 0 && <div style={{ fontSize: 12, color: T.textMuted, padding: "4px 2px 8px" }}>Belum ada IKK. Tambahkan IKK lalu isi nilainya per tahun.</div>}
+                </>
+              )}
             </div>
           )}
         </div>
@@ -721,9 +740,54 @@ function IkkRow({ ikk, ikuId, form, setForm, cancelForm, openFormForEntity, relo
   );
 }
 
+/* ── Baris data IKU: nilai target/capaian sendiri + sumber/aspek ───────── */
+function IkuDataRow({ iku, tahunList, saveNilai, saveTriwulan, T }) {
+  return (
+    <div style={{ marginBottom: 8, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: T.surfaceHover }}>
+        <Icon name="chart" size={14} style={{ color: T.primary, flexShrink: 0 }} />
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary }}>Data IKU — Target/Capaian per tahun</div>
+          <div style={{ fontSize: 11, color: T.textMuted }}>
+            {[iku.sumber_data ? `Sumber: ${iku.sumber_data}` : "", iku.aspek ? `Aspek: ${iku.aspek}` : ""].filter(Boolean).join(" · ") || "Isi Target/Capaian IKU per tahun di bawah"}
+          </div>
+        </div>
+      </div>
+      <div style={{ padding: "8px 10px", background: T.card }}>
+        <NilaiTable level="iku" ind={iku} conf={LEVEL_CONF.iku} tahunList={tahunList}
+          onSave={saveNilai} onSaveTw={saveTriwulan} T={T} />
+      </div>
+    </div>
+  );
+}
+
+/* ── Form edit IKU (nama + sumber_data/aspek) ──────────────────────────── */
+function IkuEdit({ iku, values, setVal, submit, cancel, T }) {
+  return (
+    <div style={{ background: T.card, borderRadius: 10, border: `1px solid ${T.inputBorder}`, padding: 12, margin: "2px 0 10px" }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, marginBottom: 10 }}>Edit IKU</div>
+      {[
+        { k: "nama", label: "Nama IKU" },
+        { k: "sumber_data", label: "Sumber Data" },
+        { k: "aspek", label: "Aspek" }
+      ].map(f => (
+        <label key={f.k} style={{ display: "block", marginBottom: 8 }}>
+          <span style={{ fontSize: 11, color: T.textSecondary, marginBottom: 3, display: "block" }}>{f.label}</span>
+          <input value={values[f.k] || ""} onChange={e => setVal(f.k, e.target.value)}
+            style={{ width: "100%", padding: "8px 11px", border: `1px solid ${T.inputBorder}`, borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box", background: T.inputBg, color: T.text }} />
+        </label>
+      ))}
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={submit} style={{ padding: "7px 14px", background: T.primary, color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Simpan</button>
+        <button onClick={cancel} style={{ padding: "7px 12px", background: T.surfaceHover, color: T.textSecondary, border: "none", borderRadius: 8, fontSize: 12, cursor: "pointer" }}>Batal</button>
+      </div>
+    </div>
+  );
+}
+
 /* ── Pencarian global: nama IKU/IKK/Data Sektoral + aspek ──────────────── */
 const KIND_META = {
-  iku:      { label: "IKU",           icon: "layers", conf: null },
+  iku:      { label: "IKU",           icon: "layers", conf: LEVEL_CONF.iku },
   ikk:      { label: "IKK",           icon: "list",   conf: LEVEL_CONF.ikk },
   sektoral: { label: "Data Sektoral", icon: "chart",  conf: LEVEL_CONF.sektoral }
 };
@@ -739,11 +803,15 @@ function SearchResults({ tree, q, T }) {
       }
     }
     for (const iku of o.ikus) {
-      if (iku.nama.toLowerCase().includes(nq)) {
-        hits.push({ kind: "iku", path, name: iku.nama, meta: `${iku.ikks.length} IKK`, ikks: iku.ikks });
+      if (`${iku.nama} ${iku.aspek || ""} ${iku.sumber_data || ""}`.toLowerCase().includes(nq)) {
+        hits.push({
+          kind: "iku", path, name: iku.nama, id: `i${iku.id}`,
+          meta: [iku.sumber_data ? `Sumber: ${iku.sumber_data}` : "", iku.aspek ? `Aspek: ${iku.aspek}` : ""].filter(Boolean).join(" · "),
+          rows: iku.nilai, ikks: iku.ikks
+        });
       }
       for (const ikk of iku.ikks) {
-        if (`${ikk.nama} ${ikk.aspek || ""}`.toLowerCase().includes(nq)) {
+        if (`${ikk.nama} ${ikk.aspek || ""} ${ikk.sumber_data || ""}`.toLowerCase().includes(nq)) {
           hits.push({
             kind: "ikk", path: `${path} → ${iku.nama}`, name: ikk.nama, id: `k${ikk.id}`,
             meta: [ikk.sumber_data ? `Sumber: ${ikk.sumber_data}` : "", ikk.aspek ? `Aspek: ${ikk.aspek}` : ""].filter(Boolean).join(" · "),
@@ -776,9 +844,12 @@ function SearchResults({ tree, q, T }) {
             <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>{h.name}</div>
             {h.meta && <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 6 }}>{h.meta}</div>}
             {h.kind === "iku" ? (
-              <div style={{ fontSize: 11, color: T.textSecondary }}>
-                {h.ikks.length ? h.ikks.map(k => k.nama).join(" · ") : "Belum ada IKK."}
-              </div>
+              <>
+                <ValueSummary rows={h.rows} conf={KIND_META.iku.conf} T={T} />
+                <div style={{ fontSize: 11, color: T.textSecondary, marginTop: 6 }}>
+                  {h.ikks.length ? h.ikks.map(k => k.nama).join(" · ") : "Belum ada IKK."}
+                </div>
+              </>
             ) : (
               <ValueSummary rows={h.rows} conf={KIND_META[h.kind].conf} T={T} />
             )}

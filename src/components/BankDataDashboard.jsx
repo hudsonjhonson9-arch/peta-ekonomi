@@ -19,7 +19,7 @@ export default function BankDataDashboard({ emptyMessage = null }) {
   const searching = q.trim().length > 0;
   const nq = q.trim().toLowerCase();
 
-  const hitIku = (i) => i.nama.toLowerCase().includes(nq);
+  const hitIku = (i) => `${i.nama} ${i.aspek || ""} ${i.sumber_data || ""}`.toLowerCase().includes(nq);
   const hitIkk = (k) => `${k.nama} ${k.aspek || ""}`.toLowerCase().includes(nq);
   const hitSekt = (ind) => `${ind.indikator} ${ind.aspek || ""}`.toLowerCase().includes(nq);
 
@@ -45,7 +45,7 @@ export default function BankDataDashboard({ emptyMessage = null }) {
 
   const hasData = shown.some(b => b.opds.some(o =>
     o.sektorals.some(s => s.indikator.length) ||
-    o.ikus.some(i => i.ikks.length)
+    o.ikus.some(i => i.ikks.length || (i.nilai && i.nilai.length))
   ));
   if (!hasData) {
     return emptyMessage ? (
@@ -64,7 +64,7 @@ export default function BankDataDashboard({ emptyMessage = null }) {
         <Icon name="chart" size={14} style={{ color: T.primary }} />
         <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Bank Data</span>
       </div>
-      <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 12 }}>Bidang → OPD → IKU → IKK · Data Sektoral</div>
+      <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 12 }}>Bidang → OPD → IKU (Target/Capaian) → IKK · Data Sektoral</div>
 
       <div style={{ position: "relative", marginBottom: 12 }}>
         <Icon name="search" size={13} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: T.textMuted }} />
@@ -104,7 +104,7 @@ function OPDView({ o, tahunList, forceOpen, T }) {
   const isOpen = (k) => forceOpen || !!expanded[k];
   const tahunList2 = tahunList.map(t => t.tahun);
 
-  const oHas = o.sektorals.some(s => s.indikator.length) || o.ikus.some(i => i.ikks.length);
+  const oHas = o.sektorals.some(s => s.indikator.length) || o.ikus.some(i => i.ikks.length || (i.nilai && i.nilai.length));
   if (!oHas) return null;
 
   // IKK kini langsung menjadi baris nilai (nama = label baris)
@@ -127,12 +127,16 @@ function OPDView({ o, tahunList, forceOpen, T }) {
         )
       ))}
 
-      {/* IKU → IKK langsung jadi baris nilai */}
+      {/* IKU: nilai sendiri (target/capaian) + IKK langsung jadi baris */}
       {o.ikus.map(iku => (
         <div key={`iku${iku.id}`} style={{ margin: "6px 0 0 16px", borderLeft: `1px solid ${T.border}`, paddingLeft: 12 }}>
           <SubHeader icon="layers" label="IKU" name={iku.nama} expanded={isOpen(`iku${iku.id}`)} onToggle={() => toggle(`iku${iku.id}`)} T={T} />
-          {isOpen(`iku${iku.id}`) && iku.ikks.length > 0 && (
-            <ValueTable rows={asIkkRows(iku.ikks)} tahunList={tahunList2} conf="ikk" T={T} />
+          {isOpen(`iku${iku.id}`) && (
+            <>
+              <ValueTable rows={[{ id: iku.id, indikator: iku.nama, aspek: iku.aspek, sumber_data: iku.sumber_data, nilai: iku.nilai }]}
+                tahunList={tahunList2} conf="iku" T={T} />
+              {iku.ikks.length > 0 && <ValueTable rows={asIkkRows(iku.ikks)} tahunList={tahunList2} conf="ikk" T={T} />}
+            </>
           )}
         </div>
       ))}
