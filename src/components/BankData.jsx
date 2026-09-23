@@ -617,7 +617,7 @@ function OpdContent(props) {
         <div key={iku.id} style={{ marginBottom: 8 }}>
           <EntityHead level="iku" node={iku} expandedKey={`i${iku.id}`} expanded={expanded[`i${iku.id}`]} onToggle={() => toggle(`i${iku.id}`)}
             extraCount={ikusDesc(iku)}
-            onEdit={() => { setExpanded(p => ({ ...p, [`i${iku.id}`]: true })); openFormForEntity("iku", o.id, iku.id, { nama: iku.nama, sumber_data: iku.sumber_data || "", aspek: iku.aspek || "" }); }}
+            onEdit={() => { if (!expanded[`i${iku.id}`]) toggle(`i${iku.id}`); openFormForEntity("iku", o.id, iku.id, { nama: iku.nama, sumber_data: iku.sumber_data || "", aspek: iku.aspek || "" }); }}
             onDel={() => delEntity("iku", iku.id, iku.nama, "IKU")} T={T} />
 
           {expanded[`i${iku.id}`] && (
