@@ -643,51 +643,58 @@ function OpdContent(props) {
           setForm(null); reload(); showToast("IKU ditambahkan");
         }} />
 
-      {o.ikus.map(iku => (
-        <div key={iku.id} style={{ marginBottom: 8, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
-          <EntityHead bare level="iku" node={iku} expandedKey={`i${iku.id}`} expanded={expanded[`i${iku.id}`]} onToggle={() => toggle(`i${iku.id}`)}
-            extraCount={ikusDesc(iku)}
-            onEdit={() => { if (!expanded[`i${iku.id}`]) toggle(`i${iku.id}`); openFormForEntity("iku", o.id, iku.id, { nama: iku.nama, sumber_data: iku.sumber_data || "", aspek: iku.aspek || "" }); }}
-            onDel={() => delEntity("iku", iku.id, iku.nama, "IKU")} T={T} />
+      {o.ikus.map(iku => {
+        const editingIku = form && form.level === "iku" && form.editId === iku.id;
+        return (
+          <div key={iku.id} style={{ marginBottom: 8 }}>
+            <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+              <EntityHead bare level="iku" node={iku} expandedKey={`i${iku.id}`} expanded={expanded[`i${iku.id}`]} onToggle={() => toggle(`i${iku.id}`)}
+                extraCount={ikusDesc(iku)}
+                onEdit={() => { if (!expanded[`i${iku.id}`]) toggle(`i${iku.id}`); openFormForEntity("iku", o.id, iku.id, { nama: iku.nama, sumber_data: iku.sumber_data || "", aspek: iku.aspek || "" }); }}
+                onDel={() => delEntity("iku", iku.id, iku.nama, "IKU")} T={T} />
 
-          {expanded[`i${iku.id}`] && (
-            <div style={{ padding: "6px 8px 10px", background: T.card }}>
-              {form && form.level === "iku" && form.editId === iku.id ? (
-                <IkuEdit iku={iku} values={form.values} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
-                  submit={submitIkuEdit(iku.id)} cancel={cancelForm} T={T} />
-              ) : (
-                <>
-                  <IkuDataRow iku={iku} tahunList={tahunList}
-                    saveNilai={(id, tahun, valA, valB) => saveNilai("iku", id, tahun, valA, valB)}
-                    saveTriwulan={(id, tahun, tw) => saveTriwulan("iku", id, tahun, tw)} T={T} />
-
-                  <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, letterSpacing: "0.12em", textTransform: "uppercase", margin: "10px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
-                    <Icon name="list" size={13} style={{ color: T.primary }} /> IKK
-                  </div>
-                  <InlineEntityAdd label="Tambah IKK" show={form && form.level === "ikk" && form.parentId === iku.id && !form.editId}
-                    onOpen={() => openFormForEntity("ikk", iku.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
-                    title="IKK baru" fields={[{ k: "nama", label: "Nama IKK" }, { k: "sumber_data", label: "Sumber Data" }, { k: "aspek", label: "Aspek" }]} submit={async () => {
-                      const body = { iku_id: iku.id, nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, aspek: (form.values.aspek || "").trim() || null };
-                      if (!body.nama) return showToast("Nama IKK wajib diisi");
-                      const res = await fetch('/api/bankdata/ikk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                      if (!res.ok) return showToast((await res.json()).error);
-                      setForm(null); reload(); showToast("IKK ditambahkan");
-                    }} />
-
-                  {(iku.ikks || []).map(ikk => (
-                    <IkkRow key={ikk.id} ikk={ikk} ikuId={iku.id}
-                      form={form} setForm={setForm} cancelForm={cancelForm} openFormForEntity={openFormForEntity}
-                      reload={reload} delEntity={delEntity}
-                      tahunList={tahunList} saveNilai={saveNilai} saveTriwulan={saveTriwulan}
-                      showToast={showToast} T={T} />
-                  ))}
-                  {(iku.ikks || []).length === 0 && <div style={{ fontSize: 12, color: T.textMuted, padding: "4px 2px 8px" }}>Belum ada IKK. Tambahkan IKK lalu isi nilainya per tahun.</div>}
-                </>
+              {expanded[`i${iku.id}`] && (
+                <div style={{ padding: "6px 8px 10px", background: T.card }}>
+                  {editingIku ? (
+                    <IkuEdit iku={iku} values={form.values} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
+                      submit={submitIkuEdit(iku.id)} cancel={cancelForm} T={T} />
+                  ) : (
+                    <IkuDataRow iku={iku} tahunList={tahunList}
+                      saveNilai={(id, tahun, valA, valB) => saveNilai("iku", id, tahun, valA, valB)}
+                      saveTriwulan={(id, tahun, tw) => saveTriwulan("iku", id, tahun, tw)} T={T} />
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
-      ))}
+
+            {expanded[`i${iku.id}`] && !editingIku && (
+              <div style={{ marginLeft: 16, paddingLeft: 14, marginTop: 6, borderLeft: `1px solid ${T.border}` }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, letterSpacing: "0.12em", textTransform: "uppercase", margin: "10px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
+                  <Icon name="list" size={13} style={{ color: T.primary }} /> IKK
+                </div>
+                <InlineEntityAdd label="Tambah IKK" show={form && form.level === "ikk" && form.parentId === iku.id && !form.editId}
+                  onOpen={() => openFormForEntity("ikk", iku.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
+                  title="IKK baru" fields={[{ k: "nama", label: "Nama IKK" }, { k: "sumber_data", label: "Sumber Data" }, { k: "aspek", label: "Aspek" }]} submit={async () => {
+                    const body = { iku_id: iku.id, nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, aspek: (form.values.aspek || "").trim() || null };
+                    if (!body.nama) return showToast("Nama IKK wajib diisi");
+                    const res = await fetch('/api/bankdata/ikk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                    if (!res.ok) return showToast((await res.json()).error);
+                    setForm(null); reload(); showToast("IKK ditambahkan");
+                  }} />
+
+                {(iku.ikks || []).map(ikk => (
+                  <IkkRow key={ikk.id} ikk={ikk} ikuId={iku.id}
+                    form={form} setForm={setForm} cancelForm={cancelForm} openFormForEntity={openFormForEntity}
+                    reload={reload} delEntity={delEntity}
+                    tahunList={tahunList} saveNilai={saveNilai} saveTriwulan={saveTriwulan}
+                    showToast={showToast} T={T} />
+                ))}
+                {(iku.ikks || []).length === 0 && <div style={{ fontSize: 12, color: T.textMuted, padding: "4px 2px 8px" }}>Belum ada IKK. Tambahkan IKK lalu isi nilainya per tahun.</div>}
+              </div>
+            )}
+          </div>
+        );
+      })}
       {o.ikus.length === 0 && <div style={{ fontSize: 12, color: T.textMuted, padding: "4px 2px 8px" }}>Belum ada IKU.</div>}
     </div>
   );
