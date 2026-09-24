@@ -13,7 +13,9 @@ export default function BankDataDashboard({ emptyMessage = null }) {
     queryKey: ['bankdata-tahun'],
     queryFn: () => fetch('/api/bankdata/tahun').then(r => r.json())
   });
-  const [expanded, setExpanded] = useState({});
+  const [expanded, setExpanded] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("bd-dashboard-open")) || {}; } catch { return {}; }
+  });
   const [q, setQ] = useState("");
 
   const searching = q.trim().length > 0;
@@ -55,7 +57,11 @@ export default function BankDataDashboard({ emptyMessage = null }) {
     ) : null;
   }
 
-  const toggle = (key) => setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggle = (key) => setExpanded(prev => {
+    const next = { ...prev, [key]: !prev[key] };
+    localStorage.setItem("bd-dashboard-open", JSON.stringify(next));
+    return next;
+  });
   const isOpen = (key) => searching || !!expanded[key];
 
   return (
@@ -88,7 +94,7 @@ export default function BankDataDashboard({ emptyMessage = null }) {
           {isOpen(`b${b.id}`) && (
             <div style={{ padding: "8px 12px" }}>
               {b.opds.map(o => (
-                <OPDView key={o.id} o={o} tahunList={tahunList} forceOpen={searching} T={T} />
+                <OPDView key={o.id} o={o} tahunList={tahunList} forceOpen={searching} expanded={expanded} toggle={toggle} T={T} />
               ))}
             </div>
           )}
@@ -98,9 +104,7 @@ export default function BankDataDashboard({ emptyMessage = null }) {
   );
 }
 
-function OPDView({ o, tahunList, forceOpen, T }) {
-  const [expanded, setExpanded] = useState({});
-  const toggle = (k) => setExpanded(p => ({ ...p, [k]: !p[k] }));
+function OPDView({ o, tahunList, forceOpen, expanded, toggle, T }) {
   const isOpen = (k) => forceOpen || !!expanded[k];
   const tahunList2 = tahunList.map(t => t.tahun);
 

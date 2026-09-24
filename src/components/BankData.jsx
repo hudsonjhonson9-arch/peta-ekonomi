@@ -99,12 +99,20 @@ export default function BankData({ showToast }) {
   if (isLoading) return <div style={{ padding: 40, textAlign: "center", color: T.textMuted, fontSize: 13 }}>Memuat data...</div>;
 
   const ikusDesc = (iku) => `${(iku.ikks || []).length} IKK`;
+  const totalIndikator = tree.reduce((s, b) => s + b.opds.reduce((x, o) => x + (o.ikus || []).reduce((y, i) => y + (i.ikks || []).length, 0), 0), 0);
 
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: T.text }}>Bank Data</div>
-        <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>Hierarki: Bidang → OPD → IKU (target/capaian) → IKK (target/capaian), dan Data Sektoral per OPD</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: T.text }}>Bank Data</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, letterSpacing: "0.06em", textTransform: "uppercase" }}>Bidang → OPD → IKU → IKK · Data Sektoral</div>
+        </div>
+        <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+          <StatChip label="Bidang" value={tree.length} T={T} />
+          <StatChip label="OPD" value={tree.reduce((s, b) => s + b.opds.length, 0)} T={T} />
+          <StatChip label="Indikator" value={totalIndikator} T={T} />
+        </div>
       </div>
 
       {/* Pencarian */}
@@ -117,15 +125,15 @@ export default function BankData({ showToast }) {
 
       {/* Tahun global */}
       <div style={{ background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, padding: 16, marginBottom: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 4 }}>Daftar Tahun</div>
-        <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 10 }}>
-          Tahun dipakai untuk semua data (IKU & IKK target/capaian baik tahunan maupun triwulan, dan data sektoral).
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>Daftar Tahun</div>
+          <div style={{ fontSize: 11, color: T.textMuted }}>dipakai semua data target/capaian & triwulan dan data sektoral</div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
           {tahunList.map(t => (
-            <span key={t.id} style={{ display: "flex", alignItems: "center", gap: 6, background: T.primaryLight, color: T.primary, padding: "5px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
+            <span key={t.id} style={{ display: "flex", alignItems: "center", gap: 6, background: T.primaryLight, color: T.primary, padding: "5px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
               {t.tahun}
-              <button onClick={() => delTahun(t)} style={{ background: "none", border: "none", cursor: "pointer", color: T.danger, display: "flex", padding: 0 }}>
+              <button aria-label={`Hapus tahun ${t.tahun}`} onClick={() => delTahun(t)} style={{ background: "none", border: "none", cursor: "pointer", color: T.danger, display: "flex", padding: 0 }}>
                 <Icon name="x" size={12} />
               </button>
             </span>
@@ -144,7 +152,7 @@ export default function BankData({ showToast }) {
       {q.trim() ? (
         <SearchResults tree={tree} q={q} T={T} />
       ) : !activeBidang ? (
-        <BidangList tree={tree} onSelect={setActiveBidang} icons={{ building: "building" }} T={T} />
+        <BidangList tree={tree} onSelect={setActiveBidang} T={T} />
       ) : (
         <BidangDetail
           bidang={tree.find(b => String(b.id) === String(activeBidang))}
@@ -159,7 +167,8 @@ export default function BankData({ showToast }) {
       )}
 
       {tree.length === 0 && (
-        <div style={{ background: T.card, borderRadius: 12, padding: 40, border: `1px solid ${T.border}`, textAlign: "center", color: T.textMuted, fontSize: 13 }}>
+        <div style={{ background: T.card, borderRadius: 12, padding: 40, border: `1px solid ${T.border}`, textAlign: "center", color: T.textMuted, fontSize: 13, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+          <Icon name="layers" size={24} style={{ color: T.textMuted }} />
           Belum ada data. Pastikan bidang BAPPERIDA tersedia di master Bidang.
         </div>
       )}
@@ -178,23 +187,36 @@ export default function BankData({ showToast }) {
   }
 }
 
+const ICON_BTN = { padding: 4, background: "none", border: "none", cursor: "pointer", display: "flex" };
+
+function StatChip({ label, value, T }) {
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: 6, background: T.primaryLight, color: T.primary, padding: "5px 11px", borderRadius: 99, fontSize: 12 }}>
+      <b style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{value}</b>
+      <span style={{ fontSize: 10.5, fontWeight: 600, opacity: 0.75 }}>{label}</span>
+    </span>
+  );
+}
+
 /* ── Entity header (OPD / IKU / IKK / Data Sektoral) ───────────────────── */
 function EntityHead({ level, node, expandedKey, expanded, onToggle, extraCount, onEdit, onDel, T }) {
   const meta = level === "sektoral" ? LEVEL_CONF.sektoral : level === "opd" ? { icon: "building", label: "OPD" } : LEVEL_CONF[level];
   const icon = meta.icon || "building";
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: T.surfaceHover, borderRadius: 10, border: `1px solid ${T.border}`, cursor: "pointer" }}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "10px 12px", background: T.surfaceHover, borderRadius: 10, border: `1px solid ${T.border}`, cursor: "pointer" }}
       onClick={onToggle}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-        <Icon name={icon} size={14} style={{ color: T.primary, flexShrink: 0 }} />
+        <span style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 8, background: T.primaryLight, color: T.primary }}>
+          <Icon name={icon} size={13} />
+        </span>
         <span style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{node.nama}</span>
-        {extraCount && <span style={{ fontSize: 11, color: T.textMuted, flexShrink: 0 }}>({extraCount})</span>}
+        {extraCount && <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 600, color: T.primary, background: T.primaryLight, borderRadius: 99, padding: "2px 8px", fontVariantNumeric: "tabular-nums" }}>{extraCount}</span>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
-        <button onClick={e => { e.stopPropagation(); onEdit(); }} style={{ padding: 4, background: "none", border: "none", cursor: "pointer", color: T.textMuted, display: "flex" }}>
+        <button aria-label={`Edit ${node.nama}`} onClick={e => { e.stopPropagation(); onEdit(); }} style={{ ...ICON_BTN, color: T.textMuted }}>
           <Icon name="edit" size={13} />
         </button>
-        <button onClick={e => { e.stopPropagation(); onDel(); }} style={{ padding: 4, background: "none", border: "none", cursor: "pointer", color: T.danger, display: "flex" }}>
+        <button aria-label={`Hapus ${node.nama}`} onClick={e => { e.stopPropagation(); onDel(); }} style={{ ...ICON_BTN, color: T.danger }}>
           <Icon name="trash" size={13} />
         </button>
         <Icon name="chevronRight" size={13} style={{ color: T.textMuted, transform: expanded ? "rotate(90deg)" : "", transition: "transform .2s" }} />
@@ -380,19 +402,19 @@ function NilaiTable({ level, ind, conf, tahunList, onSave, onSaveTw, T }) {
             <tr>
               <td style={{ padding: "4px 6px", fontWeight: 600, color: T.text }}>
                 <button onClick={() => setTwOpen(o => ({ ...o, [t]: !o[t] }))}
-                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "inline-flex", alignItems: "center", gap: 4, color: T.primary, fontWeight: 700, fontSize: 12 }}>
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "inline-flex", alignItems: "center", gap: 4, color: T.primary, fontWeight: 700, fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
                   <Icon name="chevronRight" size={11} style={{ transform: twOpen[t] ? "rotate(90deg)" : "", transition: "transform .2s" }} />
                   {t}
                 </button>
               </td>
               <td style={{ padding: "4px 6px" }}>
                 <input value={getVal(t, conf.valA.k)} onChange={e => setVal(t, conf.valA.k, e.target.value)}
-                  style={{ width: "100%", minWidth: 80, padding: "5px 8px", border: `1px solid ${T.inputBorder}`, borderRadius: 6, fontSize: 12, outline: "none", background: T.inputBg, color: T.text, boxSizing: "border-box" }} />
+                  style={{ width: "100%", minWidth: 80, padding: "5px 8px", border: `1px solid ${T.inputBorder}`, borderRadius: 6, fontSize: 12, outline: "none", background: T.inputBg, color: T.text, boxSizing: "border-box", fontVariantNumeric: "tabular-nums" }} />
               </td>
               {conf.valB && (
                 <td style={{ padding: "4px 6px" }}>
                   <input value={getVal(t, conf.valB.k)} onChange={e => setVal(t, conf.valB.k, e.target.value)}
-                    style={{ width: "100%", minWidth: 80, padding: "5px 8px", border: `1px solid ${T.inputBorder}`, borderRadius: 6, fontSize: 12, outline: "none", background: T.inputBg, color: T.text, boxSizing: "border-box" }} />
+                    style={{ width: "100%", minWidth: 80, padding: "5px 8px", border: `1px solid ${T.inputBorder}`, borderRadius: 6, fontSize: 12, outline: "none", background: T.inputBg, color: T.text, boxSizing: "border-box", fontVariantNumeric: "tabular-nums" }} />
                 </td>
               )}
               <td style={{ padding: "4px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
@@ -425,15 +447,15 @@ function NilaiTable({ level, ind, conf, tahunList, onSave, onSaveTw, T }) {
                             <td style={{ padding: "3px 6px", fontWeight: 600, color: T.text }}>TW{i + 1}</td>
                             <td style={{ padding: "3px 6px" }}>
                               <input value={getTw(t, twN, conf.valA.k)} onChange={e => setTw(t, twN, conf.valA.k, e.target.value)}
-                                style={{ width: "100%", minWidth: 70, padding: "4px 7px", border: `1px solid ${T.inputBorder}`, borderRadius: 6, fontSize: 12, outline: "none", background: T.inputBg, color: T.text, boxSizing: "border-box" }} />
+                                style={{ width: "100%", minWidth: 70, padding: "4px 7px", border: `1px solid ${T.inputBorder}`, borderRadius: 6, fontSize: 12, outline: "none", background: T.inputBg, color: T.text, boxSizing: "border-box", fontVariantNumeric: "tabular-nums" }} />
                             </td>
                             {conf.valB && (
                               <td style={{ padding: "3px 6px" }}>
                                 <input value={getTw(t, twN, conf.valB.k)} onChange={e => setTw(t, twN, conf.valB.k, e.target.value)}
-                                  style={{ width: "100%", minWidth: 70, padding: "4px 7px", border: `1px solid ${T.inputBorder}`, borderRadius: 6, fontSize: 12, outline: "none", background: T.inputBg, color: T.text, boxSizing: "border-box" }} />
+                                  style={{ width: "100%", minWidth: 70, padding: "4px 7px", border: `1px solid ${T.inputBorder}`, borderRadius: 6, fontSize: 12, outline: "none", background: T.inputBg, color: T.text, boxSizing: "border-box", fontVariantNumeric: "tabular-nums" }} />
                               </td>
                             )}
-                            <td style={{ padding: "3px 6px", color: getTw(t, twN, conf.valA.k) ? T.text : T.textMuted }}>
+                            <td style={{ padding: "3px 6px", color: getTw(t, twN, conf.valA.k) ? T.text : T.textMuted, fontVariantNumeric: "tabular-nums" }}>
                               {getTw(t, twN, conf.valA.k) ? (getTw(t, twN, conf.valA.k) + (conf.valB && getTw(t, twN, conf.valB.k) ? ` / ${getTw(t, twN, conf.valB.k)}` : "")) : "—"}
                             </td>
                           </tr>
@@ -460,30 +482,36 @@ function NilaiTable({ level, ind, conf, tahunList, onSave, onSaveTw, T }) {
 /* ── Daftar bidang koordinasi (drill-down admin) ───────────────────────── */
 function BidangList({ tree, onSelect, T }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px,1fr))", gap: 12 }}>
-      {tree.map(b => {
+    <div style={{ background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+      {tree.map((b, i) => {
         const indCount = b.opds.reduce((s, o) =>
           s + o.sektorals.reduce((x, q) => x + q.indikator.length, 0) +
-          o.ikus.reduce((x, i) => x + (i.ikks || []).reduce((y, k) => y + (k.nilai ? k.nilai.length : 0), 0), 0), 0);
+          o.ikus.reduce((x, i) => x + (i.ikks || []).length, 0), 0);
         return (
-          <button key={b.id} onClick={() => onSelect(b.id)} style={{
-            textAlign: "left", background: T.card, borderRadius: 12, border: `1px solid ${T.border}`,
-            padding: 16, cursor: "pointer", transition: "border-color .15s",
-          }} onMouseEnter={e => e.currentTarget.style.borderColor = T.primary}
-            onMouseLeave={e => e.currentTarget.style.borderColor = T.border}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <Icon name="building" size={16} style={{ color: T.primary }} />
-              <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{b.nama}</span>
-            </div>
-            <div style={{ fontSize: 12, color: T.textSecondary }}>
-              {b.opds.length} OPD · {indCount} indikator
-            </div>
-            <div style={{ marginTop: 10, fontSize: 12, fontWeight: 600, color: T.primary }}>Kelola →</div>
+          <button key={b.id} onClick={() => onSelect(b.id)}
+            style={{
+              display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left",
+              padding: "13px 16px", background: "transparent", border: "none", cursor: "pointer",
+              borderBottom: i < tree.length - 1 ? `1px solid ${T.border}` : "none",
+              transition: "background .15s",
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = `color-mix(in srgb, ${T.primary} 8%, ${T.card})`}
+            onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+            <span style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: 10, background: T.primaryLight, color: T.primary }}>
+              <Icon name="building" size={16} />
+            </span>
+            <span style={{ minWidth: 0, flex: 1 }}>
+              <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, color: T.text }}>{b.nama}</span>
+              <span style={{ display: "block", fontSize: 11.5, color: T.textSecondary, marginTop: 2 }}>
+                {b.opds.length} OPD · {indCount} indikator
+              </span>
+            </span>
+            <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 600, color: T.primary }}>Kelola ›</span>
           </button>
         );
       })}
       {tree.length === 0 && (
-        <div style={{ background: T.card, borderRadius: 12, padding: 24, color: T.textMuted, fontSize: 13, border: `1px solid ${T.border}` }}>
+        <div style={{ padding: 24, color: T.textMuted, fontSize: 13, textAlign: "center" }}>
           Belum ada bidang koordinasi.
         </div>
       )}
@@ -585,9 +613,8 @@ function OpdContent(props) {
   return (
     <div style={{ padding: "4px 0 8px 18px", borderLeft: `1px solid ${T.border}`, marginLeft: 18 }}>
       {/* Data Sektoral — flat, indikator langsung */}
-      <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, margin: "10px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, letterSpacing: "0.12em", textTransform: "uppercase", margin: "10px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
         <Icon name="chart" size={13} style={{ color: T.primary }} /> DATA SEKTORAL
-        <span style={{ fontSize: 10, fontWeight: 400, color: T.textMuted }}>(indikator langsung di OPD)</span>
       </div>
       {ds ? (
         <IndikatorPanel level="sektoral" parentId={ds.id} parentLabel="Data Sektoral"
@@ -600,8 +627,8 @@ function OpdContent(props) {
       )}
 
       {/* IKU */}
-      <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, margin: "10px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
-        <Icon name="layers" size={13} style={{ color: T.primary }} /> IKU (INDIKATOR KINERJA UTAMA) — punya Target/Capaian sendiri per tahun
+      <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, letterSpacing: "0.12em", textTransform: "uppercase", margin: "10px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
+        <Icon name="layers" size={13} style={{ color: T.primary }} /> IKU
       </div>
       <InlineEntityAdd label="Tambah IKU" show={form && form.level === "iku" && form.parentId === o.id && !form.editId}
         onOpen={() => openFormForEntity("iku", o.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
@@ -631,8 +658,8 @@ function OpdContent(props) {
                     saveNilai={(id, tahun, valA, valB) => saveNilai("iku", id, tahun, valA, valB)}
                     saveTriwulan={(id, tahun, tw) => saveTriwulan("iku", id, tahun, tw)} T={T} />
 
-                  <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, margin: "10px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
-                    <Icon name="list" size={13} style={{ color: T.primary }} /> IKK (INDIKATOR KINERJA KUNCI) — di bawah IKU, klik tiap IKK untuk mengisi data
+                  <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, letterSpacing: "0.12em", textTransform: "uppercase", margin: "10px 0 6px", display: "flex", alignItems: "center", gap: 6 }}>
+                    <Icon name="list" size={13} style={{ color: T.primary }} /> IKK
                   </div>
                   <InlineEntityAdd label="Tambah IKK" show={form && form.level === "ikk" && form.parentId === iku.id && !form.editId}
                     onOpen={() => openFormForEntity("ikk", iku.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
