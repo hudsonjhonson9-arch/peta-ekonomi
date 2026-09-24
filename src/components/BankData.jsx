@@ -199,11 +199,12 @@ function StatChip({ label, value, T }) {
 }
 
 /* ── Entity header (OPD / IKU / IKK / Data Sektoral) ───────────────────── */
-function EntityHead({ level, node, expandedKey, expanded, onToggle, extraCount, onEdit, onDel, T }) {
+function EntityHead({ level, node, expandedKey, expanded, onToggle, extraCount, onEdit, onDel, bare, T }) {
   const meta = level === "sektoral" ? LEVEL_CONF.sektoral : level === "opd" ? { icon: "building", label: "OPD" } : LEVEL_CONF[level];
   const icon = meta.icon || "building";
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "10px 12px", background: T.surfaceHover, borderRadius: 10, border: `1px solid ${T.border}`, cursor: "pointer" }}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "10px 12px", background: T.surfaceHover, cursor: "pointer",
+      ...(bare ? { borderBottom: `1px solid ${T.border}` } : { borderRadius: 10, border: `1px solid ${T.border}` }) }}
       onClick={onToggle}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
         <span style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 8, background: T.primaryLight, color: T.primary }}>
@@ -387,6 +388,7 @@ function NilaiTable({ level, ind, conf, tahunList, onSave, onSaveTw, T }) {
   const nCols = 3 + (conf.valB ? 1 : 0);
 
   return (
+    <div style={{ overflowX: "auto" }}>
     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
       <thead>
         <tr>
@@ -476,6 +478,7 @@ function NilaiTable({ level, ind, conf, tahunList, onSave, onSaveTw, T }) {
         ))}
       </tbody>
     </table>
+    </div>
   );
 }
 
@@ -641,14 +644,14 @@ function OpdContent(props) {
         }} />
 
       {o.ikus.map(iku => (
-        <div key={iku.id} style={{ marginBottom: 8 }}>
-          <EntityHead level="iku" node={iku} expandedKey={`i${iku.id}`} expanded={expanded[`i${iku.id}`]} onToggle={() => toggle(`i${iku.id}`)}
+        <div key={iku.id} style={{ marginBottom: 8, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+          <EntityHead bare level="iku" node={iku} expandedKey={`i${iku.id}`} expanded={expanded[`i${iku.id}`]} onToggle={() => toggle(`i${iku.id}`)}
             extraCount={ikusDesc(iku)}
             onEdit={() => { if (!expanded[`i${iku.id}`]) toggle(`i${iku.id}`); openFormForEntity("iku", o.id, iku.id, { nama: iku.nama, sumber_data: iku.sumber_data || "", aspek: iku.aspek || "" }); }}
             onDel={() => delEntity("iku", iku.id, iku.nama, "IKU")} T={T} />
 
           {expanded[`i${iku.id}`] && (
-            <div style={{ padding: "4px 0 8px 18px", borderLeft: `1px solid ${T.border}`, marginLeft: 18 }}>
+            <div style={{ padding: "6px 8px 10px", background: T.card }}>
               {form && form.level === "iku" && form.editId === iku.id ? (
                 <IkuEdit iku={iku} values={form.values} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
                   submit={submitIkuEdit(iku.id)} cancel={cancelForm} T={T} />
@@ -776,20 +779,12 @@ function IkkRow({ ikk, ikuId, form, setForm, cancelForm, openFormForEntity, relo
 /* ── Baris data IKU: nilai target/capaian sendiri + sumber/aspek ───────── */
 function IkuDataRow({ iku, tahunList, saveNilai, saveTriwulan, T }) {
   return (
-    <div style={{ marginBottom: 8, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: T.surfaceHover }}>
-        <Icon name="chart" size={14} style={{ color: T.primary, flexShrink: 0 }} />
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary }}>Data IKU — Target/Capaian per tahun</div>
-          <div style={{ fontSize: 11, color: T.textMuted }}>
-            {[iku.sumber_data ? `Sumber: ${iku.sumber_data}` : "", iku.aspek ? `Aspek: ${iku.aspek}` : ""].filter(Boolean).join(" · ") || "Isi Target/Capaian IKU per tahun di bawah"}
-          </div>
-        </div>
+    <div>
+      <div style={{ fontSize: 11, color: T.textMuted, margin: "2px 2px 6px" }}>
+        {[iku.sumber_data ? `Sumber: ${iku.sumber_data}` : "", iku.aspek ? `Aspek: ${iku.aspek}` : ""].filter(Boolean).join(" · ") || "Isi Target/Capaian IKU per tahun di bawah"}
       </div>
-      <div style={{ padding: "8px 10px", background: T.card }}>
-        <NilaiTable level="iku" ind={iku} conf={LEVEL_CONF.iku} tahunList={tahunList}
-          onSave={saveNilai} onSaveTw={saveTriwulan} T={T} />
-      </div>
+      <NilaiTable level="iku" ind={iku} conf={LEVEL_CONF.iku} tahunList={tahunList}
+        onSave={saveNilai} onSaveTw={saveTriwulan} T={T} />
     </div>
   );
 }
