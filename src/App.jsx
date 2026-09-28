@@ -804,8 +804,8 @@ export default function App() {
             )}
           </div>
 
-          {/* FAB: + */}
-          {!viewDoc && page !== "upload" && (
+          {/* FAB: + hanya di halaman Dokumen & Pencarian */}
+          {!viewDoc && (page === "dokumen" || page === "pencarian") && (
             <button
               onClick={() => goPage("upload")}
               style={{
