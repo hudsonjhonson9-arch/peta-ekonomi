@@ -13,5 +13,8 @@ COPY package*.json ./
 RUN npm install --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY server/ ./server/
+# Seed SQL dibaca server saat boot (jika pohon PKS masih kosong).
+# Tanpa COPY ini file-nya tidak ada di image dan auto-seed akan gagal.
+COPY db/ ./db/
 EXPOSE 3000
 CMD ["node", "server/index.js"]

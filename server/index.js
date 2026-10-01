@@ -176,17 +176,87 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   } catch (e) { console.error('Migration notifications.user_id error:', e.message); }
 })();
 
-// Tahap 1: doc_shares table
-(async () => {
+// Jalankan berkas migration. PostgreSQL membungkus multi-statement dalam satu
+// transaksi implisit, jadi kalau ada satu statement gagal SELURUH file
+// rollback. Karena itu error tidak boleh ditelan: tanpa log, tabel utuh
+// padahal tidak satupun tabel dibuat.
+const jalankanMigration = async (nama, wajib = []) => {
+  const file = path.join(__dirname, 'migrations', `${nama}.sql`);
   try {
-    const tahap1 = fs.readFileSync(path.join(__dirname, 'migrations', 'tahap_1.sql'), 'utf8');
-    await pool.query(tahap1);
-    console.log('Migration: tahap_1 doc_shares ready');
+    await pool.query(fs.readFileSync(file, 'utf8'));
+    console.log(`Migration: ${nama} selesai`);
+    return true;
   } catch (e) {
-    if (e.code === '42710' || e.code === '42P07') return;
-    console.error('tahap_1 error:', e.message);
+    // Sukses kalau tabel yang dibutuhkan sudah ada (migration dijalankan ulang).
+    try {
+      const cek = await pool.query(
+        `SELECT count(*)::int AS n FROM information_schema.tables
+         WHERE table_schema = current_schema() AND table_name::text = ANY($1::text[])`,
+        [wajib]
+      );
+      if (cek.rows[0].n === wajib.length) {
+        console.log(`Migration: ${nama} dilewati, tabel sudah ada`);
+        return true;
+      }
+    } catch (_) {}
+    console.error(
+      `Migration ${nama} GAGAL: ${e.message}\n` +
+      `  kode=${e.code || '-'} posisi=${e.position ?? '-'}\n` +
+      `  tidak ada tabel yang berubah. Periksa search_path: ` +
+      `select current_schema(); dan pastikan tabel bapperida_dokumen ada di sana.`
+    );
+    return false;
   }
-})();
+};
+
+// Tahap 1: doc_shares table
+jalankanMigration('tahap_1', ['doc_shares']);
+
+// Seed RKPD 2025, hanya kalau pohon PKS untuk 2025 masih kosong.
+//
+// Coolify tidak menyediakan psql di dalam image, jadi seed tidak bisa
+// dieksekusi manual dari container. File seed sudah idempoten (semua INSERT
+// punya ON CONFLICT DO NOTHING), jadi aman kalau dijalankan berkali-kali.
+// Set PKS_SKIP_SEED=1 untuk mematikan.
+const jalankanSeed = async (siap) => {
+  if (!siap) {
+    console.log('Seed: dilewati karena migration tahap_2 belum berhasil');
+    return;
+  }
+  try {
+    if (process.env.PKS_SKIP_SEED === '1') {
+      console.log('Seed: dilewati karena PKS_SKIP_SEED=1');
+      return;
+    }
+    const file = path.join(__dirname, '..', 'db', 'seed_rkpd_2025.sql');
+    if (!fs.existsSync(file)) {
+      console.error(`Seed: ${file} tidak ada di image. Pastikan Dockerfile punya "COPY db/ ./db/"`);
+      return;
+    }
+    const { rows } = await pool.query(
+      `SELECT count(*)::int AS n FROM pks_program WHERE tahun = $1`, [2025]
+    );
+    if (rows[0].n > 0) {
+      console.log(`Seed: dilewati, pks_program 2025 sudah berisi ${rows[0].n} baris`);
+      return;
+    }
+    await pool.query(fs.readFileSync(file, 'utf8'));
+    const n = await pool.query(
+      `SELECT (SELECT count(*) FROM pks_subkegiatan WHERE tahun = 2025) AS sub,
+              (SELECT count(*) FROM kertas_kerja k
+                 JOIN pks_subkegiatan s ON s.id = k.subkegiatan_id
+                WHERE s.tahun = 2025) AS output`
+    );
+    console.log(`Seed: RKPD 2025 dimuat (${n.rows[0].sub} sub kegiatan, ${n.rows[0].output} output)`);
+  } catch (e) {
+    console.error(`Seed GAGAL: ${e.message} (kode=${e.code || '-'}) - tabel tetap kosong, aman`);
+  }
+};
+
+jalankanMigration('tahap_2', [
+  'pks_tahun', 'pks_program', 'pks_kegiatan',
+  'pks_subkegiatan', 'kertas_kerja', 'kertas_kerja_periode',
+]).then(jalankanSeed);
 
 const queryDB = async (sql, params = []) => {
   const result = await pool.query(sql, params);
@@ -1256,6 +1326,583 @@ app.delete('/api/sektor/:id', async (req, res) => {
   } catch (err) {
     console.error('Delete sector error:', err);
     res.status(500).json({ error: 'Gagal menghapus sektor' });
+  }
+});
+
+// ═══ Pohon PKS (Program / Kegiatan / Sub Kegiatan) ═══════════════════════
+// Pohon dibuat sendiri di arsip-digital, tidak memakai tabel SIMAPO, supaya
+// fitur ini mandiri. Dimensi tahun mengikuti pola bank_data_*_nilai.
+
+// Identifier diambil dari peta konstanta, BUKAN dari input pengguna.
+const PKS_LEVEL = {
+  program: {
+    table: 'pks_program', parentCol: null, label: 'Program',
+    fields: ['kode', 'nama', 'urutan'],
+  },
+  kegiatan: {
+    table: 'pks_kegiatan', parentCol: 'program_id', label: 'Kegiatan',
+    fields: ['kode', 'nama', 'urutan'],
+  },
+  subkegiatan: {
+    table: 'pks_subkegiatan', parentCol: 'kegiatan_id', label: 'Sub Kegiatan',
+    fields: ['kode', 'nama', 'urutan', 'indikator', 'target'],
+  },
+};
+
+const pksLevel = (req) => PKS_LEVEL[req.params.level];
+
+const hitungUrutanBerikutnya = async (cfg, parentId, tahun) => {
+  const where = ['tahun = $1'];
+  const params = [tahun];
+  if (cfg.parentCol) {
+    params.push(parentId);
+    where.push(`${cfg.parentCol} = $${params.length}`);
+  }
+  const rows = await queryDB(
+    `SELECT COALESCE(MAX(urutan), 0) AS mx FROM ${cfg.table} WHERE ${where.join(' AND ')}`,
+    params
+  );
+  return (rows[0]?.mx ?? 0) + 1;
+};
+
+// Daftarkan tahun ke pks_tahun bila belum ada (dipakai year picker).
+const daftarTahun = async (tahun) => {
+  await queryDB('INSERT INTO pks_tahun (tahun) VALUES ($1) ON CONFLICT (tahun) DO NOTHING', [tahun]);
+};
+
+// ── Daftar tahun ──────────────────────────────────────────────────────────
+app.get('/api/pks/tahun', async (_, res) => {
+  try {
+    const rows = await queryDB(`
+      SELECT t.tahun FROM pks_tahun t
+      WHERE EXISTS (SELECT 1 FROM pks_program p WHERE p.tahun = t.tahun)
+      ORDER BY t.tahun DESC
+    `);
+    const now = new Date().getFullYear();
+    const nums = rows.map(r => r.tahun);
+    for (const y of [now + 1, now, now - 1]) {
+      if (!nums.includes(y)) nums.push(y);
+    }
+    res.json([...new Set(nums)].sort((a, b) => b - a));
+  } catch (err) {
+    console.error('Get pks tahun error:', err);
+    res.status(500).json({ error: 'Gagal mengambil daftar tahun' });
+  }
+});
+
+// ── Pohon lengkap + output + periode (satu request untuk accordion) ───────
+app.get('/api/pks/tree', async (req, res) => {
+  const tahun = parseInt(req.query.tahun, 10) || new Date().getFullYear();
+  try {
+    const programs = await queryDB(
+      'SELECT id, kode, nama, urutan, tahun FROM pks_program WHERE tahun = $1 ORDER BY urutan, kode',
+      [tahun]
+    );
+    const kegiatan = await queryDB(
+      'SELECT id, program_id, kode, nama, urutan FROM pks_kegiatan WHERE tahun = $1 ORDER BY urutan, kode',
+      [tahun]
+    );
+    const sub = await queryDB(
+      `SELECT id, kegiatan_id, kode, nama, urutan, indikator, target
+       FROM pks_subkegiatan WHERE tahun = $1 ORDER BY urutan, kode`,
+      [tahun]
+    );
+
+    // Output beserta periodenya, digabung dalam satu query agar tidak N+1.
+    const kkRows = await queryDB(
+      `SELECT k.id, k.subkegiatan_id, k.nama, k.indikator, k.frekuensi,
+              k.target_per_tahun, k.bulan_wajib, k.deadline_rule, k.pic_id, k.keterangan,
+               p.id AS periode_id, p.periode, p.periode_label,
+               TO_CHAR(p.deadline, 'YYYY-MM-DD') AS deadline, p.is_wajib,
+               p.doc_id, p.catatan, p.uploaded_by, p.uploaded_at,
+               d.judul AS doc_judul, d.status AS doc_status
+       FROM kertas_kerja k
+       JOIN pks_subkegiatan s ON s.id = k.subkegiatan_id
+       LEFT JOIN kertas_kerja_periode p ON p.kertas_kerja_id = k.id AND p.tahun = $1
+       LEFT JOIN bapperida_dokumen d ON d.id = p.doc_id
+       WHERE s.tahun = $1 AND k.is_active
+       ORDER BY k.id, p.periode`,
+      [tahun]
+    );
+
+// Lipat baris periode menjadi object per output.
+    const outputs = new Map();
+    for (const r of kkRows) {
+      if (!outputs.has(r.id)) {
+        outputs.set(r.id, {
+          id: r.id, subkegiatan_id: r.subkegiatan_id, nama: r.nama, indikator: r.indikator,
+          frekuensi: r.frekuensi, target_per_tahun: r.target_per_tahun,
+          bulan_wajib: r.bulan_wajib, deadline_rule: r.deadline_rule,
+          pic_id: r.pic_id, keterangan: r.keterangan, periods: [],
+        });
+      }
+      if (r.periode_id != null) {
+        outputs.get(r.id).periods.push({
+          id: r.periode_id, periode: r.periode, periode_label: r.periode_label,
+          deadline: r.deadline, is_wajib: r.is_wajib, doc_id: r.doc_id,
+          doc_judul: r.doc_judul, doc_status: r.doc_status,
+          catatan: r.catatan, uploaded_by: r.uploaded_by, uploaded_at: r.uploaded_at,
+        });
+      }
+    }
+
+    const outputsBySub = new Map();
+    for (const o of outputs.values()) {
+      if (!outputsBySub.has(o.subkegiatan_id)) outputsBySub.set(o.subkegiatan_id, []);
+      outputsBySub.get(o.subkegiatan_id).push(o);
+    }
+
+    const subByKeg = new Map();
+    for (const s of sub) {
+      subByKeg.set(s.id, { ...s, outputs: outputsBySub.get(s.id) || [] });
+    }
+    const tree = programs.map(p => ({
+      ...p,
+      kegiatan: kegiatan
+        .filter(k => k.program_id === p.id)
+        .map(k => ({
+          ...k,
+          subkegiatan: sub.filter(s => s.kegiatan_id === k.id).map(s => subByKeg.get(s.id)),
+        })),
+    }));
+    res.json({ tahun, tree });
+  } catch (err) {
+    console.error('Get pks tree error:', err);
+    res.status(500).json({ error: 'Gagal mengambil pohon PKS' });
+  }
+});
+
+// ── Ringkasan kelengkapan satu tahun ──────────────────────────────────────
+app.get('/api/pks/ringkasan/:tahun', async (req, res) => {
+  const tahun = parseInt(req.params.tahun, 10);
+  if (!tahun) return res.status(400).json({ error: 'Tahun tidak valid' });
+  try {
+    const r = (await queryDB(`
+      SELECT
+        COUNT(*) FILTER (WHERE p.is_wajib)                                        AS wajib,
+        COUNT(*) FILTER (WHERE p.is_wajib AND p.doc_id IS NOT NULL)               AS terisi,
+        COUNT(*) FILTER (WHERE p.is_wajib AND p.doc_id IS NULL
+                           AND p.deadline < CURRENT_DATE)                         AS terlambat,
+        COUNT(*) FILTER (WHERE p.is_wajib AND p.doc_id IS NULL
+                           AND p.deadline BETWEEN CURRENT_DATE
+                           AND CURRENT_DATE + 3)                                 AS mauDeadline,
+        COUNT(DISTINCT k.id)                                                     AS output,
+        COUNT(DISTINCT s.id)                                                     AS subkegiatan
+      FROM kertas_kerja_periode p
+      JOIN kertas_kerja k ON k.id = p.kertas_kerja_id AND k.is_active
+      JOIN pks_subkegiatan s ON s.id = k.subkegiatan_id AND s.tahun = $1
+      WHERE p.tahun = $1
+    `, [tahun]))[0] || {};
+    res.json({ tahun, ...r });
+  } catch (err) {
+    console.error('Get ringkasan error:', err);
+    res.status(500).json({ error: 'Gagal mengambil ringkasan' });
+  }
+});
+
+// ── Deadline terdekat (badge notifikasi) ─────────────────────────────────
+app.get('/api/pks/deadline-terdekat', async (req, res) => {
+  const hari = parseInt(req.query.hari, 10) || 14;
+  try {
+    const rows = await queryDB(`
+      SELECT p.id, p.periode_label,
+             TO_CHAR(p.deadline, 'YYYY-MM-DD') AS deadline,
+             k.nama AS output, s.kode AS sub_kode,
+             CASE WHEN p.deadline < CURRENT_DATE THEN true ELSE false END AS lewat
+      FROM kertas_kerja_periode p
+      JOIN kertas_kerja k ON k.id = p.kertas_kerja_id AND k.is_active
+      JOIN pks_subkegiatan s ON s.id = k.subkegiatan_id
+      WHERE p.is_wajib AND p.doc_id IS NULL
+        AND p.deadline <= CURRENT_DATE + $1
+      ORDER BY p.deadline ASC
+      LIMIT 50
+    `, [hari]);
+    res.json(rows);
+  } catch (err) {
+    console.error('Get deadline terdekat error:', err);
+    res.status(500).json({ error: 'Gagal mengambil deadline terdekat' });
+  }
+});
+
+// ── CRUD tiap level pohon ────────────────────────────────────────────────
+app.get('/api/pks/:level', async (req, res) => {
+  const cfg = pksLevel(req);
+  if (!cfg) return res.status(404).json({ error: 'Level tidak dikenal' });
+  const tahun = parseInt(req.query.tahun, 10) || new Date().getFullYear();
+  try {
+    let sql = `SELECT * FROM ${cfg.table} WHERE tahun = $1`;
+    const params = [tahun];
+    if (cfg.parentCol && req.query.parent_id) {
+      params.push(req.query.parent_id);
+      sql += ` AND ${cfg.parentCol} = $${params.length}`;
+    }
+    sql += ' ORDER BY urutan, kode';
+    res.json(await queryDB(sql, params));
+  } catch (err) {
+    console.error(`Get pks ${req.params.level} error:`, err);
+    res.status(500).json({ error: `Gagal mengambil data ${cfg.label}` });
+  }
+});
+
+app.post('/api/pks/:level', async (req, res) => {
+  const cfg = pksLevel(req);
+  if (!cfg) return res.status(404).json({ error: 'Level tidak dikenal' });
+  const { kode, nama, parent_id, indikator, target } = req.body;
+  const tahun = parseInt(req.body.tahun, 10);
+  if (!kode || !String(kode).trim()) return res.status(400).json({ error: 'Kode wajib diisi' });
+  if (!nama || !String(nama).trim()) return res.status(400).json({ error: 'Nama wajib diisi' });
+  if (!tahun) return res.status(400).json({ error: 'Tahun wajib diisi' });
+  if (cfg.parentCol && !parent_id) return res.status(400).json({ error: `Parent ${cfg.label} wajib dipilih` });
+
+  try {
+    await daftarTahun(tahun);
+    const urutan = await hitungUrutanBerikutnya(cfg, parent_id, tahun);
+    const cols = ['kode', 'nama', 'urutan', 'tahun'];
+    const vals = [String(kode).trim(), String(nama).trim(), urutan, tahun];
+    if (cfg.parentCol) { cols.push(cfg.parentCol); vals.push(parent_id); }
+    if (cfg.table === 'pks_subkegiatan') {
+      cols.push('indikator', 'target');
+      vals.push(indikator || null, target || null);
+    }
+    const ph = vals.map((_, i) => `$${i + 1}`).join(', ');
+    const rows = await queryDB(
+      `INSERT INTO ${cfg.table} (${cols.join(', ')}) VALUES (${ph}) RETURNING *`, vals
+    );
+    res.json({ message: `${cfg.label} berhasil ditambahkan`, row: rows[0] });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: `Kode ${kode} sudah dipakai untuk tahun ${tahun}` });
+    }
+    console.error(`Create pks ${req.params.level} error:`, err);
+    res.status(500).json({ error: `Gagal menambahkan ${cfg.label}` });
+  }
+});
+
+app.put('/api/pks/:level/:id', async (req, res) => {
+  const cfg = pksLevel(req);
+  if (!cfg) return res.status(404).json({ error: 'Level tidak dikenal' });
+  const { id } = req.params;
+  const { kode, nama, parent_id, indikator, target } = req.body;
+  if (!kode || !String(kode).trim()) return res.status(400).json({ error: 'Kode wajib diisi' });
+  if (!nama || !String(nama).trim()) return res.status(400).json({ error: 'Nama wajib diisi' });
+  try {
+    const sets = ['kode = $1', 'nama = $2', 'updated_at = NOW()'];
+    const params = [String(kode).trim(), String(nama).trim()];
+    if (cfg.parentCol) {
+      if (!parent_id) return res.status(400).json({ error: `Parent ${cfg.label} wajib dipilih` });
+      params.push(parent_id);
+      sets.push(`${cfg.parentCol} = $${params.length}`);
+    }
+    if (cfg.table === 'pks_subkegiatan') {
+      params.push(indikator || null);
+      sets.push(`indikator = $${params.length}`);
+      params.push(target || null);
+      sets.push(`target = $${params.length}`);
+    }
+    params.push(id);
+    const rows = await queryDB(
+      `UPDATE ${cfg.table} SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *`, params
+    );
+    if (!rows.length) return res.status(404).json({ error: `${cfg.label} tidak ditemukan` });
+    res.json({ message: `${cfg.label} berhasil diperbarui`, row: rows[0] });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: `Kode ${kode} sudah dipakai pada tahun yang sama` });
+    }
+    console.error(`Update pks ${req.params.level} error:`, err);
+    res.status(500).json({ error: `Gagal memperbarui ${cfg.label}` });
+  }
+});
+
+app.delete('/api/pks/:level/:id', async (req, res) => {
+  const cfg = pksLevel(req);
+  if (!cfg) return res.status(404).json({ error: 'Level tidak ditemukan' });
+  const { id } = req.params;
+  try {
+    const rows = await queryDB(`DELETE FROM ${cfg.table} WHERE id = $1 RETURNING id`, [id]);
+    if (!rows.length) return res.status(404).json({ error: `${cfg.label} tidak ditemukan` });
+    res.json({ message: `${cfg.label} berhasil dihapus` });
+  } catch (err) {
+    // Rantai FK memakai ON DELETE RESTRICT: hapus ditolak bila punya anak.
+    if (err.code === '23503') {
+      return res.status(409).json({
+        error: `Tidak bisa dihapus: masih ada data di bawahnya. Hapus yang paling bawah lebih dulu.`
+      });
+    }
+    console.error(`Delete pks ${req.params.level} error:`, err);
+    res.status(500).json({ error: `Gagal menghapus ${cfg.label}` });
+  }
+});
+
+// ═══ Kertas Kerja (output per sub kegiatan) ═════════════════════════════
+
+// ── Periode & deadline ────────────────────────────────────────────────────
+// Tanggal dihitung di server agar tahun kabis/leap year ditangani benar.
+const NAMA_BULAN = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+const NAMA_TRIWULAN = ['', 'I', 'II', 'III', 'IV'];
+
+const hariDalamBulan = (tahun, bulan) => new Date(Date.UTC(tahun, bulan, 0)).getUTCDate();
+
+const isoDate = (y, m, d) =>
+  `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+const tambahHari = (y, m, d, n) => {
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
+};
+
+// deadline_rule: next_month:N | next_month:last | quarter_end:N
+//                | semiannual_end:N | year_end | next_january
+const hitungDeadline = (rule, tahun, periode) => {
+  const nama = String(rule || 'year_end');
+  const [jenis, arg] = nama.split(':');
+  const n = parseInt(arg, 10);
+
+  if (jenis === 'next_month') {
+    let y = tahun;
+    let m = periode + 1;
+    if (m > 12) { m = 1; y += 1; }
+    const d = arg === 'last'
+      ? hariDalamBulan(y, m)
+      : Math.min(Number.isFinite(n) ? n : 10, hariDalamBulan(y, m));
+    return isoDate(y, m, d);
+  }
+  if (jenis === 'quarter_end' || jenis === 'semiannual_end') {
+    const mEnd = jenis === 'quarter_end' ? periode * 3 : periode * 6;
+    const dEnd = hariDalamBulan(tahun, mEnd);
+    const r = tambahHari(tahun, mEnd, dEnd, Number.isFinite(n) ? n : 10);
+    return isoDate(r.y, r.m, r.d);
+  }
+  if (jenis === 'next_january') return isoDate(tahun + 1, 1, 31);
+  return isoDate(tahun, 12, 31);
+};
+
+// Jumlah periode = target_per_tahun. Jadi target 12 berarti 12 dokumen, satu
+// per bulan; target 1 berarti satu dokumen untuk setahun. Frekuensi hanya
+// menentukan penamaan periode dan aturan deadline, bukan jumlah periodenya.
+const rencanaPeriode = (frekuensi, tahun, target) => {
+  const f = String(frekuensi || 'Tahunan');
+  const n = Math.max(1, Math.min(24, parseInt(target, 10) || 1));
+
+  if (f === 'Bulanan' && n <= 12) {
+    return Array.from({ length: n }, (_, i) => ({
+      periode: i + 1, label: `${NAMA_BULAN[i + 1]} ${tahun}`,
+    }));
+  }
+  if (f === 'Triwulan' && n <= 4) {
+    return Array.from({ length: n }, (_, q) => ({
+      periode: q + 1, label: `Triwulan ${NAMA_TRIWULAN[q + 1]} ${tahun}`,
+    }));
+  }
+  if (f === 'Semesteran' && n <= 2) {
+    return Array.from({ length: n }, (_, s) => ({
+      periode: s + 1, label: `Semester ${s === 0 ? 'I' : 'II'} ${tahun}`,
+    }));
+  }
+  if (f === 'Tahunan' && n === 1) {
+    return [{ periode: 1, label: `Tahun ${tahun}` }];
+  }
+  return Array.from({ length: n }, (_, i) => ({
+    periode: i + 1, label: `Periode ${i + 1} ${tahun}`,
+  }));
+};
+
+// bulan_wajib: '*' = semua, atau daftar '1,3,5,7,9,11'
+const hitungBulanWajib = (spec, jumlahPeriode) => {
+  const s = String(spec ?? '*').trim();
+  if (s === '' || s === '*') {
+    return new Set(Array.from({ length: jumlahPeriode }, (_, i) => i + 1));
+  }
+  return new Set(
+    s.split(',').map(x => parseInt(x.trim(), 10))
+      .filter(n => Number.isInteger(n) && n >= 1 && n <= jumlahPeriode)
+  );
+};
+
+// ── Daftar output ─────────────────────────────────────────────────────────
+app.get('/api/kertas-kerja', async (req, res) => {
+  const tahun = parseInt(req.query.tahun, 10) || new Date().getFullYear();
+  try {
+    const params = [tahun];
+    let sql = `
+      SELECT k.*, s.kode AS sub_kode, s.nama AS sub_nama
+      FROM kertas_kerja k
+      JOIN pks_subkegiatan s ON s.id = k.subkegiatan_id
+      WHERE s.tahun = $1 AND k.is_active`;
+    if (req.query.subkegiatan_id) {
+      params.push(req.query.subkegiatan_id);
+      sql += ` AND k.subkegiatan_id = $${params.length}`;
+    }
+    sql += ' ORDER BY s.urutan, s.kode, k.nama';
+    res.json(await queryDB(sql, params));
+  } catch (err) {
+    console.error('Get kertas kerja error:', err);
+    res.status(500).json({ error: 'Gagal mengambil daftar kertas kerja' });
+  }
+});
+
+app.post('/api/kertas-kerja', async (req, res) => {
+  const b = req.body;
+  const tahun = parseInt(b.tahun, 10);
+  if (!b.subkegiatan_id) return res.status(400).json({ error: 'Sub kegiatan wajib dipilih' });
+  if (!b.nama || !String(b.nama).trim()) return res.status(400).json({ error: 'Nama output wajib diisi' });
+  if (!b.frekuensi) return res.status(400).json({ error: 'Frekuensi wajib dipilih' });
+  if (!tahun) return res.status(400).json({ error: 'Tahun wajib diisi' });
+  try {
+    const rows = await queryDB(`
+      INSERT INTO kertas_kerja
+        (subkegiatan_id, nama, indikator, frekuensi, target_per_tahun,
+         bulan_wajib, deadline_rule, pic_id, keterangan, created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      RETURNING *`,
+      [b.subkegiatan_id, String(b.nama).trim(), b.indikator || null, b.frekuensi,
+       parseInt(b.target_per_tahun, 10) || 1, b.bulan_wajib || '*',
+       b.deadline_rule || 'year_end', b.pic_id || null, b.keterangan || null,
+       b.created_by || null]
+    );
+    res.json({ message: 'Output berhasil ditambahkan', row: rows[0] });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: `Output "${b.nama}" sudah ada di sub kegiatan ini` });
+    }
+    console.error('Create kertas kerja error:', err);
+    res.status(500).json({ error: 'Gagal menambahkan output' });
+  }
+});
+
+app.put('/api/kertas-kerja/:id', async (req, res) => {
+  const { id } = req.params;
+  const b = req.body;
+  if (!b.nama || !String(b.nama).trim()) return res.status(400).json({ error: 'Nama output wajib diisi' });
+  try {
+    const rows = await queryDB(`
+      UPDATE kertas_kerja SET
+        nama = $1, indikator = $2, frekuensi = $3, target_per_tahun = $4,
+        bulan_wajib = $5, deadline_rule = $6, pic_id = $7, keterangan = $8,
+        is_active = $9, updated_at = NOW()
+      WHERE id = $10 RETURNING *`,
+      [String(b.nama).trim(), b.indikator || null, b.frekuensi || 'Tahunan',
+       parseInt(b.target_per_tahun, 10) || 1, b.bulan_wajib || '*',
+       b.deadline_rule || 'year_end', b.pic_id || null, b.keterangan || null,
+       b.is_active !== false, id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Output tidak ditemukan' });
+    res.json({ message: 'Output berhasil diperbarui', row: rows[0] });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: `Output "${b.nama}" sudah ada di sub kegiatan ini` });
+    }
+    console.error('Update kertas kerja error:', err);
+    res.status(500).json({ error: 'Gagal memperbarui output' });
+  }
+});
+
+app.delete('/api/kertas-kerja/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const rows = await queryDB('DELETE FROM kertas_kerja WHERE id = $1 RETURNING id', [id]);
+    if (!rows.length) return res.status(404).json({ error: 'Output tidak ditemukan' });
+    res.json({ message: 'Output berhasil dihapus' });
+  } catch (err) {
+    if (err.code === '23503') {
+      return res.status(409).json({ error: 'Tidak bisa dihapus: masih ada periode terkait' });
+    }
+    console.error('Delete kertas kerja error:', err);
+    res.status(500).json({ error: 'Gagal menghapus output' });
+  }
+});
+
+// ── Generate periode untuk satu tahun (idempoten) ─────────────────────────
+app.post('/api/kertas-kerja/:id/generate', async (req, res) => {
+  const { id } = req.params;
+  const tahun = parseInt(req.body.tahun, 10);
+  if (!tahun) return res.status(400).json({ error: 'Tahun wajib diisi' });
+  try {
+    const kk = (await queryDB('SELECT * FROM kertas_kerja WHERE id = $1', [id]))[0];
+    if (!kk) return res.status(404).json({ error: 'Output tidak ditemukan' });
+
+    const rencana = rencanaPeriode(kk.frekuensi, tahun, kk.target_per_tahun);
+    const wajibSet = hitungBulanWajib(kk.bulan_wajib, rencana.length);
+    let dibuat = 0;
+    for (const p of rencana) {
+      const rows = await queryDB(`
+        INSERT INTO kertas_kerja_periode
+          (kertas_kerja_id, tahun, periode, periode_label, deadline, is_wajib)
+        VALUES ($1,$2,$3,$4,$5,$6)
+        ON CONFLICT (kertas_kerja_id, tahun, periode) DO NOTHING
+        RETURNING id`,
+        [id, tahun, p.periode, p.label,
+         hitungDeadline(kk.deadline_rule, tahun, p.periode), wajibSet.has(p.periode)]
+      );
+      if (rows.length) dibuat += 1;
+    }
+    res.json({
+      message: `${dibuat} periode baru dibuat untuk ${tahun}`,
+      dibuat, rencana: rencana.length,
+    });
+  } catch (err) {
+    console.error('Generate periode error:', err);
+    res.status(500).json({ error: 'Gagal membuat periode' });
+  }
+});
+
+// ── Re-sync bulan_wajib ke periode yang belum terisi ──────────────────────
+app.post('/api/kertas-kerja/:id/sinkron-wajib', async (req, res) => {
+  const { id } = req.params;
+  const tahun = parseInt(req.body.tahun, 10);
+  if (!tahun) return res.status(400).json({ error: 'Tahun wajib diisi' });
+  try {
+    const kk = (await queryDB('SELECT * FROM kertas_kerja WHERE id = $1', [id]))[0];
+    if (!kk) return res.status(404).json({ error: 'Output tidak ditemukan' });
+    const jumlah = rencanaPeriode(kk.frekuensi, tahun, kk.target_per_tahun).length;
+    const wajibSet = hitungBulanWajib(kk.bulan_wajib, jumlah);
+    // Hanya periode yang belum terisi dokumen — progres yang sudah ada tak ditimpa.
+    const rows = await queryDB(
+      'SELECT periode FROM kertas_kerja_periode WHERE kertas_kerja_id = $1 AND tahun = $2 AND doc_id IS NULL',
+      [id, tahun]
+    );
+    let diubah = 0;
+    for (const r of rows) {
+      const mau = wajibSet.has(r.periode);
+      await queryDB(
+        `UPDATE kertas_kerja_periode SET is_wajib = $1
+         WHERE kertas_kerja_id = $2 AND tahun = $3 AND periode = $4`,
+        [mau, id, tahun, r.periode]
+      );
+      if (mau) diubah += 1;
+    }
+    res.json({ message: `${diubah} periode ditandai wajib`, diubah });
+  } catch (err) {
+    console.error('Sinkron wajib error:', err);
+    res.status(500).json({ error: 'Gagal menyinkronkan periode wajib' });
+  }
+});
+
+// ── Isi periode dengan dokumen (upload) ──────────────────────────────────
+app.patch('/api/kertas-kerja/periode/:id', async (req, res) => {
+  const { id } = req.params;
+  const { doc_id, catatan, uploaded_by } = req.body;
+  try {
+    const rows = await queryDB(`
+      UPDATE kertas_kerja_periode
+      SET doc_id = $1,
+          catatan = $2,
+          uploaded_by = CASE WHEN $1::int IS NULL THEN uploaded_by ELSE $3 END,
+          uploaded_at = CASE WHEN $1::int IS NULL THEN uploaded_at ELSE NOW() END
+      WHERE id = $4
+      RETURNING id, kertas_kerja_id, tahun, periode, periode_label,
+                TO_CHAR(deadline, 'YYYY-MM-DD') AS deadline, is_wajib, doc_id, catatan,
+                uploaded_by, uploaded_at`,
+      [doc_id ? parseInt(doc_id, 10) : null, catatan || null, uploaded_by || null, id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Periode tidak ditemukan' });
+    res.json({ message: 'Periode berhasil diperbarui', row: rows[0] });
+  } catch (err) {
+    if (err.code === '23503') return res.status(409).json({ error: 'Dokumen tidak ditemukan' });
+    console.error('Patch periode error:', err);
+    res.status(500).json({ error: 'Gagal memperbarui periode' });
   }
 });
 

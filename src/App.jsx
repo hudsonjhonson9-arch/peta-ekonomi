@@ -53,6 +53,7 @@ import { Pencarian, PortalPublik, ManajemenPengguna, AuditTrail, ManajemenKatego
 import PanduanPengguna   from "./components/PanduanPengguna.jsx";
 import BankData          from "./components/BankData.jsx";
 import BankDataDashboard from "./components/BankDataDashboard.jsx";
+import KertasKerja from "./components/KertasKerja.jsx";
 import { Icon, Toast }  from "./components/ui.jsx";
 import { ROLE_COLOR } from "./data.js";
 import { Badge } from "./components/ui.jsx";
@@ -110,6 +111,9 @@ export default function App() {
   const [sectors, setSectors] = useState([]);
   const [bidangs, setBidangs] = useState([]);
   const [viewDoc,   setViewDoc]   = useState(null);
+  // Konteks upload dari Kertas Kerja: file + periode tujuan, supaya setelah
+  // GAS selesai dokumennya langsung ditautkan ke periode yang benar.
+  const [uploadKk,  setUploadKk]  = useState(null);
   // Dokumen yang dibuka dibaca dari hash (#dokumen/ID) supaya tetap terbuka setelah refresh
   const [pendingDocId, setPendingDocId] = useState(() => { const m = window.location.hash.match(/^#dokumen\/(\d+)/); return m ? m[1] : null; });
   // Halaman publik tautan berbagi dibaca sekali saat mount (hash ditimpa oleh routing internal)
@@ -261,6 +265,50 @@ export default function App() {
   }, [viewDoc, pendingDocId, page]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
+  // ── Upload dari Kertas Kerja ──────────────────────────────────────────────
+  // Memakai form upload yang sama (GAS + Drive) lalu menautkan dokumen hasil
+  // ke periode tujuan. Form dimuat ulang dari nol supaya tidak ada state sisa.
+  const handleMulaiUpload = ({ file, periodeId, title, tahun }) => {
+    setUploadKk({ periodeId, title, tahun });
+    window.__droppedFiles = [file];
+    goPage("upload");
+  };
+
+  // Dipanggil setelah GAS selesai menyimpan dokumen. Kalau upload dipicu dari
+  // Kertas Kerja, tautkan doc_id ke periodenya dan kembali ke halaman asal —
+  // jangan lempar user ke daftar dokumen.
+  const selesaiUpload = async (docsBaru, pesan, opts = {}) => {
+    setDocs(d => docsBaru.concat(d));
+    docsBaru.forEach(d => addLog("Upload dokumen", d));
+    queryClient.invalidateQueries({ queryKey: ['docs'] });
+
+    if (opts.periodeId != null && !opts.noLink) {
+      const dok = docsBaru[0];
+      const realId = Number.isInteger(opts.docId) ? opts.docId
+        : (dok && Number.isInteger(dok.id) && dok.id > 0 && dok.id < 1e12 ? dok.id : null);
+      if (realId != null) {
+        try {
+          await api(`/api/kertas-kerja/periode/${opts.periodeId}`, "PATCH", {
+            doc_id: realId, uploaded_by: user.name
+          });
+          queryClient.invalidateQueries({ queryKey: ['pks-tree'] });
+          queryClient.invalidateQueries({ queryKey: ['pks-ringkasan'] });
+          queryClient.invalidateQueries({ queryKey: ['pks-deadline'] });
+          showToast("Dokumen diunggah dan ditautkan ke periode Kertas Kerja.");
+        } catch (_) {
+          showToast("Dokumen terunggah, tetapi gagal ditautkan ke periode. Buka Kertas Kerja lalu unggah ulang lewat tombol di baris periode.");
+        }
+      } else {
+        showToast("Dokumen terunggah, tetapi id-nya tidak bisa ditautkan otomatis. Perbarui periodenya manual.");
+      }
+    } else {
+      showToast(pesan);
+    }
+
+    setUploadKk(null);
+    setPage(opts.returnPage || "dokumen");
+  };
+
   const handleApprove = (doc, note) => {
     setDocs(d => d.map(x => x.id === doc.id ? { ...x, status: "Diarsipkan", reviewedBy: user.name } : x));
     addLog("Approve dokumen", doc);
@@ -366,7 +414,7 @@ export default function App() {
     }
   };
 
-  const handleUpload = async (form, onProgress) => {
+  const handleUpload = async (form, onProgress, uploadOpts = {}) => {
     var GAS_URL = "https://script.google.com/macros/s/AKfycbyjrDE_5NnsTsKSyRvEwLLMJH3lWeGsg7jpM44btardExAFX1Vxvp246pazjQdH4UL5/exec";
     var DIRECT_THRESHOLD = 30 * 1024 * 1024;
     var CHUNK_SIZE = 5 * 1024 * 1024;
@@ -400,10 +448,11 @@ export default function App() {
         };
         var srvRes = await api('/api/docs', 'POST', payload);
         var newDoc = { ...srvRes.doc, tags: payload.tags ? payload.tags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [] };
-        setDocs(function (d) { return [newDoc].concat(d); });
-        queryClient.invalidateQueries({ queryKey: ['docs'] });
-        setPage("dokumen");
-        showToast("Dokumen berhasil ditambahkan via Google Drive link.");
+        await selesaiUpload(
+          [newDoc],
+          "Dokumen berhasil ditambahkan via Google Drive link.",
+          { ...uploadOpts, returnPage: uploadOpts.returnPage || "dokumen" }
+        );
       } catch (err) {
         showToast("Gagal menyimpan dokumen: " + (err.message || err));
       }
@@ -419,6 +468,9 @@ export default function App() {
     try {
       var totalFiles = form.fileObjs.length;
       var allDocs = [];
+      // Id asli dari GAS. allDocs memakai id lokal biar UI responsif, jadi
+      // untuk tautan Kertas Kerja harus ambil docId ini, bukan allDocs[].id.
+      var idAsli = null;
       var groupFiles = [];
 
       if (groupMode) {
@@ -561,6 +613,8 @@ export default function App() {
           continue;
         }
 
+        if (result.docId) idAsli = Number(result.docId);
+
         allDocs.push({
           id:         Date.now() + fi,
           title:      fileTitle,
@@ -636,23 +690,26 @@ export default function App() {
           bidang:     form.bidang || "",
           files:      groupFiles,
         };
-        setDocs(function (d) { return [folderDoc].concat(d); });
-        addLog("Upload dokumen", folderDoc);
-        queryClient.invalidateQueries({ queryKey: ['docs'] });
-        setPage("dokumen");
-        showToast("Folder " + form.title + " (" + groupFiles.length + " file) berhasil diunggah dan dikirim untuk review.");
+        // Folder multi-file memakai id lokal, bukan id baris bapperida_dokumen,
+        // jadi tidak bisa ditautkan otomatis ke satu periode.
+        await selesaiUpload(
+          [folderDoc],
+          "Folder " + form.title + " (" + groupFiles.length + " file) berhasil diunggah dan dikirim untuk review.",
+          { ...uploadOpts, noLink: true, returnPage: uploadOpts.returnPage || "dokumen" }
+        );
         return;
       }
 
       if (allDocs.length > 0) {
-        setDocs(function (d) { return allDocs.concat(d); });
-        allDocs.forEach(function (doc) { addLog("Upload dokumen", doc); });
-        queryClient.invalidateQueries({ queryKey: ['docs'] });
-        setPage("dokumen");
-        showToast(allDocs.length + " dokumen berhasil diunggah dan dikirim untuk review.");
+        await selesaiUpload(
+          allDocs,
+          allDocs.length + " dokumen berhasil diunggah dan dikirim untuk review.",
+          { ...uploadOpts, docId: idAsli, returnPage: uploadOpts.returnPage || "dokumen" }
+        );
       }
     } catch (err) {
       showToast("Gagal mengunggah: " + err.message);
+      setUploadKk(null);
     }
   };
 
@@ -720,6 +777,7 @@ export default function App() {
                   {page === "audit" && "Audit Trail"}
                   {page === "panduan" && "Panduan Pengguna"}
                   {page === "bankdata" && "Bank Data"}
+                  {page === "kertas-kerja" && "Kertas Kerja"}
                 </div>
               )}
             </div>
@@ -773,7 +831,16 @@ export default function App() {
               />
             )}
             {page === "upload" && (
-              <UploadForm onSubmit={handleUpload} user={user} categories={categories} sectors={sectors} bidangs={bidangs} initialFiles={window.__droppedFiles} />
+              <UploadForm
+                key={uploadKk ? `kk-${uploadKk.periodeId}` : "upload-biasa"}
+                onSubmit={(form, onProgress) => handleUpload(form, onProgress, {
+                  periodeId: uploadKk ? uploadKk.periodeId : null,
+                  returnPage: uploadKk ? "kertas-kerja" : "dokumen",
+                })}
+                user={user} categories={categories} sectors={sectors} bidangs={bidangs}
+                initialTitle={uploadKk ? uploadKk.title : ""}
+                initialYear={uploadKk ? uploadKk.tahun : null}
+              />
             )}
             {page === "pencarian" && (
               <Pencarian docs={docs} onView={openDoc} />
@@ -789,6 +856,13 @@ export default function App() {
             )}
             {page === "bankdata" && user.role !== "Admin" && (
               <BankDataReadOnly />
+            )}
+            {page === "kertas-kerja" && (
+              <KertasKerja
+                user={user}
+                showToast={showToast}
+                onMulaiUpload={handleMulaiUpload}
+              />
             )}
             {page === "pengguna" && user.role === "Admin" && (
               <ManajemenPengguna users={users} onReload={() => queryClient.invalidateQueries({ queryKey: ['users'] })} showToast={showToast} />

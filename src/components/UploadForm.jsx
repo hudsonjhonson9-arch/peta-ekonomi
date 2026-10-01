@@ -15,7 +15,7 @@ const EXTRA = {
   primaryHover: "#1D4ED8",
 };
 
-export default function UploadForm({ onSubmit, user, categories = [], sectors = [], bidangs = [] }) {
+export default function UploadForm({ onSubmit, user, categories = [], sectors = [], bidangs = [], initialTitle = "", initialYear = null }) {
   const { isMobile } = useResponsive();
   const { T: _T } = useContext(ThemeContext);
   const T = { ..._T, ...EXTRA };
@@ -25,9 +25,12 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
     border: `1px solid ${T.border}`,
     boxShadow: T.shadowSm,
   };
+  // ponytail: initialTitle/initialYear dipakai saat upload dipicu dari Kertas
+  // Kerja, supaya judul dokumen sudah terisi nama output + periodenya.
+  const defaultYear = (initialYear || new Date().getFullYear() + 1).toString();
   const [form, setForm] = useState({
-    title: "", type: "", sector: "", bidang: "",
-    year: (new Date().getFullYear() + 1).toString(),
+    title: initialTitle, type: "", sector: "", bidang: "",
+    year: defaultYear,
     desc: "", tags: "",
     nomor_dokumen: "", tanggal_dokumen: "",
     fileType: "",
@@ -75,7 +78,7 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
   };
 
   const resetForm = () => {
-    setForm({ title: "", type: "", sector: "", bidang: "", year: (new Date().getFullYear() + 1).toString(), desc: "", tags: "", nomor_dokumen: "", tanggal_dokumen: "", fileType: "" });
+    setForm({ title: initialTitle, type: "", sector: "", bidang: "", year: defaultYear, desc: "", tags: "", nomor_dokumen: "", tanggal_dokumen: "", fileType: "" });
     setFiles([]);
     setErrors({});
     setGdriveUrl("");

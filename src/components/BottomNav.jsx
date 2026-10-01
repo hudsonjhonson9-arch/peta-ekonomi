@@ -13,6 +13,7 @@ const MORE = [
   { key: "publik",            label: "Portal Publik",   icon: "world" },
   { key: "panduan",           label: "Panduan",         icon: "file" },
   { key: "bankdata",          label: "Bank Data",       icon: "chart"  },
+  { key: "kertas-kerja",      label: "Kertas Kerja",    icon: "checkCircle" },
   { key: "pengguna",          label: "Pengguna",        icon: "users",  adminOnly: true },
   { key: "kategori-dokumen",  label: "Jenis Dokumen",    icon: "tag",    adminOnly: true },
   { key: "sektor",            label: "Sektor",          icon: "layers", adminOnly: true },

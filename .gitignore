@@ -4,3 +4,6 @@ dist/
 .DS_Store
 
 test-files/
+
+# Konfigurasi lokal opencode: memuat kredensial database, jangan pernah di-commit.
+.opencode.json
