@@ -1383,7 +1383,14 @@ app.get('/api/pks/tahun', async (_, res) => {
     for (const y of [now + 1, now, now - 1]) {
       if (!nums.includes(y)) nums.push(y);
     }
-    res.json([...new Set(nums)].sort((a, b) => b - a));
+    // Tahun yang sudah punya program didahulukan supaya klien bisa memakai
+    // elemen pertama sebagai default (tahun berjalan belum tentu terisi).
+    // Urutan tampilan tidak terpengaruh; dropdown mengurutkan sendiri.
+    const unik = [...new Set(nums)];
+    res.json([
+      ...unik.filter(y => rows.some(r => r.tahun === y)),
+      ...unik.filter(y => !rows.some(r => r.tahun === y)),
+    ]);
   } catch (err) {
     console.error('Get pks tahun error:', err);
     res.status(500).json({ error: 'Gagal mengambil daftar tahun' });
@@ -1513,7 +1520,7 @@ app.get('/api/pks/deadline-terdekat', async (req, res) => {
       JOIN kertas_kerja k ON k.id = p.kertas_kerja_id AND k.is_active
       JOIN pks_subkegiatan s ON s.id = k.subkegiatan_id
       WHERE p.is_wajib AND p.doc_id IS NULL
-        AND p.deadline <= CURRENT_DATE + $1
+        AND p.deadline <= CURRENT_DATE + $1::int
       ORDER BY p.deadline ASC
       LIMIT 50
     `, [hari]);

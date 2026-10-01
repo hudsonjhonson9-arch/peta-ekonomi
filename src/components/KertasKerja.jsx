@@ -1,4 +1,4 @@
-import { useState, useContext, useMemo, useRef } from "react";
+import { useState, useContext, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Icon } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
@@ -16,7 +16,7 @@ import PksAdmin, { pesanError, btn } from "./PksAdmin.jsx";
 export default function KertasKerja({ user, showToast, onMulaiUpload }) {
   const { T } = useContext(ThemeContext);
   const qc = useQueryClient();
-  const [tahun, setTahun] = useState(() => new Date().getFullYear());
+  const [tahun, setTahun] = useState(null);
   const [tab, setTab] = useState("kerja"); // kerja | pohon
   const [q, setQ] = useState("");
   const [hanyaTerlambat, setHanyaTerlambat] = useState(false);
@@ -30,6 +30,12 @@ export default function KertasKerja({ user, showToast, onMulaiUpload }) {
   const { data: tree, isLoading, isError } = usePksTree(tahun);
   const { data: ringkasan } = usePksRingkasan(tahun);
   const { data: deadline = [] } = usePksDeadlineTerdekat();
+
+  // Default ke tahun terbaru yang benar-benar punya data. Server mengurutkan
+  // tahun terisi lebih dulu, jadi elemen pertama adalah kandidat terbaik.
+  useEffect(() => {
+    if (tahun == null && tahunList.length) setTahun(tahunList[0]);
+  }, [tahunList, tahun]);
 
   const reload = () => {
     qc.invalidateQueries({ queryKey: ["pks-tree", tahun] });
@@ -86,12 +92,12 @@ export default function KertasKerja({ user, showToast, onMulaiUpload }) {
           </div>
 
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <select value={tahun} onChange={e => setTahun(parseInt(e.target.value, 10))}
+            <select value={tahun ?? ""} onChange={e => setTahun(parseInt(e.target.value, 10))}
               style={{
                 padding: "6px 9px", border: `1px solid ${T.inputBorder}`, borderRadius: 8,
                 fontSize: 12, background: T.inputBg, color: T.text, fontFamily: "inherit",
               }}>
-              {[...new Set([tahun, ...tahunList])].sort((a, b) => b - a).map(y =>
+              {[...new Set([tahun, ...tahunList].filter(Boolean))].sort((a, b) => b - a).map(y =>
                 <option key={y} value={y}>{y}</option>
               )}
             </select>
@@ -168,9 +174,9 @@ export default function KertasKerja({ user, showToast, onMulaiUpload }) {
             </div>
           )}
 
-          {isLoading && <div style={{ fontSize: 13, color: T.textMuted, padding: 12 }}>Memuat data…</div>}
+          {(tahun == null || isLoading) && <div style={{ fontSize: 13, color: T.textMuted, padding: 12 }}>Memuat data…</div>}
 
-          {!isLoading && !isError && PROGRAM.length === 0 && (
+          {tahun != null && !isLoading && !isError && PROGRAM.length === 0 && (
             <div style={{ background: T.card, border: `1px dashed ${T.inputBorder}`, borderRadius: 12, padding: 40, textAlign: "center", color: T.textMuted, fontSize: 13 }}>
               {cari
                 ? "Tidak ada yang cocok dengan pencarian."

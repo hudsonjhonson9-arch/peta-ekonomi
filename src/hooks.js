@@ -52,7 +52,12 @@ export function usePksTahun() {
 export function usePksTree(tahun) {
   return useQuery({
     queryKey: ['pks-tree', tahun],
-    queryFn: () => api(`/api/pks/tree?tahun=${encodeURIComponent(tahun)}`),
+    queryFn: async () => {
+      const r = await api(`/api/pks/tree?tahun=${encodeURIComponent(tahun)}`);
+      // Server mengirim { tahun, tree }. Tolak array polos supaya komponen
+      // tidak pernah merender objek respons mentah.
+      return Array.isArray(r) ? { tahun, tree: r } : r;
+    },
     enabled: !!tahun,
   });
 }
