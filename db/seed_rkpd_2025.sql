@@ -21,22 +21,22 @@ INSERT INTO pks_program (kode, nama, urutan, tahun) VALUES
 ON CONFLICT (kode, tahun) DO NOTHING;
 
 -- ── Kegiatan (13 baris) ──
-INSERT INTO pks_kegiatan (kode, program_id, urutan, tahun)
-SELECT d.kode, p.id, d.urutan, d.tahun FROM (VALUES
-  ('5.01.01.2.01', '5.01.01', 1, 2025),
-  ('5.01.01.2.02', '5.01.01', 2, 2025),
-  ('5.01.01.2.06', '5.01.01', 3, 2025),
-  ('5.01.01.2.07', '5.01.01', 4, 2025),
-  ('5.01.01.2.08', '5.01.01', 5, 2025),
-  ('5.01.01.2.09', '5.01.01', 6, 2025),
-  ('5.01.02.2.01', '5.01.02', 1, 2025),
-  ('5.01.02.2.03', '5.01.02', 2, 2025),
-  ('5.01.03.2.01', '5.01.03', 1, 2025),
-  ('5.01.03.2.02', '5.01.03', 2, 2025),
-  ('5.01.03.2.03', '5.01.03', 3, 2025),
-  ('5.05.02.2.01', '5.05', 1, 2025),
-  ('5.05.02.2.04', '5.05', 2, 2025)
-) AS d(kode, parent_kode, urutan, tahun)
+INSERT INTO pks_kegiatan (kode, nama, program_id, urutan, tahun)
+SELECT d.kode, d.nama, p.id, d.urutan, d.tahun FROM (VALUES
+  ('5.01.01.2.01', 'Keg. Perencanaan, Penganggaran dan Evaluasi Kinerja Perangkat Daerah', '5.01.01', 1, 2025),
+  ('5.01.01.2.02', 'Keg. Administrasi Keuangan Perangkat Daerah', '5.01.01', 2, 2025),
+  ('5.01.01.2.06', 'Keg. Administrasi Umum Perangkat Daerah', '5.01.01', 3, 2025),
+  ('5.01.01.2.07', 'Keg. Pengadaan Barang Milik Daerah Penunjang Urusan Pemerintahan Daerah', '5.01.01', 4, 2025),
+  ('5.01.01.2.08', 'Keg. Penyediaan Jasa Penunjang Urusan Pemerintahan Daerah', '5.01.01', 5, 2025),
+  ('5.01.01.2.09', 'Keg. Pemeliharaan Barang Milik Daerah Penunjang Urusan Pemerintah Daerah', '5.01.01', 6, 2025),
+  ('5.01.02.2.01', 'Keg. Penyusunan Perencanaan dan Pendanaan', '5.01.02', 1, 2025),
+  ('5.01.02.2.03', 'Keg. Pengendalian, Evaluasi dan Pelaporan Bidang Perencanaan Pembangunan Daerah', '5.01.02', 2, 2025),
+  ('5.01.03.2.01', 'Keg. Koordinasi Perencanaan Bidang Pemerintahan dan Pembangunan Manusia', '5.01.03', 1, 2025),
+  ('5.01.03.2.02', 'Keg. Koordinasi Perencanaan Bidang Perekonomian dan SDA (Sumber Daya Alam)', '5.01.03', 2, 2025),
+  ('5.01.03.2.03', 'Keg. Koordinasi Perencanaan Bidang Infrastruktur dan Kewilayahan', '5.01.03', 3, 2025),
+  ('5.05.02.2.01', 'Keg. Penelitian dan Pengembangan Bidang Penyelenggaraan Pemerintah dan Pengkajian Peraturan', '5.05', 1, 2025),
+  ('5.05.02.2.04', 'Keg. Pengembangan Inovasi dan Teknologi', '5.05', 2, 2025)
+) AS d(kode, nama, parent_kode, urutan, tahun)
 JOIN pks_program p ON p.kode = d.parent_kode AND p.tahun = d.tahun
 ON CONFLICT (kode, tahun) DO NOTHING;
 

@@ -1,12 +1,20 @@
 // Validasi statis db/seed_rkpd_2025.sql tanpa server Postgres.
-// Semua pemindaiantdiabaikan karakter di dalam string literal.
+//
+// Dua aturan penting:
+//  1. Semua pemindaian mengabaikan karakter di dalam string literal.
+//  2. Tidak ada asumsi bentuk statement. Kolom wajib, lebar tupel, dan urutan
+//     kolom diturunkan dari server/migrations/tahap_2.sql dan dari VALUES di
+//     seed itu sendiri. Versi sebelumnya meng-hardcode teks INSERT, sehingga
+//     seed yang kehilangan kolom `nama` tetap lolos 24 pemeriksaan.
 const fs = require("fs");
 const sql = fs.readFileSync(__dirname + "/../db/seed_rkpd_2025.sql", "utf8");
+const mig = fs.readFileSync(__dirname + "/../server/migrations/tahap_2.sql", "utf8");
 
 let fail = 0;
 const ok = (c, m) => { console.log((c ? "OK   " : "GAGAL") + " " + m); if (!c) fail++; };
+const unq = s => s.trim().replace(/^'|'$/g, "").replace(/''/g, "'");
 
-// Kurung仕様: abaikan kurung di dalam kutip.
+// ── 1. Keseimbangan kurung & kutip ────────────────────────────────────────
 let depth = 0, minDepth = 0, parenInString = 0, inQ = false;
 for (let i = 0; i < sql.length; i++) {
   const c = sql[i];
@@ -20,22 +28,77 @@ for (let i = 0; i < sql.length; i++) {
 }
 ok(depth === 0 && minDepth === 0, `kurung di luar string seimbang (akhir ${depth}, min ${minDepth})`);
 ok(parenInString % 2 === 0, `kurung di dalam string seimbang (${parenInString})`);
-
 const sq = (sql.match(/'/g) || []).length;
 ok(sq % 2 === 0, `kutip tunggal/genap (${sq})`);
 
-// ── Ekstrak tupel VALUES, abaikan string, berhenti di ';' tingkat atas ──
-function tuplesAfter(marker) {
-  const i = sql.indexOf(marker);
-  if (i < 0) return null;
+// ── 2. Kolom wajib dari migration (NOT NULL tanpa DEFAULT) ────────────────
+function definisiTabel(migSQL) {
+  const tabel = {};
+  const re = /CREATE TABLE IF NOT EXISTS (\w+)\s*\(/g;
+  let m;
+  while ((m = re.exec(migSQL))) {
+    const nama = m[1];
+    let d = 1, j = re.lastIndex;
+    while (j < migSQL.length && d > 0) {
+      const c = migSQL[j];
+      // Komentar baris '--' boleh memuat kutip; kalau dilewati, status
+      // "dalam string" jadi kacau dan kurung constraint tidak terhitung.
+      if (c === "-" && migSQL[j + 1] === "-") {
+        const eol = migSQL.indexOf("\n", j);
+        j = eol < 0 ? migSQL.length : eol;
+        continue;
+      }
+      if (c === "'") {
+        if (migSQL[j + 1] === "'") { j += 2; continue; }
+        // j+1 menunjuk karakter sesudah kutip pembuka. Loop berakhir saat
+        // m[j+1] === "'", jadi kutip penutup ada di k+1 dan karakter pertama
+        // sesudah string di k+2. Kalau hanya j++, kutip penutup dibaca lagi
+        // sebagai pembuka dan seluruh kurung setelahnya ikut ter-swallow.
+        let k = j;
+        while (k < migSQL.length && migSQL[k + 1] !== "'") k++;
+        j = k + 2;
+        continue;
+      }
+      else if (c === "(") d++;
+      else if (c === ")") d--;
+      j++;
+    }
+    const body = migSQL.slice(re.lastIndex, j - 1);
+    const kolom = {};
+    for (const baris of body.split("\n")) {
+      const b = baris.trim().replace(/,$/, "");
+      if (!b) continue;
+      if (/^(PRIMARY KEY|UNIQUE|FOREIGN KEY|CONSTRAINT|CHECK|EXCLUDE)\b/i.test(b)) continue;
+      const km = b.match(/^(\w+)\s+([A-Za-z]+[\s\S]*)$/);
+      if (!km) continue;
+      kolom[km[1]] = { tipe: km[2] };
+    }
+    tabel[nama] = kolom;
+  }
+  return tabel;
+}
+const tabel = definisiTabel(mig);
+const wajibDari = tbl => {
+  const k = tabel[tbl];
+  if (!k) return null;
+  return Object.entries(k)
+    .filter(([, v]) => /\bNOT\s+NULL\b/i.test(v.tipe) && !/\bDEFAULT\b/i.test(v.tipe))
+    .map(([n]) => n);
+};
+
+// ── 3. Parser statement INSERT generik ────────────────────────────────────
+function tupelSejak(i) {
   const rows = [];
   let d = 0, inQ = false, cur = null;
-  for (let j = i + marker.length; j < sql.length; j++) {
+  for (let j = i; j < sql.length; j++) {
     const c = sql[j];
-    if (c === "'") { if (inQ && sql[j + 1] === "'") { if (cur !== null) cur += "''"; j++; continue; } inQ = !inQ; if (cur !== null) cur += "'"; continue; }
+    if (c === "'") {
+      if (inQ && sql[j + 1] === "'") { if (cur !== null) cur += "''"; j++; continue; }
+      inQ = !inQ; if (cur !== null) cur += "'";
+      continue;
+    }
     if (inQ) { if (cur !== null) cur += c; continue; }
-    // 'ON CONFLICT (...)' di akhir statement bukan baris data.
-    if (d === 0 && /^ON\s+CONFLICT/i.test(sql.slice(j, j + 11)) && (j === 0 || sql[j - 1] === "\n")) break;
+    if (d === 0 && /^ON\s+CONFLICT/i.test(sql.slice(j, j + 11))) break;
     if (c === "(") { if (d === 0) { cur = ""; d = 1; continue; } d++; }
     else if (c === ")") { if (d === 0) break; d--; if (d === 0) { rows.push(cur); cur = null; continue; } }
     else if (c === ";" && d === 0) break;
@@ -43,9 +106,7 @@ function tuplesAfter(marker) {
   }
   return rows;
 }
-
-// Split isi satu tupel pada koma level-1, abaikan string.
-function cols(body) {
+function pecahKolom(body) {
   const out = [];
   let d = 0, inQ = false, cur = "";
   for (let i = 0; i < body.length; i++) {
@@ -60,68 +121,129 @@ function cols(body) {
   out.push(cur.trim());
   return out;
 }
-const parse = marker => (tuplesAfter(marker) || []).map(cols);
-const unq = s => s.replace(/^'|'$/g, "").replace(/''/g, "'");
 
-const prog = parse("INSERT INTO pks_program (kode, nama, urutan, tahun) VALUES");
-const keg  = parse("INSERT INTO pks_kegiatan (kode, program_id, urutan, tahun)\nSELECT d.kode, p.id, d.urutan, d.tahun FROM (VALUES");
-const sub  = parse("INSERT INTO pks_subkegiatan (kode, kegiatan_id, nama, urutan, tahun, indikator, target)\nSELECT d.kode, k.id, d.nama, d.urutan, d.tahun, d.indikator, d.target FROM (VALUES");
-const kk   = parse("INSERT INTO kertas_kerja\n  (subkegiatan_id, nama, indikator, frekuensi, target_per_tahun, bulan_wajib, deadline_rule, keterangan, created_by)\nSELECT s.id, d.nama, d.indikator, d.frekuensi, d.target_per_tahun, '*', d.deadline_rule, d.keterangan, 'seed ' || d.tahun::text FROM (VALUES");
+const statements = [];
+{
+  const re = /INSERT INTO (\w+)\s*\(([^)]*)\)/g;
+  let m;
+  while ((m = re.exec(sql))) {
+    const mulai = m.index;
+    const akhir = sql.indexOf(";", mulai);
+    const akhirStmt = akhir < 0 ? sql.length : akhir;
+    const stmt = sql.slice(mulai, akhirStmt);
+    const kolom = m[2].split(",").map(s => s.trim()).filter(Boolean);
+    // Posisi harus ABSOLUT terhadap sql, karena tupelSejak() memindai sql.
+    let alias = null, tupel = [], dariValues = false;
+    const vAbs = sql.indexOf("VALUES", mulai);
+    if (vAbs >= 0 && vAbs < akhirStmt) {
+      dariValues = true;
+      tupel = tupelSejak(vAbs + "VALUES".length).map(pecahKolom);
+    }
+    const aAbs = sql.indexOf(") AS d(", mulai);
+    if (aAbs >= 0 && aAbs < akhirStmt) {
+      alias = sql.slice(aAbs + ") AS d(".length, sql.indexOf(")", aAbs + ") AS d(".length))
+        .split(",").map(s => s.trim());
+      if (!dariValues) {
+        const fv = sql.indexOf("FROM (VALUES", mulai);
+        if (fv >= 0 && fv < akhirStmt) {
+          dariValues = true;
+          tupel = tupelSejak(fv + "FROM (VALUES".length).map(pecahKolom);
+        }
+      }
+    }
+    statements.push({ tabel: m[1], kolom, alias, tupel, dariValues, stmt });
+  }
+}
+const cari = t => statements.find(s => s.tabel === t);
 
-ok(prog.length === 4, `program: ${prog.length} tupel (harap 4)`);
-ok(keg.length === 13, `kegiatan: ${keg.length} tupel (harap 13)`);
-ok(sub.length === 36, `sub kegiatan: ${sub.length} tupel (harap 36)`);
-ok(kk.length === 90, `kertas kerja: ${kk.length} tupel (harap 90)`);
+// ── 4. Structural: setiap INSERT harushya menyediakan semua kolom wajib ────
+for (const s of statements) {
+  const wajib = wajibDari(s.tabel);
+  if (!wajib) { ok(false, `tabel ${s.tabel} ada di seed tapi tidak ada di migration`); continue; }
+  const kurang = wajib.filter(k => !s.kolom.includes(k));
+  ok(kurang.length === 0,
+    `INSERT ${s.tabel}: semua kolom NOT NULL tanpa DEFAULT tersedia` +
+    (kurang.length ? ` - kurang: ${kurang.join(", ")}` : ` (${wajib.join(", ")})`));
+}
 
-ok(prog.every(t => t.length === 4), "setiap tupel program = 4 kolom");
-ok(keg.every(t => t.length === 4), "setiap tupel kegiatan = 4 kolom");
-ok(sub.every(t => t.length === 7), "setiap tupel sub kegiatan = 7 kolom");
-ok(kk.every(t => t.length === 8), "setiap tupel kertas kerja = 8 kolom");
+// Lebar tupel harus sama dengan lebar daftar alias (atau daftar kolom bila
+// tanpa alias) - inilah yang menangkap pergeseran kolom di VALUES.
+for (const s of statements) {
+  if (!s.dariValues || !s.tupel.length) continue;
+  const lebar = (s.alias || s.kolom).length;
+  const salah = s.tupel.filter(t => t.length !== lebar);
+  ok(salah.length === 0,
+    `INSERT ${s.tabel}: setiap tupel = ${lebar} kolom` +
+    (s.alias ? ` (alias d: ${s.alias.join(",")})` : "") +
+    (salah.length ? ` - ${salah.length} tupel salah` : ""));
+}
 
-const pK = prog.map(t => unq(t[0]));
-const kK = keg.map(t => unq(t[0]));
-const sK = sub.map(t => unq(t[0]));
+// Nilai alias harus pasif: tidak boleh ada NULL/kosong untuk kolom teks wajib.
+for (const s of statements) {
+  if (!s.alias) continue;
+  for (const namaKolom of wajibDari(s.tabel)) {
+    const ix = s.alias.indexOf(namaKolom);
+    if (ix < 0) continue;
+    const kosong = s.tupel.filter(t => !unq(t[ix] || "").trim());
+    ok(kosong.length === 0,
+      `INSERT ${s.tabel}: kolom alias d.${namaKolom} tidak kosong` +
+      (kosong.length ? ` - ${kosong.length} kosong` : ` (${s.tupel.length} baris)`));
+  }
+}
+
+// ── 5. Jumlah baris yang diharapkan ───────────────────────────────────────
+const expect = { pks_tahun: 1, pks_program: 4, pks_kegiatan: 13, pks_subkegiatan: 36, kertas_kerja: 90 };
+for (const [t, n] of Object.entries(expect)) {
+  const s = cari(t);
+  ok(s && s.tupel.length === n, `${t}: ${s ? s.tupel.length : 0} tupel (harap ${n})`);
+}
+
+const prog = cari("pks_program").tupel;
+const keg  = cari("pks_kegiatan").tupel;
+const sub  = cari("pks_subkegiatan").tupel;
+const kk   = cari("kertas_kerja").tupel;
+const ix = (s, nama) => (s.alias || s.kolom).indexOf(nama);
+const ambil = (s, tup, nama) => unq(tup[ix(s, nama)] || "");
+
+// Kode unik per tabel.
 const u = a => new Set(a).size === a.length;
-ok(u(pK), "kode program unik");
-ok(u(kK), "kode kegiatan unik");
-ok(u(sK), "kode sub kegiatan unik");
+ok(u(prog.map(t => unq(t[0]))), "kode program unik");
+ok(u(keg.map(t => unq(t[0]))), "kode kegiatan unik");
+ok(u(sub.map(t => unq(t[0]))), "kode sub kegiatan unik");
 
-// Indikator & target sub kegiatan tidak boleh NULL/kosong.
-const kosong = sub.filter(t => !unq(t[5]).trim() || !unq(t[6]).trim());
-ok(kosong.length === 0, `semua sub kegiatan punya indikator & target (${kosong.length} kosong)`);
-
-// Target harus angka di depan.
-const tanpaAngka = sub.filter(t => !/^\s*\d+/.test(unq(t[6])));
+// Sub kegiatan: indikator & target wajib terisi dan diawali angka.
+const sSub = cari("pks_subkegiatan");
+const kosongSub = sub.filter(t => !ambil(sSub, t, "indikator") || !ambil(sSub, t, "target"));
+ok(kosongSub.length === 0, `semua sub kegiatan punya indikator & target (${kosongSub.length} kosong)`);
+const tanpaAngka = sub.filter(t => !/^\s*\d+/.test(ambil(sSub, t, "target")));
 ok(tanpaAngka.length === 0, `semua target diawali angka (${tanpaAngka.length} tidak)`);
 
-// Nilai kertas kerja harus sesuai CHECK.
-const badFreq = kk.filter(t => !["Bulanan", "Triwulan", "Semesteran", "Tahunan", "Lainnya"].includes(unq(t[2])));
+// Kertas kerja: nilai harus sesuai CHECK di migration.
+const sKk = cari("kertas_kerja");
+const badFreq = kk.filter(t => !["Bulanan", "Triwulan", "Semesteran", "Tahunan", "Lainnya"].includes(ambil(sKk, t, "frekuensi")));
 ok(badFreq.length === 0, `frekuensi kertas kerja valid (${badFreq.length} salah)`);
-const badTarget = kk.filter(t => !/^\d+$/.test(t[3].trim()) || parseInt(t[3], 10) < 1);
+const badTarget = kk.filter(t => !/^\d+$/.test(ambil(sKk, t, "target_per_tahun")) || parseInt(ambil(sKk, t, "target_per_tahun"), 10) < 1);
 ok(badTarget.length === 0, `target_per_tahun positif (${badTarget.length} salah)`);
-const badDL = kk.filter(t => !/^(next_month:(5|10|15|20|25|last)|quarter_end:(5|10)|semiannual_end:(5|10)|year_end|next_january)$/.test(unq(t[4])));
+const DL = /^(next_month:(5|10|15|20|25|last)|quarter_end:(5|10)|semiannual_end:(5|10)|year_end|next_january)$/;
+const badDL = kk.filter(t => !DL.test(ambil(sKk, t, "deadline_rule")));
 ok(badDL.length === 0, `deadline_rule dikenal server (${badDL.length} salah)`);
-ok(unq(kk[0] ? "x" : "x") !== "" && /\'\*\', d\.deadline_rule/.test(sql), "bulan_wajib ditulis literal '*' di SELECT (tidak per baris)");
+ok(/'\*', d\.deadline_rule/.test(sql), "bulan_wajib ditulis literal '*' di SELECT (tidak per baris)");
 
-// Idempotensi: file ini dijalankan ulang setiap boot, jadi tiap INSERT wajib
-// punya ON CONFLICT. Tanpa itu boot kedua gagal dan error-nya menipu.
-const inserts = [...sql.matchAll(/INSERT INTO (\w+)/g)].map(m => m[1]);
-const tanpaKonflik = inserts.filter(tbl => {
-  const i = sql.indexOf(`INSERT INTO ${tbl}`);
-  const stmt = sql.slice(i, sql.indexOf(";", i));
-  return !/ON CONFLICT/i.test(stmt);
-});
+// Frekuensi harus cocok dengan target_per_tahun (aturan: target = jumlah periode).
+const frekDariTarget = t => t === 12 ? "Bulanan" : t === 4 ? "Triwulan" : t === 2 ? "Semesteran" : t === 1 ? "Tahunan" : "Lainnya";
+const badPair = kk.filter(t => frekDariTarget(parseInt(ambil(sKk, t, "target_per_tahun"), 10)) !== ambil(sKk, t, "frekuensi"));
+ok(badPair.length === 0, `frekuensi mengikuti target_per_tahun (${badPair.length} tidak cocok)`);
+
+// ── 6. Idempotensi: file dijalankan ulang tiap boot, tiap INSERT wajib ON CONFLICT.
+const tanpaKonflik = statements.filter(s => !/ON CONFLICT/i.test(s.stmt)).map(s => s.tabel);
 ok(tanpaKonflik.length === 0,
-  `semua ${inserts.length} INSERT punya ON CONFLICT (idempoten)` + (tanpaKonflik.length ? ` - tanpa: ${tanpaKonflik.join(", ")}` : ""));
-// Konflik harus menyasar indeks UNIQUE yang benar-benar ada di migration.
-// UNIQUE bisa ditulis sebagai constraint tabel (UNIQUE (a, b)) atau inline kolom
-// (tahun INTEGER UNIQUE) - dua-duanya sah untuk ON CONFLICT.
-const mig = require("fs").readFileSync(__dirname + "/../server/migrations/tahap_2.sql", "utf8");
+  `semua ${statements.length} INSERT punya ON CONFLICT (idempoten)` + (tanpaKonflik.length ? ` - tanpa: ${tanpaKonflik.join(", ")}` : ""));
+
+// ON CONFLICT harus menyasar indeks UNIQUE yang benar-benar ada di migration.
 const punyaUnik = kolom => {
   const esc = kolom.replace(/[()]/g, c => "\\" + c);
   if (new RegExp(`UNIQUE\\s*\\(\\s*${esc.split(",").join("\\s*,\\s*")}\\s*\\)`).test(mig)) return true;
-  return kolom.split(",").every(k =>
-    new RegExp(`\\b${k.trim()}\\s+[A-Za-z]+[^,]*\\bUNIQUE\\b`).test(mig));
+  return kolom.split(",").every(k => new RegExp(`\\b${k.trim()}\\s+[A-Za-z]+[^,]*\\bUNIQUE\\b`).test(mig));
 };
 ok(punyaUnik("kode, tahun"), "ON CONFLICT (kode, tahun) cocok dengan UNIQUE di migration");
 ok(punyaUnik("subkegiatan_id, nama"), "ON CONFLICT (subkegiatan_id, nama) cocok dengan UNIQUE di migration");
