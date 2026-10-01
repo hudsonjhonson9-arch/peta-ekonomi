@@ -239,6 +239,7 @@ function FormPois({ form, tahun, tree, sibuk, setSibuk, onTutup, onSelesai, show
   const [indikator, setIndikator] = useState(form.row?.indikator || "");
   const [target, setTarget] = useState(form.row?.target || "");
   const [parentId, setParentId] = useState(String(form.parentId || ""));
+  const [kodeManual, setKodeManual] = useState(false);
 
   // Baris induk nyata, dipakai untuk breadcrumb dan saran kode.
   const parentRow = useMemo(() => {
@@ -254,15 +255,25 @@ function FormPois({ form, tahun, tree, sibuk, setSibuk, onTutup, onSelesai, show
     return null;
   }, [form.level, form.parentId, tree]);
 
+  // Reset form saat baris yang dibuka berubah. Sengaja tidak bergantung tree:
+  // nilai awal kode ditangani efek di bawah.
   useEffect(() => {
     setNama(form.row?.nama || "");
-    // Mode tambah: isi kode dengan pola berikutnya supaya admin tidak perlu
-    // menghitung sendiri (kode kegiatan/sub kegiatan cukup panjang).
-    setKode(form.row?.kode || (form.mode === "tambah" ? kodeBerikutnya(form.level, parentRow, tree || []) : ""));
+    setKode(form.row?.kode || "");
     setIndikator(form.row?.indikator || "");
     setTarget(form.row?.target || "");
     setParentId(String(form.parentId || ""));
-  }, [form.level, form.row?.id, form.parentId]);
+    setKodeManual(false);
+  }, [form.level, form.mode, form.row?.id, form.parentId]);
+
+  // Saran kode mengikuti kode induk. Dependency-nya termasuk tree supaya
+  // tetap benar bila form dibuka sebelum pohon selesai dimuat (tombol
+  // "Tambah Program" tersedia saat isLoading). kodeManual mencegah
+  // penimpaan kode yang sudah diketik admin.
+  useEffect(() => {
+    if (form.mode !== "tambah" || kodeManual) return;
+    setKode(kodeBerikutnya(form.level, parentRow, tree || []));
+  }, [form.mode, form.level, parentRow, tree, kodeManual]);
 
   const opsiParent = opsiUntuk(form.level, tree || []);
   const namaRef = useRef(null);
@@ -328,11 +339,20 @@ function FormPois({ form, tahun, tree, sibuk, setSibuk, onTutup, onSelesai, show
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 10 }}>
         <label style={labelWrap(T)}>
           <span style={labelStyle(T)}>Kode {cfg.label} *</span>
-          <input value={kode} onChange={e => setKode(e.target.value)} placeholder={CONTOH_KODE[form.level]}
-            style={inputStyle(T)} />
-          {form.mode === "tambah" && (
+          <input
+            value={kode}
+            onChange={e => { setKodeManual(true); setKode(e.target.value); }}
+            placeholder={CONTOH_KODE[form.level]}
+            style={inputStyle(T)}
+          />
+          {form.mode === "tambah" && !kodeManual && (
             <span style={{ fontSize: 10, color: T.textMuted, marginTop: 3 }}>
               Sudah diisi otomatis dari kode induk. Boleh diubah.
+            </span>
+          )}
+          {form.mode === "tambah" && kodeManual && (
+            <span style={{ fontSize: 10, color: T.textMuted, marginTop: 3 }}>
+              Kode diisi manual.
             </span>
           )}
         </label>
@@ -402,7 +422,7 @@ function FormPois({ form, tahun, tree, sibuk, setSibuk, onTutup, onSelesai, show
 // Pilihan induk dikelompokkan per program dan menampilkan jalur penuh, jadi
 // dua kegiatan bernama sama di program berbeda tidak lagi ambigu.
 // Bentuk: [{ group, options: [{ id, label }] }]
-function opsiUntuk(level, tree) {
+export function opsiUntuk(level, tree) {
   const out = [];
   if (level === "kegiatan") {
     for (const p of tree) {
@@ -423,17 +443,29 @@ function opsiUntuk(level, tree) {
 // Saran kode berikutnya mengikuti pola seed aslinya:
 // kegiatan  = <kode program>.2.<NN>
 // sub kegiatan = <kode kegiatan>.<NNN>
-function kodeBerikutnya(level, parentRow, tree) {
+export function kodeBerikutnya(level, parentRow, tree) {
   if (!parentRow) {
-    // Program: pakai dua digit program yang belum terpakai, contoh 5.09.01.
-    let grup = 1, sub = 1;
+    // Kegiatan & sub kegiatan wajib punya induk. Kalau induk belum ketemu
+    // (mis. form dibuka sebelum pohon selesai dimuat), jangan memberi kode
+    // program: kode itu akan bentrok atau diam-diam tersimpan di level yang
+    // salah. Biarkan kosong, efek saran akan mengisinya begitu tree tersedia.
+    if (level !== "program") return "";
+
+    // Program: grup dua digit pertama yang terisi, sub berikutnya.
+    // `grup` dan `sub` dihitung terpisah supaya sub dari grup yang lebih
+    // rendah tidak terbawa ke grup baru.
+    let grup = 0, sub = 0;
     for (const p of tree) {
       const m = String(p.kode).match(/^(\d+)\.(\d+)\.(\d+)$/);
       if (!m) continue;
-      const g = parseInt(m[2], 10);
-      if (g >= grup) { grup = g; sub = Math.max(sub, parseInt(m[3], 10) + 1); }
+      const g = parseInt(m[2], 10), s = parseInt(m[3], 10);
+      if (g > grup) { grup = g; sub = s; }
+      else if (g === grup && s > sub) { sub = s; }
     }
-    return `5.${String(grup).padStart(2, "0")}.${String(Math.max(1, sub)).padStart(2, "0")}`;
+    if (grup === 0) return "5.01.01";
+    if (sub >= 99) { grup += 1; sub = 1; }
+    else { sub += 1; }
+    return `5.${String(grup).padStart(2, "0")}.${String(sub).padStart(2, "0")}`;
   }
   const kakak = level === "kegiatan"
     ? (tree.find(p => p.id === parentRow.id)?.kegiatan || [])
