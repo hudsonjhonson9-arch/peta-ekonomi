@@ -69,13 +69,13 @@ export default function KertasKerja({ user, showToast, onMulaiUpload }) {
     [tree]
   );
 
-  const belumUpload = (tree?.tree || []).reduce((a, p) =>
+  const belumUpload = useMemo(() => (tree?.tree || []).reduce((a, p) =>
     a + p.kegiatan.reduce((b, k) => b + k.subkegiatan.reduce((c, s) =>
       c + s.outputs.reduce((d, o) => {
         const pr = progresOutput(o);
         return d + Math.max(0, pr.total - pr.terisi);
-      }, 0), 0), 0), [tree]
-  );
+      }, 0), 0), 0), 0
+  ), [tree]);
 
   return (
     <div>

@@ -1,8 +1,12 @@
 FROM node:18-alpine AS builder
 WORKDIR /app
+# NODE_ENV=development hanya selama install supaya devDependencies (vite)
+# ikut terpasang. Saat build harus kembali production, kalau tidak bundle
+# memuat React development build (jsxDEV + metadata fileName/lineNumber).
 ENV NODE_ENV=development
 COPY package*.json ./
 RUN npm install
+ENV NODE_ENV=production
 COPY . .
 RUN npm run build
 
