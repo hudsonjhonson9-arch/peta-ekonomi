@@ -1,13 +1,29 @@
-import { useState, useContext, useEffect } from "react";
+import { useState, useContext, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Icon } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
 import { api, usePksTree, usePksTahun } from "../hooks.js";
 
+// parent = level induk (null untuk program), kunci = kolom FK ke induk,
+// anak  = level yang dibuat dari baris ini. Memetakan 'anak' secara eksplisit
+// supaya tombol "+" tidak salah level: memakai cfg.parent pernah membuat
+// Program dibuat di bawah Kegiatan, dan di baris Program tombolnya hilang.
 const LEVELS = {
-  program:     { label: "Program",     parent: null,          kunci: "program_id" },
-  kegiatan:    { label: "Kegiatan",    parent: "program",     kunci: "kegiatan_id" },
-  subkegiatan: { label: "Sub Kegiatan", parent: "kegiatan",    kunci: "kegiatan_id" },
+  program:     { label: "Program",      parent: null,       kunci: "program_id",  anak: "kegiatan" },
+  kegiatan:    { label: "Kegiatan",     parent: "program",  kunci: "program_id",  anak: "subkegiatan" },
+  subkegiatan: { label: "Sub Kegiatan", parent: "kegiatan", kunci: "kegiatan_id", anak: null },
+};
+
+const CONTOH_KODE = {
+  program: "mis. 5.09.01",
+  kegiatan: "mis. 5.01.01.2.10",
+  subkegiatan: "mis. 5.01.01.2.01.008",
+};
+
+const CONTOH_NAMA = {
+  program: "mis. Program Peningkatan Infrastruktur",
+  kegiatan: "mis. Keg. Perencanaan dan Penganggaran",
+  subkegiatan: "mis. Koordinasi Penyusunan Laporan Kinerja",
 };
 
 export default function PksAdmin({ tahun, showToast }) {
@@ -182,15 +198,25 @@ function Node({ T, level, row, kodeKonteks, children, onTambah, onEdit, onHapus 
         )}
 
         <span style={{ display: "flex", gap: 4 }}>
-          {cfg.parent && (
-            <button onClick={() => onTambah(cfg.parent, row.id, row.nama)} title={`Tambah ${LEVELS[cfg.parent].label}`} style={btnIcon(T)}>
-              <Icon name="plus" size={12} />
+          {cfg.anak && (
+            <button
+              onClick={() => onTambah(cfg.anak, row.id, row.nama)}
+              title={`Tambah ${LEVELS[cfg.anak].label} di bawah ${cfg.label} ini`}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 3,
+                fontSize: 10.5, fontWeight: 600, fontFamily: "inherit",
+                padding: "3px 7px", borderRadius: 6, cursor: "pointer",
+                background: T.card, color: T.primary,
+                border: `1px solid ${T.primary}`, whiteSpace: "nowrap",
+              }}
+            >
+              <Icon name="plus" size={11} /> {LEVELS[cfg.anak].label}
             </button>
           )}
-          <button onClick={() => onEdit(level)} title="Ubah" style={btnIcon(T)}>
+          <button onClick={() => onEdit(level)} title={`Ubah ${cfg.label}`} style={btnIcon(T)}>
             <Icon name="edit" size={12} />
           </button>
-          <button onClick={() => onHapus(level)} title="Hapus" style={btnIcon(T)}>
+          <button onClick={() => onHapus(level)} title={`Hapus ${cfg.label}`} style={btnIcon(T)}>
             <Icon name="trash" size={12} />
           </button>
         </span>
@@ -214,15 +240,33 @@ function FormPois({ form, tahun, tree, sibuk, setSibuk, onTutup, onSelesai, show
   const [target, setTarget] = useState(form.row?.target || "");
   const [parentId, setParentId] = useState(String(form.parentId || ""));
 
+  // Baris induk nyata, dipakai untuk breadcrumb dan saran kode.
+  const parentRow = useMemo(() => {
+    if (form.parentId == null) return null;
+    const id = Number(form.parentId);
+    if (form.level === "kegiatan") return (tree || []).find(p => p.id === id) || null;
+    if (form.level === "subkegiatan") {
+      for (const p of tree || []) {
+        const k = (p.kegiatan || []).find(x => x.id === id);
+        if (k) return k;
+      }
+    }
+    return null;
+  }, [form.level, form.parentId, tree]);
+
   useEffect(() => {
     setNama(form.row?.nama || "");
-    setKode(form.row?.kode || "");
+    // Mode tambah: isi kode dengan pola berikutnya supaya admin tidak perlu
+    // menghitung sendiri (kode kegiatan/sub kegiatan cukup panjang).
+    setKode(form.row?.kode || (form.mode === "tambah" ? kodeBerikutnya(form.level, parentRow, tree || []) : ""));
     setIndikator(form.row?.indikator || "");
     setTarget(form.row?.target || "");
     setParentId(String(form.parentId || ""));
   }, [form.level, form.row?.id, form.parentId]);
 
-  const opsiParent = opsiUntuk(form.level, form.parentId, tree);
+  const opsiParent = opsiUntuk(form.level, tree || []);
+  const namaRef = useRef(null);
+  useEffect(() => { if (form.mode === "tambah") namaRef.current?.focus(); }, [form.mode]);
 
   const submit = async e => {
     e.preventDefault();
@@ -261,29 +305,62 @@ function FormPois({ form, tahun, tree, sibuk, setSibuk, onTutup, onSelesai, show
     }}>
       <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 12 }}>
         {form.mode === "tambah" ? "Tambah" : "Ubah"} {cfg.label}
-        {form.parentLabel && <span style={{ fontWeight: 400, color: T.textMuted }}> — induk: {form.parentLabel}</span>}
+        <span style={{ fontWeight: 400, color: T.textMuted, fontSize: 11.5 }}>
+          {" "}· tahun {form.mode === "tambah" ? tahun : form.row?.tahun}
+        </span>
       </div>
+
+      {cfg.parent && (
+        <div style={{ marginBottom: 10, fontSize: 11.5, color: T.textSecondary }}>
+          <span style={{ color: T.textMuted }}>{LEVELS[cfg.parent].label} induk:</span>{" "}
+          {parentRow ? (
+            <span style={{ fontFamily: "ui-monospace, monospace", color: T.text }}>
+              {parentRow.kode} · {parentRow.nama}
+            </span>
+          ) : form.parentId ? (
+            <span style={{ color: T.textMuted }}>baris #${form.parentId} (tidak ditemukan di pohon)</span>
+          ) : (
+            <span style={{ color: T.textMuted }}>belum dipilih</span>
+          )}
+        </div>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 10 }}>
         <label style={labelWrap(T)}>
           <span style={labelStyle(T)}>Kode {cfg.label} *</span>
-          <input value={kode} onChange={e => setKode(e.target.value)} placeholder="mis. 5.01.01.2.01.006"
+          <input value={kode} onChange={e => setKode(e.target.value)} placeholder={CONTOH_KODE[form.level]}
             style={inputStyle(T)} />
+          {form.mode === "tambah" && (
+            <span style={{ fontSize: 10, color: T.textMuted, marginTop: 3 }}>
+              Sudah diisi otomatis dari kode induk. Boleh diubah.
+            </span>
+          )}
         </label>
         <label style={labelWrap(T)}>
           <span style={labelStyle(T)}>Nama {cfg.label} *</span>
-          <input value={nama} onChange={e => setNama(e.target.value)} placeholder="Nama lengkap output"
-            style={inputStyle(T)} />
+          <input ref={namaRef} value={nama} onChange={e => setNama(e.target.value)}
+            placeholder={CONTOH_NAMA[form.level]} style={inputStyle(T)} />
         </label>
       </div>
 
-      {cfg.parent && (
+      {/* Hanya muncul kalau form dibuka tanpa baris induk (mis. dipanggil dari
+          luar pohon). Di path normal, induk tampil sebagai breadcrumb di atas. */}
+      {cfg.parent && !form.parentId && (
         <label style={{ ...labelWrap(T), marginTop: 10, display: "block" }}>
           <span style={labelStyle(T)}>{LEVELS[cfg.parent].label} induk *</span>
           <select value={parentId} onChange={e => setParentId(e.target.value)} style={inputStyle(T)}>
             <option value="">— pilih —</option>
-            {opsiParent.map(o => <option key={o.id} value={o.id}>{o.kode} · {o.nama}</option>)}
+            {opsiParent.map(g => (
+              <optgroup key={g.group} label={g.group}>
+                {g.options.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+              </optgroup>
+            ))}
           </select>
+          {opsiParent.length === 0 && (
+            <span style={{ fontSize: 10, color: "#DC2626", marginTop: 3 }}>
+              Belum ada {LEVELS[cfg.parent].label}. Tambah dulu lewat tombol di atas.
+            </span>
+          )}
         </label>
       )}
 
@@ -291,35 +368,85 @@ function FormPois({ form, tahun, tree, sibuk, setSibuk, onTutup, onSelesai, show
         <>
           <label style={{ ...labelWrap(T), marginTop: 10, display: "block" }}>
             <span style={labelStyle(T)}>Indikator</span>
-            <input value={indikator} onChange={e => setIndikator(e.target.value)} placeholder="mis. Persentaseknota desa (opsional)"
-              style={inputStyle(T)} />
+            <input value={indikator} onChange={e => setIndikator(e.target.value)}
+              placeholder="mis. Persentase desa tertata (opsional)" style={inputStyle(T)} />
           </label>
           <label style={{ ...labelWrap(T), marginTop: 10, display: "block" }}>
             <span style={labelStyle(T)}>Target</span>
-            <input value={target} onChange={e => setTarget(e.target.value)} placeholder="mis. 1 Dokumen / 12 Bulanan"
-              style={inputStyle(T)} />
+            <input value={target} onChange={e => setTarget(e.target.value)}
+              placeholder="mis. 12 Laporan / 4 Triwulan" style={inputStyle(T)} />
+            <span style={{ fontSize: 10, color: T.textMuted, marginTop: 3 }}>
+              Angka di depan dipakai untuk menghitung jumlah periode dan frekuensi.
+            </span>
           </label>
         </>
       )}
 
-      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
         <button type="submit" disabled={sibuk} style={btn(T, T.primary, "#fff", sibuk)}>
           {sibuk ? "Menyimpan…" : "Simpan"}
         </button>
         <button type="button" onClick={onTutup} style={btn(T, "transparent", T.text, false, T.inputBorder)}>Batal</button>
+        {(nama.trim() === "" || kode.trim() === "" || (cfg.parent && !parentId)) && (
+          <span style={{ fontSize: 10.5, color: T.textMuted }}>
+            {nama.trim() === "" && "Nama masih kosong. "}
+            {kode.trim() === "" && "Kode masih kosong. "}
+            {cfg.parent && !parentId && "Induk belum dipilih. "}
+          </span>
+        )}
       </div>
     </form>
   );
 }
 
-function opsiUntuk(level, parentId, tree) {
+// Pilihan induk dikelompokkan per program dan menampilkan jalur penuh, jadi
+// dua kegiatan bernama sama di program berbeda tidak lagi ambigu.
+// Bentuk: [{ group, options: [{ id, label }] }]
+function opsiUntuk(level, tree) {
   const out = [];
   if (level === "kegiatan") {
-    for (const p of tree) out.push({ id: p.id, kode: p.kode, nama: p.nama });
+    for (const p of tree) {
+      out.push({ group: `${p.kode} · ${p.nama}`, options: [{ id: p.id, label: `${p.kode} · ${p.nama}` }] });
+    }
   } else if (level === "subkegiatan") {
-    for (const p of tree) for (const k of p.kegiatan || []) out.push({ id: k.id, kode: k.kode, nama: k.nama });
+    for (const p of tree) {
+      const options = [];
+      for (const k of p.kegiatan || []) {
+        options.push({ id: k.id, label: `${k.kode} · ${k.nama}` });
+      }
+      if (options.length) out.push({ group: `${p.kode} · ${p.nama}`, options });
+    }
   }
   return out;
+}
+
+// Saran kode berikutnya mengikuti pola seed aslinya:
+// kegiatan  = <kode program>.2.<NN>
+// sub kegiatan = <kode kegiatan>.<NNN>
+function kodeBerikutnya(level, parentRow, tree) {
+  if (!parentRow) {
+    // Program: pakai dua digit program yang belum terpakai, contoh 5.09.01.
+    let grup = 1, sub = 1;
+    for (const p of tree) {
+      const m = String(p.kode).match(/^(\d+)\.(\d+)\.(\d+)$/);
+      if (!m) continue;
+      const g = parseInt(m[2], 10);
+      if (g >= grup) { grup = g; sub = Math.max(sub, parseInt(m[3], 10) + 1); }
+    }
+    return `5.${String(grup).padStart(2, "0")}.${String(Math.max(1, sub)).padStart(2, "0")}`;
+  }
+  const kakak = level === "kegiatan"
+    ? (tree.find(p => p.id === parentRow.id)?.kegiatan || [])
+    : (tree.flatMap(p => p.kegiatan || []).find(k => k.id === parentRow.id)?.subkegiatan || []);
+  let max = 0;
+  for (const r of kakak) {
+    const m = String(r.kode).match(/(\d+)$/);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  const next = String(max + 1).padStart(level === "kegiatan" ? 2 : 3, "0");
+  return level === "kegiatan"
+    ? `${parentRow.kode}.2.${next}`
+    : `${parentRow.kode}.${next}`;
 }
 
 export async function pesanError(err, awalan = "Gagal") {
