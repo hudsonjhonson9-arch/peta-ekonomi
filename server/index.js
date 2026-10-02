@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs';
 import path    from 'path';
 import fs      from 'fs';
 import { fileURLToPath } from 'url';
+import { susunPatchPeriode } from './patch-periode.js';
 
 dotenv.config();
 
@@ -1890,19 +1891,19 @@ app.post('/api/kertas-kerja/:id/sinkron-wajib', async (req, res) => {
 // ── Isi periode dengan dokumen (upload) ──────────────────────────────────
 app.patch('/api/kertas-kerja/periode/:id', async (req, res) => {
   const { id } = req.params;
-  const { doc_id, catatan, uploaded_by } = req.body;
+  const { sets, params, galat, status } = susunPatchPeriode(req.body);
+  if (galat) return res.status(status).json({ error: galat });
+
+  params.push(parseInt(id, 10));
   try {
     const rows = await queryDB(`
       UPDATE kertas_kerja_periode
-      SET doc_id = $1,
-          catatan = $2,
-          uploaded_by = CASE WHEN $1::int IS NULL THEN uploaded_by ELSE $3 END,
-          uploaded_at = CASE WHEN $1::int IS NULL THEN uploaded_at ELSE NOW() END
-      WHERE id = $4
+      SET ${sets.join(', ')}
+      WHERE id = $${params.length}
       RETURNING id, kertas_kerja_id, tahun, periode, periode_label,
                 TO_CHAR(deadline, 'YYYY-MM-DD') AS deadline, is_wajib, doc_id, catatan,
                 uploaded_by, uploaded_at`,
-      [doc_id ? parseInt(doc_id, 10) : null, catatan || null, uploaded_by || null, id]
+      params
     );
     if (!rows.length) return res.status(404).json({ error: 'Periode tidak ditemukan' });
     res.json({ message: 'Periode berhasil diperbarui', row: rows[0] });
