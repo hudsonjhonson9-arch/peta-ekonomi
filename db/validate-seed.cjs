@@ -192,16 +192,20 @@ for (const s of statements) {
 }
 
 // ── 5. Jumlah baris yang diharapkan ───────────────────────────────────────
-const expect = { pks_tahun: 1, pks_program: 4, pks_kegiatan: 13, pks_subkegiatan: 36, kertas_kerja: 90 };
+// Output (kertas_kerja) sengaja tidak lagi di-seed: output beserta deadline-nya
+// ditentukan admin lewat UI. Data lama berisi barang/jasa, bukan dokumen.
+const expect = { pks_tahun: 1, pks_program: 4, pks_kegiatan: 13, pks_subkegiatan: 36 };
 for (const [t, n] of Object.entries(expect)) {
   const s = cari(t);
   ok(s && s.tupel.length === n, `${t}: ${s ? s.tupel.length : 0} tupel (harap ${n})`);
 }
+ok(!cari("kertas_kerja"), "seed tidak membuat output (kertas_kerja) - ditentukan admin");
+ok(!/INSERT\s+INTO\s+kertas_kerja/i.test(sql), "tidak ada INSERT INTO kertas_kerja di seed");
+ok(/SENGAJA TIDAK DI-SEED/.test(sql), "seed menjelaskan kenapa output tidak di-seed");
 
 const prog = cari("pks_program").tupel;
 const keg  = cari("pks_kegiatan").tupel;
 const sub  = cari("pks_subkegiatan").tupel;
-const kk   = cari("kertas_kerja").tupel;
 const ix = (s, nama) => (s.alias || s.kolom).indexOf(nama);
 const ambil = (s, tup, nama) => unq(tup[ix(s, nama)] || "");
 
@@ -217,22 +221,6 @@ const kosongSub = sub.filter(t => !ambil(sSub, t, "indikator") || !ambil(sSub, t
 ok(kosongSub.length === 0, `semua sub kegiatan punya indikator & target (${kosongSub.length} kosong)`);
 const tanpaAngka = sub.filter(t => !/^\s*\d+/.test(ambil(sSub, t, "target")));
 ok(tanpaAngka.length === 0, `semua target diawali angka (${tanpaAngka.length} tidak)`);
-
-// Kertas kerja: nilai harus sesuai CHECK di migration.
-const sKk = cari("kertas_kerja");
-const badFreq = kk.filter(t => !["Bulanan", "Triwulan", "Semesteran", "Tahunan", "Lainnya"].includes(ambil(sKk, t, "frekuensi")));
-ok(badFreq.length === 0, `frekuensi kertas kerja valid (${badFreq.length} salah)`);
-const badTarget = kk.filter(t => !/^\d+$/.test(ambil(sKk, t, "target_per_tahun")) || parseInt(ambil(sKk, t, "target_per_tahun"), 10) < 1);
-ok(badTarget.length === 0, `target_per_tahun positif (${badTarget.length} salah)`);
-const DL = /^(next_month:(5|10|15|20|25|last)|quarter_end:(5|10)|semiannual_end:(5|10)|year_end|next_january)$/;
-const badDL = kk.filter(t => !DL.test(ambil(sKk, t, "deadline_rule")));
-ok(badDL.length === 0, `deadline_rule dikenal server (${badDL.length} salah)`);
-ok(/'\*', d\.deadline_rule/.test(sql), "bulan_wajib ditulis literal '*' di SELECT (tidak per baris)");
-
-// Frekuensi harus cocok dengan target_per_tahun (aturan: target = jumlah periode).
-const frekDariTarget = t => t === 12 ? "Bulanan" : t === 4 ? "Triwulan" : t === 2 ? "Semesteran" : t === 1 ? "Tahunan" : "Lainnya";
-const badPair = kk.filter(t => frekDariTarget(parseInt(ambil(sKk, t, "target_per_tahun"), 10)) !== ambil(sKk, t, "frekuensi"));
-ok(badPair.length === 0, `frekuensi mengikuti target_per_tahun (${badPair.length} tidak cocok)`);
 
 // ── 6. Idempotensi: file dijalankan ulang tiap boot, tiap INSERT wajib ON CONFLICT.
 const tanpaKonflik = statements.filter(s => !/ON CONFLICT/i.test(s.stmt)).map(s => s.tabel);

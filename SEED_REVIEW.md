@@ -1,5 +1,16 @@
 # Review Seed RKPD 2025
 
+> **Berlaku untuk struktur saja.** Seed sekarang hanya membuat
+> 4 program / 13 kegiatan / 36 sub kegiatan. **Output tidak lagi di-seed** —
+> output beserta deadline-nya ditentukan admin lewat UI, karena kolom Output
+> pada RKPD berisi barang dan jasa ("Bahan Cetak", "Hardisk 500GB"), bukan
+> dokumen yang diunggah pengguna. Output hasil seed lama dihapus lewat
+> `server/migrations/tahap_3.sql`.
+>
+> Bagian 2 dan 6 di bawah menganalisis 90 output yang **tidak lagi ikut
+> di-seed**. Dokumentasi itu dipertahankan sebagai catatan asal-usul data,
+> bukan sebagai panduan yang perlu dijalankan.
+
 Berkas seed: `db/seed_rkpd_2025.sql`
 Sumber data: tabel RKPD 2025 yang dikirim pengguna.
 Status: **siap diimpor, tetapi 3 kata perlu konfirmasi dan 14 sub kegiatan perlu keputusan target.**

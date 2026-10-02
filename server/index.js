@@ -181,7 +181,12 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 // transaksi implisit, jadi kalau ada satu statement gagal SELURUH file
 // rollback. Karena itu error tidak boleh ditelan: tanpa log, tabel utuh
 // padahal tidak satupun tabel dibuat.
-const jalankanMigration = async (nama, wajib = []) => {
+//
+// tanpaFallback: matikan pengecekan "tabel sudah ada" sebagai pengganti sukses.
+// Wajib diisi true untuk migration yang bukan membuat tabel (mis. DELETE),
+// karena dengan daftar kosong setiap error akan dianggap "sudah ada" dan
+// hilang tanpa jejak.
+const jalankanMigration = async (nama, wajib = [], tanpaFallback = false) => {
   const file = path.join(__dirname, 'migrations', `${nama}.sql`);
   try {
     await pool.query(fs.readFileSync(file, 'utf8'));
@@ -189,17 +194,19 @@ const jalankanMigration = async (nama, wajib = []) => {
     return true;
   } catch (e) {
     // Sukses kalau tabel yang dibutuhkan sudah ada (migration dijalankan ulang).
-    try {
-      const cek = await pool.query(
-        `SELECT count(*)::int AS n FROM information_schema.tables
-         WHERE table_schema = current_schema() AND table_name::text = ANY($1::text[])`,
-        [wajib]
-      );
-      if (cek.rows[0].n === wajib.length) {
-        console.log(`Migration: ${nama} dilewati, tabel sudah ada`);
-        return true;
-      }
-    } catch (_) {}
+    if (!tanpaFallback) {
+      try {
+        const cek = await pool.query(
+          `SELECT count(*)::int AS n FROM information_schema.tables
+           WHERE table_schema = current_schema() AND table_name::text = ANY($1::text[])`,
+          [wajib]
+        );
+        if (cek.rows[0].n === wajib.length) {
+          console.log(`Migration: ${nama} dilewati, tabel sudah ada`);
+          return true;
+        }
+      } catch (_) {}
+    }
     console.error(
       `Migration ${nama} GAGAL: ${e.message}\n` +
       `  kode=${e.code || '-'} posisi=${e.position ?? '-'}\n` +
@@ -257,7 +264,12 @@ const jalankanSeed = async (siap) => {
 jalankanMigration('tahap_2', [
   'pks_tahun', 'pks_program', 'pks_kegiatan',
   'pks_subkegiatan', 'kertas_kerja', 'kertas_kerja_periode',
-]).then(jalankanSeed);
+])
+  // Tahap 3: buang 90 output hasil seed lama. Harus setelah tahap 2 supaya
+  // tabel kertas_kerja sudah ada. Dijalankan tanpa fallback agar error
+  // (mis. search_path salah) tetap terlihat di log.
+  .then(() => jalankanMigration('tahap_3', ['kertas_kerja'], true))
+  .then(jalankanSeed);
 
 const queryDB = async (sql, params = []) => {
   const result = await pool.query(sql, params);
