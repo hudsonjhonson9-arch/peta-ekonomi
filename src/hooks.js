@@ -18,28 +18,35 @@ export const api = (url, method = 'GET', body) => fetch(url, {
   return r.json();
 });
 
-export function useDocs() {
-  return useQuery({ queryKey: ['docs'], queryFn: () => api('/api/docs') });
+// Query di bawah dipanggil dari komponen yang tetap terpasang sejak halaman
+// login, jadi tanpa `aktif` semuanya menembak endpoint privat sebelum ada
+// cookie. Request itu pasti 401 dan cache-nya jadi error yang tidak pernah
+// dicoba lagi: React Query hanya mem-fetch ulang saat mount, saat window
+// regain focus, atau saat invalidate. Komponennya tidak pernah mount ulang
+// saat login berhasil, jadi datanya baru muncul setelah refresh.
+
+export function useDocs(aktif = true) {
+  return useQuery({ queryKey: ['docs'], queryFn: () => api('/api/docs'), enabled: aktif });
 }
 
-export function useUsers() {
-  return useQuery({ queryKey: ['users'], queryFn: () => api('/api/users') });
+export function useUsers(aktif = true) {
+  return useQuery({ queryKey: ['users'], queryFn: () => api('/api/users'), enabled: aktif });
 }
 
-export function useLogs() {
-  return useQuery({ queryKey: ['logs'], queryFn: () => api('/api/logs') });
+export function useLogs(aktif = true) {
+  return useQuery({ queryKey: ['logs'], queryFn: () => api('/api/logs'), enabled: aktif });
 }
 
-export function useCategories() {
-  return useQuery({ queryKey: ['categories'], queryFn: () => api('/api/kategori-dokumen') });
+export function useCategories(aktif = true) {
+  return useQuery({ queryKey: ['categories'], queryFn: () => api('/api/kategori-dokumen'), enabled: aktif });
 }
 
-export function useSectors() {
-  return useQuery({ queryKey: ['sectors'], queryFn: () => api('/api/sektor') });
+export function useSectors(aktif = true) {
+  return useQuery({ queryKey: ['sectors'], queryFn: () => api('/api/sektor'), enabled: aktif });
 }
 
-export function useBidang() {
-  return useQuery({ queryKey: ['bidang'], queryFn: () => api('/api/bidang') });
+export function useBidang(aktif = true) {
+  return useQuery({ queryKey: ['bidang'], queryFn: () => api('/api/bidang'), enabled: aktif });
 }
 
 export function useIndikator() {
@@ -96,4 +103,3 @@ export function useKertasKerja(subkegiatanId) {
     enabled: !!subkegiatanId,
   });
 }
-

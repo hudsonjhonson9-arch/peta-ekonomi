@@ -150,28 +150,34 @@ export default function App() {
 
   const { isMobile, isDesktop } = useResponsive();
 
-  const { data: serverDocs = [], isLoading: docsLoading } = useDocs();
-  const { data: logsData = [] } = useLogs();
-  const { data: usersData = [] } = useUsers();
-  const { data: categoriesData = [] } = useCategories();
-  const { data: sectorsData = [] } = useSectors();
-  const { data: bidangData = [] } = useBidang();
+  // Query privat baru boleh jalan setelah sesi benar-benar terkonfirmasi.
+  // cekSesi masih true selama /api/auth/me berjalan, jadi user dari
+  // localStorage saja belum cukup: cookie-nya bisa sudah hilang.
+  const siap = !!user && !cekSesi;
+
+  const { data: serverDocs = [], isLoading: docsLoading } = useDocs(siap);
+  const { data: logsData = [] } = useLogs(siap);
+  const { data: usersData = [] } = useUsers(siap);
+  const { data: categoriesData = [] } = useCategories(siap);
+  const { data: sectorsData = [] } = useSectors(siap);
+  const { data: bidangData = [] } = useBidang(siap);
 
   // Sync server data into local state, preserving local overrides
   useEffect(() => {
-    if (serverDocs.length > 0) {
-      setDocs(prev => {
-        const map = new Map(serverDocs.map(d => [d.id, d]));
-        for (const d of prev) {
-          if (map.has(d.id)) {
-            map.set(d.id, { ...map.get(d.id), status: d.status });
-          } else {
-            map.set(d.id, d);
-          }
-        }
-        return [...map.values()];
-      });
-    }
+    if (serverDocs.length === 0) return;
+    setDocs(prev => {
+      const map = new Map(serverDocs.map(d => [d.id, d]));
+      // Untuk id yang sudah dikenal server, objek server dipakai utuh.
+      // Entry yang hanya ada di state lokal dipertahankan: itu entri
+      // optimistik sesaat setelah upload, sebelum /api/docs menyusul.
+      //
+      // Dulu di sini status lokal ditulis ulang ke atas objek server. Akibatnya
+      // setiap invalidateQueries seperti di handleApprove mengambil data baru
+      // dari server lalu langsung membuangnya, dan status hanya ikut berubah
+      // setelah halaman dimuat ulang.
+      for (const d of prev) if (!map.has(d.id)) map.set(d.id, d);
+      return [...map.values()];
+    });
   }, [serverDocs]);
 
   useEffect(() => { if (logsData.length > 0) setLogs(logsData); }, [logsData]);
@@ -207,6 +213,7 @@ export default function App() {
   useEffect(() => {
     const keluar = () => {
       localStorage.removeItem("user");
+      queryClient.clear();
       setUser(null);
       setPage("dashboard");
       setViewDoc(null);
@@ -217,6 +224,10 @@ export default function App() {
 
   const handleLogin = loggedUser => {
     localStorage.setItem("user", JSON.stringify(loggedUser));
+    // Cache dibuang sebelum user baru aktif. staleTime 30 detik membuat data
+    // sesi sebelumnya masih dianggap segar, jadi tanpa ini reviewer yang login
+    // menyusul admin dalam 30 detik akan melihat cache milik admin.
+    queryClient.clear();
     setUser(loggedUser);
   };
 
@@ -227,6 +238,7 @@ export default function App() {
     catch (_) {}
     localStorage.removeItem("user");
     sessionStorage.removeItem("page");
+    queryClient.clear();
     setUser(null);
     setPage("dashboard");
     setViewDoc(null);

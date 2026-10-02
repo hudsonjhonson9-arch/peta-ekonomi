@@ -17,10 +17,16 @@ export function useIsDark() {
 
 export function Badge({ label, colors }) {
   const dark = useIsDark();
+  // Peta warna di data.js hanya memuat empat status dan tiga role, sedangkan
+  // bapperida_dokumen adalah tabel lama yang bukan dibuat repo ini, jadi
+  // baris lamanya bisa saja memakai nilai lain. Badge dulu membaca colors.bg
+  // tanpa penjaga, dan satu baris begitu sudah cukup untuk menggagalkan
+  // render seluruh halaman.
+  const c = colors || { bg: "#F1F5F9", text: "#475569" };
   return (
     <span style={{
-      background: dark && colors.darkBg ? colors.darkBg : colors.bg,
-      color: dark && colors.darkText ? colors.darkText : colors.text,
+      background: dark && c.darkBg ? c.darkBg : c.bg,
+      color: dark && c.darkText ? c.darkText : c.text,
       fontSize: 11,
       fontWeight: 600,
       padding: "3px 9px",
