@@ -8,6 +8,7 @@ import Sidebar          from "./components/Sidebar.jsx";
 import BottomNav        from "./components/BottomNav.jsx";
 import Dashboard        from "./components/Dashboard.jsx";
 import { DocList, DocDetail } from "./components/DocPages.jsx";
+import { pesanError } from "./components/PksAdmin.jsx";
 import UploadForm       from "./components/UploadForm.jsx";
 import NotificationDropdown from "./components/NotificationDropdown.jsx";
 import PublicShare from "./components/PublicShare.jsx";
@@ -365,30 +366,55 @@ export default function App() {
     setPage(opts.returnPage || "dokumen");
   };
 
-  const handleApprove = (doc, note) => {
+  // Approve, tolak, dan publikasi diperbaiki di sini.
+  //
+  // Tiga hal yang dulu salah di ketiganya. Toast sukses dikirim sebelum
+  // request selesai, sehingga PATCH yang ditolak server tetap dilaporkan
+  // berhasil. Error ditelan dengan .catch(() => {}), jadi tidak ada jalan
+  // lain untuk user tahu. Dan invalidateQueries dipanggil bersamaan dengan
+  // PATCH: refetch bisa mendahului perubahan di server dan mengembalikan
+  // status lama, lalu tidak ada yang memanggil ulang.
+  const handleApprove = async (doc, note) => {
+    // Nilai asal disimpan supaya bisa dikembalikan apa adanya kalau server
+    // menolak. Update optimistis tanpa rollback pernah membuat dokumen appear
+    // sudah diarsipkan padahal PATCH-nya ditolak.
+    const statusAsli = doc.status;
     setDocs(d => d.map(x => x.id === doc.id ? { ...x, status: "Diarsipkan", reviewedBy: user.name } : x));
-    addLog("Approve dokumen", doc);
-    api(`/api/docs/${doc.id}/status`, "PATCH", {
-      status: "Diarsipkan", note: note || "",
-      actor_id: user.nip || "", actor_name: user.name
-    }).catch(() => {});
-    queryClient.invalidateQueries({ queryKey: ['docs'] });
     setViewDoc(null);
     setPage("dokumen");
-    showToast("Dokumen berhasil disetujui dan diarsipkan.");
+    try {
+      await api(`/api/docs/${doc.id}/status`, "PATCH", {
+        status: "Diarsipkan", note: note || "",
+        actor_id: user.nip || "", actor_name: user.name
+      });
+      addLog("Approve dokumen", doc);
+      showToast("Dokumen berhasil disetujui dan diarsipkan.");
+    } catch (err) {
+      setDocs(d => d.map(x => x.id === doc.id ? { ...x, status: statusAsli } : x));
+      showToast(await pesanError(err, "Gagal menyetujui dokumen"));
+    } finally {
+      queryClient.invalidateQueries({ queryKey: ['docs'] });
+    }
   };
 
-  const handleReject = (doc, note) => {
+  const handleReject = async (doc, note) => {
+    const statusAsli = doc.status;
     setDocs(d => d.map(x => x.id === doc.id ? { ...x, status: "Ditolak" } : x));
-    addLog("Tolak dokumen", doc);
-    api(`/api/docs/${doc.id}/status`, "PATCH", {
-      status: "Ditolak", note: note || "",
-      actor_id: user.nip || "", actor_name: user.name
-    }).catch(() => {});
-    queryClient.invalidateQueries({ queryKey: ['docs'] });
     setViewDoc(null);
     setPage("dokumen");
-    showToast("Dokumen ditolak dan dikembalikan ke pengupload.");
+    try {
+      await api(`/api/docs/${doc.id}/status`, "PATCH", {
+        status: "Ditolak", note: note || "",
+        actor_id: user.nip || "", actor_name: user.name
+      });
+      addLog("Tolak dokumen", doc);
+      showToast("Dokumen ditolak dan dikembalikan ke pengupload.");
+    } catch (err) {
+      setDocs(d => d.map(x => x.id === doc.id ? { ...x, status: statusAsli } : x));
+      showToast(await pesanError(err, "Gagal menolak dokumen"));
+    } finally {
+      queryClient.invalidateQueries({ queryKey: ['docs'] });
+    }
   };
 
   const handleDownload = doc => {
@@ -401,13 +427,26 @@ export default function App() {
     window.open(doc.url, "_blank");
   };
 
-  const handleTogglePublik = doc => {
-    const newPublik = !doc.publik;
-    setDocs(d => d.map(x => x.id === doc.id ? { ...x, publik: newPublik } : x));
-    addLog(newPublik ? "Publikasikan dokumen" : "Batalkan publikasi dokumen", doc);
-    api(`/api/docs/${doc.id}/publik`, "PATCH").catch(() => {});
-    queryClient.invalidateQueries({ queryKey: ['docs'] });
-    showToast(newPublik ? "Dokumen berhasil dipublikasikan ke portal publik." : "Dokumen dihapus dari portal publik.");
+  const handleTogglePublik = async doc => {
+    setDocs(d => d.map(x => x.id === doc.id ? { ...x, publik: !x.publik } : x));
+    try {
+      // Server yang menentukan nilai akhir. Endpoint ini memakai
+      // NOT COALESCE(publik, false), jadi toggle bisa terbalik kalau tampilan
+      // lokal sudah basi. Jawaban server yang dipakai, bukan tebakan lokal.
+      const res = await api(`/api/docs/${doc.id}/publik`, "PATCH");
+      const baru = !!res.publik;
+      setDocs(d => d.map(x => x.id === doc.id ? { ...x, publik: baru } : x));
+      addLog(baru ? "Publikasikan dokumen" : "Batalkan publikasi dokumen", doc);
+      showToast(baru
+        ? "Dokumen berhasil dipublikasikan ke portal publik."
+        : "Dokumen dihapus dari portal publik.");
+    } catch (err) {
+      // Kembalikan ke nilai semula: yang dioptimis tadi sudah menebak.
+      setDocs(d => d.map(x => x.id === doc.id ? { ...x, publik: !x.publik } : x));
+      showToast(await pesanError(err, "Gagal mengubah publikasi"));
+    } finally {
+      queryClient.invalidateQueries({ queryKey: ['docs'] });
+    }
   };
 
   const handleDelete = async doc => {
@@ -432,7 +471,7 @@ export default function App() {
       setPage("dokumen");
       showToast("Dokumen berhasil dihapus.");
     } catch (err) {
-      showToast("Gagal menghapus dokumen.");
+      showToast(await pesanError(err, "Gagal menghapus dokumen"));
     }
   };
 
@@ -451,7 +490,7 @@ export default function App() {
       queryClient.invalidateQueries({ queryKey: ['docs'] });
       showToast(`${res.affected} dokumen berhasil ${label}.`);
     } catch (err) {
-      showToast(`Gagal ${label} dokumen.`);
+      showToast(await pesanError(err, `Gagal ${label} dokumen`));
     }
   };
 
@@ -465,7 +504,7 @@ export default function App() {
       showToast("Dokumen berhasil diperbarui.");
       return true;
     } catch (err) {
-      showToast("Gagal memperbarui dokumen.");
+      showToast(await pesanError(err, "Gagal memperbarui dokumen"));
       return false;
     }
   };

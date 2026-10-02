@@ -14,7 +14,19 @@ export const api = (url, method = 'GET', body) => fetch(url, {
     window.dispatchEvent(new Event('arsip:sesi-berakhir'));
     throw new Error(401);
   }
-  if (!r.ok) throw new Error(r.status);
+  if (!r.ok) {
+    // Body error dibaca di sini dan pesannya ikut dilempar. Dulu hanya status
+    // yang dilempar, jadi pesan server hilang dan semua pesan error dari
+    // pesanError() hanya berbunyi "Gagal (kode 500)".
+    let pesan = `Gagal (${r.status})`;
+    try {
+      const body = await r.json();
+      if (body && body.error) pesan = body.error;
+    } catch { /* body bukan JSON, pakai status saja */ }
+    const e = new Error(pesan);
+    e.status = r.status;
+    throw e;
+  }
   return r.json();
 });
 

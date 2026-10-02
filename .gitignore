@@ -7,3 +7,6 @@ test-files/
 
 # Konfigurasi lokal opencode: memuat kredensial database, jangan pernah di-commit.
 .opencode.json
+
+# Salinan server yang dibuat script uji di /tmp, bukan bagian dari aplikasi.
+server/index.uji.mjs

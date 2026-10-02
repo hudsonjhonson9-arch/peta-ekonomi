@@ -490,6 +490,18 @@ app.get('/api/docs', async (_, res) => {
         TO_CHAR(tanggal, 'YYYY')            AS year,
         status,
         COALESCE(uploader_id, '')           AS "uploaderId",
+        -- Nama uploader ikut dikirim karena klien membacanya di tiga tempat:
+        -- detail dokumen, dashboard, dan pencarian. uploader_id dipakai sebagai
+        -- cadangan karena baris lama bisa menyimpan nama, bukan NIP.
+        --
+        -- Dipakai subquery, bukan LEFT JOIN, supaya tidak ada satu pun kolom
+        -- yang perlu ditutup nama tabel: bapperida_dokumen dan user_list
+        -- sama-sama punya id dan bidang, jadi JOIN membuat SELECT ini ambigu.
+        COALESCE(
+          (SELECT up.username FROM user_list up
+            WHERE up."NIP" = bapperida_dokumen.uploader_id LIMIT 1),
+          uploader_id, ''
+        )                                         AS uploader,
         COALESCE("desc", '')                AS "desc",
         COALESCE(tags, '')                  AS "tagsRaw",
         COALESCE(nomor_dokumen, '')         AS "nomorDokumen",

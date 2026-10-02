@@ -485,6 +485,10 @@ export function kodeBerikutnya(level, parentRow, tree) {
 }
 
 export async function pesanError(err, awalan = "Gagal") {
+  // api() sudah melempar Error yang pesannya diambil dari body server. Jalur
+  // err.json() dipertahankan untuk pemanggil yang melempar Response langsung.
+  // Pesan angka polos berarti hanya status, jadi tidak berguna ditampilkan.
+  if (err instanceof Error) return /^\d+$/.test(err.message) ? `${awalan}.` : err.message;
   try {
     const res = await err.json();
     return res.error || `${awalan}.`;
