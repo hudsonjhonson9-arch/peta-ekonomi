@@ -19,9 +19,19 @@ const hariDalamBulan = (tahun, bulan) => {
 };
 
 // Terima body apa pun. Kembalikan {sets, params} atau {galat, status}.
-export function susunPatchPeriode(body) {
+//
+// opsi.admin   bila false, deadline dan is_wajib ditolak dengan 403.
+// opsi.pelaku  identitas pengunggah, menggantikan nilai uploaded_by di body.
+export function susunPatchPeriode(body, opsi = {}) {
+  const { admin = false, pelaku = null } = opsi;
   const b = body && typeof body === 'object' ? body : {};
   const punya = k => Object.prototype.hasOwnProperty.call(b, k);
+
+  // Diperiksa lebih awal, sebelum kolom lain disentuh, supaya staf tidak bisa
+  // menitipkan deadline di body yang sama dengan pengunggahan dokumen.
+  if (!admin && (punya('deadline') || punya('is_wajib'))) {
+    return { galat: 'Hanya admin yang boleh mengubah deadline', status: 403 };
+  }
 
   const sets = [];
   const params = [];
@@ -31,7 +41,7 @@ export function susunPatchPeriode(body) {
     return params.length;
   };
 
-  // null = lepas dokumen, keyang tidak ada = jangan sentuh.
+  // null = lepas dokumen, key tidak ada = jangan sentuh kolomnya.
   let idxDocId = null;
   if (punya('doc_id')) {
     const kosong = b.doc_id === null || b.doc_id === undefined || b.doc_id === '';
@@ -45,7 +55,9 @@ export function susunPatchPeriode(body) {
   // uploaded_by/uploaded_at hanya bergerak saat dokumen benar-benar diganti,
   // sehingga melepas dokumen tidak menghapus jejak siapa yang mengunggah.
   if (idxDocId !== null) {
-    params.push(b.uploaded_by || null);
+    // pelaku dari session menang atas body, kalau tidak nama pengunggah bisa
+    // dipalsukan dari sisi klien.
+    params.push(pelaku ?? b.uploaded_by ?? null);
     sets.push(`uploaded_by = CASE WHEN $${idxDocId} IS NULL THEN uploaded_by ELSE $${params.length} END`);
     sets.push(`uploaded_at = CASE WHEN $${idxDocId} IS NULL THEN uploaded_at ELSE NOW() END`);
   }

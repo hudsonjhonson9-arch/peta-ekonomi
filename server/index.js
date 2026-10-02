@@ -8,6 +8,12 @@ import path    from 'path';
 import fs      from 'fs';
 import { fileURLToPath } from 'url';
 import { susunPatchPeriode } from './patch-periode.js';
+import {
+  NAMA_COOKIE, MASA_JAM, R_ADMIN, R_REVIEWER, R_STAF,
+  normalisasiRole, rahasia, buatToken, verifikasiToken,
+  bacaCookie, pasangCookie, lepasCookie,
+} from './session.js';
+import { kebutuhan, PUBLIK, LOGIN, REVIEW, ADMIN } from './kebijakan.js';
 
 dotenv.config();
 
@@ -15,8 +21,110 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app       = express();
 const isProd    = process.env.NODE_ENV === 'production';
 
-app.use(cors());
+// CORS: default hanya menerima origin yang sama. Aplikasi disajikan dari
+// server sendiri, jadi tidak butuh allow-list. Kalau ada integrator dari domain
+// lain, sebutkan lewat CORS_ORIGIN (daftar origin dipisah koma). Jangan pakai
+// '*' bersamaan dengan cookie session: itu membiarkan situs mana pun membaca
+// respons API atas nama pengguna yang sedang login.
+const ORIGIN_TERDAFTAR = (process.env.CORS_ORIGIN || '')
+  .split(',').map(s => s.trim()).filter(Boolean);
+
+app.use(cors({
+  // Tanpa header Origin: permintaan same-origin atau server-to-server, boleh.
+  // Dengan Origin: hanya boleh kalau terdaftar, dan daftar kosong menolak semua
+  // yang datang dari domain lain.
+  origin: (origin, cb) => cb(null, !origin || ORIGIN_TERDAFTAR.includes(origin)),
+  credentials: true,
+}));
 app.use(express.json({ limit: '50mb' }));
+
+// Integrator server-to-server mengunggah dokumen dengan header x-upload-key,
+// bukan dengan session. Satu-satunya route yang boleh tanpa login, dan hanya
+// kalau UPLOAD_API_KEY benar-benar disetel. Tanpa env itu, route-nya tetap
+// butuh login — tanpa itu, siapa pun bisa mengunggah dokumen ke arsip.
+const izinkanLewatiUpload = req => {
+  if (req.method !== 'POST' || req.originalUrl.split('?')[0] !== '/api/docs') return false;
+  const key = process.env.UPLOAD_API_KEY;
+  return !!key && req.headers['x-upload-key'] === key;
+};
+
+// ── Gerbang session ───────────────────────────────────────────────────────
+// Satu titik ini yang menegakkan hak akses semua /api. Level tiap rute diambil
+// dari server/kebijakan.js, bukan dari UI, jadi menirukan role di localStorage
+// tidak lagi berarti apa-apa.
+//
+// Role dibaca ulang dari database tiap request. Kalau role ikut disimpan di dalam
+// token, admin yang dicabut haknya masih bisa memakai token lamanya sampai
+// token itu kedaluwarsa.
+const PERINGKAT = { [R_STAF]: 1, [R_REVIEWER]: 2, [R_ADMIN]: 3 };
+
+// Identitas untuk jejak audit. Kalau request punya session, identitas selalu
+// berasal dari server dan nilai di body diabaikan: kolom uploader dan actor
+// dikirim klien, jadi tanpa ini siapa pun bisa mencatat aksi atas nama orang lain.
+// Cadangan ke body hanya untuk integrasi API-key yang memang tidak punya session.
+const siapa = req => req.pengguna
+  ? { id: req.pengguna.id ?? req.pengguna.nip, nama: req.pengguna.nama }
+  : {
+      id: req.body?.uploader_id ?? req.body?.actor_id ?? '',
+      nama: req.body?.uploader ?? req.body?.actor_name ?? '',
+    };
+
+app.use(async (req, res, next) => {
+  const path = req.originalUrl.split('?')[0];
+  if (!path.startsWith('/api')) return next();
+
+  const level = kebutuhan(req.method, path);
+  if (level === PUBLIK) return next();
+  if (izinkanLewatiUpload(req)) return next();
+
+  // Tanpa rahasia yang sah, jangan menerima token apa pun: memverifikasi tanpa
+  // kunci berarti menerima cookie buatan. Gagal tertutup lebih aman.
+  const secret = rahasia();
+  if (!secret)
+    return res.status(500).json({ error: 'Session belum dikonfigurasi: SESSION_SECRET wajib diisi' });
+
+  const muatan = verifikasiToken(bacaCookie(req), secret);
+  if (!muatan)
+    return res.status(401).json({ error: 'Sesi berakhir, silakan login kembali' });
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT c.nip, c.role, c.active, u.id, u.username, u.bidang, u."Status"
+         FROM user_credentials c
+         LEFT JOIN user_list u ON u."NIP" = c.nip
+        WHERE c.nip = $1`,
+      [muatan.sub]
+    );
+    const u = rows[0];
+    if (!u) return res.status(401).json({ error: 'Akun tidak ditemukan' });
+    // active = false berarti sengaja dinonaktifkan. NULL dianggap aktif karena
+    // baris lama dibuat sebelum kolom itu diisi; menolak NULL akan mengunci
+    // seluruh pengguna lama sekaligus.
+    if (u.active === false)
+      return res.status(403).json({ error: 'Akun Anda dinonaktifkan. Hubungi administrator.' });
+
+    req.pengguna = {
+      nip: u.nip,
+      id: u.id ?? null,
+      nama: u.username || u.nip,
+      // name ikut dikembalikan karena komponen klien membaca user.name.
+      name: u.username || u.nip,
+      unit: u.bidang || '—',
+      status: u.Status || 'Aktif',
+      role: normalisasiRole(u.role),
+    };
+
+    if (level === ADMIN && req.pengguna.role !== R_ADMIN)
+      return res.status(403).json({ error: 'Hanya admin yang boleh melakukan ini' });
+    if (level === REVIEW && PERINGKAT[req.pengguna.role] < PERINGKAT[R_REVIEWER])
+      return res.status(403).json({ error: 'Fitur ini untuk reviewer dan admin' });
+
+    next();
+  } catch (e) {
+    console.error('Gerbang session error:', e.message);
+    res.status(500).json({ error: 'Gagal memeriksa sesi' });
+  }
+});
 
 // ── Static files (production) ─────────────────────────────────────────────
 // Di production Coolify, Express serve hasil build React dari /dist
@@ -295,14 +403,22 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     // Ambil hash dan role dari user_credentials
     const credResult = await pool.query(
-      'SELECT password_hash, role FROM user_credentials WHERE nip = $1', [nip]
+      'SELECT password_hash, role, active FROM user_credentials WHERE nip = $1', [nip]
     );
     if (!credResult.rows.length)
       return res.status(401).json({ error: 'NIP atau password salah' });
 
-    const match = await bcrypt.compare(password, credResult.rows[0].password_hash);
+    const cred = credResult.rows[0];
+
+    // Jangan bocorkan apakah akun ada sebelum password dicocokkan. NIP tak
+    // dikenal dan password salah memakai pesan yang sama.
+    const match = await bcrypt.compare(password, cred.password_hash);
     if (!match)
       return res.status(401).json({ error: 'NIP atau password salah' });
+
+    // Password sudah cocok, baru boleh menyebut kondisi akun.
+    if (cred.active === false)
+      return res.status(403).json({ error: 'Akun Anda dinonaktifkan. Hubungi administrator.' });
 
     // Update last_login
     await pool.query(
@@ -316,14 +432,25 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(404).json({ error: 'Data user tidak ditemukan' });
 
     const u = userResult.rows[0];
-    const cred = credResult.rows[0];
+
+    // Token hanya membawa NIP. Role sengaja tidak ikut, supaya dicabutnya hak
+    // akses berlaku seketika tanpa menunggu token lama kedaluwarsa.
+    let token;
+    try {
+      token = buatToken(nip);
+    } catch (e) {
+      console.error('Login: session error:', e.message);
+      return res.status(500).json({ error: 'Session belum dikonfigurasi. Hubungi administrator.' });
+    }
+    pasangCookie(res, token);
+
     res.json({
       message: 'Login berhasil',
       user: {
         id:     u.id,
         name:   u.username,
         nip:    u.NIP,
-        role:   cred.role || 'Staf',
+        role:   normalisasiRole(cred.role),
         unit:   u.bidang || '—',
         status: u.Status || 'Aktif',
       }
@@ -332,6 +459,17 @@ app.post('/api/auth/login', async (req, res) => {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Terjadi kesalahan pada server' });
   }
+});
+
+// Sesi yang sedang berlaku, dibaca dari cookie. Klien memakai ini untuk memastikan
+// role di localStorage masih benar: localStorage bisa disunting, cookie tidak.
+app.get('/api/auth/me', (req, res) => {
+  res.json({ user: req.pengguna });
+});
+
+app.post('/api/auth/logout', (_, res) => {
+  lepasCookie(res);
+  res.json({ message: 'Logout berhasil' });
 });
 
 // ── Documents: dari bapperida_dokumen ────────────────────────────────────
@@ -379,11 +517,10 @@ app.get('/api/docs', async (_, res) => {
 });
 
 app.post('/api/docs', async (req, res) => {
-  if (process.env.UPLOAD_API_KEY) {
-    const key = req.headers['x-upload-key'];
-    if (!key || key !== process.env.UPLOAD_API_KEY)
-      return res.status(403).json({ error: 'Forbidden: invalid upload key' });
-  }
+  // Di sinilah session sudah dipastikan ada oleh gerbang, kecuali integrator
+  // lolos lewat UPLOAD_API_KEY yang sudah divalidasi di izinkanLewatiUpload.
+  if (!req.pengguna && !process.env.UPLOAD_API_KEY)
+    return res.status(401).json({ error: 'Wajib login' });
 
   const { title, type, sector, uploader, url, ukuran, bidang, files, pages,
           desc, tags, uploader_id, nomor_dokumen, tanggal_dokumen, tahun,
@@ -402,22 +539,23 @@ app.post('/api/docs', async (req, res) => {
        uploader_id || '', nomor_dokumen || '', fileType || '']
     );
     // Insert doc_history
+    const pelamar = siapa(req);
     try {
       await pool.query(
         `INSERT INTO doc_history (doc_id, action, from_status, to_status, actor_id, actor_name)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [result.rows[0].id, 'upload', null, 'Menunggu Review', uploader_id || '', uploader || 'System']
+        [result.rows[0].id, 'upload', null, 'Menunggu Review', pelamar.id || '', pelamar.nama || 'System']
       );
     } catch (_) {}
     await pool.query(
       `INSERT INTO audit_logs (user_name, action, doc_title) VALUES ($1, $2, $3)`,
-      [uploader || 'System', 'Upload dokumen', title]
+      [pelamar.nama || 'System', 'Upload dokumen', title]
     );
     // Notify all admins about new upload
     try {
-      const admins = await queryDB(`SELECT id FROM user_list WHERE role = 'Admin' OR id = (SELECT id FROM user_list WHERE "NIP" = $1)`, [uploader_id || uploader]);
+      const admins = await queryDB(`SELECT id FROM user_list WHERE role = 'Admin' OR id = (SELECT id FROM user_list WHERE "NIP" = $1)`, [pelamar.id || pelamar.nama]);
       for (const a of admins) {
-        createNotification(a.id, 'Dokumen Baru', `"${title}" diunggah oleh ${uploader || 'System'}.`, 'info', result.rows[0].id);
+        createNotification(a.id, 'Dokumen Baru', `"${title}" diunggah oleh ${pelamar.nama || 'System'}.`, 'info', result.rows[0].id);
       }
     } catch (_) {}
     res.json({ message: 'Dokumen berhasil diunggah', doc: result.rows[0] });
@@ -499,6 +637,7 @@ app.get('/api/docs/:id/history', async (req, res) => {
 app.patch('/api/docs/:id/status', async (req, res) => {
   const { id } = req.params;
   const { status, note, actor_id, actor_name } = req.body;
+  const pelamar = siapa(req);
 
   const VALID_TRANSITIONS = {
     'Menunggu Review':    ['Diarsipkan', 'Ditolak'],
@@ -535,14 +674,14 @@ app.patch('/api/docs/:id/status', async (req, res) => {
            reviewed_at = NOW(),
            review_note = $3
        WHERE id = $4`,
-      [status, actor_name || '', note || '', id]
+      [status, pelamar.nama || '', note || '', id]
     );
 
     // Insert history
     await pool.query(
       `INSERT INTO doc_history (doc_id, action, from_status, to_status, actor_id, actor_name, note)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [id, status === 'Diarsipkan' ? 'approve' : 'reject', from, status, actor_id || '', actor_name || '', note || '']
+      [id, status === 'Diarsipkan' ? 'approve' : 'reject', from, status, pelamar.id || '', pelamar.nama || '', note || '']
     );
 
     // Notify uploader
@@ -867,6 +1006,7 @@ app.post('/api/docs/:id/versions', async (req, res) => {
 app.post('/api/docs/:id/versions/:no/restore', async (req, res) => {
   const { id, no } = req.params;
   const { actor_id, actor_name } = req.body;
+  const pelamar = siapa(req);
   const versionNo = parseInt(no);
 
   const client = await pool.connect();
@@ -906,7 +1046,7 @@ app.post('/api/docs/:id/versions/:no/restore', async (req, res) => {
     await client.query(
       `INSERT INTO doc_history (doc_id, action, from_status, to_status, actor_id, actor_name, note)
        VALUES ($1,'restore','Diarsipkan','Menunggu Review',$2,$3,$4)`,
-      [id, actor_id||'', actor_name||'', `Pemulihan dari v${versionNo}`]
+      [id, pelamar.id || '', pelamar.nama || '', `Pemulihan dari v${versionNo}`]
     );
 
     await client.query('COMMIT');
@@ -1903,7 +2043,11 @@ app.post('/api/kertas-kerja/:id/sinkron-wajib', async (req, res) => {
 // ── Isi periode dengan dokumen (upload) ──────────────────────────────────
 app.patch('/api/kertas-kerja/periode/:id', async (req, res) => {
   const { id } = req.params;
-  const { sets, params, galat, status } = susunPatchPeriode(req.body);
+  // Staf boleh mengisi dokumen; hanya admin yang boleh menetapkan deadline.
+  const { sets, params, galat, status } = susunPatchPeriode(req.body, {
+    admin: req.pengguna?.role === R_ADMIN,
+    pelaku: req.pengguna?.nip || null,
+  });
   if (galat) return res.status(status).json({ error: galat });
 
   params.push(parseInt(id, 10));

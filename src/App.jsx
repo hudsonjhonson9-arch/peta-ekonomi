@@ -99,10 +99,14 @@ function ProfileMenu({ user, onLogout }) {
 }
 
 export default function App() {
+  // localStorage hanya petunjuk tampilan supaya tidak berkedip saat refresh.
+  // Nilainya tidak dipercaya untuk hak akses: server yang memutuskan, dan
+  // role di sini dicocokkan ulang dengan /api/auth/me di bawah.
   const [user,      setUser]      = useState(() => {
     const saved = localStorage.getItem("user");
     return saved ? JSON.parse(saved) : null;
   });
+  const [cekSesi,   setCekSesi]   = useState(true);
   const [page,      setPage]      = useState(() => /^#dokumen\/\d+/.test(window.location.hash) ? "dokumen" : (sessionStorage.getItem("page") || "dashboard"));
   const [docs,      setDocs]      = useState([]);
   const [users,     setUsers]     = useState([]);
@@ -179,12 +183,51 @@ export default function App() {
   useEffect(() => { if (sectorsData.length > 0) setSectors(sectorsData); }, [sectorsData]);
   useEffect(() => { if (bidangData.length > 0) setBidangs(bidangData); }, [bidangData]);
 
+  // Cocokkan user di localStorage dengan cookie session yang sebenarnya.
+  // Kalau cookie sudah hilang atau kedaluwarsa, localStorage akan
+  // menampilkan UI admin sampai request pertama ditolak.
+  useEffect(() => {
+    let batal = false;
+    fetch("/api/auth/me", { credentials: "same-origin" })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(String(r.status))))
+      .then(d => {
+        if (batal) return;
+        // Role ikut diperbarui dari server, jadi perubahan role di database
+        // langsung terlihat tanpa perlu logout lalu login.
+        setUser(d.user);
+        localStorage.setItem("user", JSON.stringify(d.user));
+      })
+      .catch(() => {
+        if (batal) return;
+        localStorage.removeItem("user");
+        setUser(null);
+      })
+      .finally(() => { if (!batal) setCekSesi(false); });
+    return () => { batal = true; };
+  }, []);
+
+  // API mengembalikan 401 saat session habis di tengah pemakaian.
+  useEffect(() => {
+    const keluar = () => {
+      localStorage.removeItem("user");
+      setUser(null);
+      setPage("dashboard");
+      setViewDoc(null);
+    };
+    window.addEventListener("arsip:sesi-berakhir", keluar);
+    return () => window.removeEventListener("arsip:sesi-berakhir", keluar);
+  }, []);
+
   const handleLogin = loggedUser => {
     localStorage.setItem("user", JSON.stringify(loggedUser));
     setUser(loggedUser);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Server harus ikut melepas cookie; menghapus localStorage saja
+    // meninggalkan cookie hidup sampai kedaluwarsa.
+    try { await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }); }
+    catch (_) {}
     localStorage.removeItem("user");
     sessionStorage.removeItem("page");
     setUser(null);
@@ -288,8 +331,10 @@ export default function App() {
         : (dok && Number.isInteger(dok.id) && dok.id > 0 && dok.id < 1e12 ? dok.id : null);
       if (realId != null) {
         try {
+          // uploaded_by tidak dikirim: server memakai identitas dari session,
+          // jadi nama di audit tidak bisa dipalsukan dari sisi klien.
           await api(`/api/kertas-kerja/periode/${opts.periodeId}`, "PATCH", {
-            doc_id: realId, uploaded_by: user.name
+            doc_id: realId
           });
           queryClient.invalidateQueries({ queryKey: ['pks-tree'] });
           queryClient.invalidateQueries({ queryKey: ['pks-ringkasan'] });
@@ -722,8 +767,13 @@ export default function App() {
     );
   }
 
-  // ── Not logged in ─────────────────────────────────────────────────────────
-  if (!user) return <LoginPage onLogin={handleLogin} />;
+// ── Not logged in ─────────────────────────────────────────────────────────
+// Tunggu /api/auth/me selesai dulu, supaya Admin tidak sempat melihat halaman
+// admin walau localStorage masih menyimpan user lama.
+if (!user) {
+  if (cekSesi) return null;
+  return <LoginPage onLogin={handleLogin} />;
+}
 
   // ── Pending notifications count ────────────────────────────────────────────
   const pendingCount = docs.filter(d => d.status !== "Diarsipkan" && d.status !== "Ditolak").length;

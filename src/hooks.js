@@ -2,9 +2,21 @@ import { useQuery } from '@tanstack/react-query';
 
 export const api = (url, method = 'GET', body) => fetch(url, {
   method,
+  // Session hidup di cookie HttpOnly, jadi cookie harus ikut dikirim.
+  credentials: 'same-origin',
   headers: body ? { 'Content-Type': 'application/json' } : undefined,
   body: body ? JSON.stringify(body) : undefined,
-}).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+}).then(async r => {
+  if (r.status === 401) {
+    // Sesi sudah tidak berlaku. Buang user lokal supaya UI kembali ke login,
+    // bukan menampilkan tombol yang pasti ditolak server.
+    localStorage.removeItem('user');
+    window.dispatchEvent(new Event('arsip:sesi-berakhir'));
+    throw new Error(401);
+  }
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+});
 
 export function useDocs() {
   return useQuery({ queryKey: ['docs'], queryFn: () => api('/api/docs') });

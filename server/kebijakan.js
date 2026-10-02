@@ -1,0 +1,87 @@
+// Kebijakan hak akses per route.
+//
+// Format: daftar aturan berurutan; aturan pertama yang cocok menang. Semua pola
+// di-anchor penuh (^...$) supaya tidak ada prefix yang bocor, misalnya /api/docs
+// tidak boleh ikut cocok untuk /api/docs/bulk.
+//
+//NAZIV level:
+//   PUBLIK  tanpa login
+//   LOGIN   staf, reviewer, admin
+//   REVIEW  reviewer dan admin
+//   ADMIN   admin saja
+//
+// Route yang tidak terdaftar tetap butuh LOGIN, bukan dibuka bebas. Jadi route
+// baru default-nya tertutup dan harus memilih levelnya di sini dengan sadar.
+
+export const PUBLIK = 'publik';
+export const LOGIN = 'login';
+export const REVIEW = 'review';
+export const ADMIN = 'admin';
+
+// Modul yang seluruh perubahan datanya hak aksesnya admin.
+const MODUL_ADMIN = ['/api/kategori-dokumen', '/api/sektor', '/api/indikator', '/api/nilai'];
+
+const t = (m, lvl, pola) => ({ m, lvl, pola: new RegExp(`^${pola}$`) });
+const semua = (lvl, pola) => ({ m: null, lvl, pola: new RegExp(`^${pola}$`) });
+
+const ATURAN = [
+  // ── Publik ──────────────────────────────────────────────────────────────
+  t('GET', PUBLIK, '/api/health'),
+  t('POST', PUBLIK, '/api/auth/login'),
+  t('GET', PUBLIK, '/api/publik'),
+  t('GET', PUBLIK, '/api/publik/verify'),
+  // Upload dokumen butuh login. Integrator server-to-server dengan
+  // UPLOAD_API_KEY boleh tanpa session; pengecekannya di luar tabel ini
+  // karena bergantung pada env, lihat izinkanLewatiUpload di server/index.js.
+  t('POST', LOGIN, '/api/docs'),
+
+  // ── Admin: harus mendahului aturan umum /api/docs/:id ──────────────────
+  t('POST', ADMIN, '/api/docs/bulk'),
+  t('DELETE', ADMIN, '/api/docs/[^/]+'),
+  t('PATCH', ADMIN, '/api/docs/[^/]+/publik'),
+  semua(ADMIN, '/api/docs/[^/]+/shares(/[^/]+)*'),
+  t('GET', ADMIN, '/api/logs'),
+
+  // ── Reviewer + admin: tindakan review dan pembuatan versi ──────────────
+  t('PATCH', REVIEW, '/api/docs/[^/]+/status'),
+  t('PUT', REVIEW, '/api/docs/[^/]+'),
+  t('POST', REVIEW, '/api/docs/[^/]+/content'),
+  t('POST', REVIEW, '/api/docs/[^/]+/versions'),
+  t('POST', REVIEW, '/api/docs/[^/]+/versions/[^/]+/restore'),
+  t('POST', REVIEW, '/api/notifications'),
+
+  // ── Admin: struktur PKS dan output ──────────────────────────────────────
+  t('POST', ADMIN, '/api/pks/[^/]+'),
+  t('PUT', ADMIN, '/api/pks/[^/]+/[^/]+'),
+  t('DELETE', ADMIN, '/api/pks/[^/]+/[^/]+'),
+  t('POST', ADMIN, '/api/kertas-kerja'),
+  t('PUT', ADMIN, '/api/kertas-kerja/[^/]+'),
+  t('DELETE', ADMIN, '/api/kertas-kerja/[^/]+'),
+  t('POST', ADMIN, '/api/kertas-kerja/[^/]+/generate'),
+  t('POST', ADMIN, '/api/kertas-kerja/[^/]+/sinkron-wajib'),
+
+  // ── Admin: pengguna dan bank data ───────────────────────────────────────
+  // '(/x)*' dipakai supaya sub-path di semua tingkat ikut tertutup:
+  // /api/users, /api/users/4, /api/bankdata/opd, /api/bankdata/iku/5.
+  semua(ADMIN, '/api/users(/[^/]+)*'),
+  semua(ADMIN, '/api/bankdata(/[^/]+)*'),
+
+  // ── Admin: seluruh metode tulis pada modul master data ─────────────────
+  ...MODUL_ADMIN.flatMap(awalan => [
+    t('POST', ADMIN, `${awalan}(/[^/]+)*`),
+    t('PUT', ADMIN, `${awalan}/[^/]+`),
+    t('DELETE', ADMIN, `${awalan}/[^/]+`),
+  ]),
+];
+
+export function kebutuhan(method, path) {
+  // Express memakai non-strict routing secara bawaan, jadi /api/users/ dan
+  // /api/users ditangani handler yang sama. Pola di tabel harus meniru itu,
+  // kalau tidak garis miring akhir menjadi celah melewati aturan admin.
+  const p = path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+  for (const a of ATURAN) {
+    if (a.m && a.m !== method) continue;
+    if (a.pola.test(p)) return a.lvl;
+  }
+  return LOGIN;
+}
