@@ -1,6 +1,7 @@
 import { useState, useContext, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Icon } from "./ui.jsx";
+import { Icon, Modal } from "./ui.jsx";
+import UploadForm from "./UploadForm.jsx";
 import { ThemeContext } from "../App.jsx";
 import {
   api, usePksTree, usePksTahun, usePksRingkasan, usePksDeadlineTerdekat,
@@ -13,17 +14,21 @@ import {
 } from "../data.js";
 import PksAdmin, { pesanError, btn } from "./PksAdmin.jsx";
 
-export default function KertasKerja({ user, showToast, onMulaiUpload }) {
+// onUnggahPeriode dipakai dialog unggah: form-nya UploadForm yang sama dengan
+// halaman Upload Dokumen, jadi GAS + Google Drive tidak punya dua implementasi.
+// kategori/sektor/bidang diteruskan karena select di UploadForm membutuhkannya.
+export default function KertasKerja({ user, showToast, categories = [], sectors = [], bidangs = [], onUnggahPeriode }) {
   const { T } = useContext(ThemeContext);
   const qc = useQueryClient();
-  const [tahun, setTahun] = useState(null);
-  const [tab, setTab] = useState("kerja"); // kerja | pohon
-  const [q, setQ] = useState("");
+  const [tahun, setTahun]             = useState(null);
+  const [tab, setTab]                 = useState("kerja"); // kerja | pohon
+  const [q, setQ]                     = useState("");
   const [hanyaTerlambat, setHanyaTerlambat] = useState(false);
-  const [buka, setBuka] = useState(() => muatBuka("kk-buka"));
-  const [formOutput, setFormOutput] = useState(null);
+  const [buka, setBuka]               = useState(() => muatBuka("kk-buka"));
+  const [formOutput, setFormOutput]   = useState(null);
   const [formPeriode, setFormPeriode] = useState(null);
-  const [sibuk, setSibuk] = useState(false);
+  const [uploadPeriode, setUploadPeriode] = useState(null); // { periodeId, judul, tahun }
+  const [sibuk, setSibuk]             = useState(false);
 
   const admin = canManageOutput(user.role);
   const { data: tahunList = [] } = usePksTahun();
@@ -200,7 +205,7 @@ export default function KertasKerja({ user, showToast, onMulaiUpload }) {
                       onTambahOutput={() => setFormOutput({ mode: "tambah", output: null, sub: s, tahun })}
                       onEditOutput={o => setFormOutput({ mode: "edit", output: o, sub: s, tahun })}
                       onEditPeriode={(o, p) => setFormPeriode({ output: o, periode: p, tahun })}
-                      onMulaiUpload={onMulaiUpload} showToast={showToast}
+                      onUnggah={d => setUploadPeriode(d)} showToast={showToast}
                       reload={reload} sibuk={sibuk} setSibuk={setSibuk}
                     />
                   ))}
@@ -223,6 +228,33 @@ export default function KertasKerja({ user, showToast, onMulaiUpload }) {
           onTutup={() => setFormPeriode(null)}
           onSelesai={() => { setFormPeriode(null); reload(); }}
           showToast={showToast} />
+      )}
+
+      {/* Unggah dokumen untuk satu periode. Memakai UploadForm yang sama dengan
+          halaman Upload, jadi tidak ada implementasi GAS kedua. */}
+      {uploadPeriode && (
+        <UploadForm
+          dalamModal
+          satuFile
+          onTutup={() => setUploadPeriode(null)}
+          onSubmit={async (payload, onProgress) => {
+            const sukses = await onUnggahPeriode(payload, onProgress, {
+              periodeId: uploadPeriode.periodeId,
+              returnPage: "kertas-kerja",
+            });
+            if (sukses) setUploadPeriode(null);
+            return sukses;
+          }}
+          user={user}
+          categories={categories}
+          sectors={sectors}
+          bidangs={bidangs}
+          initialTitle={uploadPeriode.judul}
+          initialYear={uploadPeriode.tahun}
+          judul="Unggah Dokumen untuk Periode"
+          subjudul={uploadPeriode.judul}
+          labelKirim="Unggah & Hubungkan ke Periode"
+        />
       )}
     </div>
   );
@@ -303,7 +335,7 @@ function Panel({ T, buka, onToggle, force, ikon, kode, nama, children }) {
 
 // ── Sub kegiatan + daftar output ─────────────────────────────────────────
 function SubKey({ T, sub, tahun, admin, user, buka, onToggle, force, hanyaTerlambat, cari,
-                  onTambahOutput, onEditOutput, onEditPeriode, onMulaiUpload, showToast, reload, sibuk, setSibuk }) {
+                  onTambahOutput, onEditOutput, onEditPeriode, onUnggah, showToast, reload, sibuk, setSibuk }) {
   const outputs = sub.outputs.filter(o => {
     if (cari) return true;
     if (!hanyaTerlambat) return true;
@@ -392,7 +424,7 @@ function SubKey({ T, sub, tahun, admin, user, buka, onToggle, force, hanyaTerlam
             <Output key={o.id} T={T} output={o} admin={admin} user={user} tahun={tahun}
               onEdit={() => onEditOutput(o)}
               onEditPeriode={p => onEditPeriode(o, p)}
-              onMulaiUpload={onMulaiUpload}
+onUnggah={onUnggah}
               showToast={showToast} reload={reload} sibuk={sibuk} setSibuk={setSibuk} />
           ))}
         </div>
@@ -407,7 +439,7 @@ const iconBtn = T => ({
 });
 
 // ── Satu output + tabel periodenya ───────────────────────────────────────
-function Output({ T, output, admin, user, tahun, onEdit, onEditPeriode, onMulaiUpload, showToast, reload, sibuk, setSibuk }) {
+function Output({ T, output, admin, user, tahun, onEdit, onEditPeriode, onUnggah, showToast, reload, sibuk, setSibuk }) {
   const pr = progresOutput(output);
   const [bukaPeriode, setBukaPeriode] = useState(true);
 
@@ -501,7 +533,7 @@ function Output({ T, output, admin, user, tahun, onEdit, onEditPeriode, onMulaiU
             <tbody>
               {output.periods.map(p => <BarisPeriode key={p.id} T={T} p={p} admin={admin} reload={reload}
                 judul={`${output.nama} — ${p.periode_label}`} tahun={tahun}
-                onEdit={() => onEditPeriode(p)} onMulaiUpload={onMulaiUpload} showToast={showToast} />)}
+                onEdit={() => onEditPeriode(p)} onUnggah={onUnggah} showToast={showToast} />)}
             </tbody>
           </table>
         </div>
@@ -510,19 +542,10 @@ function Output({ T, output, admin, user, tahun, onEdit, onEditPeriode, onMulaiU
   );
 }
 
-function BarisPeriode({ T, p, admin, onEdit, onMulaiUpload, reload, showToast, judul, tahun }) {
-  const ref = useRef(null);
+function BarisPeriode({ T, p, admin, onEdit, onUnggah, reload, showToast, judul, tahun }) {
   const st = statusPeriode(p);
   const meta = STATUS_PERIODE[st];
   const sisa = sisaHari(p.deadline);
-
-  const pilihDanUnggah = e => {
-    const files = e.target.files;
-    if (!files || !files.length) return;
-    const f = files[0];
-    onMulaiUpload({ file: f, periodeId: p.id, title: judul, tahun });
-    e.target.value = "";
-  };
 
   const lepaskan = async () => {
     if (!window.confirm(`Lepas dokumen dari periode ${p.periode_label}? Dokumen tetap ada di arsip.`)) return;
@@ -570,12 +593,10 @@ function BarisPeriode({ T, p, admin, onEdit, onMulaiUpload, reload, showToast, j
               <Icon name="x" size={11} />
             </button>
           ) : (
-            <>
-              <input ref={ref} type="file" onChange={pilihDanUnggah} style={{ display: "none" }} />
-              <button onClick={() => ref.current?.click()} title="Unggah dokumen untuk periode ini" style={iconBtn(T)}>
-                <Icon name="upload" size={11} />
-              </button>
-            </>
+            <button onClick={() => onUnggah({ periodeId: p.id, judul, tahun })}
+              title="Unggah dokumen untuk periode ini" style={iconBtn(T)}>
+              <Icon name="upload" size={11} />
+            </button>
           )}
           {admin && p.doc_id == null && (
             <button onClick={onEdit} title="Ubah deadline / catatan" style={iconBtn(T)}>
@@ -659,87 +680,89 @@ function FormOutput({ form, admin, user, sibuk, setSibuk, onTutup, onSelesai, sh
   };
 
   return (
-    <form onSubmit={submit} style={{ background: T.card, border: `1px solid ${T.primary}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 4 }}>
-        {form.mode === "tambah" ? "Tambah Output" : "Ubah Output"}
-      </div>
-      <div style={{ fontSize: 11.5, color: T.textMuted, marginBottom: 12 }}>
-        Sub kegiatan {form.sub.kode} · {form.sub.nama}
-      </div>
-
-      <label style={wrap}>
-        <span style={lbl(T)}>Nama output / dokumen *</span>
-        <input value={nama} onChange={e => setNama(e.target.value)}
-          placeholder="mis. Laporan Kinerja Triwulan I" style={inp(T)} />
-      </label>
-
-      <label style={{ ...wrap, marginTop: 10 }}>
-        <span style={lbl(T)}>Indikator</span>
-        <input value={indikator} onChange={e => setIndikator(e.target.value)}
-          placeholder="opsional" style={inp(T)} />
-      </label>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginTop: 10 }}>
+    <Modal
+      title={form.mode === "tambah" ? "Tambah Output" : "Ubah Output"}
+      subtitle={`Sub kegiatan ${form.sub.kode} · ${form.sub.nama}`}
+      icon={form.mode === "tambah" ? "plus" : "edit"}
+      onClose={onTutup}
+      maxWidth={560}
+      lockClose={sibuk}
+    >
+      <form onSubmit={submit}>
         <label style={wrap}>
-          <span style={lbl(T)}>Frekuensi</span>
-          <select value={frekuensi} onChange={e => gantiFrekuensi(e.target.value)} style={inp(T)}>
-            {FREKUENSI.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-          </select>
+          <span style={lbl(T)}>Nama output / dokumen *</span>
+          <input value={nama} onChange={e => setNama(e.target.value)}
+            placeholder="mis. Laporan Kinerja Triwulan I" style={inp(T)} autoFocus />
         </label>
-        <label style={wrap}>
-          <span style={lbl(T)}>Target per tahun</span>
-          <input type="number" min="1" value={target} onChange={e => gantiTarget(e.target.value)} style={inp(T)} />
-        </label>
-        <label style={wrap}>
-          <span style={lbl(T)}>PIC</span>
-          <input value={pic} onChange={e => setPic(e.target.value)} placeholder="NIP atau nama" style={inp(T)} />
-        </label>
-      </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginTop: 10 }}>
-        <label style={wrap}>
-          <span style={lbl(T)}>Periode wajib</span>
-          <input value={bulanWajib} onChange={e => setBulanWajib(e.target.value)}
-            placeholder="* atau 1,3,5,7,9,11" style={inp(T)} />
-          <span style={{ fontSize: 10.5, color: T.textMuted, display: "block", marginTop: 3 }}>
-            * = semua {totalPeriode} periode wajib. Angka = nomor periode (1 = Januari/Bulan I).
-          </span>
+        <label style={{ ...wrap, marginTop: 10 }}>
+          <span style={lbl(T)}>Indikator</span>
+          <input value={indikator} onChange={e => setIndikator(e.target.value)}
+            placeholder="opsional" style={inp(T)} />
         </label>
-        <label style={wrap}>
-          <span style={lbl(T)}>Aturan deadline</span>
-          <select value={deadlineRule} onChange={e => setDeadlineRule(e.target.value)} style={inp(T)}>
-            {(DEADLINE_PRESET[frekuensi] || []).map(d =>
-              <option key={d.value} value={d.value}>{d.label}</option>
-            )}
-          </select>
-          <span style={{ fontSize: 10.5, color: T.textMuted, display: "block", marginTop: 3 }}>
-            Sekarang: {labelDeadline(frekuensi, deadlineRule)}
-          </span>
-        </label>
-      </div>
 
-      <label style={{ ...wrap, marginTop: 10 }}>
-        <span style={lbl(T)}>Keterangan</span>
-        <input value={keterangan} onChange={e => setKeterangan(e.target.value)} placeholder="opsional" style={inp(T)} />
-      </label>
-
-      {form.mode === "tambah" && (
-        <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 12 }}>
-          <input type="checkbox" id="kk-otomatis" checked={nya} onChange={e => setNya(e.target.checked)}
-            style={{ width: 14, height: 14, accentColor: T.primary, cursor: "pointer" }} />
-          <label htmlFor="kk-otomatis" style={{ fontSize: 11.5, color: T.textSecondary, cursor: "pointer" }}>
-            Langsung buat {totalPeriode} periode untuk tahun {form.tahun} setelah disimpan
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginTop: 10 }}>
+          <label style={wrap}>
+            <span style={lbl(T)}>Frekuensi</span>
+            <select value={frekuensi} onChange={e => gantiFrekuensi(e.target.value)} style={inp(T)}>
+              {FREKUENSI.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+            </select>
+          </label>
+          <label style={wrap}>
+            <span style={lbl(T)}>Target per tahun</span>
+            <input type="number" min="1" value={target} onChange={e => gantiTarget(e.target.value)} style={inp(T)} />
+          </label>
+          <label style={wrap}>
+            <span style={lbl(T)}>PIC</span>
+            <input value={pic} onChange={e => setPic(e.target.value)} placeholder="NIP atau nama" style={inp(T)} />
           </label>
         </div>
-      )}
 
-      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-        <button type="submit" disabled={sibuk} style={btn(T, T.primary, "#fff", sibuk)}>
-          {sibuk ? "Menyimpan…" : "Simpan"}
-        </button>
-        <button type="button" onClick={onTutup} style={btn(T, "transparent", T.text, false, T.inputBorder)}>Batal</button>
-      </div>
-    </form>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginTop: 10 }}>
+          <label style={wrap}>
+            <span style={lbl(T)}>Periode wajib</span>
+            <input value={bulanWajib} onChange={e => setBulanWajib(e.target.value)}
+              placeholder="* atau 1,3,5,7,9,11" style={inp(T)} />
+            <span style={{ fontSize: 10.5, color: T.textMuted, display: "block", marginTop: 3 }}>
+              * = semua {totalPeriode} periode wajib. Angka = nomor periode (1 = Januari/Bulan I).
+            </span>
+          </label>
+          <label style={wrap}>
+            <span style={lbl(T)}>Aturan deadline</span>
+            <select value={deadlineRule} onChange={e => setDeadlineRule(e.target.value)} style={inp(T)}>
+              {(DEADLINE_PRESET[frekuensi] || []).map(d =>
+                <option key={d.value} value={d.value}>{d.label}</option>
+              )}
+            </select>
+            <span style={{ fontSize: 10.5, color: T.textMuted, display: "block", marginTop: 3 }}>
+              Sekarang: {labelDeadline(frekuensi, deadlineRule)}
+            </span>
+          </label>
+        </div>
+
+        <label style={{ ...wrap, marginTop: 10 }}>
+          <span style={lbl(T)}>Keterangan</span>
+          <input value={keterangan} onChange={e => setKeterangan(e.target.value)} placeholder="opsional" style={inp(T)} />
+        </label>
+
+        {form.mode === "tambah" && (
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 12 }}>
+            <input type="checkbox" id="kk-otomatis" checked={nya} onChange={e => setNya(e.target.checked)}
+              style={{ width: 14, height: 14, accentColor: T.primary, cursor: "pointer" }} />
+            <label htmlFor="kk-otomatis" style={{ fontSize: 11.5, color: T.textSecondary, cursor: "pointer" }}>
+              Langsung buat {totalPeriode} periode untuk tahun {form.tahun} setelah disimpan
+            </label>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8, marginTop: 16, paddingTop: 14, borderTop: `1px solid ${T.border}` }}>
+          <button type="submit" disabled={sibuk} style={btn(T, T.primary, "#fff", sibuk)}>
+            {sibuk ? "Menyimpan…" : "Simpan"}
+          </button>
+          <button type="button" onClick={onTutup} disabled={sibuk} style={btn(T, "transparent", T.text, sibuk, T.inputBorder)}>Batal</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -770,40 +793,42 @@ function FormPeriode({ form, sibuk, setSibuk, onTutup, onSelesai, showToast }) {
   };
 
   return (
-    <form onSubmit={submit} style={{ background: T.card, border: `1px solid ${T.primary}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 4 }}>
-        Ubah Periode {p.periode_label}
-      </div>
-      <div style={{ fontSize: 11.5, color: T.textMuted, marginBottom: 12 }}>
-        {form.output.nama} · tahun {form.tahun}
-      </div>
+    <Modal
+      title={`Ubah Periode ${p.periode_label}`}
+      subtitle={`${form.output.nama} · tahun ${form.tahun}`}
+      icon="clock"
+      onClose={onTutup}
+      maxWidth={480}
+      lockClose={sibuk}
+    >
+      <form onSubmit={submit}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+          <label style={wrap}>
+            <span style={lbl(T)}>Deadline</span>
+            <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} style={inp(T)} autoFocus />
+          </label>
+          <label style={wrap}>
+            <span style={lbl(T)}>Status periode</span>
+            <select value={isWajib ? "1" : "0"} onChange={e => setIsWajib(e.target.value === "1")} style={inp(T)}>
+              <option value="1">Wajib</option>
+              <option value="0">Opsional</option>
+            </select>
+          </label>
+        </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
-        <label style={wrap}>
-          <span style={lbl(T)}>Deadline</span>
-          <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} style={inp(T)} />
+        <label style={{ ...wrap, marginTop: 10 }}>
+          <span style={lbl(T)}>Catatan</span>
+          <input value={catatan} onChange={e => setCatatan(e.target.value)} placeholder="opsional" style={inp(T)} />
         </label>
-        <label style={wrap}>
-          <span style={lbl(T)}>Status periode</span>
-          <select value={isWajib ? "1" : "0"} onChange={e => setIsWajib(e.target.value === "1")} style={inp(T)}>
-            <option value="1">Wajib</option>
-            <option value="0">Opsional</option>
-          </select>
-        </label>
-      </div>
 
-      <label style={{ ...wrap, marginTop: 10 }}>
-        <span style={lbl(T)}>Catatan</span>
-        <input value={catatan} onChange={e => setCatatan(e.target.value)} placeholder="opsional" style={inp(T)} />
-      </label>
-
-      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-        <button type="submit" disabled={sibuk} style={btn(T, T.primary, "#fff", sibuk)}>
-          {sibuk ? "Menyimpan…" : "Simpan"}
-        </button>
-        <button type="button" onClick={onTutup} style={btn(T, "transparent", T.text, false, T.inputBorder)}>Batal</button>
-      </div>
-    </form>
+        <div style={{ display: "flex", gap: 8, marginTop: 16, paddingTop: 14, borderTop: `1px solid ${T.border}` }}>
+          <button type="submit" disabled={sibuk} style={btn(T, T.primary, "#fff", sibuk)}>
+            {sibuk ? "Menyimpan…" : "Simpan"}
+          </button>
+          <button type="button" onClick={onTutup} disabled={sibuk} style={btn(T, "transparent", T.text, sibuk, T.inputBorder)}>Batal</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

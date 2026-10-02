@@ -115,9 +115,6 @@ export default function App() {
   const [sectors, setSectors] = useState([]);
   const [bidangs, setBidangs] = useState([]);
   const [viewDoc,   setViewDoc]   = useState(null);
-  // Konteks upload dari Kertas Kerja: file + periode tujuan, supaya setelah
-  // GAS selesai dokumennya langsung ditautkan ke periode yang benar.
-  const [uploadKk,  setUploadKk]  = useState(null);
   // Dokumen yang dibuka dibaca dari hash (#dokumen/ID) supaya tetap terbuka setelah refresh
   const [pendingDocId, setPendingDocId] = useState(() => { const m = window.location.hash.match(/^#dokumen\/(\d+)/); return m ? m[1] : null; });
   // Halaman publik tautan berbagi dibaca sekali saat mount (hash ditimpa oleh routing internal)
@@ -309,13 +306,16 @@ export default function App() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   // ── Upload dari Kertas Kerja ──────────────────────────────────────────────
-  // Memakai form upload yang sama (GAS + Drive) lalu menautkan dokumen hasil
-  // ke periode tujuan. Form dimuat ulang dari nol supaya tidak ada state sisa.
-  const handleMulaiUpload = ({ file, periodeId, title, tahun }) => {
-    setUploadKk({ periodeId, title, tahun });
-    window.__droppedFiles = [file];
-    goPage("upload");
-  };
+  // Unggah dokumen untuk satu periode lewat dialog. Jalurnya sengaja memakai
+  // handleUpload yang sama dengan halaman Upload, jadi GAS + Google Drive hanya
+  // ada satu implementasi.
+  //
+  // returnPage sengaja "kertas-kerja": user sudah berada di halaman itu, jadi
+  // selesaiUpload hanya memanggil setPage dengan nilai yang sama dan tidak ada
+  // perpindahan halaman. Dokumen yang baru diunggah ditautkan ke periodenya di
+  // selesaiUpload.
+  const handleUnggahPeriode = (form, onProgress, uploadOpts = {}) =>
+    handleUpload(form, onProgress, { returnPage: "kertas-kerja", ...uploadOpts });
 
   // Dipanggil setelah GAS selesai menyimpan dokumen. Kalau upload dipicu dari
   // Kertas Kerja, tautkan doc_id ke periodenya dan kembali ke halaman asal —
@@ -350,7 +350,6 @@ export default function App() {
       showToast(pesan);
     }
 
-    setUploadKk(null);
     setPage(opts.returnPage || "dokumen");
   };
 
@@ -498,13 +497,17 @@ export default function App() {
           "Dokumen berhasil ditambahkan via Google Drive link.",
           { ...uploadOpts, returnPage: uploadOpts.returnPage || "dokumen" }
         );
+        return true;
       } catch (err) {
         showToast("Gagal menyimpan dokumen: " + (err.message || err));
+        return false;
       }
-      return;
     }
 
-    if (!form.fileObjs || !form.fileObjs.length) return showToast("Pilih file terlebih dahulu.");
+    if (!form.fileObjs || !form.fileObjs.length) {
+      showToast("Pilih file terlebih dahulu.");
+      return false;
+    }
 
     var groupMode = form.fileObjs.length > 1;
     var folderId = null;
@@ -742,7 +745,7 @@ export default function App() {
           "Folder " + form.title + " (" + groupFiles.length + " file) berhasil diunggah dan dikirim untuk review.",
           { ...uploadOpts, noLink: true, returnPage: uploadOpts.returnPage || "dokumen" }
         );
-        return;
+        return true;
       }
 
       if (allDocs.length > 0) {
@@ -752,9 +755,10 @@ export default function App() {
           { ...uploadOpts, docId: idAsli, returnPage: uploadOpts.returnPage || "dokumen" }
         );
       }
+      return true;
     } catch (err) {
       showToast("Gagal mengunggah: " + err.message);
-      setUploadKk(null);
+      return false;
     }
   };
 
@@ -882,14 +886,8 @@ if (!user) {
             )}
             {page === "upload" && (
               <UploadForm
-                key={uploadKk ? `kk-${uploadKk.periodeId}` : "upload-biasa"}
-                onSubmit={(form, onProgress) => handleUpload(form, onProgress, {
-                  periodeId: uploadKk ? uploadKk.periodeId : null,
-                  returnPage: uploadKk ? "kertas-kerja" : "dokumen",
-                })}
+                onSubmit={(form, onProgress) => handleUpload(form, onProgress, { returnPage: "dokumen" })}
                 user={user} categories={categories} sectors={sectors} bidangs={bidangs}
-                initialTitle={uploadKk ? uploadKk.title : ""}
-                initialYear={uploadKk ? uploadKk.tahun : null}
               />
             )}
             {page === "pencarian" && (
@@ -911,7 +909,10 @@ if (!user) {
               <KertasKerja
                 user={user}
                 showToast={showToast}
-                onMulaiUpload={handleMulaiUpload}
+                categories={categories}
+                sectors={sectors}
+                bidangs={bidangs}
+                onUnggahPeriode={handleUnggahPeriode}
               />
             )}
             {page === "pengguna" && user.role === "Admin" && (

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useContext } from "react";
-import { Icon } from "./ui.jsx";
+import { Icon, Modal } from "./ui.jsx";
 import useResponsive from "../useResponsive.js";
 import { ThemeContext } from "../App.jsx";
 
@@ -15,7 +15,28 @@ const EXTRA = {
   primaryHover: "#1D4ED8",
 };
 
-export default function UploadForm({ onSubmit, user, categories = [], sectors = [], bidangs = [], initialTitle = "", initialYear = null }) {
+// dalamModal: form yang sama persis, tapi dibungkus dialog dan tidak
+// membungkus halaman. Dipakai Kertas Kerja untuk mengunggah dokumen ke satu
+// periode, supaya ui-nya tidak berbeda dari halaman Upload Dokumen.
+//
+// satuFile: satu periode hanya boleh punya satu dokumen. Tanpa ini, unggahan
+// multi-file akan membuat folder di Drive dan tidak bisa ditautkan ke periode
+// (lihat catatan noLink di App.jsx).
+export default function UploadForm({
+  onSubmit,
+  user,
+  categories = [],
+  sectors = [],
+  bidangs = [],
+  initialTitle = "",
+  initialYear = null,
+  dalamModal = false,
+  satuFile = false,
+  onTutup,
+  judul = "Unggah Dokumen",
+  subjudul,
+  labelKirim = "Upload & Kirim untuk Review",
+}) {
   const { isMobile } = useResponsive();
   const { T: _T } = useContext(ThemeContext);
   const T = { ..._T, ...EXTRA };
@@ -44,8 +65,11 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
   const [dragOver,  setDragOver]  = useState(false);
   const fileRef = useRef();
 
-  // pick up files dropped on DocList
+  // pick up files dropped on DocList. Tidak berlaku di mode modal: file yang
+  // dijatuhkan di daftar dokumen milik form halaman Upload, dan modal periode
+  // tidak boleh diam-diam mengambilnya.
   useEffect(() => {
+    if (dalamModal) return;
     if (window.__droppedFiles?.length) {
       const dropped = window.__droppedFiles;
       setFiles(prev => [...prev, ...dropped]);
@@ -84,7 +108,13 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
     setGdriveUrl("");
   };
 
-  const handle = () => {
+  // onSubmit sudah menampilkan pesan gagalnya sendiri, jadi kita hanya perlu
+  // tahu sukses atau tidak. Sebelumnya status "Mengunggah" dilepas dari
+  // onProgress(100), tapi angka itu tidak selalu tercapai: mode resumable untuk
+  // file >30 MB berhenti di 80. Akibatnya tombol terkunci "Mengunggah 80%"
+  // padahal upload sudah selesai. Di mode modal itu berarti dialog terkunci
+  // permanen, jadi sekarang kita menunggu promise dari onSubmit.
+  const handle = async () => {
     if (!validate() || uploading) return;
     setUploading(true);
     setProgress(0);
@@ -93,16 +123,12 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
       ? { ...form, fileObjs: null, fileUrl: gdriveUrl, uploader: user.name }
       : { ...form, fileObjs: files, uploader: user.name };
 
-    onSubmit(payload, function (pct) {
-      setProgress(pct);
-      if (pct >= 100) {
-        setTimeout(() => {
-          setUploading(false);
-          resetForm();
-          setProgress(0);
-        }, 600);
-      }
-    });
+    const sukses = await onSubmit(payload, function (pct) { setProgress(pct); });
+    setUploading(false);
+    setProgress(0);
+    if (sukses) resetForm();
+    // Kalau gagal, form sengaja dibiarkan terisi supaya pengguna bisa mencoba
+    // lagi tanpa mengetik ulang semua metadata.
   };
 
   const handleFileDrop = (e) => {
@@ -110,7 +136,8 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
     setDragOver(false);
     if (!uploading && e.dataTransfer.files?.length) {
       const newFiles = Array.from(e.dataTransfer.files);
-      setFiles(prev => [...prev, ...newFiles]);
+      // Di mode satu file, file baru menggantikan yang lama, bukan ditumpuk.
+      setFiles(satuFile ? newFiles.slice(0, 1) : prev => [...prev, ...newFiles]);
       setProgress(0);
       if (!form.fileType && newFiles.length) set("fileType", detectFileType(newFiles[0].name));
     }
@@ -146,19 +173,11 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
 
   const requiredMark = { color: T.danger, marginLeft: 2 };
 
-  return (
-    <div style={{ fontFamily: T.font, background: T.bg, minHeight: "100vh", padding: isMobile ? "12px 16px 16px" : "20px 36px 28px" }}>
-      {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, color: T.text, letterSpacing: "-0.01em" }}>
-          Upload Dokumen
-        </div>
-        <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 4 }}>
-          Tambah dokumen baru ke repositori ARSIP DIGITAL BAPPERIDA
-        </div>
-      </div>
-
-      <div style={{ ...cardStyle, padding: isMobile ? 20 : 28 }}>
+  // Isi form ini dipakai dua kali: sebagai halaman Upload, dan sebagai isi
+  // dialog di Kertas Kerja. Dipisah dari cangkangnya supaya keduanya benar-benar
+  // komponen yang sama — perubahan field otomatis muncul di dua tempat.
+  const isi = (
+    <>
         {/* ── Section: Informasi Dokumen ── */}
         <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 15, fontWeight: 600, color: T.text, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
@@ -372,11 +391,11 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
               </label>
               <input
                 type="file" ref={fileRef}
-                multiple
+                multiple={!satuFile}
                 accept=".pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png,.gif,.webp"
                 onChange={e => {
                   const newFiles = Array.from(e.target.files);
-                  setFiles(prev => [...prev, ...newFiles]);
+                  setFiles(satuFile ? newFiles.slice(0, 1) : prev => [...prev, ...newFiles]);
                   setProgress(0);
                   if (!form.fileType && newFiles.length) set("fileType", detectFileType(newFiles[0].name));
                 }}
@@ -426,13 +445,15 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
                         </button>
                       </div>
                     ))}
-                    <button
-                      type="button"
-                      onClick={e => { e.stopPropagation(); fileRef.current.click(); }}
-                      style={{ padding: "8px 14px", borderRadius: 6, border: `1px dashed ${T.border}`, background: "transparent", cursor: "pointer", fontSize: 12, color: T.primary, fontWeight: 600, marginTop: 4 }}
-                    >
-                      + Tambah File Lain
-                    </button>
+                    {!satuFile && (
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); fileRef.current.click(); }}
+                        style={{ padding: "8px 14px", borderRadius: 6, border: `1px dashed ${T.border}`, background: "transparent", cursor: "pointer", fontSize: 12, color: T.primary, fontWeight: 600, marginTop: 4 }}
+                      >
+                        + Tambah File Lain
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <>
@@ -455,7 +476,7 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
                       {dragOver ? "Lepaskan file di sini" : "atau seret file ke kotak ini"}
                     </div>
                     <div style={{ fontSize: 12, color: T.textMuted, marginTop: 4 }}>
-                      PDF, DOCX, XLSX, JPG, PNG, WEBP · Bisa pilih lebih dari satu file
+                      PDF, DOCX, XLSX, JPG, PNG, WEBP · {satuFile ? "Satu file untuk satu periode" : "Bisa pilih lebih dari satu file"}
                     </div>
                   </>
                 )}
@@ -553,9 +574,43 @@ export default function UploadForm({ onSubmit, user, categories = [], sectors = 
             onMouseLeave={e => { if (!uploading) { e.currentTarget.style.background = T.primary; e.currentTarget.style.boxShadow = "0 1px 3px rgba(37,99,235,0.3)"; }}}
           >
             <Icon name="upload" size={16} />
-            {uploading ? "Mengunggah " + progress + "%..." : "Upload & Kirim untuk Review"}
+            {uploading ? "Mengunggah " + progress + "%..." : labelKirim}
           </button>
         </div>
+    </>
+  );
+
+  // ── Mode dialog ──
+  if (dalamModal) {
+    return (
+      <Modal
+        title={judul}
+        subtitle={subjudul}
+        icon="upload"
+        onClose={onTutup}
+        maxWidth={640}
+        lockClose={uploading}
+      >
+        <div style={{ fontFamily: T.font }}>{isi}</div>
+      </Modal>
+    );
+  }
+
+  // ── Mode halaman ──
+  return (
+    <div style={{ fontFamily: T.font, background: T.bg, minHeight: "100vh", padding: isMobile ? "12px 16px 16px" : "20px 36px 28px" }}>
+      {/* Header */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, color: T.text, letterSpacing: "-0.01em" }}>
+          Upload Dokumen
+        </div>
+        <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 4 }}>
+          Tambah dokumen baru ke repositori ARSIP DIGITAL BAPPERIDA
+        </div>
+      </div>
+
+      <div style={{ ...cardStyle, padding: isMobile ? 20 : 28 }}>
+        {isi}
       </div>
     </div>
   );

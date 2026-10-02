@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext, useRef } from "react";
+import { ThemeContext } from "../App.jsx";
+import useResponsive from "../useResponsive.js";
 
 // ponytail: reactive dark-mode flag — App sets data-theme on <html>
 export function useIsDark() {
@@ -146,8 +148,133 @@ export function getUniversalPreviewUrl(url) {
 export function formatBytes(bytes) {
   if (!bytes) return "—";
   return bytes > 1048576
-    ? (bytes / 1048576).toFixed(1) + ' MB'
-    : (bytes / 1024).toFixed(0) + ' KB';
+    ? (bytes / 1048576).toFixed(1) + " MB"
+    : (bytes / 1024).toFixed(0) + " KB";
+}
+
+// Dialog generik. Semua form yang sebelumnya dirender inline di bawah halaman
+// dipindah ke sini supaya user tidak perlu scroll jauh, dan supaya form
+// panjang (mis. UploadForm) punya area isi yang bisa digulir sendiri sementara
+// header tetap terlihat.
+//
+// lockClose dipakai saat submit sedang berjalan: menutup dialog saat upload
+// berjalan akan menggagalkan request dan membuat pengguna mengira upload sudah
+// selesai padahal belum.
+export function Modal({
+  title,
+  subtitle,
+  icon,
+  onClose,
+  children,
+  footer,
+  maxWidth = 520,
+  lockClose = false,
+}) {
+  const { T } = useContext(ThemeContext);
+  const { isMobile } = useResponsive();
+  const boxRef = useRef(null);
+
+  // Latar tidak boleh ikut menggulir di belakang dialog.
+  useEffect(() => {
+    const sebelumnya = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = sebelumnya; };
+  }, []);
+
+  useEffect(() => {
+    if (lockClose) return;
+    const onKey = e => { if (e.key === "Escape") onClose?.(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lockClose, onClose]);
+
+  // Fokus masuk ke dialog supaya pengguna keyboard tidak tertinggal di belakang
+  // overlay yang menutupi halaman.
+  useEffect(() => { boxRef.current?.focus(); }, []);
+
+  return (
+    <div
+      onMouseDown={e => {
+        if (e.target === e.currentTarget && !lockClose) onClose?.();
+      }}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)",
+        backdropFilter: "blur(4px)", display: "flex",
+        alignItems: isMobile ? "flex-end" : "center", justifyContent: "center",
+        zIndex: 1200, padding: isMobile ? 0 : 20,
+      }}
+    >
+      <div
+        ref={boxRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: T.card, borderRadius: isMobile ? "16px 16px 0 0" : T.radiusLg,
+          border: `1px solid ${T.border}`, width: "100%", maxWidth,
+          maxHeight: isMobile ? "92vh" : "86vh",
+          display: "flex", flexDirection: "column",
+          boxShadow: T.shadowLg, outline: "none",
+          animation: isMobile ? "slideUp .25s ease" : "fadeIn .15s ease",
+        }}
+      >
+        <div style={{
+          display: "flex", alignItems: "flex-start", justifyContent: "space-between",
+          gap: 12, flexShrink: 0,
+          padding: isMobile ? "18px 18px 14px" : "20px 24px 16px",
+          borderBottom: `1px solid ${T.border}`,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+            {icon && (
+              <div style={{
+                width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: T.bg, border: `1px solid ${T.border}`, color: T.textSecondary,
+              }}>
+                <Icon name={icon} size={16} />
+              </div>
+            )}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{title}</div>
+              {subtitle && (
+                <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 2 }}>{subtitle}</div>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={lockClose}
+            aria-label="Tutup"
+            style={{
+              background: "none", border: "none", cursor: lockClose ? "not-allowed" : "pointer",
+              color: T.textSecondary, padding: 4, borderRadius: 6, opacity: lockClose ? 0.5 : 1,
+              display: "flex", flexShrink: 0,
+            }}
+          >
+            <Icon name="x" size={16} />
+          </button>
+        </div>
+
+        <div style={{
+          padding: isMobile ? "18px" : "20px 24px",
+          overflowY: "auto", flex: 1, overscrollBehavior: "contain",
+        }}>
+          {children}
+        </div>
+
+        {footer && (
+          <div style={{
+            padding: isMobile ? "14px 18px" : "16px 24px",
+            borderTop: `1px solid ${T.border}`, flexShrink: 0,
+          }}>
+            {footer}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function GoogleDriveEmbed({ url, title, onClose }) {
