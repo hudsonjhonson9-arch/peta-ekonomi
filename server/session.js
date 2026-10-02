@@ -15,6 +15,12 @@ import crypto from 'node:crypto';
 export const NAMA_COOKIE = 'arsip_session';
 export const MASA_JAM = 8;
 
+// Panjang minimum yang diterima. Ambil 16, bukan 32, supaya nilai yang
+// sebenarnya wajar tetap jalan; nilai yang lebih pendek ditolak dengan alasan
+// keamanan. Target sebenarnya 32 karakter atau lebih.
+export const PANJANG_MINIMUM = 16;
+export const PANJANG_DIANJURKAN = 32;
+
 // Nilai role kanonik yang dipakai seluruh UI: 'Admin' | 'Reviewer' | 'Staf'.
 export const R_ADMIN = 'Admin';
 export const R_REVIEWER = 'Reviewer';
@@ -37,7 +43,35 @@ export function normalisasiRole(dbRole) {
 
 export function rahasia() {
   const s = process.env.SESSION_SECRET;
-  return s && s.length >= 32 ? s : null;
+  return s && s.trim().length >= PANJANG_MINIMUM ? s : null;
+}
+
+// Dipanggil sekali saat boot supaya masalah konfigurasi terlihat di log
+// Coolify, bukan baru ketahuan saat semua request mulai 500.
+export function periksaKonfigurasiSession() {
+  const s = process.env.SESSION_SECRET;
+  if (!rahasia()) {
+    console.error(
+      '\n' +
+      '='.repeat(72) +
+      '\nSESSION_SECRET belum diatur atau terlalu pendek.\n' +
+      'Semua request /api akan dijawab 500 sampai variabel ini disetel di\n' +
+      `Coolify. Isi dengan string acak minimal ${PANJANG_MINIMUM} karakter,\n` +
+      'misalnya hasil dari: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"\n' +
+      'Jangan memakai kata sandi pengguna, dan jangan menaruhnya di repo.' +
+      '\n' +
+      '='.repeat(72) + '\n'
+    );
+    return false;
+  }
+  if (s.trim().length < PANJANG_DIANJURKAN) {
+    console.warn(
+      `SESSION_SECRET hanya ${s.trim().length} karakter; ` +
+      `disarankan ${PANJANG_DIANJURKAN} atau lebih.`
+    );
+  }
+  console.log(`Session aktif (rahasia ${s.trim().length} karakter, berlaku ${MASA_JAM} jam).`);
+  return true;
 }
 
 const b64 = buf => Buffer.from(buf).toString('base64url');
@@ -56,7 +90,7 @@ function samaKonst(a, b) {
 }
 
 export function buatToken(nip, secret = rahasia()) {
-  if (!secret) throw new Error('SESSION_SECRET belum diatur atau terlalu pendek (minimal 32 karakter)');
+  if (!secret) throw new Error(`SESSION_SECRET belum diatur atau terlalu pendek (minimal ${PANJANG_MINIMUM} karakter)`);
   const isi = b64(JSON.stringify({
     sub: String(nip),
     exp: Math.floor(Date.now() / 1000) + MASA_JAM * 3600,

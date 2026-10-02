@@ -10,8 +10,8 @@ import { fileURLToPath } from 'url';
 import { susunPatchPeriode } from './patch-periode.js';
 import {
   NAMA_COOKIE, MASA_JAM, R_ADMIN, R_REVIEWER, R_STAF,
-  normalisasiRole, rahasia, buatToken, verifikasiToken,
-  bacaCookie, pasangCookie, lepasCookie,
+  normalisasiRole, rahasia, buatToken, verifikasiToken, periksaKonfigurasiSession,
+  bacaCookie, pasangCookie, lepasCookie, PANJANG_MINIMUM,
 } from './session.js';
 import { kebutuhan, PUBLIK, LOGIN, REVIEW, ADMIN } from './kebijakan.js';
 
@@ -58,6 +58,12 @@ const izinkanLewatiUpload = req => {
 // token itu kedaluwarsa.
 const PERINGKAT = { [R_STAF]: 1, [R_REVIEWER]: 2, [R_ADMIN]: 3 };
 
+// Status aktif diambil dari user_list."Status" (AKTIF / TUGAS / NONAKTIF),
+// bukan dari user_credentials.active — kolom itu tidak ada di skema
+// user_credentials yang dipakai aplikasi ini, hanya ada nip, password_hash,
+// created_at, dan updated_at.
+const akunNonaktif = status => /^\s*non\s*aktif\s*$/i.test(String(status || ''));
+
 // Identitas untuk jejak audit. Kalau request punya session, identitas selalu
 // berasal dari server dan nilai di body diabaikan: kolom uploader dan actor
 // dikirim klien, jadi tanpa ini siapa pun bisa mencatat aksi atas nama orang lain.
@@ -81,7 +87,9 @@ app.use(async (req, res, next) => {
   // kunci berarti menerima cookie buatan. Gagal tertutup lebih aman.
   const secret = rahasia();
   if (!secret)
-    return res.status(500).json({ error: 'Session belum dikonfigurasi: SESSION_SECRET wajib diisi' });
+    return res.status(500).json({
+      error: `Session belum dikonfigurasi: SESSION_SECRET wajib diisi (minimal ${PANJANG_MINIMUM} karakter)`,
+    });
 
   const muatan = verifikasiToken(bacaCookie(req), secret);
   if (!muatan)
@@ -89,7 +97,7 @@ app.use(async (req, res, next) => {
 
   try {
     const { rows } = await pool.query(
-      `SELECT c.nip, c.role, c.active, u.id, u.username, u.bidang, u."Status"
+      `SELECT c.nip, c.role, u.id, u.username, u.bidang, u."Status"
          FROM user_credentials c
          LEFT JOIN user_list u ON u."NIP" = c.nip
         WHERE c.nip = $1`,
@@ -97,10 +105,7 @@ app.use(async (req, res, next) => {
     );
     const u = rows[0];
     if (!u) return res.status(401).json({ error: 'Akun tidak ditemukan' });
-    // active = false berarti sengaja dinonaktifkan. NULL dianggap aktif karena
-    // baris lama dibuat sebelum kolom itu diisi; menolak NULL akan mengunci
-    // seluruh pengguna lama sekaligus.
-    if (u.active === false)
+    if (akunNonaktif(u.Status))
       return res.status(403).json({ error: 'Akun Anda dinonaktifkan. Hubungi administrator.' });
 
     req.pengguna = {
@@ -403,7 +408,7 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     // Ambil hash dan role dari user_credentials
     const credResult = await pool.query(
-      'SELECT password_hash, role, active FROM user_credentials WHERE nip = $1', [nip]
+      'SELECT password_hash, role FROM user_credentials WHERE nip = $1', [nip]
     );
     if (!credResult.rows.length)
       return res.status(401).json({ error: 'NIP atau password salah' });
@@ -415,10 +420,6 @@ app.post('/api/auth/login', async (req, res) => {
     const match = await bcrypt.compare(password, cred.password_hash);
     if (!match)
       return res.status(401).json({ error: 'NIP atau password salah' });
-
-    // Password sudah cocok, baru boleh menyebut kondisi akun.
-    if (cred.active === false)
-      return res.status(403).json({ error: 'Akun Anda dinonaktifkan. Hubungi administrator.' });
 
     // Update last_login
     await pool.query(
@@ -432,6 +433,10 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(404).json({ error: 'Data user tidak ditemukan' });
 
     const u = userResult.rows[0];
+
+    // Password sudah cocok, baru boleh menyebut kondisi akun.
+    if (akunNonaktif(u.Status))
+      return res.status(403).json({ error: 'Akun Anda dinonaktifkan. Hubungi administrator.' });
 
     // Token hanya membawa NIP. Role sengaja tidak ikut, supaya dicabutnya hak
     // akses berlaku seketika tanpa menunggu token lama kedaluwarsa.
@@ -938,8 +943,11 @@ app.get('/api/docs/:id/versions', async (req, res) => {
 
 app.post('/api/docs/:id/versions', async (req, res) => {
   const { id } = req.params;
-  const { url, ukuran, pages, note, uploader_name, uploader_id } = req.body;
+  const { url, ukuran, pages, note } = req.body;
   if (!url) return res.status(400).json({ error: 'url wajib diisi' });
+
+  // Identitas pengunggah versi diambil dari session, bukan dari body.
+  const pelamar = siapa(req);
 
   const client = await pool.connect();
   try {
@@ -975,16 +983,19 @@ app.post('/api/docs/:id/versions', async (req, res) => {
     await client.query(
       `INSERT INTO doc_history (doc_id, action, from_status, to_status, actor_id, actor_name, note)
        VALUES ($1, 'version', 'Diarsipkan', 'Menunggu Review', $2, $3, $4)`,
-      [id, uploader_id || '', uploader_name || '', note || `Versi ${newVer}`]
+      [id, pelamar.id || '', pelamar.nama || '', note || `Versi ${newVer}`]
     );
 
-    // Notify admin/reviewer
+    // Notify admin/reviewer. Disaring di JS memakai normalisasiRole karena
+    // user_credentials.role bisa berisi 'Admin' maupun 'ADMIN', dan kolom
+    // active tidak ada di tabel ini.
     const titleRes = await client.query(`SELECT judul FROM bapperida_dokumen WHERE id=$1`, [id]);
     const judul = titleRes.rows[0]?.judul || '';
     const notifRes = await client.query(
-      `SELECT nip FROM user_credentials WHERE role IN ('Admin','Reviewer') AND active = true`
+      `SELECT nip, role FROM user_credentials`
     );
     for (const r of notifRes.rows) {
+      if (PERINGKAT[normalisasiRole(r.role)] < PERINGKAT[R_REVIEWER]) continue;
       await client.query(
         `INSERT INTO notifications (user_id, title, message, type, doc_id)
          VALUES ($1, 'Versi baru', $2, 'info', $3)`,
@@ -2883,5 +2894,8 @@ if (isProd) {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
+  // Dicek paling awal supaya konfigurasi session yang salah langsung terlihat di
+  // log, bukan baru ketahuan setelah pengguna mencoba login.
+  periksaKonfigurasiSession();
   console.log(`Server berjalan di port ${PORT} [${isProd ? 'production' : 'development'}]`);
 });
