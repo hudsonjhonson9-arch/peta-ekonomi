@@ -189,8 +189,16 @@ export function Modal({
   }, [lockClose, onClose]);
 
   // Fokus masuk ke dialog supaya pengguna keyboard tidak tertinggal di belakang
-  // overlay yang menutupi halaman.
-  useEffect(() => { boxRef.current?.focus(); }, []);
+  // overlay yang menutupi halaman. Elemen yang menandai diri dengan
+  // data-modal-autofocus didahulukan: sebagian form punya field yang jauh lebih
+  // berguna daripada kotak dialog itu sendiri, dan efek anak berjalan sebelum
+  // efek induk sehingga fokus manual di form akan ditimpa di sini.
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box) return;
+    const ditandai = box.querySelector("[data-modal-autofocus]");
+    (ditandai || box).focus();
+  }, []);
 
   return (
     <div

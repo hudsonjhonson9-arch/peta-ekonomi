@@ -1,6 +1,6 @@
 import { useState, useContext, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Icon } from "./ui.jsx";
+import { Icon, Modal } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
 import { api, usePksTree, usePksTahun } from "../hooks.js";
 
@@ -182,7 +182,13 @@ function Node({ T, level, row, kodeKonteks, children, onTambah, onEdit, onHapus 
         border: `1px solid ${T.border}`, borderRadius: 8, background: T.surfaceHover,
       }}>
         {punyaAnak ? (
-          <button onClick={() => setBuka(b => !b)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", color: T.textMuted }}>
+          <button
+            onClick={() => setBuka(b => !b)}
+            aria-expanded={buka}
+            aria-label={`${buka ? "Ciutkan" : "Buka"} baris ${cfg.label}`}
+            title={`${buka ? "Ciutkan" : "Buka"} ${cfg.label} ini`}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", color: T.textMuted }}
+          >
             <Icon name="chevronRight" size={12} style={{ transform: buka ? "rotate(90deg)" : "", transition: "transform .2s" }} />
           </button>
         ) : <span style={{ width: 12 }} />}
@@ -310,112 +316,109 @@ function FormPois({ form, tahun, tree, sibuk, setSibuk, onTutup, onSelesai, show
   };
 
   return (
-    <form onSubmit={submit} style={{
-      background: T.card, border: `1px solid ${T.primary}`, borderRadius: 12,
-      padding: 16, marginBottom: 14,
-    }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 12 }}>
-        {form.mode === "tambah" ? "Tambah" : "Ubah"} {cfg.label}
-        <span style={{ fontWeight: 400, color: T.textMuted, fontSize: 11.5 }}>
-          {" "}· tahun {form.mode === "tambah" ? tahun : form.row?.tahun}
-        </span>
-      </div>
+    <Modal
+      title={`${form.mode === "tambah" ? "Tambah" : "Ubah"} ${cfg.label}`}
+      subtitle={`tahun ${form.mode === "tambah" ? tahun : form.row?.tahun}`}
+      onClose={onTutup}
+      lockClose={sibuk}
+    >
+      <form onSubmit={submit}>
+        {cfg.parent && (
+          <div style={{ marginBottom: 10, fontSize: 11.5, color: T.textSecondary }}>
+            <span style={{ color: T.textMuted }}>{LEVELS[cfg.parent].label} induk:</span>{" "}
+            {parentRow ? (
+              <span style={{ fontFamily: "ui-monospace, monospace", color: T.text }}>
+                {parentRow.kode} · {parentRow.nama}
+              </span>
+            ) : form.parentId ? (
+              <span style={{ color: T.textMuted }}>baris #${form.parentId} (tidak ditemukan di pohon)</span>
+            ) : (
+              <span style={{ color: T.textMuted }}>belum dipilih</span>
+            )}
+          </div>
+        )}
 
-      {cfg.parent && (
-        <div style={{ marginBottom: 10, fontSize: 11.5, color: T.textSecondary }}>
-          <span style={{ color: T.textMuted }}>{LEVELS[cfg.parent].label} induk:</span>{" "}
-          {parentRow ? (
-            <span style={{ fontFamily: "ui-monospace, monospace", color: T.text }}>
-              {parentRow.kode} · {parentRow.nama}
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 10 }}>
+          <label style={labelWrap(T)}>
+            <span style={labelStyle(T)}>Kode {cfg.label} *</span>
+            <input
+              value={kode}
+              onChange={e => { setKodeManual(true); setKode(e.target.value); }}
+              placeholder={CONTOH_KODE[form.level]}
+              style={inputStyle(T)}
+            />
+            {form.mode === "tambah" && !kodeManual && (
+              <span style={{ fontSize: 10, color: T.textMuted, marginTop: 3 }}>
+                Sudah diisi otomatis dari kode induk. Boleh diubah.
+              </span>
+            )}
+            {form.mode === "tambah" && kodeManual && (
+              <span style={{ fontSize: 10, color: T.textMuted, marginTop: 3 }}>
+                Kode diisi manual.
+              </span>
+            )}
+          </label>
+          <label style={labelWrap(T)}>
+            <span style={labelStyle(T)}>Nama {cfg.label} *</span>
+            <input ref={namaRef} data-modal-autofocus value={nama} onChange={e => setNama(e.target.value)}
+              placeholder={CONTOH_NAMA[form.level]} style={inputStyle(T)} />
+          </label>
+        </div>
+
+        {/* Hanya muncul kalau form dibuka tanpa baris induk (mis. dipanggil dari
+            luar pohon). Di path normal, induk tampil sebagai breadcrumb di atas. */}
+        {cfg.parent && !form.parentId && (
+          <label style={{ ...labelWrap(T), marginTop: 10, display: "block" }}>
+            <span style={labelStyle(T)}>{LEVELS[cfg.parent].label} induk *</span>
+            <select value={parentId} onChange={e => setParentId(e.target.value)} style={inputStyle(T)}>
+              <option value="">— pilih —</option>
+              {opsiParent.map(g => (
+                <optgroup key={g.group} label={g.group}>
+                  {g.options.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                </optgroup>
+              ))}
+            </select>
+            {opsiParent.length === 0 && (
+              <span style={{ fontSize: 10, color: "#DC2626", marginTop: 3 }}>
+                Belum ada {LEVELS[cfg.parent].label}. Tambah dulu lewat tombol di atas.
+              </span>
+            )}
+          </label>
+        )}
+
+        {form.level === "subkegiatan" && (
+          <>
+            <label style={{ ...labelWrap(T), marginTop: 10, display: "block" }}>
+              <span style={labelStyle(T)}>Indikator</span>
+              <input value={indikator} onChange={e => setIndikator(e.target.value)}
+                placeholder="mis. Persentase desa tertata (opsional)" style={inputStyle(T)} />
+            </label>
+            <label style={{ ...labelWrap(T), marginTop: 10, display: "block" }}>
+              <span style={labelStyle(T)}>Target</span>
+              <input value={target} onChange={e => setTarget(e.target.value)}
+                placeholder="mis. 12 Laporan / 4 Triwulan" style={inputStyle(T)} />
+              <span style={{ fontSize: 10, color: T.textMuted, marginTop: 3 }}>
+                Angka di depan dipakai untuk menghitung jumlah periode dan frekuensi.
+              </span>
+            </label>
+          </>
+        )}
+
+        <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
+          <button type="submit" disabled={sibuk} style={btn(T, T.primary, "#fff", sibuk)}>
+            {sibuk ? "Menyimpan…" : "Simpan"}
+          </button>
+          <button type="button" onClick={onTutup} style={btn(T, "transparent", T.text, false, T.inputBorder)}>Batal</button>
+          {(nama.trim() === "" || kode.trim() === "" || (cfg.parent && !parentId)) && (
+            <span style={{ fontSize: 10.5, color: T.textMuted }}>
+              {nama.trim() === "" && "Nama masih kosong. "}
+              {kode.trim() === "" && "Kode masih kosong. "}
+              {cfg.parent && !parentId && "Induk belum dipilih. "}
             </span>
-          ) : form.parentId ? (
-            <span style={{ color: T.textMuted }}>baris #${form.parentId} (tidak ditemukan di pohon)</span>
-          ) : (
-            <span style={{ color: T.textMuted }}>belum dipilih</span>
           )}
         </div>
-      )}
-
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 10 }}>
-        <label style={labelWrap(T)}>
-          <span style={labelStyle(T)}>Kode {cfg.label} *</span>
-          <input
-            value={kode}
-            onChange={e => { setKodeManual(true); setKode(e.target.value); }}
-            placeholder={CONTOH_KODE[form.level]}
-            style={inputStyle(T)}
-          />
-          {form.mode === "tambah" && !kodeManual && (
-            <span style={{ fontSize: 10, color: T.textMuted, marginTop: 3 }}>
-              Sudah diisi otomatis dari kode induk. Boleh diubah.
-            </span>
-          )}
-          {form.mode === "tambah" && kodeManual && (
-            <span style={{ fontSize: 10, color: T.textMuted, marginTop: 3 }}>
-              Kode diisi manual.
-            </span>
-          )}
-        </label>
-        <label style={labelWrap(T)}>
-          <span style={labelStyle(T)}>Nama {cfg.label} *</span>
-          <input ref={namaRef} value={nama} onChange={e => setNama(e.target.value)}
-            placeholder={CONTOH_NAMA[form.level]} style={inputStyle(T)} />
-        </label>
-      </div>
-
-      {/* Hanya muncul kalau form dibuka tanpa baris induk (mis. dipanggil dari
-          luar pohon). Di path normal, induk tampil sebagai breadcrumb di atas. */}
-      {cfg.parent && !form.parentId && (
-        <label style={{ ...labelWrap(T), marginTop: 10, display: "block" }}>
-          <span style={labelStyle(T)}>{LEVELS[cfg.parent].label} induk *</span>
-          <select value={parentId} onChange={e => setParentId(e.target.value)} style={inputStyle(T)}>
-            <option value="">— pilih —</option>
-            {opsiParent.map(g => (
-              <optgroup key={g.group} label={g.group}>
-                {g.options.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-              </optgroup>
-            ))}
-          </select>
-          {opsiParent.length === 0 && (
-            <span style={{ fontSize: 10, color: "#DC2626", marginTop: 3 }}>
-              Belum ada {LEVELS[cfg.parent].label}. Tambah dulu lewat tombol di atas.
-            </span>
-          )}
-        </label>
-      )}
-
-      {form.level === "subkegiatan" && (
-        <>
-          <label style={{ ...labelWrap(T), marginTop: 10, display: "block" }}>
-            <span style={labelStyle(T)}>Indikator</span>
-            <input value={indikator} onChange={e => setIndikator(e.target.value)}
-              placeholder="mis. Persentase desa tertata (opsional)" style={inputStyle(T)} />
-          </label>
-          <label style={{ ...labelWrap(T), marginTop: 10, display: "block" }}>
-            <span style={labelStyle(T)}>Target</span>
-            <input value={target} onChange={e => setTarget(e.target.value)}
-              placeholder="mis. 12 Laporan / 4 Triwulan" style={inputStyle(T)} />
-            <span style={{ fontSize: 10, color: T.textMuted, marginTop: 3 }}>
-              Angka di depan dipakai untuk menghitung jumlah periode dan frekuensi.
-            </span>
-          </label>
-        </>
-      )}
-
-      <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
-        <button type="submit" disabled={sibuk} style={btn(T, T.primary, "#fff", sibuk)}>
-          {sibuk ? "Menyimpan…" : "Simpan"}
-        </button>
-        <button type="button" onClick={onTutup} style={btn(T, "transparent", T.text, false, T.inputBorder)}>Batal</button>
-        {(nama.trim() === "" || kode.trim() === "" || (cfg.parent && !parentId)) && (
-          <span style={{ fontSize: 10.5, color: T.textMuted }}>
-            {nama.trim() === "" && "Nama masih kosong. "}
-            {kode.trim() === "" && "Kode masih kosong. "}
-            {cfg.parent && !parentId && "Induk belum dipilih. "}
-          </span>
-        )}
-      </div>
-    </form>
+      </form>
+    </Modal>
   );
 }
 
