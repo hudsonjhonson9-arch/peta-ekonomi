@@ -3,7 +3,52 @@ import { Icon, Badge } from "./ui.jsx";
 import { STATUS_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
 import BankDataDashboard from "./BankDataDashboard.jsx";
+import { PksRingkasan, DeadlineList } from "./PksRingkasan.jsx";
+import { usePksTahun, usePksRingkasan, usePksDeadlineTerdekat } from "../hooks.js";
 import { ThemeContext } from "../App.jsx";
+
+// Ringkasan Kertas Kerja untuk tahun terbaru yang punya program. Query-nya
+// sama dengan halaman Kertas Kerja dan React Query memakai cache per key, jadi
+// pindah ke halaman itu tidak memicu request kedua.
+function InfoKertasKerja({ T, onNav }) {
+  const { data: tahunList = [] } = usePksTahun();
+  const tahun = tahunList[0] ?? null;
+  const { data: ringkasan, isLoading } = usePksRingkasan(tahun);
+  const { data: deadline = [] } = usePksDeadlineTerdekat();
+
+  const wajib = Number(ringkasan?.wajib || 0);
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <Icon name="checkCircle" size={15} style={{ color: T.primary }} />
+          <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Kertas Kerja {tahun ?? ""}</span>
+        </div>
+        <button onClick={() => onNav("kertas-kerja")} style={{ fontSize: 12, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
+          Lihat semua →
+        </button>
+      </div>
+
+      {tahun == null || isLoading ? (
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, fontSize: 12.5, color: T.textMuted }}>
+          Memuat ringkasan kertas kerja…
+        </div>
+      ) : wajib === 0 ? (
+        // 0/0 terisi membuat progress bar kosong dan angka 0% menyesatkan,
+        // jadi ditulis apa adanya bahwa belum ada data.
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, fontSize: 12.5, color: T.textMuted }}>
+          Belum ada periode wajib tercatat untuk tahun {tahun}.
+        </div>
+      ) : (
+        <>
+          <PksRingkasan T={T} r={ringkasan} tahun={tahun} marginBottom={16} />
+          <DeadlineList T={T} deadline={deadline} max={5} marginBottom={0} />
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function Dashboard({ docs, onNav, sectors = [], categories = [] }) {
   const { isMobile } = useResponsive();
@@ -42,6 +87,9 @@ export default function Dashboard({ docs, onNav, sectors = [], categories = [] }
           </div>
         ))}
       </div>
+
+      {/* Kertas Kerja */}
+      <InfoKertasKerja T={T} onNav={onNav} />
 
       {/* Bank Data */}
       <BankDataDashboard />
