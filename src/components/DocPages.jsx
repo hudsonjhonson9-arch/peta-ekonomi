@@ -628,6 +628,11 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                       </div>
                       <div style={{ fontSize: 11, color: T.textSecondary }}>
                         {isFolder ? `${d.files.length} file dalam folder` : d.type}
+                        {d.files.length > 4 && !isFolder && (
+                          <span style={{ marginLeft: 4, color: T.primary, fontSize: 10, fontWeight: 500 }}>
+                            +{d.files.length - 3} lainnya
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
