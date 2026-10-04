@@ -1408,7 +1408,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
         </div>
 
         {/* ── Right: Metadata + Status ── */}
-        <div ref={sidebarRef} style={{ display: "flex", flexDirection: "column", gap: 14, position: isMobile ? "static" : "sticky", top: 20 }}>
+        <div ref={sidebarRef} style={{ display: "flex", flexDirection: "column", gap: 14, alignSelf: "start", position: isMobile ? "static" : "sticky", top: 20 }}>
           {/* Metadata Card */}
           <div style={{ ...cardStyle, padding: isMobile ? 20 : 28 }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 16px" }}>Metadata Dokumen</h2>
