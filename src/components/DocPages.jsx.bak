@@ -270,7 +270,6 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
   const [filterStatus, setFilterStatus] = useState("Semua Status");
   const [sortOpt, setSortOpt] = useState("date-desc");
   const [selectedBidang, setSelectedBidang] = useState(null); // null = show folders
-  const [fileDropdownOpen, setFileDropdownOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
 
@@ -630,34 +629,9 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                       <div style={{ fontSize: 11, color: T.textSecondary }}>
                         {isFolder ? `${d.files.length} file dalam folder` : d.type}
                         {d.files.length > 4 && !isFolder && (
-                          <React.Fragment>
-                            <button
-                              style={{
-                                width: "100%", textAlign: "left", background: "none", border: "none",
-                                color: T.primary, fontSize: 11, fontWeight: 500, cursor: "pointer",
-                                padding: "2px 0", transition: "color 0.15s",
-                              }}
-                              onMouseOver={e => e.currentTarget.style.color = T.primaryDark}
-                              onMouseOut={e => e.currentTarget.style.color = T.primary}
-                              onClick={toggleFileDropdown}
-                            >
-                              Lihat semua {d.files.length} file
-                            </button>
-                            {fileDropdownOpen && (
-                              <div style={{
-                                marginTop: 6, maxHeight: 120, overflowY: "auto",
-                                background: T.card, border: `1px solid ${T.border}`, borderRadius: 6,
-                                padding: 6, fontSize: 10, color: T.text,
-                              }}>
-                                <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>
-                                  Menampilkan {d.files.length} file
-                                </div>
-                                <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>
-                                  ...dalam folder/dokumen
-                                </div>
-                              </div>
-                            )}
-                          </React.Fragment>
+                          <span style={{ marginLeft: 4, color: T.primary, fontSize: 10, fontWeight: 500 }}>
+                            +{d.files.length - 3} lainnya
+                          </span>
                         )}
                       </div>
                     </div>
