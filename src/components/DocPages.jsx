@@ -8,6 +8,7 @@ import { ThemeContext } from "../App.jsx";
 import { queryClient } from "../main.jsx";
 import HighlightText from "./HighlightText.jsx";
 import ShareModal from "./ShareModal";
+import FileDropdown from "./FileDropdown.jsx";
 
 // ── Shared Design Token Helpers (derived from theme T) ─────────────────────
 function makeBtnBase(T) {
@@ -270,7 +271,6 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
   const [filterStatus, setFilterStatus] = useState("Semua Status");
   const [sortOpt, setSortOpt] = useState("date-desc");
   const [selectedBidang, setSelectedBidang] = useState(null); // null = show folders
-  const [fileDropdownOpen, setFileDropdownOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
 
@@ -623,46 +623,16 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                       <div style={{ width: 36, height: 36, borderRadius: 10, background: fi.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         <Icon name={isFolder ? "folder" : "file"} size={18} style={{ color: fi.color }} />
                       </div>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 600, color: T.text, lineHeight: 1.3, marginBottom: 4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                        <HighlightText text={d.title} query={search} />
-                      </div>
-                      <div style={{ fontSize: 11, color: T.textSecondary }}>
-                        {isFolder ? `${d.files.length} file dalam folder` : d.type}
-                        {d.files.length > 4 && !isFolder && (
-                          <React.Fragment>
-                            <button
-                              style={{
-                                width: "100%", textAlign: "left", background: "none", border: "none",
-                                color: T.primary, fontSize: 11, fontWeight: 500, cursor: "pointer",
-                                padding: "2px 0", transition: "color 0.15s",
-                              }}
-                              onMouseOver={e => e.currentTarget.style.color = T.primaryDark}
-                              onMouseOut={e => e.currentTarget.style.color = T.primary}
-                              onClick={toggleFileDropdown}
-                            >
-                              Lihat semua {d.files.length} file
-                            </button>
-                            {fileDropdownOpen && (
-                              <div style={{
-                                marginTop: 6, maxHeight: 120, overflowY: "auto",
-                                background: T.card, border: `1px solid ${T.border}`, borderRadius: 6,
-                                padding: 6, fontSize: 10, color: T.text,
-                              }}>
-                                <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>
-                                  Menampilkan {d.files.length} file
-                                </div>
-                                <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>
-                                  ...dalam folder/dokumen
-                                </div>
-                              </div>
-                            )}
-                          </React.Fragment>
-                        )}
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 600, color: T.text, lineHeight: 1.3, marginBottom: 4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                          <HighlightText text={d.title} query={search} />
+                        </div>
+                        <div style={{ fontSize: 11, color: T.textSecondary }}>
+                          {isFolder ? `${d.files.length} file dalam folder` : d.type}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
                 </DocTooltip>
               );
             })}
@@ -809,32 +779,32 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                   }}>
                     <Icon name={isFolder ? "folder" : "file"} size={16} style={{ color: fi.color }} />
                   </div>
-                {/* Title */}
-                <div style={{
-                  fontSize: isMobile ? 12 : 13,
-                  fontWeight: 700,
-                  color: T.text,
-                  marginBottom: 6,
-                  lineHeight: 1.3,
-                  display: "-webkit-box",
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: "vertical",
-                  overflow: "hidden",
-                  minHeight: 34,
-                }}>
-                  <HighlightText text={d.title} query={search} />
+                  {/* Title */}
+                  <div style={{
+                    fontSize: isMobile ? 12 : 13,
+                    fontWeight: 700,
+                    color: T.text,
+                    marginBottom: 6,
+                    lineHeight: 1.3,
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                    minHeight: 34,
+                  }}>
+                    <HighlightText text={d.title} query={search} />
+                  </div>
+                  {/* Meta */}
+                  <div style={{ fontSize: 11, color: T.textSecondary, marginBottom: 8 }}>
+                    {isFolder ? `${d.files.length} file · ${d.sector} · ${d.year}` : `${d.sector} · ${d.year}`}
+                  </div>
+                  {/* Footer */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTop: `1px solid ${T.border}` }}>
+                    {d.versi > 1 && <span style={{ fontSize: 10, fontWeight: 700, color: T.primary, background: T.primaryLight, border: `1px solid ${T.primaryRing}`, borderRadius: 4, padding: "1px 5px" }}>v{d.versi}</span>}
+                    <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
+                    <span style={{ fontSize: 10, color: T.textMuted }}>{d.size}</span>
+                  </div>
                 </div>
-                {/* Meta */}
-                <div style={{ fontSize: 11, color: T.textSecondary, marginBottom: 8 }}>
-                  {isFolder ? `${d.files.length} file · ${d.sector} · ${d.year}` : `${d.sector} · ${d.year}`}
-                </div>
-                {/* Footer */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTop: `1px solid ${T.border}` }}>
-                  {d.versi > 1 && <span style={{ fontSize: 10, fontWeight: 700, color: T.primary, background: T.primaryLight, border: `1px solid ${T.primaryRing}`, borderRadius: 4, padding: "1px 5px" }}>v{d.versi}</span>}
-                  <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
-                  <span style={{ fontSize: 10, color: T.textMuted }}>{d.size}</span>
-                </div>
-              </div>
               </DocTooltip>
             );
           })}
@@ -1020,27 +990,27 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                   }}>
                     <Icon name="file" size={isMobile ? 16 : 18} style={{ color: fi.color }} />
                   </div>
-                {/* Info */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
-                    <span style={{ fontSize: isMobile ? 13 : 14, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><HighlightText text={d.title} query={search} /></span>
+                  {/* Info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
+                      <span style={{ fontSize: isMobile ? 13 : 14, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><HighlightText text={d.title} query={search} /></span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: isMobile ? 11 : 12, color: T.textSecondary }}>
+                      <span>{d.type}</span>
+                      <span>·</span>
+                      <span>{d.sector}</span>
+                      <span>·</span>
+                      <span>{d.year}</span>
+                      <span>·</span>
+                      <span>{d.size}</span>
+                    </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: isMobile ? 11 : 12, color: T.textSecondary }}>
-                    <span>{d.type}</span>
-                    <span>·</span>
-                    <span>{d.sector}</span>
-                    <span>·</span>
-                    <span>{d.year}</span>
-                    <span>·</span>
-                    <span>{d.size}</span>
+                  {/* Status + Arrow */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                    <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
+                    <Icon name="chevronRight" size={14} style={{ color: T.textMuted }} />
                   </div>
                 </div>
-                {/* Status + Arrow */}
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                  <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
-                  <Icon name="chevronRight" size={14} style={{ color: T.textMuted }} />
-                </div>
-              </div>
               </DocTooltip>
             );
           })}
@@ -1393,23 +1363,10 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
       {/* Main Content: Preview + Metadata */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 20, alignItems: "stretch" }}>
         {/* ── Preview Pane ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, height: sidebarH || 500, overflow: "hidden" }}>
+        {/* overflow "visible" supaya menu FileDropdown tidak terpotong; kartu iframe punya overflow hidden sendiri */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, height: sidebarH || 500, overflow: "visible" }}>
           {files && files.length > 1 && (
-            <div style={{ ...cardStyle, padding: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {files.map(f => (
-                <button key={f.url} onClick={() => setActiveFile(f)}
-                  style={{
-                    ...btnBase, padding: "8px 14px", fontSize: 12, borderRadius: 99,
-                    background: active === f ? T.primary : T.bg,
-                    color: active === f ? "#fff" : T.textSecondary,
-                    border: `1.5px solid ${active === f ? T.primary : T.border}`,
-                  }}
-                  title={f.name}>
-                  <Icon name="file" size={12} />
-                  <span style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
-                </button>
-              ))}
-            </div>
+            <FileDropdown files={files} active={active} onSelect={setActiveFile} />
           )}
 
           {isImage && pUrl && (
