@@ -1080,6 +1080,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ judul: "", kategori: "", tipe: "", bidang: "", desc: "", tags: "", nomor: "", tanggal: "", fileType: "" });
   const [activeFile, setActiveFile] = useState(null);
+  const [showAllFiles, setShowAllFiles] = useState(false);
   const [history, setHistory] = useState([]);
   const [versions, setVersions] = useState([]);
   const [showVersionModal, setShowVersionModal] = useState(false);
@@ -1364,7 +1365,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 20, alignItems: "stretch" }}>
         {/* ── Preview Pane ── */}
         {/* overflow "visible" supaya menu FileDropdown tidak terpotong; kartu iframe punya overflow hidden sendiri */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, height: sidebarH || 500, overflow: "visible" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, height: Math.max(sidebarH || 0, 640), overflow: "visible" }}>
           {files && files.length > 1 && (
             <FileDropdown files={files} active={active} onSelect={setActiveFile} />
           )}
@@ -1437,26 +1438,40 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
           </div>
 
           {/* File dalam Folder */}
-          {Array.isArray(doc.files) && doc.files.length > 0 && (
-            <div style={{ ...cardStyle, padding: isMobile ? 20 : 28 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 8 }}>
-                <Icon name="folder" size={16} style={{ color: T.primary }} />
-                File dalam Folder
-              </h2>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {doc.files.map(f => (
-                  <a key={f.url} href={f.url} target="_blank" rel="noopener noreferrer"
-                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: T.bg, borderRadius: T.radius, border: `1px solid ${T.border}`, textDecoration: "none", color: "inherit", transition: "all 0.15s" }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = T.primary; e.currentTarget.style.boxShadow = T.focusRing; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}>
-                    <Icon name="file" size={15} style={{ color: T.primary, flexShrink: 0 }} />
-                    <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
-                    <span style={{ fontSize: 11, color: T.textMuted, flexShrink: 0 }}>{formatBytes(f.size)}</span>
-                  </a>
-                ))}
+          {Array.isArray(doc.files) && doc.files.length > 0 && (() => {
+            const LIMIT = 5;
+            const all = doc.files;
+            const shown = showAllFiles ? all : all.slice(0, LIMIT);
+            return (
+              <div style={{ ...cardStyle, padding: isMobile ? 20 : 28 }}>
+                <h2 style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                  <Icon name="folder" size={16} style={{ color: T.primary }} />
+                  File dalam Folder
+                  <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 600, color: T.textMuted }}>{all.length} file</span>
+                </h2>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: showAllFiles ? 360 : "none", overflowY: "auto" }}>
+                  {shown.map(f => (
+                    <a key={f.url} href={f.url} target="_blank" rel="noopener noreferrer"
+                      title={f.name}
+                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: T.bg, borderRadius: T.radius, border: `1px solid ${T.border}`, textDecoration: "none", color: "inherit", transition: "all 0.15s" }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = T.primary; e.currentTarget.style.boxShadow = T.focusRing; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}>
+                      <Icon name="file" size={15} style={{ color: T.primary, flexShrink: 0 }} />
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
+                      <span style={{ fontSize: 11, color: T.textMuted, flexShrink: 0 }}>{formatBytes(f.size)}</span>
+                    </a>
+                  ))}
+                </div>
+                {all.length > LIMIT && (
+                  <button onClick={() => setShowAllFiles(v => !v)}
+                    style={{ ...btnBase, width: "100%", marginTop: 10, padding: "9px 14px", fontSize: 12, background: T.bg, color: T.primary, border: `1.5px dashed ${T.border}` }}>
+                    <Icon name="chevronRight" size={12} style={{ transform: showAllFiles ? "rotate(-90deg)" : "rotate(90deg)", transition: "transform 0.15s" }} />
+                    {showAllFiles ? "Ciutkan" : `Lihat semua ${all.length} file`}
+                  </button>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Approval Panel */}
           {canApprove && (
