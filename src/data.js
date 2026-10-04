@@ -49,6 +49,100 @@ export const ROLE_COLOR = {
   Staf:     { bg: "#F0FDF4", text: "#16A34A", darkBg: "#052E16", darkText: "#4ADE80" },
 };
 
+// ═══ Navigasi ══════════════════════════════════════════════════════════════
+
+// Menu dikelompokkan, bukan diratakan jadi satu daftar panjang. Satu sumber
+// data dipakai Sidebar (desktop) dan sheet "Lainnya" (mobile) supaya
+// pengelompokan yang tampil di keduanya tidak pernah berbeda.
+//
+// open: kelompok yang terbuka sejak awal. Semua kelompok terbuka supaya tidak
+// ada halaman yang ikut hilang dari menu; user bisa menutupnya sendiri dan
+// pilihannya diingat. Group dengan semua item disembunyikan (adminOnly,
+// misalnya) ikut hilang, bukan tampil sebagai judul kosong.
+export const NAV_GROUPS = [
+  {
+    key: "utama",
+    label: "Utama",
+    icon: "home",
+    items: [
+      { key: "dashboard", label: "Dashboard",     icon: "home"    },
+    ],
+  },
+  {
+    key: "arsip",
+    label: "Arsip Digital",
+    icon: "archive",
+    items: [
+      { key: "dokumen",   label: "Dokumen",       icon: "archive" },
+      { key: "upload",    label: "Upload Dokumen", icon: "upload"  },
+      { key: "pencarian", label: "Pencarian",     icon: "search"  },
+      { key: "publik",    label: "Portal Publik", icon: "world"   },
+    ],
+  },
+  {
+    key: "perencanaan",
+    label: "Perencanaan",
+    icon: "checkCircle",
+    items: [
+      { key: "kertas-kerja", label: "Kertas Kerja", icon: "checkCircle" },
+      { key: "bankdata",     label: "Bank Data",    icon: "chart"       },
+    ],
+  },
+  {
+    key: "administrasi",
+    label: "Administrasi",
+    icon: "building",
+    items: [
+      { key: "pengguna",         label: "Pengguna",      icon: "users",   adminOnly: true },
+      { key: "kategori-dokumen", label: "Jenis Dokumen", icon: "tag",     adminOnly: true },
+      { key: "sektor",           label: "Sektor",        icon: "layers",  adminOnly: true },
+      { key: "audit",            label: "Audit Trail",   icon: "history", adminOnly: true },
+    ],
+  },
+  {
+    key: "referensi",
+    label: "Referensi",
+    icon: "file",
+    items: [
+      { key: "panduan", label: "Panduan", icon: "file" },
+    ],
+  },
+];
+
+// Kelompok yang punya setidaknya satu item boleh ditampilkan untuk user ini.
+export function navGroupsUntuk(role) {
+  return NAV_GROUPS
+    .map(g => ({ ...g, items: g.items.filter(i => !i.adminOnly || role === "Admin") }))
+    .filter(g => g.items.length > 0);
+}
+
+// Status lipatan awal: semua kelompok terbuka, lalu ditimpa pilihan user yang
+// tersimpan. Nilai di luar daftar kelompok (misalnya versi lama) diabaikan.
+export function grupTerbukaAwal(tersimpan = {}) {
+  const out = {};
+  for (const g of NAV_GROUPS) out[g.key] = g.open !== false;
+  for (const g of NAV_GROUPS) if (typeof tersimpan[g.key] === "boolean") out[g.key] = tersimpan[g.key];
+  return out;
+}
+
+// Item utama di BottomNav. Sheet "Lainnya" mengambil sisanya dari NAV_GROUPS,
+// jadi menambah halaman baru cukup di satu tempat.
+export const NAV_UTAMA_BOTTOM = ["dashboard", "dokumen", "upload", "pencarian"];
+
+export const NAV_BOTTOM_LABEL = {
+  dashboard: "Dashboard",
+  dokumen:   "Dokumen",
+  upload:    "Upload",
+  pencarian: "Cari",
+};
+
+export const NAV_BOTTOM_ICON = {
+  dashboard: "home",
+  dokumen:   "archive",
+  upload:    "upload",
+  pencarian: "search",
+};
+
 // ═══ Kertas Kerja (Output per Sub Kegiatan) ═══════════════════════════════
 
 export const BULAN = ["Januari", "Februari", "Maret", "April", "Mei", "Juni",

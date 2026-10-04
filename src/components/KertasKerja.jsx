@@ -35,7 +35,7 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
   const { data: tahunList = [] } = usePksTahun();
   const { data: tree, isLoading, isError } = usePksTree(tahun);
   const { data: ringkasan } = usePksRingkasan(tahun);
-  const { data: deadline = [] } = usePksDeadlineTerdekat();
+  const { data: deadline = [] } = usePksDeadlineTerdekat(tahun);
 
   // Default ke tahun terbaru yang benar-benar punya data. Server mengurutkan
   // tahun terisi lebih dulu, jadi elemen pertama adalah kandidat terbaik.

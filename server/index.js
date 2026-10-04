@@ -1684,8 +1684,13 @@ app.get('/api/pks/ringkasan/:tahun', async (req, res) => {
 });
 
 // ── Deadline terdekat (badge notifikasi) ─────────────────────────────────
+// tahun opsional. Tanpa itu endpoint ini mengembalikan semua tahun, yang
+// dipakai notifikasi. Dashboard dan halaman Kertas Kerja mengirim tahun yang
+// sedang dipilih supaya daftar deadline tidak bercampur dengan tahun lain.
 app.get('/api/pks/deadline-terdekat', async (req, res) => {
   const hari = parseInt(req.query.hari, 10) || 14;
+  const tahun = req.query.tahun ? parseInt(req.query.tahun, 10) : null;
+  if (req.query.tahun && !tahun) return res.status(400).json({ error: 'Tahun tidak valid' });
   try {
     const rows = await queryDB(`
       SELECT p.id, p.periode_label,
@@ -1697,9 +1702,10 @@ app.get('/api/pks/deadline-terdekat', async (req, res) => {
       JOIN pks_subkegiatan s ON s.id = k.subkegiatan_id
       WHERE p.is_wajib AND p.doc_id IS NULL
         AND p.deadline <= CURRENT_DATE + $1::int
+        AND ($2::int IS NULL OR p.tahun = $2::int)
       ORDER BY p.deadline ASC
       LIMIT 50
-    `, [hari]);
+    `, [hari, tahun]);
     res.json(rows);
   } catch (err) {
     console.error('Get deadline terdekat error:', err);

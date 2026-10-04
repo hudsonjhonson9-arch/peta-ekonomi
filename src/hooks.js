@@ -101,10 +101,16 @@ export function usePksRingkasan(tahun) {
   });
 }
 
-export function usePksDeadlineTerdekat() {
+// tahun: angka untuk menyaring per tahun. null berarti "tunggu tahun siap"
+// supaya halaman tidak mengambil deadline semua tahun lalu mengambil ulang.
+// Argumen yang dihilangkan (undefined) berarti semua tahun, seperti dulu.
+export function usePksDeadlineTerdekat(tahun) {
   return useQuery({
-    queryKey: ['pks-deadline'],
-    queryFn: () => api('/api/pks/deadline-terdekat'),
+    queryKey: ['pks-deadline', tahun ?? 'semua'],
+    queryFn: () => api(
+      tahun ? `/api/pks/deadline-terdekat?tahun=${encodeURIComponent(tahun)}` : '/api/pks/deadline-terdekat'
+    ),
+    enabled: tahun !== null,
   });
 }
 

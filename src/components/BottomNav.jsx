@@ -1,30 +1,18 @@
 import { useState, useContext } from "react";
 import { ThemeContext } from "../App.jsx";
 import { Icon } from "./ui.jsx";
-
-const MAIN = [
-  { key: "dashboard", label: "Dashboard", icon: "home" },
-  { key: "dokumen",   label: "Dokumen",   icon: "archive" },
-  { key: "upload",    label: "Upload",    icon: "upload" },
-  { key: "pencarian", label: "Cari",      icon: "search" },
-];
-
-const MORE = [
-  { key: "publik",            label: "Portal Publik",   icon: "world" },
-  { key: "panduan",           label: "Panduan",         icon: "file" },
-  { key: "bankdata",          label: "Bank Data",       icon: "chart"  },
-  { key: "kertas-kerja",      label: "Kertas Kerja",    icon: "checkCircle" },
-  { key: "pengguna",          label: "Pengguna",        icon: "users",  adminOnly: true },
-  { key: "kategori-dokumen",  label: "Jenis Dokumen",    icon: "tag",    adminOnly: true },
-  { key: "sektor",            label: "Sektor",          icon: "layers", adminOnly: true },
-  { key: "audit",             label: "Audit Trail",     icon: "history", adminOnly: true },
-];
+import { navGroupsUntuk, NAV_UTAMA_BOTTOM, NAV_BOTTOM_LABEL, NAV_BOTTOM_ICON } from "../data.js";
 
 export default function BottomNav({ active, onNav, user }) {
   const { T, theme, setTheme } = useContext(ThemeContext);
   const [open, setOpen] = useState(false);
-  const moreItems = MORE.filter(n => !n.adminOnly || user.role === "Admin");
-  const isMoreActive = moreItems.some(n => n.key === active);
+  // Sheet "Lainnya" memakai kelompok yang sama dengan Sidebar, jadi nama dan
+  // urutannya tidak bisa berbeda antara desktop dan mobile.
+  const groups = navGroupsUntuk(user.role);
+  const moreGroups = groups
+    .map(g => ({ ...g, items: g.items.filter(i => !NAV_UTAMA_BOTTOM.includes(i.key)) }))
+    .filter(g => g.items.length > 0);
+  const isMoreActive = moreGroups.some(g => g.items.some(i => i.key === active));
 
   const themeIcon = theme === "system" ? "monitor" : theme === "dark" ? "moon" : "sun";
   const themeLabel = theme === "system" ? "Sistem" : theme === "dark" ? "Gelap" : "Terang";
@@ -43,22 +31,33 @@ export default function BottomNav({ active, onNav, user }) {
             position: "absolute", bottom: 56, right: 8, left: 8,
             background: T.bottomNavBg, borderRadius: 12, boxShadow: T.shadowMd,
             border: `1px solid ${T.border}`, padding: "6px 0", zIndex: 201,
-            maxHeight: 300, overflowY: "auto",
+            maxHeight: "60vh", overflowY: "auto",
           }}>
-            {moreItems.map(n => (
-              <button
-                key={n.key}
-                onClick={() => { onNav(n.key); setOpen(false); }}
-                style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: 10,
-                  padding: "11px 16px", background: "none", border: "none",
-                  cursor: "pointer", fontSize: 13, color: active === n.key ? T.primary : T.text,
-                  fontWeight: active === n.key ? 600 : 400,
-                }}
-              >
-                <Icon name={n.icon} size={16} />
-                {n.label}
-              </button>
+            {moreGroups.map(g => (
+              <div key={g.key}>
+                <div style={{
+                  padding: "8px 16px 3px", fontSize: 10, fontWeight: 700,
+                  color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.7,
+                }}>
+                  {g.label}
+                </div>
+                {g.items.map(n => (
+                  <button
+                    key={n.key}
+                    onClick={() => { onNav(n.key); setOpen(false); }}
+                    style={{
+                      width: "100%", display: "flex", alignItems: "center", gap: 10,
+                      padding: "10px 16px", background: "none", border: "none",
+                      cursor: "pointer", fontSize: 13, fontFamily: "inherit",
+                      color: active === n.key ? T.primary : T.text,
+                      fontWeight: active === n.key ? 600 : 400,
+                    }}
+                  >
+                    <Icon name={n.icon} size={16} />
+                    {n.label}
+                  </button>
+                ))}
+              </div>
             ))}
             <div style={{ height: 1, background: T.border, margin: "4px 0" }} />
             <button
@@ -82,12 +81,12 @@ export default function BottomNav({ active, onNav, user }) {
         display: "flex",
         paddingBottom: "env(safe-area-inset-bottom, 0)",
       }}>
-        {MAIN.map(n => {
-          const isActive = active === n.key;
+        {NAV_UTAMA_BOTTOM.map(key => {
+          const isActive = active === key;
           return (
             <button
-              key={n.key}
-              onClick={() => onNav(n.key)}
+              key={key}
+              onClick={() => onNav(key)}
               style={{
                 flex: 1, display: "flex", flexDirection: "column",
                 alignItems: "center", gap: 2,
@@ -99,8 +98,8 @@ export default function BottomNav({ active, onNav, user }) {
                 minHeight: 48,
               }}
             >
-              <Icon name={n.icon} size={20} />
-              <span>{n.label}</span>
+              <Icon name={NAV_BOTTOM_ICON[key]} size={20} />
+              <span>{NAV_BOTTOM_LABEL[key]}</span>
             </button>
           );
         })}

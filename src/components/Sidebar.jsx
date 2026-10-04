@@ -1,23 +1,28 @@
-import { useContext } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { Icon } from "./ui.jsx";
-import { ROLE_COLOR } from "../data.js";
+import { ROLE_COLOR, navGroupsUntuk, grupTerbukaAwal } from "../data.js";
 import { Badge } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
 
-const NAV = [
-  { key: "dashboard", label: "Dashboard",       icon: "home"    },
-  { key: "dokumen",   label: "Dokumen",          icon: "archive" },
-  { key: "upload",    label: "Upload Dokumen",   icon: "upload"  },
-  { key: "pencarian", label: "Pencarian",        icon: "search"  },
-  { key: "publik",    label: "Portal Publik",    icon: "world"   },
-  { key: "panduan",   label: "Panduan",          icon: "file"    },
-  { key: "bankdata",  label: "Bank Data",        icon: "chart"  },
-  { key: "kertas-kerja", label: "Kertas Kerja",    icon: "checkCircle" },
-  { key: "pengguna",  label: "Pengguna",         icon: "users",  adminOnly: true },
-  { key: "kategori-dokumen", label: "Jenis Dokumen", icon: "tag",   adminOnly: true },
-  { key: "sektor",         label: "Sektor",        icon: "layers", adminOnly: true },
-  { key: "audit",     label: "Audit Trail",      icon: "history", adminOnly: true },
-];
+// Status lipatan tiap kelompok disimpan supaya pilihan user bertahan setelah
+// refresh. Yang tersimpan hanya kelompok yang benar-benar diubah user.
+const KUNCI_GRUP = "sidebarGrupTerbuka";
+
+function muatGrupTerbuka() {
+  try {
+    const v = JSON.parse(localStorage.getItem(KUNCI_GRUP) || "null");
+    return v && typeof v === "object" && !Array.isArray(v) ? v : {};
+  } catch {
+    // Catch wajib mengembalikan objek juga. Kembali tanpa nilai membuat
+    // state-nya undefined dan satu galat baca di sidebar menggagalkan seluruh
+    // render, termasuk saat storage diblokir browser.
+    return {};
+  }
+}
+
+function simpanGrupTerbuka(v) {
+  try { localStorage.setItem(KUNCI_GRUP, JSON.stringify(v)); } catch { /* kuota penuh */ }
+}
 
 function RecentActivity({ logs = [] }) {
   const { T } = useContext(ThemeContext);
@@ -67,6 +72,32 @@ function RecentActivity({ logs = [] }) {
 export default function Sidebar({ active, onNav, user, onLogout, collapsed, mobileOpen, logs }) {
   const { T, theme, setTheme } = useContext(ThemeContext);
   const isMobileOv = mobileOpen !== undefined;
+  // useMemo dipakai karena daftar ini jadi dependensi effect di bawah; tanpa
+  // itu referensinya baru tiap render dan effect berjalan terus.
+  const groups = useMemo(() => navGroupsUntuk(user.role), [user.role]);
+  const [grupBuka, setGrupBuka] = useState(() => grupTerbukaAwal(muatGrupTerbuka()));
+
+  // Halaman aktif selalu terlihat: kelompoknya dibuka otomatis. Tanpa ini,
+  // lipatan yang ditutup manual lalu pindah halaman akan membuat item aktif
+  // tidak terlihat di sidebar.
+  useEffect(() => {
+    const grupAktif = groups.find(g => g.items.some(i => i.key === active));
+    if (!grupAktif || grupBuka[grupAktif.key]) return;
+    setGrupBuka(prev => {
+      if (prev[grupAktif.key]) return prev;
+      const next = { ...prev, [grupAktif.key]: true };
+      simpanGrupTerbuka(next);
+      return next;
+    });
+  }, [active, groups, grupBuka]);
+
+  const lipat = g => {
+    setGrupBuka(prev => {
+      const next = { ...prev, [g.key]: !prev[g.key] };
+      simpanGrupTerbuka(next);
+      return next;
+    });
+  };
 
   return (
     <div style={{
@@ -107,35 +138,68 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, mobi
         )}
       </div>
 
-      {/* Nav */}
+      {/* Nav — kelompok yang bisa dilipat */}
       <nav style={{ flex: 1, padding: "10px 0", overflowY: "auto" }}>
-        {NAV.filter(n => !n.adminOnly || user.role === "Admin").map(n => {
-          const isActive = active === n.key;
+        {groups.map(g => {
+          // Saat sidebar dikecilkan hanya ikon yang muat, jadi semua kelompok
+          // dibuka tanpa perlu menampilkan judulnya.
+          const buka = collapsed || !!grupBuka[g.key];
           return (
-            <button
-              key={n.key}
-              onClick={() => onNav(n.key)}
-              title={collapsed ? n.label : undefined}
-              style={{
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: collapsed ? "11px 0" : "11px 16px",
-                justifyContent: collapsed ? "center" : "flex-start",
-                background: isActive ? T.sidebarHover : "none",
-                border: "none",
-                borderLeft: isActive ? "3px solid " + T.primary : "3px solid transparent",
-                color: isActive ? T.sidebarTextActive : T.sidebarText,
-                cursor: "pointer",
-                fontSize: 13,
-                fontWeight: isActive ? 600 : 400,
-                transition: "all 0.15s",
-              }}
-            >
-              <Icon name={n.icon} size={17} />
-              {!collapsed && n.label}
-            </button>
+            <div key={g.key} style={{ marginBottom: 2 }}>
+              {!collapsed && (
+                <button
+                  onClick={() => lipat(g)}
+                  aria-expanded={buka}
+                  title={g.label}
+                  style={{
+                    width: "100%",
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "9px 16px 5px",
+                    background: "none", border: "none",
+                    borderLeft: "3px solid transparent",
+                    cursor: "pointer",
+                    color: T.textMuted, textAlign: "left",
+                    fontSize: 10, fontWeight: 700,
+                    textTransform: "uppercase", letterSpacing: 0.7,
+                    fontFamily: "inherit",
+                  }}
+                >
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {g.label}
+                  </span>
+                  <Icon name={buka ? "chevronDown" : "chevronRight"} size={13} />
+                </button>
+              )}
+              {buka && g.items.map(n => {
+                const isActive = active === n.key;
+                return (
+                  <button
+                    key={n.key}
+                    onClick={() => onNav(n.key)}
+                    title={collapsed ? n.label : undefined}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: collapsed ? "11px 0" : "10px 16px",
+                      justifyContent: collapsed ? "center" : "flex-start",
+                      background: isActive ? T.sidebarHover : "none",
+                      border: "none",
+                      borderLeft: isActive ? "3px solid " + T.primary : "3px solid transparent",
+                      color: isActive ? T.sidebarTextActive : T.sidebarText,
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: isActive ? 600 : 400,
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    <Icon name={n.icon} size={17} />
+                    {!collapsed && n.label}
+                  </button>
+                );
+              })}
+            </div>
           );
         })}
       </nav>

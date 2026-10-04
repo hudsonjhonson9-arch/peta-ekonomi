@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { useContext, useState } from "react";
 import { Icon, Badge } from "./ui.jsx";
 import { STATUS_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
@@ -7,32 +7,52 @@ import { PksRingkasan, DeadlineList } from "./PksRingkasan.jsx";
 import { usePksTahun, usePksRingkasan, usePksDeadlineTerdekat } from "../hooks.js";
 import { ThemeContext } from "../App.jsx";
 
-// Ringkasan Kertas Kerja untuk tahun terbaru yang punya program. Query-nya
-// sama dengan halaman Kertas Kerja dan React Query memakai cache per key, jadi
-// pindah ke halaman itu tidak memicu request kedua.
+// Ringkasan Kertas Kerja dengan pilihan tahun. Default-nya tahun berjalan, jadi
+// dashboard yang dibuka pertama kali langsung menunjukkan tahun yang sedang
+// dikerjakan. Tahun lain bisa dipilih sendiri; daftar yang muncul digabung dari
+// tahun yang punya program dan tahun terpilih, karena tahun berjalan belum
+// tentu punya program dan tidak boleh hilang dari pilihan.
+//
+// Query-nya sama dengan halaman Kertas Kerja dan React Query memakai cache per
+// key, jadi pindah ke halaman itu tidak memicu request kedua untuk tahun yang
+// sama.
 function InfoKertasKerja({ T, onNav }) {
   const { data: tahunList = [] } = usePksTahun();
-  const tahun = tahunList[0] ?? null;
+  const [tahun, setTahun] = useState(() => new Date().getFullYear());
   const { data: ringkasan, isLoading } = usePksRingkasan(tahun);
-  const { data: deadline = [] } = usePksDeadlineTerdekat();
+  const { data: deadline = [] } = usePksDeadlineTerdekat(tahun);
 
   const wajib = Number(ringkasan?.wajib || 0);
+  const opsiTahun = [...new Set([tahun, ...tahunList].filter(y => y != null))].sort((a, b) => b - a);
 
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <Icon name="checkCircle" size={15} style={{ color: T.primary }} />
-          <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Kertas Kerja {tahun ?? ""}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
+          <Icon name="checkCircle" size={15} style={{ color: T.primary, flexShrink: 0 }} />
+          <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Kertas Kerja</span>
         </div>
-        <button onClick={() => onNav("kertas-kerja")} style={{ fontSize: 12, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
-          Lihat semua →
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <select
+            value={tahun}
+            onChange={e => setTahun(parseInt(e.target.value, 10))}
+            aria-label="Tahun statistik kertas kerja"
+            style={{
+              padding: "5px 8px", border: `1px solid ${T.inputBorder}`, borderRadius: 8,
+              fontSize: 12, background: T.inputBg, color: T.text, fontFamily: "inherit",
+            }}
+          >
+            {opsiTahun.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <button onClick={() => onNav("kertas-kerja")} style={{ fontSize: 12, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}>
+            Lihat semua →
+          </button>
+        </div>
       </div>
 
-      {tahun == null || isLoading ? (
+      {isLoading ? (
         <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, fontSize: 12.5, color: T.textMuted }}>
-          Memuat ringkasan kertas kerja…
+          Memuat ringkasan kertas kerja {tahun}…
         </div>
       ) : wajib === 0 ? (
         // 0/0 terisi membuat progress bar kosong dan angka 0% menyesatkan,
