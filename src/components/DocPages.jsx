@@ -1439,7 +1439,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
 
           {/* File dalam Folder */}
           {Array.isArray(doc.files) && doc.files.length > 0 && (() => {
-            const LIMIT = 5;
+            const LIMIT = 3;
             const all = doc.files;
             const shown = showAllFiles ? all : all.slice(0, LIMIT);
             return (
