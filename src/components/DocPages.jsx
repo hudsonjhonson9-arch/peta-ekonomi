@@ -1437,20 +1437,21 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
             </div>
           </div>
 
-          {/* File dalam Folder */}
-          {Array.isArray(doc.files) && doc.files.length > 0 && (() => {
-            const LIMIT = 1;
-            const all = doc.files;
-            const shown = showAllFiles ? all : all.slice(0, LIMIT);
-            return (
-              <div style={{ ...cardStyle, padding: isMobile ? 20 : 28 }}>
-                <h2 style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 8 }}>
-                  <Icon name="folder" size={16} style={{ color: T.primary }} />
-                  File dalam Folder
-                  <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 600, color: T.textMuted }}>{all.length} file</span>
-                </h2>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: showAllFiles ? 360 : "none", overflowY: "auto" }}>
-                  {shown.map(f => (
+          {/* File dalam Folder (dropdown) */}
+          {Array.isArray(doc.files) && doc.files.length > 0 && (
+            <div style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
+              <button
+                onClick={() => setShowAllFiles(v => !v)}
+                style={{ ...btnBase, width: "100%", padding: isMobile ? "16px 20px" : "18px 28px", background: "transparent", color: T.text, borderRadius: 0, justifyContent: "flex-start", gap: 8, fontSize: 15 }}
+              >
+                <Icon name="folder" size={16} style={{ color: T.primary }} />
+                File dalam Folder
+                <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 600, color: T.textMuted }}>{doc.files.length} file</span>
+                <Icon name="chevronRight" size={14} style={{ color: T.textMuted, transform: showAllFiles ? "rotate(-90deg)" : "rotate(90deg)", transition: "transform 0.15s" }} />
+              </button>
+              {showAllFiles && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 360, overflowY: "auto", padding: isMobile ? "0 20px 16px" : "0 28px 20px", borderTop: `1px solid ${T.border}`, paddingTop: 12 }}>
+                  {doc.files.map(f => (
                     <a key={f.url} href={f.url} target="_blank" rel="noopener noreferrer"
                       title={f.name}
                       style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: T.bg, borderRadius: T.radius, border: `1px solid ${T.border}`, textDecoration: "none", color: "inherit", transition: "all 0.15s" }}
@@ -1462,16 +1463,9 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
                     </a>
                   ))}
                 </div>
-                {all.length > LIMIT && (
-                  <button onClick={() => setShowAllFiles(v => !v)}
-                    style={{ ...btnBase, width: "100%", marginTop: 10, padding: "9px 14px", fontSize: 12, background: T.bg, color: T.primary, border: `1.5px dashed ${T.border}` }}>
-                    <Icon name="chevronRight" size={12} style={{ transform: showAllFiles ? "rotate(-90deg)" : "rotate(90deg)", transition: "transform 0.15s" }} />
-                    {showAllFiles ? "Ciutkan" : `Lihat semua ${all.length} file`}
-                  </button>
-                )}
-              </div>
-            );
-          })()}
+              )}
+            </div>
+          )}
 
           {/* Approval Panel */}
           {canApprove && (
