@@ -134,6 +134,14 @@ export default function Dashboard({ docs, onNav, sectors = [], categories = [] }
             <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
           </div>
         ))}
+        {docs.length > 4 && (
+          <div style={{ marginTop: 12, background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 12, color: T.textMuted }}>Lainnya ({docs.length - 5})</span>
+              <button style={{ fontSize: 11, color: T.primary, background: "none", border: "none", cursor: "pointer" }}>Lihat semua</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
