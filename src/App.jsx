@@ -366,8 +366,9 @@ export default function App() {
 
     if (opts.periodeId != null && !opts.noLink) {
       const dok = docsBaru[0];
-      const realId = Number.isInteger(opts.docId) ? opts.docId
-        : (dok && Number.isInteger(dok.id) && dok.id > 0 && dok.id < 1e12 ? dok.id : null);
+      const rawId = opts.docId != null ? opts.docId : (dok ? dok.id : null);
+      const parsedId = parseInt(rawId, 10);
+      const realId = (!isNaN(parsedId) && parsedId > 0 && parsedId < 1e12) ? parsedId : null;
       if (realId != null) {
         try {
           // uploaded_by tidak dikirim: server memakai identitas dari session,
