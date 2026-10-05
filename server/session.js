@@ -129,11 +129,19 @@ export function bacaCookie(req, nama = NAMA_COOKIE) {
   return null;
 }
 
-export function pasangCookie(res, token) {
+// Flag `secure` ikut-protokol, bukan ikut NODE_ENV.
+//
+// Sebelumnya secure ditulis dari NODE_ENV === 'production'. Di produksi yang
+// BeliLewatiHTTPS (Coolify accessed via IP/port, atau proxy yang tidak
+// meneruskan X-Forwarded-Proto) browser menolak menyimpan cookie secure, jadi
+// login terlihat berhasil lalu semua request berikutnya 401 "Sesi berakhir".
+// Jadi secure mengikuti req.secure yang sudah memperhitungkan reverse proxy.
+export function pasangCookie(res, token, req) {
+  const aman = req ? req.secure : process.env.NODE_ENV === 'production';
   res.cookie(NAMA_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: aman,
     maxAge: MASA_JAM * 3600 * 1000,
     path: '/',
   });

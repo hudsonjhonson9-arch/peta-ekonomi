@@ -10,3 +10,6 @@ test-files/
 
 # Salinan server yang dibuat script uji di /tmp, bukan bagian dari aplikasi.
 server/index.uji.mjs
+
+# Backup file lokal
+*.bak

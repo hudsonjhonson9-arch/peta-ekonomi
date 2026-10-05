@@ -29,6 +29,12 @@ const isProd    = process.env.NODE_ENV === 'production';
 const ORIGIN_TERDAFTAR = (process.env.CORS_ORIGIN || '')
   .split(',').map(s => s.trim()).filter(Boolean);
 
+// Di belakang reverse proxy (Coolify, Traefik, Nginx), req.protocol membaca
+// koneksi TCP langsung ke container, yaitu http, walau klien sebenarnya lewat
+// HTTPS. Tanpa trust proxy, req.secure selalu false di produksi dan cookie
+// session tidak pernah bisa ditandai secure.
+app.set('trust proxy', true);
+
 app.use(cors({
   // Tanpa header Origin: permintaan same-origin atau server-to-server, boleh.
   // Dengan Origin: hanya boleh kalau terdaftar, dan daftar kosong menolak semua
@@ -447,7 +453,7 @@ app.post('/api/auth/login', async (req, res) => {
       console.error('Login: session error:', e.message);
       return res.status(500).json({ error: 'Session belum dikonfigurasi. Hubungi administrator.' });
     }
-    pasangCookie(res, token);
+    pasangCookie(res, token, req);
 
     res.json({
       message: 'Login berhasil',
