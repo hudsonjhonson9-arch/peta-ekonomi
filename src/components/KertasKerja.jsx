@@ -29,6 +29,7 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
   const [formOutput, setFormOutput]   = useState(null);
   const [formPeriode, setFormPeriode] = useState(null);
   const [uploadPeriode, setUploadPeriode] = useState(null); // { periodeId, judul, tahun }
+  const [riwayatDoc, setRiwayatDoc]   = useState(null); // { docId, docJudul, periodeLabel }
   const [sibuk, setSibuk]             = useState(false);
 
   const admin = canManageOutput(user.role);
@@ -196,7 +197,9 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
                       onTambahOutput={() => setFormOutput({ mode: "tambah", output: null, sub: s, tahun })}
                       onEditOutput={o => setFormOutput({ mode: "edit", output: o, sub: s, tahun })}
                       onEditPeriode={(o, p) => setFormPeriode({ output: o, periode: p, tahun })}
-                      onUnggah={d => setUploadPeriode(d)} showToast={showToast}
+                      onUnggah={d => setUploadPeriode(d)}
+                      onLihatRiwayat={docInfo => setRiwayatDoc(docInfo)}
+                      showToast={showToast}
                       reload={reload} sibuk={sibuk} setSibuk={setSibuk}
                     />
                   ))}
@@ -248,6 +251,10 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
           labelKirim="Unggah & Hubungkan ke Periode"
         />
       )}
+
+      {riwayatDoc && (
+        <RiwayatUnggahModal docInfo={riwayatDoc} onTutup={() => setRiwayatDoc(null)} />
+      )}
     </div>
   );
 }
@@ -284,7 +291,7 @@ function Panel({ T, buka, onToggle, force, ikon, kode, nama, children }) {
 
 // ── Sub kegiatan + daftar output ─────────────────────────────────────────
 function SubKey({ T, sub, tahun, admin, user, buka, onToggle, force, hanyaTerlambat, cari,
-                  onTambahOutput, onEditOutput, onEditPeriode, onUnggah, showToast, reload, sibuk, setSibuk }) {
+                  onTambahOutput, onEditOutput, onEditPeriode, onUnggah, onLihatRiwayat, showToast, reload, sibuk, setSibuk }) {
   const outputs = sub.outputs.filter(o => {
     if (cari) return true;
     if (!hanyaTerlambat) return true;
@@ -373,7 +380,8 @@ function SubKey({ T, sub, tahun, admin, user, buka, onToggle, force, hanyaTerlam
             <Output key={o.id} T={T} output={o} admin={admin} user={user} tahun={tahun}
               onEdit={() => onEditOutput(o)}
               onEditPeriode={p => onEditPeriode(o, p)}
-onUnggah={onUnggah}
+              onUnggah={onUnggah}
+              onLihatRiwayat={onLihatRiwayat}
               showToast={showToast} reload={reload} sibuk={sibuk} setSibuk={setSibuk} />
           ))}
         </div>
@@ -388,7 +396,7 @@ const iconBtn = T => ({
 });
 
 // ── Satu output + tabel periodenya ───────────────────────────────────────
-function Output({ T, output, admin, user, tahun, onEdit, onEditPeriode, onUnggah, showToast, reload, sibuk, setSibuk }) {
+function Output({ T, output, admin, user, tahun, onEdit, onEditPeriode, onUnggah, onLihatRiwayat, showToast, reload, sibuk, setSibuk }) {
   const pr = progresOutput(output);
   const [bukaPeriode, setBukaPeriode] = useState(true);
 
@@ -555,7 +563,7 @@ return (
             <tbody>
               {output.periods.map(p => <BarisPeriode key={p.id} T={T} p={p} admin={admin} reload={reload}
                 judul={`${output.nama} — ${p.periode_label}`} tahun={tahun}
-                onEdit={() => onEditPeriode(p)} onUnggah={onUnggah} showToast={showToast} />)}
+                onEdit={() => onEditPeriode(p)} onUnggah={onUnggah} onLihatRiwayat={onLihatRiwayat} showToast={showToast} />)}
             </tbody>
           </table>
         </div>
@@ -564,7 +572,7 @@ return (
   );
 }
 
-function BarisPeriode({ T, p, admin, onEdit, onUnggah, reload, showToast, judul, tahun }) {
+function BarisPeriode({ T, p, admin, onEdit, onUnggah, onLihatRiwayat, reload, showToast, judul, tahun }) {
   const st = statusPeriode(p);
   const meta = STATUS_PERIODE[st];
   const sisa = sisaHari(p.deadline);
@@ -611,18 +619,24 @@ function BarisPeriode({ T, p, admin, onEdit, onUnggah, reload, showToast, judul,
       <td style={{ padding: "5px 7px", borderBottom: `1px solid ${T.border}`, whiteSpace: "nowrap" }}>
         <span style={{ display: "flex", gap: 4 }}>
           {p.doc_id ? (
-            <button onClick={lepaskan} title="Lepas dokumen dari periode ini" style={iconBtn(T)}>
-              <Icon name="x" size={11} />
-            </button>
+            <>
+              <button onClick={() => onLihatRiwayat({ docId: p.doc_id, docJudul: p.doc_judul || `Dokumen #${p.doc_id}`, periodeLabel: p.periode_label })}
+                title="Riwayat unggah dokumen" style={iconBtn(T)}>
+                <Icon name="history" size={11} />
+              </button>
+              <button onClick={lepaskan} title="Lepas dokumen dari periode ini" style={iconBtn(T)}>
+                <Icon name="x" size={11} />
+              </button>
+            </>
           ) : (
             <button onClick={() => onUnggah({ periodeId: p.id, judul, tahun })}
               title="Unggah dokumen untuk periode ini" style={iconBtn(T)}>
               <Icon name="upload" size={11} />
             </button>
           )}
-          {admin && p.doc_id == null && (
+          {admin && (
             <button onClick={onEdit} title="Ubah deadline / catatan" style={iconBtn(T)}>
-              <Icon name="clock" size={11} />
+              <Icon name="calendar" size={11} />
             </button>
           )}
         </span>
@@ -985,3 +999,99 @@ const inp = T => ({
   borderRadius: 8, fontSize: 12.5, outline: "none", background: T.inputBg,
   color: T.text, fontFamily: "inherit", boxSizing: "border-box",
 });
+
+function RiwayatUnggahModal({ docInfo, onTutup }) {
+  const { T } = useContext(ThemeContext);
+  const [loading, setLoading] = useState(true);
+  const [history, setHistory] = useState([]);
+  const [versions, setVersions] = useState([]);
+
+  useEffect(() => {
+    if (!docInfo?.docId) return;
+    setLoading(true);
+    Promise.all([
+      api(`/api/docs/${docInfo.docId}/history`).catch(() => []),
+      api(`/api/docs/${docInfo.docId}/versions`).catch(() => ({ versions: [] })),
+    ]).then(([hRes, vRes]) => {
+      setHistory(Array.isArray(hRes) ? hRes : []);
+      setVersions(vRes?.versions || []);
+    }).finally(() => setLoading(false));
+  }, [docInfo?.docId]);
+
+  return (
+    <Modal
+      title="Riwayat Unggah Dokumen"
+      subtitle={`${docInfo.docJudul} · Periode ${docInfo.periodeLabel}`}
+      icon="history"
+      onClose={onTutup}
+      maxWidth={600}
+    >
+      {loading ? (
+        <div style={{ fontSize: 13, color: T.textMuted, padding: 16, textAlign: "center" }}>
+          Memuat riwayat unggah…
+        </div>
+      ) : (
+        <div>
+          {history.length === 0 ? (
+            <div style={{ fontSize: 12.5, color: T.textMuted, padding: "12px 0", textAlign: "center" }}>
+              Belum ada riwayat aktivitas untuk dokumen ini.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {history.map((h, i) => (
+                <div key={h.id || i} style={{
+                  display: "flex", gap: 10, alignItems: "flex-start",
+                  padding: "10px 12px", border: `1px solid ${T.border}`, borderRadius: 8, background: T.bg,
+                }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 6, flexShrink: 0,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    background: h.action === "upload" ? "#EFF6FF" : h.action === "approve" ? "#F0FDF4" : h.action === "reject" ? "#FEF2F2" : T.surfaceHover,
+                    color: h.action === "upload" ? "#2563EB" : h.action === "approve" ? "#16A34A" : h.action === "reject" ? "#DC2626" : T.textSecondary,
+                  }}>
+                    <Icon name={h.action === "upload" ? "upload" : h.action === "approve" ? "check" : h.action === "reject" ? "x" : "history"} size={14} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text }}>
+                      {h.action === "upload" ? "Dokumen Diunggah" : h.action === "approve" ? "Disetujui & Diarsipkan" : h.action === "reject" ? "Ditolak" : h.action}
+                      {h.actor_name ? <span style={{ fontWeight: 400, color: T.textSecondary }}> oleh {h.actor_name}</span> : null}
+                    </div>
+                    {h.note && (
+                      <div style={{ fontSize: 11.5, color: T.textSecondary, marginTop: 2, fontStyle: "italic" }}>
+                        "{h.note}"
+                      </div>
+                    )}
+                    <div style={{ fontSize: 10.5, color: T.textMuted, marginTop: 4 }}>
+                      {h.created_at}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {versions.length > 1 && (
+            <div style={{ marginTop: 16, borderTop: `1px solid ${T.border}`, paddingTop: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 8 }}>
+                Riwayat Versi File ({versions.length} versi)
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {versions.map(v => (
+                  <div key={v.version_no} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "7px 10px", background: T.surfaceHover, borderRadius: 6, fontSize: 11.5,
+                  }}>
+                    <span style={{ fontWeight: 600, color: T.text }}>
+                      Versi {v.version_no} {v.active ? <span style={{ color: T.primary }}>(Aktif)</span> : null}
+                    </span>
+                    <span style={{ color: T.textMuted }}>{v.ukuran || "—"}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </Modal>
+  );
+}

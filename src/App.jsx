@@ -738,14 +738,39 @@ export default function App() {
           continue;
         }
 
+        // Jika GAS tidak mengembalikan docId (karena GAS hanya menyimpan ke Drive),
+        // daftarkan dokumen ke backend database PostgreSQL (/api/docs) agar tersimpan
+        // secara permanen dan id-nya bisa ditautkan ke Kertas Kerja.
+        if (!result.docId) {
+          try {
+            var srvRes = await api('/api/docs', 'POST', {
+              title: fileTitle,
+              type: form.type,
+              sector: form.sector,
+              year: form.year,
+              uploader: user.name,
+              url: result.fileUrl || '',
+              ukuran: result.size || formatBytes(fobj.size),
+              bidang: form.bidang || '',
+              pages: pageCount,
+              desc: form.desc || '',
+              tags: form.tags || '',
+              uploader_id: user.nip || '',
+              nomor_dokumen: form.nomor_dokumen || '',
+              tanggal_dokumen: form.tanggal_dokumen || '',
+              fileType: form.fileType || '',
+            });
+            if (srvRes && srvRes.doc && srvRes.doc.id) {
+              result.docId = srvRes.doc.id;
+            }
+          } catch (e) {
+            console.error('Gagal mendaftarkan dokumen ke database server:', e);
+          }
+        }
+
         if (result.docId) idAsli = Number(result.docId);
 
         allDocs.push({
-          // Id asli dari server dipakai kalau GAS sudah melaporkannya. Id
-          // lokal Date.now() hanya jadi cadangan: begitu /api/docs menyusul,
-          // entri ini harus punya id yang sama supaya effect sync tahu itu
-          // dokumen yang sama dan bukan dokumen baru. Tanpa itu satu upload
-          // tampil dua kali.
           id:         result.docId ? Number(result.docId) : Date.now() + fi,
           title:      fileTitle,
           type:       form.type,
@@ -800,6 +825,34 @@ export default function App() {
           fileType: form.fileType || "",
         });
         if (reg.error) throw new Error(reg.error);
+
+        if (!reg.docId) {
+          try {
+            var srvResFolder = await api('/api/docs', 'POST', {
+              title: form.title,
+              type: form.type,
+              sector: form.sector,
+              year: form.year,
+              uploader: user.name,
+              url: reg.url || folderUrl || '',
+              ukuran: reg.ukuran || '—',
+              bidang: form.bidang || '',
+              files: groupFiles,
+              pages: 0,
+              desc: form.desc || '',
+              tags: form.tags || '',
+              uploader_id: user.nip || '',
+              nomor_dokumen: form.nomor_dokumen || '',
+              tanggal_dokumen: form.tanggal_dokumen || '',
+              fileType: form.fileType || '',
+            });
+            if (srvResFolder && srvResFolder.doc && srvResFolder.doc.id) {
+              reg.docId = srvResFolder.doc.id;
+            }
+          } catch (e) {
+            console.error('Gagal mendaftarkan folder ke database server:', e);
+          }
+        }
 
         var folderDoc = {
           // Sama seperti file tunggal: pakai id baris server kalau GAS
