@@ -155,10 +155,15 @@ export default function App() {
   // cekSesi masih true selama /api/auth/me berjalan, jadi user dari
   // localStorage saja belum cukup: cookie-nya bisa sudah hilang.
   const siap = !!user && !cekSesi;
+  // Log audit dan daftar pengguna hanya dipakai halaman yang sudah dibatasi
+  // Admin (AuditTrail, ManajemenPengguna). Tanpa gate ini setiap user biasa
+  // tetap men polled dua endpoint itu dan menerima 403 tiap 30-60 detik —
+  // sia-sia, dan hereof penuh 403 menutupi 403 yang penting.
+  const siapAdmin = siap && user.role === "Admin";
 
   const { data: serverDocs = [], isLoading: docsLoading } = useDocs(siap);
-  const { data: logsData = [] } = useLogs(siap);
-  const { data: usersData = [] } = useUsers(siap);
+  const { data: logsData } = useLogs(siapAdmin);
+  const { data: usersData } = useUsers(siapAdmin);
   const { data: categoriesData = [] } = useCategories(siap);
   const { data: sectorsData = [] } = useSectors(siap);
   const { data: bidangData = [] } = useBidang(siap);
@@ -195,8 +200,10 @@ export default function App() {
     });
   }, [serverDocs]);
 
-  useEffect(() => { if (logsData.length > 0) setLogs(logsData); }, [logsData]);
-  useEffect(() => { if (usersData.length > 0) setUsers(usersData); }, [usersData]);
+  // Query-nya bisa mati untuk user biasa dan bisa membalas objek { error } kalau
+  // sesinya ditolak, jadi bentuk responsnya dinormalkan dulu.
+  useEffect(() => { if (Array.isArray(logsData) && logsData.length) setLogs(logsData); }, [logsData]);
+  useEffect(() => { if (Array.isArray(usersData) && usersData.length) setUsers(usersData); }, [usersData]);
   useEffect(() => { if (categoriesData.length > 0) setCategories(categoriesData); }, [categoriesData]);
   useEffect(() => { if (sectorsData.length > 0) setSectors(sectorsData); }, [sectorsData]);
   useEffect(() => { if (bidangData.length > 0) setBidangs(bidangData); }, [bidangData]);
