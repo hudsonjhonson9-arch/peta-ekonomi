@@ -169,15 +169,29 @@ export default function App() {
     setDocs(prev => {
       const map = new Map(serverDocs.map(d => [d.id, d]));
       // Untuk id yang sudah dikenal server, objek server dipakai utuh.
-      // Entry yang hanya ada di state lokal dipertahankan: itu entri
-      // optimistik sesaat setelah upload, sebelum /api/docs menyusul.
       //
-      // Dulu di sini status lokal ditulis ulang ke atas objek server. Akibatnya
-      // setiap invalidateQueries seperti di handleApprove mengambil data baru
-      // dari server lalu langsung membuangnya, dan status hanya ikut berubah
-      // setelah halaman dimuat ulang.
-      for (const d of prev) if (!map.has(d.id)) map.set(d.id, d);
-      return [...map.values()];
+      // Entri optimistik hasil upload perlu DICOCOKKAN, bukan sekadar
+      // dipertahankan. Id-nya dibuat lokal dengan Date.now(), sedangkan server
+      // memakai id baris bapperida_dokumen. Kalau lokal selalu kept karena id-nya
+      // tidak ada di server, begitu /api/docs menyusul dokumen yang sama sudah
+      // ada dua kali: satu dari server, satu lagi dari entri optimistik yang
+      // tidak pernahsuperseded. Url dipakai sebagai kunci pencocokan karena
+      // keduanya berasal dari GAS dan nilainya sama.
+      //
+      // Entri optimistik yang belum punya pasangan di server (request masih
+      // jalan) tetap disimpan supaya UI responsif.
+      const urlServer = new Set(serverDocs.map(d => d.url).filter(Boolean));
+      const pending = prev.filter(d => {
+        if (map.has(d.id)) return false;
+        // Entri yang bukan hasil upload optimistik tetap dipertahankan.
+        if (!d.__optimis) return true;
+        // Sudah ada padanannya di server -> entri lokal ini usang, buang.
+        return !(d.url && urlServer.has(d.url));
+      });
+      // Entri optimistik yang belum ada di server (request masih jalan)
+      // dikembalikan di depan, tidak dimasukkan ke map, supaya tidak masuk
+      // dua kali ke hasil akhir.
+      return [...pending, ...map.values()];
     });
   }, [serverDocs]);
 
@@ -334,8 +348,13 @@ export default function App() {
   // Kertas Kerja, tautkan doc_id ke periodenya dan kembali ke halaman asal —
   // jangan lempar user ke daftar dokumen.
   const selesaiUpload = async (docsBaru, pesan, opts = {}) => {
-    setDocs(d => docsBaru.concat(d));
-    docsBaru.forEach(d => addLog("Upload dokumen", d));
+    // __optimis menandai entri yang belum berasal dari /api/docs. Effect sync
+    // memakainya untuk membuang entri lokal begitu baris aslinya sudah ada di
+    // server; tanpa penanda ini entri itu tidak pernah terbuang dan dokumen
+    // tampil dua kali.
+    const baru = docsBaru.map(d => ({ ...d, __optimis: true }));
+    setDocs(d => baru.concat(d));
+    baru.forEach(d => addLog("Upload dokumen", d));
     queryClient.invalidateQueries({ queryKey: ['docs'] });
 
     if (opts.periodeId != null && !opts.noLink) {

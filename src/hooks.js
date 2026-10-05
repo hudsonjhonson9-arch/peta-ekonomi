@@ -37,16 +37,38 @@ export const api = (url, method = 'GET', body) => fetch(url, {
 // regain focus, atau saat invalidate. Komponennya tidak pernah mount ulang
 // saat login berhasil, jadi datanya baru muncul setelah refresh.
 
+// Polling dan fokus jendela.
+//
+//.refetchOnWindowFocus default React Query sudah aktif, jadi saat tab dibuka
+// lagi data langsung segar tanpa input ulang. Yang belum ada adalah pemuatan
+// berkala: selama tab membiarkan terbuka, perubahan dari orang lain (dokumen
+// baru, status review yang berubah) tidak pernah terlihat sampai halaman
+// di-refresh manual.
+//
+// 30 detik dipilih supaya daftar tetap terasa hidup tanpa membebani server:
+// /api/docs ringan, dan requestnya sudah otomatis berhenti saat tab disembunyikan
+// karena refetchInterval dihitung dari waktu browser dan query di-background pada
+// saat refetchOnWindowFocus.
 export function useDocs(aktif = true) {
-  return useQuery({ queryKey: ['docs'], queryFn: () => api('/api/docs'), enabled: aktif });
+  return useQuery({
+    queryKey: ['docs'],
+    queryFn: () => api('/api/docs'),
+    enabled: aktif,
+    refetchInterval: aktif ? 30000 : false,
+  });
+}
+
+export function useLogs(aktif = true) {
+  return useQuery({
+    queryKey: ['logs'],
+    queryFn: () => api('/api/logs'),
+    enabled: aktif,
+    refetchInterval: aktif ? 60000 : false,
+  });
 }
 
 export function useUsers(aktif = true) {
   return useQuery({ queryKey: ['users'], queryFn: () => api('/api/users'), enabled: aktif });
-}
-
-export function useLogs(aktif = true) {
-  return useQuery({ queryKey: ['logs'], queryFn: () => api('/api/logs'), enabled: aktif });
 }
 
 export function useCategories(aktif = true) {
