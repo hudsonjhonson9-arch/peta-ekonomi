@@ -366,10 +366,11 @@ export default function App() {
 
     if (opts.periodeId != null && !opts.noLink) {
       const dok = docsBaru[0];
-      const rawId = opts.docId != null ? opts.docId : (dok ? dok.id : null);
+      const hasGasDocId = opts.docId != null;
+      const rawId = hasGasDocId ? opts.docId : (dok ? dok.id : null);
       const parsedId = parseInt(rawId, 10);
       const realId = (!isNaN(parsedId) && parsedId > 0 && parsedId < 1e13) ? parsedId : null;
-      if (realId != null) {
+      if (realId != null && hasGasDocId) {
         try {
           // uploaded_by tidak dikirim: server memakai identitas dari session,
           // jadi nama di audit tidak bisa dipalsukan dari sisi klien.
@@ -383,6 +384,8 @@ export default function App() {
         } catch (_) {
           showToast("Dokumen terunggah, tetapi gagal ditautkan ke periode. Buka Kertas Kerja lalu unggah ulang lewat tombol di baris periode.");
         }
+      } else if (hasGasDocId) {
+        showToast("Dokumen terunggah, tetapi gagal ditautkan ke periode. Buka Kertas Kerja lalu unggah ulang lewat tombol di baris periode.");
       } else {
         showToast("Dokumen terunggah, tetapi id-nya tidak bisa ditautkan otomatis. Perbarui periodenya manual.");
       }
