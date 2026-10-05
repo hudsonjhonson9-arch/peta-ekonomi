@@ -10,7 +10,8 @@ import { fileURLToPath } from 'url';
 import { susunPatchPeriode } from './patch-periode.js';
 import {
   NAMA_COOKIE, MASA_JAM, R_ADMIN, R_REVIEWER, R_STAF,
-  normalisasiRole, rahasia, buatToken, verifikasiToken, periksaKonfigurasiSession,
+  normalisasiRole, rahasia, buatToken, verifikasiTokenDetail,
+  periksaKonfigurasiSession,
   bacaCookie, pasangCookie, lepasCookie, PANJANG_MINIMUM,
 } from './session.js';
 import { kebutuhan, PUBLIK, LOGIN, REVIEW, ADMIN } from './kebijakan.js';
@@ -97,9 +98,14 @@ app.use(async (req, res, next) => {
       error: `Session belum dikonfigurasi: SESSION_SECRET wajib diisi (minimal ${PANJANG_MINIMUM} karakter)`,
     });
 
-  const muatan = verifikasiToken(bacaCookie(req), secret);
-  if (!muatan)
+  const { muatan, alasan } = verifikasiTokenDetail(bacaCookie(req), secret);
+  if (!muatan) {
+    // Log alasannya. Tanpa ini semua penyebab 401 kelihatan sama dari sisi
+    // klien, jadi "Sesi berakhir" bisa berarti cookie tidak terkirim, secret
+    // berganti, atau token kedaluwarsa, dan ketiganya diperbaiki berbeda.
+    console.warn(`[auth] 401 ${req.method} ${path} — ${alasan}`);
     return res.status(401).json({ error: 'Sesi berakhir, silakan login kembali' });
+  }
 
   try {
     const { rows } = await pool.query(

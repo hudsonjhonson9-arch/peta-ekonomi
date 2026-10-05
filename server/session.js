@@ -98,21 +98,43 @@ export function buatToken(nip, secret = rahasia()) {
   return `${isi}.${tandaTangan(isi, secret)}`;
 }
 
-export function verifikasiToken(token, secret = rahasia(), sekarang = Math.floor(Date.now() / 1000)) {
-  if (!secret || typeof token !== 'string') return null;
+// Token ditolak karena empat hal yang berbeda, dan semuanya tadinya balik
+// 401 dengan pesan yang sama. Tanpa alasan, "Sesi berakhir" di log Coolify
+// tidak bisa dibedakan antara cookie yang tidak terkirim (secure/HTTPS/SameSite),
+// secret yang berganti, token kedaluwarsa, atau cookie rusak.
+const ALASAN = {
+  KOSONG: 'tidak ada cookie session',
+  TANPA_SECRET: 'SESSION_SECRET belum disetel',
+  RUSAK: 'token tidak berbentuk <isi>.<tanda-tangan>',
+  TANDA_TANGAN: 'tanda tangan tidak cocok, SESSION_SECRET berbeda dari saat login',
+  ISI_RUSAK: 'isi token bukan JSON yang valid',
+  SUB: 'token tidak membawa sub',
+  KEDALUWARSA: 'token sudah kedaluwarsa',
+};
+
+export function verifikasiTokenDetail(token, secret = rahasia(), sekarang = Math.floor(Date.now() / 1000)) {
+  if (!secret) return { muatan: null, alasan: ALASAN.TANPA_SECRET };
+  if (typeof token !== 'string' || !token) return { muatan: null, alasan: ALASAN.KOSONG };
   const titik = token.indexOf('.');
-  if (titik < 1) return null;
+  if (titik < 1) return { muatan: null, alasan: ALASAN.RUSAK };
   const isi = token.slice(0, titik);
-  if (!samaKonst(tandaTangan(isi, secret), token.slice(titik + 1))) return null;
+  if (!samaKonst(tandaTangan(isi, secret), token.slice(titik + 1)))
+    return { muatan: null, alasan: ALASAN.TANDA_TANGAN };
   let muatan;
   try {
     muatan = JSON.parse(Buffer.from(isi, 'base64url').toString('utf8'));
   } catch {
-    return null;
+    return { muatan: null, alasan: ALASAN.ISI_RUSAK };
   }
-  if (!muatan || typeof muatan.sub !== 'string' || !muatan.sub) return null;
-  if (typeof muatan.exp !== 'number' || muatan.exp <= sekarang) return null;
-  return muatan;
+  if (!muatan || typeof muatan.sub !== 'string' || !muatan.sub)
+    return { muatan: null, alasan: ALASAN.SUB };
+  if (typeof muatan.exp !== 'number' || muatan.exp <= sekarang)
+    return { muatan: null, alasan: ALASAN.KEDALUWARSA };
+  return { muatan, alasan: null };
+}
+
+export function verifikasiToken(token, secret = rahasia(), sekarang = Math.floor(Date.now() / 1000)) {
+  return verifikasiTokenDetail(token, secret, sekarang).muatan;
 }
 
 export function bacaCookie(req, nama = NAMA_COOKIE) {
