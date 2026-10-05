@@ -368,7 +368,7 @@ export default function App() {
       const dok = docsBaru[0];
       const rawId = opts.docId != null ? opts.docId : (dok ? dok.id : null);
       const parsedId = parseInt(rawId, 10);
-      const realId = (!isNaN(parsedId) && parsedId > 0 && parsedId < 1e12) ? parsedId : null;
+      const realId = (!isNaN(parsedId) && parsedId > 0 && parsedId < 1e13) ? parsedId : null;
       if (realId != null) {
         try {
           // uploaded_by tidak dikirim: server memakai identitas dari session,
