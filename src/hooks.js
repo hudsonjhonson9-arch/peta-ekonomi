@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 
 export const api = (url, method = 'GET', body) => fetch(url, {
   method,
-  // Session hidup di cookie HttpOnly, jadi cookie harus ikut dikirim.
+  // Session hidup di cookie HttpOnly, jadi cookie harus ikut mengirim.
   credentials: 'same-origin',
   headers: body ? { 'Content-Type': 'application/json' } : undefined,
   body: body ? JSON.stringify(body) : undefined,
@@ -37,24 +37,30 @@ export const api = (url, method = 'GET', body) => fetch(url, {
 // regain focus, atau saat invalidate. Komponennya tidak pernah mount ulang
 // saat login berhasil, jadi datanya baru muncul setelah refresh.
 
-// Polling dan fokus jendela.
+// ── Auto-update ─────────────────────────────────────────────────────────────
 //
-//.refetchOnWindowFocus default React Query sudah aktif, jadi saat tab dibuka
-// lagi data langsung segar tanpa input ulang. Yang belum ada adalah pemuatan
-// berkala: selama tab membiarkan terbuka, perubahan dari orang lain (dokumen
-// baru, status review yang berubah) tidak pernah terlihat sampai halaman
-// di-refresh manual.
+// Semua perubahan data di aplikasi ini datang dari request orang lain: ada
+// yang mengunggah dokumen, me-review, mengubah peran, atau mengisi Kertas
+// Kerja. Tanpa penarikan data otomatis, perubahan itu tidak akan terlihat
+// sampai pengguna pindah halaman atau refresh browser sendiri.
 //
-// 30 detik dipilih supaya daftar tetap terasa hidup tanpa membebani server:
-// /api/docs ringan, dan requestnya sudah otomatis berhenti saat tab disembunyikan
-// karena refetchInterval dihitung dari waktu browser dan query di-background pada
-// saat refetchOnWindowFocus.
+// Jadi semua query aktif polling. refetchInterval-nya false saat query
+// disabled, supaya halaman yang tidak sedang dipakai tidak menembak endpoint
+// privat tanpa perlu — request seperti itu hanya menghasilkan 401.
+//
+// 30 detik: cukup responsif untuk kerja admin, dan request-nya otomatis
+// berhenti saat tab disembunyikan karena React Query menjeda timer query yang
+// tidak terlihat.
+const POLLING = 30000;
+
+// `aktif` tetap ditentukan oleh hook pemanggil supaya komponen yang sudah terpasang
+// sejak halaman login tidak menembak endpoint privat sebelum ada cookie.
 export function useDocs(aktif = true) {
   return useQuery({
     queryKey: ['docs'],
     queryFn: () => api('/api/docs'),
     enabled: aktif,
-    refetchInterval: aktif ? 30000 : false,
+    refetchInterval: aktif ? POLLING : false,
   });
 }
 
@@ -63,28 +69,44 @@ export function useLogs(aktif = true) {
     queryKey: ['logs'],
     queryFn: () => api('/api/logs'),
     enabled: aktif,
-    refetchInterval: aktif ? 60000 : false,
+    // Log audit tidak sepenting daftar dokumen, jadi jarang diambil.
+    refetchInterval: aktif ? POLLING * 2 : false,
   });
 }
 
 export function useUsers(aktif = true) {
-  return useQuery({ queryKey: ['users'], queryFn: () => api('/api/users'), enabled: aktif });
+  return useQuery({
+    queryKey: ['users'], queryFn: () => api('/api/users'),
+    enabled: aktif, refetchInterval: aktif ? POLLING : false,
+  });
 }
 
 export function useCategories(aktif = true) {
-  return useQuery({ queryKey: ['categories'], queryFn: () => api('/api/kategori-dokumen'), enabled: aktif });
+  return useQuery({
+    queryKey: ['categories'], queryFn: () => api('/api/kategori-dokumen'),
+    enabled: aktif, refetchInterval: aktif ? POLLING : false,
+  });
 }
 
 export function useSectors(aktif = true) {
-  return useQuery({ queryKey: ['sectors'], queryFn: () => api('/api/sektor'), enabled: aktif });
+  return useQuery({
+    queryKey: ['sectors'], queryFn: () => api('/api/sektor'),
+    enabled: aktif, refetchInterval: aktif ? POLLING : false,
+  });
 }
 
 export function useBidang(aktif = true) {
-  return useQuery({ queryKey: ['bidang'], queryFn: () => api('/api/bidang'), enabled: aktif });
+  return useQuery({
+    queryKey: ['bidang'], queryFn: () => api('/api/bidang'),
+    enabled: aktif, refetchInterval: aktif ? POLLING : false,
+  });
 }
 
 export function useIndikator() {
-  return useQuery({ queryKey: ['indikator'], queryFn: () => api('/api/indikator') });
+  return useQuery({
+    queryKey: ['indikator'], queryFn: () => api('/api/indikator'),
+    refetchInterval: POLLING,
+  });
 }
 
 export function useNotifications(userId) {
@@ -92,14 +114,17 @@ export function useNotifications(userId) {
     queryKey: ['notifications', userId],
     queryFn: () => api(`/api/notifications?user_id=${userId}`),
     enabled: !!userId,
-    refetchInterval: 30000,
+    refetchInterval: POLLING,
   });
 }
 
-// ── Kertas Kerja / Output (PKS) ────────────────────────────────────────────
+// ── Kertas Kerja / Output (PKS) ─────────────────────────────────────────────
 
 export function usePksTahun() {
-  return useQuery({ queryKey: ['pks-tahun'], queryFn: () => api('/api/pks/tahun') });
+  return useQuery({
+    queryKey: ['pks-tahun'], queryFn: () => api('/api/pks/tahun'),
+    refetchInterval: POLLING,
+  });
 }
 
 export function usePksTree(tahun) {
@@ -112,6 +137,7 @@ export function usePksTree(tahun) {
       return Array.isArray(r) ? { tahun, tree: r } : r;
     },
     enabled: !!tahun,
+    refetchInterval: tahun ? POLLING : false,
   });
 }
 
@@ -120,6 +146,7 @@ export function usePksRingkasan(tahun) {
     queryKey: ['pks-ringkasan', tahun],
     queryFn: () => api(`/api/pks/ringkasan/${encodeURIComponent(tahun)}`),
     enabled: !!tahun,
+    refetchInterval: tahun ? POLLING : false,
   });
 }
 
@@ -133,6 +160,7 @@ export function usePksDeadlineTerdekat(tahun) {
       tahun ? `/api/pks/deadline-terdekat?tahun=${encodeURIComponent(tahun)}` : '/api/pks/deadline-terdekat'
     ),
     enabled: tahun !== null,
+    refetchInterval: tahun !== null ? POLLING : false,
   });
 }
 
@@ -141,5 +169,6 @@ export function useKertasKerja(subkegiatanId) {
     queryKey: ['kertas-kerja', subkegiatanId],
     queryFn: () => api(`/api/kertas-kerja?subkegiatan_id=${encodeURIComponent(subkegiatanId)}`),
     enabled: !!subkegiatanId,
+    refetchInterval: subkegiatanId ? POLLING : false,
   });
 }

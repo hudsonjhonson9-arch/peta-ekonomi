@@ -734,7 +734,12 @@ export default function App() {
         if (result.docId) idAsli = Number(result.docId);
 
         allDocs.push({
-          id:         Date.now() + fi,
+          // Id asli dari server dipakai kalau GAS sudah melaporkannya. Id
+          // lokal Date.now() hanya jadi cadangan: begitu /api/docs menyusul,
+          // entri ini harus punya id yang sama supaya effect sync tahu itu
+          // dokumen yang sama dan bukan dokumen baru. Tanpa itu satu upload
+          // tampil dua kali.
+          id:         result.docId ? Number(result.docId) : Date.now() + fi,
           title:      fileTitle,
           type:       form.type,
           sector:     form.sector,
@@ -790,7 +795,9 @@ export default function App() {
         if (reg.error) throw new Error(reg.error);
 
         var folderDoc = {
-          id:         Date.now(),
+          // Sama seperti file tunggal: pakai id baris server kalau GAS
+          // melaporkannya, supaya tidak terhitung sebagai dokumen kedua.
+          id:         reg.docId ? Number(reg.docId) : Date.now(),
           title:      form.title,
           type:       form.type,
           sector:     form.sector,
