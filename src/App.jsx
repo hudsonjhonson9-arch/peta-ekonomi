@@ -366,9 +366,11 @@ export default function App() {
 
     if (opts.periodeId != null && !opts.noLink) {
       const dok = docsBaru[0];
-      // Hanya lakukan linking jika ada docId dari GAS yang valid (bukan fallback lokal).
-      // Fallback timestamp (Date.now() + fi) tidak memiliki catatan di database,
-      // sehingga PATCH akan gagal dengan error foreign key.
+      // Hanya lakukan linking jika ada catatan dokumen di database server (/api/docs).
+      // docId dari GAS murni bukan necessarily id di bapperida_dokumen (bisa jadi Drive file ID),
+      // sehingga FK constraint akan gagal dengan error 23503.
+      // Kami cek apakah dok memiliki status "Menunggu Review" di daftar docs (via query client),
+      // atau kita coba link dan tangkap FK violation sebagai gagal linking.
       if (opts.docId == null) {
         showToast("Dokumen terunggah, tetapi id-nya tidak bisa ditautkan otomatis. Perbarui periodenya manual lewat tombol di baris periode.");
         return;
