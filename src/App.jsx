@@ -366,28 +366,32 @@ export default function App() {
 
     if (opts.periodeId != null && !opts.noLink) {
       const dok = docsBaru[0];
-      const hasGasDocId = opts.docId != null;
-      const rawId = hasGasDocId ? opts.docId : (dok ? dok.id : null);
+      // Hanya lakukan linking jika ada docId dari GAS yang valid (bukan fallback lokal).
+      // Fallback timestamp (Date.now() + fi) tidak memiliki catatan di database,
+      // sehingga PATCH akan gagal dengan error foreign key.
+      if (opts.docId == null) {
+        showToast("Dokumen terunggah, tetapi id-nya tidak bisa ditautkan otomatis. Perbarui periodenya manual lewat tombol di baris periode.");
+        return;
+      }
+      const rawId = opts.docId;
       const parsedId = parseInt(rawId, 10);
       const realId = (!isNaN(parsedId) && parsedId > 0 && parsedId < 1e13) ? parsedId : null;
-      if (realId != null && hasGasDocId) {
-        try {
-          // uploaded_by tidak dikirim: server memakai identitas dari session,
-          // jadi nama di audit tidak bisa dipalsukan dari sisi klien.
-          await api(`/api/kertas-kerja/periode/${opts.periodeId}`, "PATCH", {
-            doc_id: realId
-          });
-          queryClient.invalidateQueries({ queryKey: ['pks-tree'] });
-          queryClient.invalidateQueries({ queryKey: ['pks-ringkasan'] });
-          queryClient.invalidateQueries({ queryKey: ['pks-deadline'] });
-          showToast("Dokumen diunggah dan ditautkan ke periode Kertas Kerja.");
-        } catch (_) {
-          showToast("Dokumen terunggah, tetapi gagal ditautkan ke periode. Buka Kertas Kerja lalu unggah ulang lewat tombol di baris periode.");
-        }
-      } else if (hasGasDocId) {
-        showToast("Dokumen terunggah, tetapi gagal ditautkan ke periode. Buka Kertas Kerja lalu unggah ulang lewat tombol di baris periode.");
-      } else {
-        showToast("Dokumen terunggah, tetapi id-nya tidak bisa ditautkan otomatis. Perbarui periodenya manual.");
+      if (realId == null) {
+        showToast("Dokumen terunggah, tetapi id-nya tidak valid. Perbarui periodenya manual.");
+        return;
+      }
+      try {
+        // uploaded_by tidak dikirim: server memakai identitas dari session,
+        // jadi nama di audit tidak bisa dipalsukan dari sisi klien.
+        await api(`/api/kertas-kerja/periode/${opts.periodeId}`, "PATCH", {
+          doc_id: realId
+        });
+        queryClient.invalidateQueries({ queryKey: ['pks-tree'] });
+        queryClient.invalidateQueries({ queryKey: ['pks-ringkasan'] });
+        queryClient.invalidateQueries({ queryKey: ['pks-deadline'] });
+        showToast("Dokumen diunggah dan ditautkan ke periode Kertas Kerja.");
+      } catch (_) {
+        showToast("Dokumen terunggah, tetapi gagal ditautkan ke periode. Perbarui periodenya manual lewat tombol di baris periode.");
       }
     } else {
       showToast(pesan);
