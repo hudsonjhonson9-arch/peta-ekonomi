@@ -2027,6 +2027,11 @@ app.post('/api/kertas-kerja/:id/generate', async (req, res) => {
     const rencana = rencanaPeriode(kk.frekuensi, tahun, kk.target_per_tahun);
     const wajibSet = hitungBulanWajib(kk.bulan_wajib, rencana.length);
     let dibuat = 0;
+    // Id periode yang benar-benar dibuat dikembalikan, bukan cuma jumlahnya.
+    // Klien memakai ini untuk langsung mengunggah ke periode yang baru dibuat:
+    // tanpa id-nya, tombol "Unggah" di output yang tadinya belum punya periode
+    // tidak punya tujuan dan tidak bisa melakukan apa-apa.
+    const baru = [];
     for (const p of rencana) {
       const rows = await queryDB(`
         INSERT INTO kertas_kerja_periode
@@ -2037,11 +2042,14 @@ app.post('/api/kertas-kerja/:id/generate', async (req, res) => {
         [id, tahun, p.periode, p.label,
          hitungDeadline(kk.deadline_rule, tahun, p.periode), wajibSet.has(p.periode)]
       );
-      if (rows.length) dibuat += 1;
+      if (rows.length) {
+        dibuat += 1;
+        baru.push({ id: rows[0].id, periode: p.periode, label: p.label, deadline: rows[0].deadline });
+      }
     }
     res.json({
       message: `${dibuat} periode baru dibuat untuk ${tahun}`,
-      dibuat, rencana: rencana.length,
+      dibuat, rencana: rencana.length, periodeBaru: baru,
     });
   } catch (err) {
     console.error('Generate periode error:', err);

@@ -405,10 +405,64 @@ function Output({ T, output, admin, user, tahun, onEdit, onEditPeriode, onUnggah
     }
   };
 
-  return (
-    <div style={{ border: `1px solid ${T.border}`, borderRadius: 9, padding: 10, marginBottom: 7 }}>
+// Unggah dari baris output, bukan dari baris periode.
+//
+// Dulu tombol unggah hanya ada di setiap baris periode, jadi output yang belum
+// punya periode tidak punya tombol unggah sama sekali — persis keadaan setelah
+// "Tambah Output". Tombol ini menutup celah itu: kalau periode belum ada, periode
+// dibuat lebih dulu lalu langsung dipakai, jadi satu klik cukup dari output sampai
+// dialog unggah terbuka.
+const unggahOutput = async () => {
+  if (sibuk) return;
+  let periode = output.periods[0];
+
+  if (!periode) {
+    setSibuk(true);
+    try {
+      const g = await api(`/api/kertas-kerja/${output.id}/generate`, "POST", { tahun });
+      const dibuat = (g.periodeBaru || [])[0];
+      if (!dibuat) {
+        // Periodenya sudah ada di server tapi belum di state. Muat ulang dulu,
+        // lalu user coba lagi.
+        reload();
+        showToast(`Periode ${tahun} sudah ada. Muat ulang halaman lalu pilih baris periodenya.`);
+        return;
+      }
+      periode = { ...dibuat, is_wajib: true };
+      // Pohon dimuat ulang supaya baris periode yang baru ikut muncul di tabel.
+      // Dialog unggah tetap terbuka di atasnya.
+      reload();
+    } catch (err) {
+      showToast(await pesanError(err, "Gagal membuat periode"));
+      return;
+    } finally {
+      setSibuk(false);
+    }
+  } else {
+    // Prioritaskan periode yang belum terisi dokumennya.
+    periode = output.periods.find(p => !p.doc_id) || periode;
+  }
+
+  onUnggah({
+    periodeId: periode.id,
+    // Baris periode memakai judul yang sama supaya nama file hasil upload
+    // konsisten antara kedua jalur.
+    judul: `${output.nama} — ${periode.label || periode.periode_label || "Periode"}`,
+    tahun,
+  });
+};
+
+return (
+  <div style={{ border: `1px solid ${T.border}`, borderRadius: 9, padding: 10, marginBottom: 7 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span style={{ fontSize: 12.5, fontWeight: 600, color: T.text, flex: 1, minWidth: 180 }}>{output.nama}</span>
+
+        <button onClick={unggahOutput} disabled={sibuk}
+          title="Unggah dokumen untuk output ini"
+          style={{ ...iconBtn(T), display: "flex", alignItems: "center", gap: 5, padding: "3px 8px", fontSize: 10.5, fontFamily: "inherit" }}>
+          <Icon name="upload" size={11} />
+          Unggah
+        </button>
 
         <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 999, background: T.surfaceHover, color: T.textSecondary, border: `1px solid ${T.border}` }}>
           {output.frekuensi}
@@ -450,9 +504,16 @@ function Output({ T, output, admin, user, tahun, onEdit, onEditPeriode, onUnggah
       )}
 
       {output.periods.length === 0 ? (
-        <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 7, display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 7, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <Icon name="alert" size={12} style={{ color: "#D97706" }} />
-          Belum ada periode {tahun}.{admin ? ' Klik ikon kalender di sub kegiatan untuk membuahkannya.' : ""}
+          Belum ada periode {tahun}.
+          {admin ? (
+            <button onClick={unggahOutput} disabled={sibuk}
+              style={{ ...iconBtn(T), display: "flex", alignItems: "center", gap: 5, padding: "3px 8px", fontSize: 10.5, fontFamily: "inherit" }}>
+              <Icon name="upload" size={11} />
+              Buat periode &amp; unggah
+            </button>
+          ) : ""}
         </div>
       ) : bukaPeriode && (
         <div style={{ marginTop: 8, overflowX: "auto" }}>
@@ -555,7 +616,11 @@ function FormOutput({ form, admin, user, sibuk, setSibuk, onTutup, onSelesai, sh
   const [deadlineRule, setDeadlineRule] = useState(o?.deadline_rule || DEADLINE_DEFAULT.Tahunan);
   const [pic, setPic] = useState(o?.pic_id || "");
   const [keterangan, setKeterangan] = useState(o?.keterangan || "");
-  const [nya, setNya] = useState(false);
+  // Default-nya membuat periode, bukan membiarkan kosong. Output tanpa periode
+  // tidak punya tabel periode dan tidak punya tombol unggah sama sekali, jadi
+  // yang terjadi setelah "Tambah Output" cuma baris output telanjang tanpa ada
+  // yang bisa diklik. Periode tetap bisa dimatikan lewat checkbox-nya.
+  const [nya, setNya] = useState(form.mode === "tambah");
 
   const totalPeriode = jumlahPeriode(target);
 
