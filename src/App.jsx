@@ -349,7 +349,7 @@ export default function App() {
   // perpindahan halaman. Dokumen yang baru diunggah ditautkan ke periodenya di
   // selesaiUpload.
   const handleUnggahPeriode = (form, onProgress, uploadOpts = {}) =>
-    handleUpload(form, onProgress, { returnPage: "kertas-kerja", ...uploadOpts });
+    handleUpload(form, onProgress, { returnPage: "kertas-kerja", docId: uploadOpts.docId, ...uploadOpts });
 
   // Dipanggil setelah GAS selesai menyimpan dokumen. Kalau upload dipicu dari
   // Kertas Kerja, tautkan doc_id ke periodenya dan kembali ke halaman asal —
