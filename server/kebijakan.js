@@ -59,6 +59,7 @@ const ATURAN = [
   // /api/kertas-kerja/bulk tidak akan cocok dengan /api/kertas-kerja dan
   // jatuh ke default LOGIN. Padahal membuat output adalah hak admin.
   t('POST', ADMIN, '/api/kertas-kerja/bulk'),
+  t('POST', ADMIN, '/api/kertas-kerja/pengingat'),
   t('PUT', ADMIN, '/api/kertas-kerja/[^/]+'),
   t('DELETE', ADMIN, '/api/kertas-kerja/[^/]+'),
   t('POST', ADMIN, '/api/kertas-kerja/[^/]+/generate'),

@@ -518,6 +518,18 @@ return (
         <div style={{ fontSize: 11, color: T.textMuted, marginTop: 4 }}>{output.indikator}</div>
       )}
 
+      {/* pic_nama sudah menyelesaikan NIP di server. Kalau tidak ada, tampilkan
+          apa adanya: pic_id bisa berisi teks bebas untuk PIC tanpa akun. */}
+      {output.pic_nama && (
+        <div style={{ fontSize: 11, color: T.textSecondary, marginTop: 4, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+          <Icon name="users" size={11} style={{ color: T.textMuted, flexShrink: 0 }} />
+          <span style={{ fontWeight: 500 }}>{output.pic_nama}</span>
+          {output.pic_unit && (
+            <span style={{ color: T.textMuted }}>· {output.pic_unit}</span>
+          )}
+        </div>
+      )}
+
       {output.periods.length === 0 ? (
         <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 7, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <Icon name="alert" size={12} style={{ color: "#D97706" }} />

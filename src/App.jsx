@@ -928,7 +928,7 @@ if (!user) {
                   </span>
                 </div>
               )}
-              <NotificationDropdown userId={user.id} />
+              <NotificationDropdown userId={user.nip} onBukaKertasKerja={() => setPage("kertas-kerja")} />
               {!isMobile && (
                 <>
                   <div style={{ fontSize: 13, color: T.textSecondary }}>

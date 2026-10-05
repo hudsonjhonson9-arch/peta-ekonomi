@@ -112,7 +112,8 @@ export function useIndikator() {
 export function useNotifications(userId) {
   return useQuery({
     queryKey: ['notifications', userId],
-    queryFn: () => api(`/api/notifications?user_id=${userId}`),
+    // Tanpa query string: server mem-filter sendiri dari session.
+    queryFn: () => api('/api/notifications'),
     enabled: !!userId,
     refetchInterval: POLLING,
   });

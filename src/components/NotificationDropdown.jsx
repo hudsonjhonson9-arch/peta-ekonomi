@@ -18,7 +18,9 @@ function timeAgo(dateStr) {
   return `${days}h lalu`;
 }
 
-export default function NotificationDropdown({ userId }) {
+// onBukaKertasKerja opsional: dipakai supaya notifikasi deadline bisa langsung
+// melompat ke halaman yang relevan. Notifikasi lain tetap tidak berpindah.
+export default function NotificationDropdown({ userId, onBukaKertasKerja }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const { data: notifs = [] } = useNotifications(userId);
@@ -31,13 +33,25 @@ export default function NotificationDropdown({ userId }) {
     return () => document.removeEventListener("mousedown", close);
   }, []);
 
+  // Notifikasi deadline perlu dilihat di tempat periodenya, jadi klik-nya
+  // membuka Kertas Kerja. Notifikasi dokumen belum punya perilaku klik
+  // (masih TODO di docs/SPEC-fitur-arsip.md), jadi tidak ikut berpindah.
+  const klikNotif = n => {
+    if (!n.is_read) markRead(n.id);
+    if (n.kertas_kerja_id && onBukaKertasKerja) {
+      setOpen(false);
+      onBukaKertasKerja();
+    }
+  };
+
   const markRead = async (id) => {
     await api(`/api/notifications/${id}/read`, "PATCH");
     queryClient.invalidateQueries(["notifications", userId]);
   };
 
   const markAllRead = async () => {
-    await api("/api/notifications/read-all", "POST", { user_id: userId });
+    // user_id tidak lagi dikirim: server membacanya dari session.
+    await api("/api/notifications/read-all", "POST", {});
     queryClient.invalidateQueries(["notifications", userId]);
   };
 
@@ -84,7 +98,7 @@ export default function NotificationDropdown({ userId }) {
             ) : notifs.map(n => (
               <div
                 key={n.id}
-                onClick={() => { if (!n.is_read) markRead(n.id); }}
+                onClick={() => klikNotif(n)}
                 style={{
                   display: "flex", gap: 10, padding: "10px 16px",
                   background: n.is_read ? T.card : T.surfaceHover,
@@ -101,7 +115,15 @@ export default function NotificationDropdown({ userId }) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: n.is_read ? 400 : 600, color: T.text, marginBottom: 2 }}>{n.title}</div>
-                  <div style={{ fontSize: 12, color: T.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.message}</div>
+                  {/* Isi notifikasi deadline memuat output, tanggal, dan nama
+                      PIC. Baris satu dengan ellipsis justru membuang bagian
+                      yang membuat notifikasi itu berguna, jadi boleh membungkus
+                      maksimal tiga baris. */}
+                  <div style={{
+                    fontSize: 12, color: T.textSecondary,
+                    display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                  }}>{n.message}</div>
                   <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>{timeAgo(n.created_at)}</div>
                 </div>
                 {!n.is_read && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#2563EB", flexShrink: 0, marginTop: 4 }} />}

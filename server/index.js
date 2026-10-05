@@ -394,6 +394,12 @@ jalankanMigration('tahap_2', [
   // tabel kertas_kerja sudah ada. Dijalankan tanpa fallback agar error
   // (mis. search_path salah) tetap terlihat di log.
   .then(() => jalankanMigration('tahap_3', ['kertas_kerja'], true))
+  // Tahap 4: kolom pengingat deadline pada notifications. Dijalankan tanpa
+  // fallback juga, dan bukan seperti tahap_1/2: fallback di runner bernilai
+  // "tabel sudah ada -> lewati", yang justru berbahaya untuk migration yang
+  // menambah kolom. Kalau ALTER-nya gagal, ketahuan sebagai "dilewati" dan
+  // pengingat deadline diam-diam tidak pernah terkirim.
+  .then(() => jalankanMigration('tahap_4', ['notifications', 'kertas_kerja', 'kertas_kerja_periode'], true))
   .then(jalankanSeed);
 
 const queryDB = async (sql, params = []) => {
@@ -582,9 +588,20 @@ app.post('/api/docs', async (req, res) => {
     );
     // Notify all admins about new upload
     try {
-      const admins = await queryDB(`SELECT id FROM user_list WHERE role = 'Admin' OR id = (SELECT id FROM user_list WHERE "NIP" = $1)`, [pelamar.id || pelamar.nama]);
+      // Disaring lewat user_credentials, bukan user_list: kolom role di
+      // user_list tidak sinkron dengan user_credentials (mapRoleToDb menulis
+      // 'ADMIN'/'KABID'/'USER' huruf besar), jadi "role = 'Admin'" tidak pernah
+      // cocok dan hanya pengunggah yang diberi tahu.
+      //
+      // Notifikasi memakai NIP sebagai user_id. Nilai di sini yang disimpan
+      // user_credentials.nip, jadi harus NIP juga supaya tidak menabrak identitas
+      // session.
+      const admins = (await queryDB(`SELECT c.nip, c.role FROM user_credentials c`))
+        .filter(r => PERINGKAT[normalisasiRole(r.role)] >= PERINGKAT[R_REVIEWER]);
       for (const a of admins) {
-        createNotification(a.id, 'Dokumen Baru', `"${title}" diunggah oleh ${pelamar.nama || 'System'}.`, 'info', result.rows[0].id);
+        // Menunggu: tanpa await, INSERT bisa berjalan setelah respons terkirim
+        // dan hilang kalau proses keburu restart.
+        await createNotification(a.nip, 'Dokumen Baru', `"${title}" diunggah oleh ${pelamar.nama || 'System'}.`, 'info', result.rows[0].id);
       }
     } catch (_) {}
     res.json({ message: 'Dokumen berhasil diunggah', doc: result.rows[0] });
@@ -1607,12 +1624,17 @@ app.get('/api/pks/tree', async (req, res) => {
     const kkRows = await queryDB(
       `SELECT k.id, k.subkegiatan_id, k.nama, k.indikator, k.frekuensi,
               k.target_per_tahun, k.bulan_wajib, k.deadline_rule, k.pic_id, k.keterangan,
+               COALESCE(ul.username, k.pic_id) AS pic_nama, ul.bidang AS pic_unit,
                p.id AS periode_id, p.periode, p.periode_label,
                TO_CHAR(p.deadline, 'YYYY-MM-DD') AS deadline, p.is_wajib,
                p.doc_id, p.catatan, p.uploaded_by, p.uploaded_at,
                d.judul AS doc_judul, d.status AS doc_status
        FROM kertas_kerja k
        JOIN pks_subkegiatan s ON s.id = k.subkegiatan_id
+       -- Nama PIC diselesaikan di server, bukan di klien: /api/users hanya
+       -- untuk admin, jadi user biasa tidak punya daftar untuk dipetakan dari
+       -- NIP. COALESCE menjaga PIC yang diisi teks bebas tetap tampil apa adanya.
+       LEFT JOIN user_list ul ON ul."NIP" = k.pic_id
        LEFT JOIN kertas_kerja_periode p ON p.kertas_kerja_id = k.id AND p.tahun = $1
        LEFT JOIN bapperida_dokumen d ON d.id = p.doc_id
        WHERE s.tahun = $1 AND k.is_active
@@ -1628,7 +1650,8 @@ app.get('/api/pks/tree', async (req, res) => {
           id: r.id, subkegiatan_id: r.subkegiatan_id, nama: r.nama, indikator: r.indikator,
           frekuensi: r.frekuensi, target_per_tahun: r.target_per_tahun,
           bulan_wajib: r.bulan_wajib, deadline_rule: r.deadline_rule,
-          pic_id: r.pic_id, keterangan: r.keterangan, periods: [],
+          pic_id: r.pic_id, pic_nama: r.pic_nama, pic_unit: r.pic_unit,
+          keterangan: r.keterangan, periods: [],
         });
       }
       if (r.periode_id != null) {
@@ -1724,6 +1747,169 @@ app.get('/api/pks/deadline-terdekat', async (req, res) => {
     res.status(500).json({ error: 'Gagal mengambil deadline terdekat' });
   }
 });
+
+// ── Pengingat deadline untuk PIC dan reviewer ────────────────────────────
+//
+// Dipisah dari endpoint di atas supaya perhitungan ambang hanya ada di satu
+// tempat: pratinjau manual dan pengiriman terjadwal memakai aturan yang sama.
+//
+// Ambang bertingkat supaya orang tidak diberi tahu setiap hari: satu periode
+// menerima paling banyak tiga pesan (T-7, T-3, lalu lewat). Ubah di
+// AMBANG_PENGINGAT kalau ritmenya perlu lain.
+//
+// Ambang ditulis menaik dan itu disengaja. ambangUntuk() mengembalikan
+// threshold terkecil yang masih >= sisa_hari, jadi urutan daftar menentukan
+// hasilnya: sisa_hari 3 harus jatuh ke bucket 3 hari, bukan ke 7 hari.
+// Dengan [3, 7] satu periode tidak menerima pesan T-7 dan T-3 sekaligus di
+// jam yang sama.
+const AMBANG_PENGINGAT = [3, 7];
+const JANGKAU_CARI = Math.max(...AMBANG_PENGINGAT) + 1;
+
+// Pengaman: kalau nanti ambangnya diperbanyak, satu periode dengan banyak
+// penerima tidak boleh membanjiri. dedupe_key tetap satu-satunya penghalang
+// duplikasi yang sesungguhnya.
+const BATAS_NOTIFIKASI_PER_JALAN = 500;
+
+// Deadline dibaca dari kolomnya, bukan dihitung ulang dari deadline_rule: admin
+// boleh menulis ulang deadline per periode, jadi derivasi ulang bisa melenceng.
+const cariDeadlineButuhPengingat = async () => queryDB(`
+  SELECT p.id AS periode_id,
+         p.tahun,
+         p.periode,
+         p.periode_label,
+         TO_CHAR(p.deadline, 'YYYY-MM-DD') AS deadline,
+         (p.deadline - CURRENT_DATE) AS sisa_hari,
+         k.id AS output_id,
+         k.nama AS output,
+         s.kode AS sub_kode,
+         -- COALESCE, bukan nilai user_list mentah: pic_id boleh berisi teks
+         -- bebas kalau PIC tidak punya akun, dan pesan tetap perlu menyebut
+         -- namanya.
+         COALESCE(ul.username, k.pic_id) AS pic_nama,
+         k.pic_id,
+         -- Hanya NIP yang punya kredensial bisa menerima notifikasi. PIC yang
+         -- namanya diketik bebas tidak punya akun untuk dituju.
+         (c.nip IS NOT NULL) AS pic_bisa_login
+    FROM kertas_kerja_periode p
+    JOIN kertas_kerja k ON k.id = p.kertas_kerja_id AND k.is_active
+    JOIN pks_subkegiatan s ON s.id = k.subkegiatan_id
+    LEFT JOIN user_list ul ON ul."NIP" = k.pic_id
+    LEFT JOIN user_credentials c ON c.nip = k.pic_id
+   WHERE p.is_wajib AND p.doc_id IS NULL
+     AND p.deadline <= CURRENT_DATE + $1::int
+   ORDER BY p.deadline ASC`,
+  [JANGKAU_CARI]);
+
+// Bucket deadline untuk satu baris: threshold terkecil yang masih >= sisa_hari.
+// Sisa_hari 2 dan 3 sama-sama masuk T-3; sisa_hari 5 dan 7 masuk T-7.
+const ambangUntuk = sisaHari => {
+  if (sisaHari < 0) return 'lewat';
+  for (const a of AMBANG_PENGINGAT) if (sisaHari <= a) return a;
+  return null;
+};
+
+// Pesan untuk satu periode. Ditulis sebagai fungsi supaya judul dan isi T-3
+// dan T-lewat tidak terlihat berbeda tanpa disengaja.
+const susunPesan = (b, ambang) => {
+  const dasar = `"${b.output}" (${b.sub_kode}) periode ${b.periode_label}`;
+  const siapa = b.pic_nama ? `PIC: ${b.pic_nama}.` : 'PIC belum diisi.';
+  return ambang === 'lewat'
+    ? {
+        title: 'Deadline lewat',
+        message: `${dasar} sudah lewat pada ${b.deadline}. ${siapa}`,
+        type: 'warning',
+      }
+    : {
+        title: `Deadline ${ambang} hari lagi`,
+        message: `${dasar} jatuh tempo ${b.deadline}. ${siapa}`,
+        type: 'info',
+      };
+};
+
+const kirimPengingatDeadline = async () => {
+  try {
+    const baris = await cariDeadlineButuhPengingat();
+    const perlu = baris
+      .map(b => ({ ...b, ambang: ambangUntuk(Number(b.sisa_hari)) }))
+      .filter(b => b.ambang !== null);
+    if (!perlu.length) return { terkirim: 0, dilewati: 0 };
+
+    // Reviewer + admin. Disaring di JS dengan normalisasiRole karena
+    // user_credentials.role bisa berisi 'Reviewer' maupun 'KABID', dan tabel
+    // itu tidak punya kolom active untuk dicek.
+    const reviewer = (await queryDB(`SELECT nip, role FROM user_credentials`))
+      .filter(r => PERINGKAT[normalisasiRole(r.role)] >= PERINGKAT[R_REVIEWER])
+      .map(r => r.nip);
+
+    const pesan = [];
+    for (const b of perlu) {
+      // Set supaya reviewer yang kebetulan juga jadi PIC tidak menerima dua
+      // notifikasi identik untuk periode yang sama.
+      const penerima = new Set(reviewer);
+      if (b.pic_bisa_login && b.pic_id) penerima.add(b.pic_id);
+      const { title, message, type } = susunPesan(b, b.ambang);
+      for (const nip of penerima) {
+        pesan.push({
+          dedupe_key: `${b.periode_id}:${b.ambang}:${nip}`,
+          user_id: nip, title, message, type,
+          kertas_kerja_id: b.output_id, periode_id: b.periode_id,
+        });
+      }
+      if (pesan.length >= BATAS_NOTIFIKASI_PER_JALAN) break;
+    }
+    if (!pesan.length) return { terkirim: 0, dilewati: 0 };
+
+    // Satu INSERT untuk semua pesan. ON CONFLICT DO NOTHING membuat
+    // pengulangan menjadi no-op tanpa perlu cek-select per pesan, dan
+    // rowCount hanya menghitung yang benar-benar baru.
+    //
+    // Predikat WHERE pada ON CONFLICT wajib ikut ditulis supaya Postgres
+    // mengindeks unique index parsial yang dibuat di migration tahap_4.
+    const hasil = await pool.query(
+      `INSERT INTO notifications
+         (user_id, title, message, type, kertas_kerja_id, periode_id, dedupe_key)
+       SELECT * FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::int[], $6::int[], $7::text[])
+       ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
+       RETURNING id`,
+      [
+        pesan.map(p => p.user_id), pesan.map(p => p.title),
+        pesan.map(p => p.message), pesan.map(p => p.type),
+        pesan.map(p => p.kertas_kerja_id), pesan.map(p => p.periode_id),
+        pesan.map(p => p.dedupe_key),
+      ]
+    );
+    const terkirim = hasil.rowCount;
+    return { terkirim, dilewati: pesan.length - terkirim, ambang: perlu.length };
+  } catch (err) {
+    // Jangan sampai satu kegagalan menjatuhkan proses: interval akan mencoba
+    // lagi pada jalannya berikutnya.
+    console.error('Pengingat deadline error:', err.message);
+    return { terkirim: 0, error: err.message };
+  }
+};
+
+// Jalankan pengingat sekarang tanpa menunggu jadwal. Untuk administrator yang
+// sedang menunggu notifikasi muncul di lonceng reviewer, atau untuk memastikan
+// setelah deploy. Keringanan karena dedupe_key: menjalankannya dua kali tidak
+// menghasilkan pesan ganda.
+app.post('/api/kertas-kerja/pengingat', async (req, res) => {
+  const hasil = await kirimPengingatDeadline();
+  res.json({
+    ...hasil,
+    pesan: hasil.error ? 'Gagal mengirim pengingat' : 'Pengingat deadline diproses',
+  });
+});
+
+// Dijalankan dari app.listen, bukan dari request: pengingat harus tetap
+// terkirim saat tidak ada browser yang terbuka.
+const mulaiPengingatDeadline = () => {
+  const ms = 60 * 60 * 1000;
+  // Tunda jalannya pertama supaya tidak berebut dengan migration tahap_4 yang
+  // masih berjalan saat boot.
+  setTimeout(() => { kirimPengingatDeadline(); }, 15000);
+  setInterval(() => { kirimPengingatDeadline(); }, ms);
+  console.log(`Pengingat deadline aktif (setiap ${Math.round(ms / 60000)} menit)`);
+};
 
 // ── CRUD tiap level pohon ────────────────────────────────────────────────
 app.get('/api/pks/:level', async (req, res) => {
@@ -2882,12 +3068,21 @@ app.delete('/api/bankdata/triwulan/:level/:id', async (req, res) => {
 });
 
 // ── Notifications ────────────────────────────────────────────────────────
+//
+// user_id dibaca dari session, bukan dari query atau body. Sebelumnya keduanya
+// datang dari klien, jadi user yang sudah login bisa melihat dan menandai
+// notifikasi milik orang lain hanya dengan menebak id-nya. Mirror dari
+// identitas lain: req.pengguna.nip.
+//
+// Standar identitas notifikasi adalah NIP, sama dengan req.pengguna.nip,
+// doc_history.actor_id, dan user_credentials.nip.
 app.get('/api/notifications', async (req, res) => {
-  const userId = req.query.user_id;
-  if (!userId) return res.status(400).json({ error: 'user_id wajib' });
+  const userId = req.pengguna?.nip;
+  if (!userId) return res.status(400).json({ error: 'Sesi tidak memuat NIP' });
   try {
     const rows = await queryDB(
-      `SELECT id, title, message, type, doc_id, is_read, created_at
+      `SELECT id, title, message, type, doc_id, is_read, created_at,
+              kertas_kerja_id, periode_id
        FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50`,
       [userId]
     );
@@ -2915,8 +3110,16 @@ app.post('/api/notifications', async (req, res) => {
 });
 
 app.patch('/api/notifications/:id/read', async (req, res) => {
+  const userId = req.pengguna?.nip;
+  if (!userId) return res.status(400).json({ error: 'Sesi tidak memuat NIP' });
   try {
-    await queryDB('UPDATE notifications SET is_read = TRUE WHERE id = $1', [req.params.id]);
+    // user_id ikut jadi syarat WHERE, bukan hanya id: tanpa itu notifikasi
+    //milik orang lain ikut ditandai terbaca.
+    const rows = await queryDB(
+      'UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2 RETURNING id',
+      [req.params.id, userId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Notifikasi tidak ditemukan' });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Gagal update notifikasi' });
@@ -2924,10 +3127,15 @@ app.patch('/api/notifications/:id/read', async (req, res) => {
 });
 
 app.post('/api/notifications/read-all', async (req, res) => {
-  const { user_id } = req.body;
-  if (!user_id) return res.status(400).json({ error: 'user_id wajib' });
+  const userId = req.pengguna?.nip;
+  if (!userId) return res.status(400).json({ error: 'Sesi tidak memuat NIP' });
   try {
-    await queryDB('UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE', [user_id]);
+    // is_read IS NOT FALSE, bukan IS FALSE: kolomnya nullable dan baris NULL
+    // akan tersingkir dari UPDATE sehingga tidak pernah ditandai terbaca.
+    await queryDB(
+      'UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read IS NOT TRUE',
+      [userId]
+    );
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Gagal update notifikasi' });
@@ -3031,5 +3239,6 @@ app.listen(PORT, () => {
   // log, bukan baru ketahuan setelah pengguna mencoba login.
   periksaKonfigurasiSession();
   periksaPemisahanSecret();
+  mulaiPengingatDeadline();
   console.log(`Server berjalan di port ${PORT} [${isProd ? 'production' : 'development'}]`);
 });
