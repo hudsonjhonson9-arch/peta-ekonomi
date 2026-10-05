@@ -46,6 +46,33 @@ export function rahasia() {
   return s && s.trim().length >= PANJANG_MINIMUM ? s : null;
 }
 
+// SESSION_SECRET dan UPLOAD_API_KEY tidak boleh bernilai sama.
+//
+// Keduanya adalah kunci HMAC untuk hal berbeda, tapi kebetulan memakai fungsi
+// yang sama: header x-upload-key juga dibandingkan dengan perbandingan waktu-tetap
+// di atas. Kalau keduanya sama, siapa pun yang membaca UPLOAD_API_KEY (misalnya
+// dari isi repo publik, karena Code.gs ikut ter-commit) otomatis bisa menandatangani
+// cookie session untuk NIP admin. Jadi upload key bocor berarti seluruh session
+// bocor juga.
+export function periksaPemisahanSecret() {
+  const s = process.env.SESSION_SECRET;
+  const k = process.env.UPLOAD_API_KEY;
+  if (s && k && s.trim() === k.trim()) {
+    console.error(
+      '\n' +
+      '!'.repeat(72) + '\n' +
+      'SESSION_SECRET sama dengan UPLOAD_API_KEY. Ini tidak aman.\n' +
+      'UPLOAD_API_KEY dipakai sebagai kunci untuk melewati session, jadi\n' +
+      'keduanya yang sama berarti siapa pun yang tahu upload key bisa\n' +
+      'menandatangani cookie session untuk NIP admin.\n' +
+      'Ganti keduanya dengan dua nilai acak yang berbeda.\n' +
+      '!'.repeat(72) + '\n'
+    );
+    return false;
+  }
+  return true;
+}
+
 // Dipanggil sekali saat boot supaya masalah konfigurasi terlihat di log
 // Coolify, bukan baru ketahuan saat semua request mulai 500.
 export function periksaKonfigurasiSession() {

@@ -11,7 +11,7 @@ import { susunPatchPeriode } from './patch-periode.js';
 import {
   NAMA_COOKIE, MASA_JAM, R_ADMIN, R_REVIEWER, R_STAF,
   normalisasiRole, rahasia, buatToken, verifikasiTokenDetail,
-  periksaKonfigurasiSession,
+  periksaKonfigurasiSession, periksaPemisahanSecret,
   bacaCookie, pasangCookie, lepasCookie, PANJANG_MINIMUM,
 } from './session.js';
 import { kebutuhan, PUBLIK, LOGIN, REVIEW, ADMIN } from './kebijakan.js';
@@ -2927,5 +2927,6 @@ app.listen(PORT, () => {
   // Dicek paling awal supaya konfigurasi session yang salah langsung terlihat di
   // log, bukan baru ketahuan setelah pengguna mencoba login.
   periksaKonfigurasiSession();
+  periksaPemisahanSecret();
   console.log(`Server berjalan di port ${PORT} [${isProd ? 'production' : 'development'}]`);
 });
