@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext, useRef } from "react";
+import { useState, useEffect, useContext, useRef, useMemo } from "react";
 import { ThemeContext } from "../App.jsx";
 import useResponsive from "../useResponsive.js";
 
@@ -156,6 +156,200 @@ export function formatBytes(bytes) {
   return bytes > 1048576
     ? (bytes / 1048576).toFixed(1) + " MB"
     : (bytes / 1024).toFixed(0) + " KB";
+}
+
+// Select yang bisa diketik dan dicari, bukan <select> native.
+//
+// Dipakai untuk memilih PIC di Kertas Kerja: daftar pengguna sudah ada di
+// /api/users, tapi tidak semua orang yang menjadi PIC punya akun, jadi daftar
+// saja tidak cukup. Karena itu teks bebas tetap diterima, dan daftar hanya
+// membantu — bukan membatasi.
+//
+// Panel dibangun di sini, bukan memakai <datalist> atau <select>: keduanya
+// pencarian dan tampilannya dikontrol browser, jadi tidak seragam antar browser
+// dan warnanya tidak bisa ikut tema aplikasi.
+export function CariPilih({
+  value = "",
+  onChange,
+  opsi = [],
+  placeholder = "Cari atau ketik…",
+  label = "",
+  style,
+  disabled = false,
+}) {
+  const { T } = useContext(ThemeContext);
+  const [buka, setBuka] = useState(false);
+  const [cari, setCari] = useState("");
+  const [sorot, setSorot] = useState(0);
+  const [rect, setRect] = useState(null);
+  const boxRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Panel memakai position fixed, bukan absolute, karena form ini berada dalam
+  // dialog yang bodinya overflow-y:auto. Panel absolute akan terpotong tepi
+  // dialog dan ikut bergulir bersama isinya — persis yang terjadi kalau field-nya
+  // ada di bagian bawah form, seperti PIC di Kertas Kerja.
+  useEffect(() => {
+    if (!buka || !inputRef.current) { setRect(null); return; }
+    const hitung = () => {
+      const r = inputRef.current.getBoundingClientRect();
+      setRect({ top: r.bottom, left: r.left, width: r.width });
+    };
+    hitung();
+    window.addEventListener("scroll", hitung, true);
+    window.addEventListener("resize", hitung);
+    return () => {
+      window.removeEventListener("scroll", hitung, true);
+      window.removeEventListener("resize", hitung);
+    };
+  }, [buka]);
+
+  // Teks yang diketik tidak langsung jadi value: kalau tidak, mengetik tiga
+  // huruf memicu onChange tiga kali dan daftar ikut berkedip. Value ditulis
+  // saat memilih dari daftar, atau saat blur/Tab dengan teks sisa.
+  const tampil = buka ? cari : (value || "");
+
+  // Pencarian menyasar nama, NIP, dan unit. NIP sering diketik tanpa tanda
+  // pemisah, jadi spasi, titik, dan tanda hubung dibuang dari kedua sisi.
+  const normal = s => String(s || "").toLowerCase().replace(/[\s.-]/g, "");
+  const cocok = useMemo(() => {
+    const q = normal(cari);
+    if (!q) return opsi;
+    return opsi.filter(o =>
+      normal(o.label).includes(q) ||
+      normal(o.sub).includes(q) ||
+      normal(o.hint).includes(q)
+    );
+  }, [cari, opsi]);
+
+  // True saat ada teks yang diketik tapi belum pernah jadi value.
+  const sisaKetikan = !!cari.trim() && cari.trim() !== value;
+  useEffect(() => {
+    const tutup = e => {
+      if (boxRef.current && !boxRef.current.contains(e.target)) {
+        setBuka(false);
+        // Sisa ketikan tetap dipakai. PIC yang tidak punya akun harus tetap
+        // bisa diisi namanya.
+        if (sisaKetikan) onChange(cari.trim());
+      }
+    };
+    document.addEventListener("mousedown", tutup);
+    return () => document.removeEventListener("mousedown", tutup);
+  }, [cari, value, sisaKetikan, onChange]);
+
+  useEffect(() => { setSorot(0); }, [cari]);
+
+  const pilih = o => {
+    onChange(o.value);
+    setBuka(false);
+    setCari("");
+    inputRef.current?.focus();
+  };
+
+  const onKeyDown = e => {
+    if (!buka && (e.key === "ArrowDown" || e.key === "Enter")) { setBuka(true); return; }
+    if (e.key === "ArrowDown") { e.preventDefault(); setSorot(s => Math.min(s + 1, cocok.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setSorot(s => Math.max(s - 1, 0)); }
+    else if (e.key === "Escape") { setBuka(false); setCari(""); }
+    else if (e.key === "Enter") {
+      e.preventDefault();
+      const o = cocok[sorot];
+      if (o) pilih(o);
+      else if (cari.trim()) { onChange(cari.trim()); setBuka(false); setCari(""); }
+    } else if (e.key === "Tab") {
+      if (sisaKetikan) onChange(cari.trim());
+      setBuka(false);
+    }
+  };
+
+  const listId = `cari-pilih-${Math.random().toString(36).slice(2, 9)}`;
+  // Tanpa ruang di bawah, daftar dibuka ke atas supaya tidak keluar layar.
+  const keAtas = window.innerHeight - rect?.top < 230;
+
+  return (
+    <div ref={boxRef} style={style}>
+      {label ? (
+        <span style={{ fontSize: 11.5, color: T.textSecondary, display: "block", marginBottom: 4, fontWeight: 500 }}>
+          {label}
+        </span>
+      ) : null}
+      <div style={{ position: "relative" }}>
+        <input
+          ref={inputRef}
+          value={tampil}
+          disabled={disabled}
+          role="combobox"
+          aria-expanded={buka}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          onChange={e => { setCari(e.target.value); setBuka(true); }}
+          onFocus={() => setBuka(true)}
+          onKeyDown={onKeyDown}
+          placeholder={placeholder}
+          style={{
+            width: "100%", height: 36, boxSizing: "border-box",
+            padding: "0 28px 0 10px", fontSize: 12.5, fontFamily: "inherit",
+            color: T.text, background: T.inputBg || T.bg,
+            border: `1px solid ${buka ? T.primary : T.inputBorder}`,
+            borderRadius: 8, outline: "none", opacity: disabled ? 0.6 : 1,
+          }}
+        />
+        <span style={{
+          position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)",
+          pointerEvents: "none", color: T.textMuted, display: "flex",
+        }}>
+          <Icon name="chevronDown" size={13} style={{ transform: buka ? "rotate(180deg)" : "", transition: "transform .15s" }} />
+        </span>
+      </div>
+
+      {buka && rect && (
+        <div
+          id={listId}
+          role="listbox"
+          style={{
+            position: "fixed", zIndex: 60,
+            left: rect.left, width: rect.width,
+            ...(keAtas
+              ? { bottom: window.innerHeight - rect.top + 4 }
+              : { top: rect.top + 4 }),
+            maxHeight: 220, overflowY: "auto",
+            background: T.card, border: `1px solid ${T.border}`, borderRadius: 9,
+            boxShadow: "0 8px 24px rgba(0,0,0,.18)",
+          }}
+        >
+          {cocok.length === 0 ? (
+            <div style={{ padding: "10px 12px", fontSize: 11.5, color: T.textMuted }}>
+              {cari.trim() ? "Tidak ada pengguna cocok. Tekan Enter untuk memakai nama ini." : "Belum ada pengguna."}
+            </div>
+          ) : cocok.map((o, i) => (
+            <div
+              key={o.value}
+              role="option"
+              aria-selected={i === sorot}
+              onMouseDown={e => { e.preventDefault(); pilih(o); }}
+              onMouseEnter={() => setSorot(i)}
+              style={{
+                padding: "7px 12px", cursor: "pointer",
+                background: i === sorot ? (T.surfaceHover || T.hover || "rgba(127,127,127,.08)") : "transparent",
+              }}
+            >
+              <div style={{ fontSize: 12.5, color: T.text, fontWeight: 500 }}>{o.label}</div>
+              {(o.sub || o.hint) ? (
+                <div style={{ fontSize: 10.5, color: T.textMuted, marginTop: 1 }}>
+                  {[o.sub, o.hint].filter(Boolean).join(" · ")}
+                </div>
+              ) : null}
+            </div>
+          ))}
+          {sisaKetikan && (
+            <div style={{ padding: "7px 12px", fontSize: 11.5, color: T.textSecondary, borderTop: `1px solid ${T.border}` }}>
+              Pakai <strong style={{ color: T.primary }}>{cari.trim()}</strong> sebagai isian bebas
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Dialog generik. Semua form yang sebelumnya dirender inline di bawah halaman

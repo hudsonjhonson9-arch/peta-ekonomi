@@ -1,11 +1,11 @@
 import { useState, useContext, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Icon, Modal } from "./ui.jsx";
+import { Icon, Modal, CariPilih } from "./ui.jsx";
 import UploadForm from "./UploadForm.jsx";
 import { PksRingkasan, DeadlineList } from "./PksRingkasan.jsx";
 import { ThemeContext } from "../App.jsx";
 import {
-  api, usePksTree, usePksTahun, usePksRingkasan, usePksDeadlineTerdekat,
+  api, usePksTree, usePksTahun, usePksRingkasan, usePksDeadlineTerdekat, useUsers,
 } from "../hooks.js";
 import {
   FREKUENSI, DEADLINE_PRESET, DEADLINE_DEFAULT, canManageOutput,
@@ -36,6 +36,20 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
   const { data: tree, isLoading, isError } = usePksTree(tahun);
   const { data: ringkasan } = usePksRingkasan(tahun);
   const { data: deadline = [] } = usePksDeadlineTerdekat(tahun);
+
+  // Daftar pengguna untuk dropdown PIC. Hanya diambil kalau user boleh menambah
+  // output, karena /api/users restricted ke admin dan request sia-sia akan
+  // berakhir 403.
+  const { data: usersList = [] } = useUsers(admin);
+  // Nilai yang disimpan adalah NIP kalau PIC dipilih dari daftar, supaya tetap
+  // unambik meski nama orang diubah. Nama ditampilkan sebagai keterangan, dan
+  // teks bebas tetap diterima karena tidak semua PIC punya akun.
+  const opsiPengguna = useMemo(() => usersList.map(u => ({
+    value: u.nip || u.name,
+    label: u.name,
+    sub: u.unit && u.unit !== "—" ? u.unit : "",
+    hint: u.nip || "",
+  })), [usersList]);
 
   // Default ke tahun terbaru yang benar-benar punya data. Server mengurutkan
   // tahun terisi lebih dulu, jadi elemen pertama adalah kandidat terbaik.
@@ -195,6 +209,7 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
 
       {formOutput && (
         <FormOutput form={formOutput} admin={admin} user={user} sibuk={sibuk} setSibuk={setSibuk}
+          opsiPengguna={opsiPengguna}
           onTutup={() => setFormOutput(null)}
           onSelesai={() => { setFormOutput(null); reload(); }}
           showToast={showToast} />
@@ -605,72 +620,142 @@ function BarisPeriode({ T, p, admin, onEdit, onUnggah, reload, showToast, judul,
 }
 
 // ── Form output (tambah / ubah) ──────────────────────────────────────────
-function FormOutput({ form, admin, user, sibuk, setSibuk, onTutup, onSelesai, showToast }) {
+//
+// Satu periode bisa punya beberapa laporan dengan deadline berbeda, jadi saat
+// menambah output formnya bisa berisi banyak baris. Tiap baris punya
+// frekuensi, target, dan aturan deadline sendiri — itulah yang membuat
+// "Laporan Bulanan" dan "Laporan Tahunan" bisa hidup berdampingan.
+//
+// Ubah output tetap satu baris: output yang sudah ada punya id dan periodenya,
+// menambah baris saat ubah akan jadi output baru, bukan pengubahan.
+const barisOutput = awal => ({
+  nama: "", indikator: "", frekuensi: "Tahunan", target: 1,
+  bulanWajib: "*", deadlineRule: DEADLINE_DEFAULT.Tahunan, pic: "", keterangan: "",
+  ...(awal || {}),
+});
+
+function FormOutput({ form, admin, user, sibuk, setSibuk, onTutup, onSelesai, showToast, opsiPengguna = [] }) {
   const { T } = useContext(ThemeContext);
   const o = form.output;
-  const [nama, setNama] = useState(o?.nama || "");
-  const [indikator, setIndikator] = useState(o?.indikator || "");
-  const [frekuensi, setFrekuensi] = useState(o?.frekuensi || "Tahunan");
-  const [target, setTarget] = useState(o?.target_per_tahun || 1);
-  const [bulanWajib, setBulanWajib] = useState(o?.bulan_wajib || "*");
-  const [deadlineRule, setDeadlineRule] = useState(o?.deadline_rule || DEADLINE_DEFAULT.Tahunan);
-  const [pic, setPic] = useState(o?.pic_id || "");
-  const [keterangan, setKeterangan] = useState(o?.keterangan || "");
+  const banyak = form.mode === "tambah";
+  const [baris, setBaris] = useState(() => [barisOutput({
+    nama: o?.nama || "", indikator: o?.indikator || "", frekuensi: o?.frekuensi || "Tahunan",
+    target: o?.target_per_tahun || 1, bulanWajib: o?.bulan_wajib || "*",
+    deadlineRule: o?.deadline_rule || DEADLINE_DEFAULT.Tahunan,
+    pic: o?.pic_id || "", keterangan: o?.keterangan || "",
+  })]);
   // Default-nya membuat periode, bukan membiarkan kosong. Output tanpa periode
   // tidak punya tabel periode dan tidak punya tombol unggah sama sekali, jadi
   // yang terjadi setelah "Tambah Output" cuma baris output telanjang tanpa ada
   // yang bisa diklik. Periode tetap bisa dimatikan lewat checkbox-nya.
-  const [nya, setNya] = useState(form.mode === "tambah");
+  const [nya, setNya] = useState(banyak);
 
-  const totalPeriode = jumlahPeriode(target);
+  const ubahBaris = (i, patch) =>
+    setBaris(bs => bs.map((b, j) => (j === i ? { ...b, ...patch } : b)));
 
   // Ganti frekuensi → ikut sesuaikan pilihan deadline yang valid.
-  const gantiFrekuensi = v => {
-    setFrekuensi(v);
+  const gantiFrekuensi = (i, v) => {
     const opsi = DEADLINE_PRESET[v] || [];
-    if (!opsi.some(d => d.value === deadlineRule)) setDeadlineRule(DEADLINE_DEFAULT[v]);
+    ubahBaris(i, {
+      frekuensi: v,
+      deadlineRule: opsi.some(d => d.value === baris[i].deadlineRule) ? baris[i].deadlineRule : DEADLINE_DEFAULT[v],
+    });
   };
 
   // Target = jumlah dokumen setahun, jadi frekuensi harus ikut menyesuaikan.
-  const gantiTarget = v => {
-    setTarget(v);
-    gantiFrekuensi(frekuensiDariTarget(v));
+  const gantiTarget = (i, v) => {
+    const t = parseInt(v, 10) || 1;
+    ubahBaris(i, { target: t, frekuensi: frekuensiDariTarget(t) });
   };
+
+  const tambahBaris = () =>
+    setBaris(bs => [...bs, barisOutput({ frekuensi: bs[bs.length - 1]?.frekuensi })]);
+
+  const hapusBaris = i => setBaris(bs => (bs.length === 1 ? bs : bs.filter((_, j) => j !== i)));
 
   const submit = async ev => {
     ev.preventDefault();
     if (sibuk) return;
-    if (!nama.trim()) return showToast("Nama output wajib diisi.");
+
+    // Baris dengan nama kosong diabaikan, bukan digagalkan. Sisa baris kosong
+    // itu lebih sering terjadi karena baris ekstra yang diklik lalu dibiarkan.
+    const isi = baris.filter(b => b.nama.trim());
+    if (!isi.length) return showToast("Nama output wajib diisi.");
+    const kosong = baris.length - isi.length;
+
+    // Indeks baris di form untuk setiap baris yang benar-benar dikirim.
+    // Server membalas satu entri hasil per entri payload, jadi nomor hasil
+    // harus dipetakan balik ke baris form lewat daftar ini. Memakai indeks
+    // hasil langsung akan salah begitu ada baris kosong yang disisipkan user di
+    // tengah.
+    const indeksKeBaris = [];
+    baris.forEach((b, i) => { if (b.nama.trim()) indeksKeBaris.push(i); });
 
     setSibuk(true);
-    const body = {
-      nama: nama.trim(),
-      indikator: indikator.trim(),
-      frekuensi,
-      target_per_tahun: parseInt(target, 10) || 1,
-      bulan_wajib: bulanWajib.trim() || "*",
-      deadline_rule: deadlineRule,
-      pic_id: pic.trim() || null,
-      keterangan: keterangan.trim() || null,
-    };
-
     try {
-      if (form.mode === "tambah") {
-        body.subkegiatan_id = form.sub.id;
-        body.tahun = form.tahun;
-        body.created_by = user.name;
-        const res = await api("/api/kertas-kerja", "POST", body);
+      if (form.mode === "edit") {
+        const b = isi[0];
+        await api(`/api/kertas-kerja/${o.id}`, "PUT", {
+          nama: b.nama.trim(), indikator: b.indikator.trim(),
+          frekuensi: b.frekuensi, target_per_tahun: parseInt(b.target, 10) || 1,
+          bulan_wajib: b.bulanWajib.trim() || "*", deadline_rule: b.deadlineRule,
+          pic_id: b.pic.trim() || null, keterangan: b.keterangan.trim() || null,
+        });
+        showToast(`Output "${b.nama.trim()}" diperbarui.`);
+        onSelesai();
+        return;
+      }
+
+      const payload = isi.map(b => ({
+        nama: b.nama.trim(), indikator: b.indikator.trim(),
+        frekuensi: b.frekuensi, target_per_tahun: parseInt(b.target, 10) || 1,
+        bulan_wajib: b.bulanWajib.trim() || "*", deadline_rule: b.deadlineRule,
+        pic_id: b.pic.trim() || null, keterangan: b.keterangan.trim() || null,
+      }));
+
+      // Satu baris tetap lewat endpoint lama supaya perilakunya sama seperti
+      // sebelumnya, termasuk generate terpisah. Banyak baris lewat bulk, yang
+      // sudah membuat periodenya per baris sesuai deadline masing-masing.
+      if (payload.length === 1) {
+        const res = await api("/api/kertas-kerja", "POST", {
+          ...payload[0], subkegiatan_id: form.sub.id, tahun: form.tahun, created_by: user.name,
+        });
         if (nya) {
           const g = await api(`/api/kertas-kerja/${res.row.id}/generate`, "POST", { tahun: form.tahun });
-          showToast(`Output "${body.nama}" ditambahkan dengan ${g.dibuat} periode ${form.tahun}.`);
+          showToast(`Output "${payload[0].nama}" ditambahkan dengan ${g.dibuat} periode ${form.tahun}.`);
         } else {
-          showToast(`Output "${body.nama}" ditambahkan.Buat periodenya lewat ikon kalender.`);
+          showToast(`Output "${payload[0].nama}" ditambahkan. Buat periodenya lewat tombol Unggah di baris output.`);
         }
-      } else {
-        await api(`/api/kertas-kerja/${o.id}`, "PUT", body);
-        showToast(`Output "${body.nama}" diperbarui.`);
+        onSelesai();
+        return;
       }
-      onSelesai();
+
+      const res = await api("/api/kertas-kerja/bulk", "POST", {
+        subkegiatan_id: form.sub.id, tahun: form.tahun,
+        created_by: user.name, buat_periode: nya, outputs: payload,
+      });
+
+      // Kegagalan per baris dilaporkan apa adanya. Kalau ada yang bentrok nama,
+      // user perlu tahu baris mana supaya tidak mengira semuanya gagal.
+      const gagal = res.hasil.filter(h => !h.ok);
+      if (!gagal.length) {
+        const totalPeriodeBaru = res.hasil.reduce((a, h) => a + (h.dibuat || 0), 0);
+        showToast(`${res.sukses} output ditambahkan${nya ? ` dengan ${totalPeriodeBaru} periode ${form.tahun}` : ""}.`);
+        onSelesai();
+      } else {
+        // Ada yang gagal tapi sebagian berhasil: baris yang gagal dibiarkan
+        // di form supaya bisa diperbaiki, sedangkan yang sudah berhasil hilang
+        // dari form karena sudah ada di server.
+        //
+        // Disaring berdasarkan indeks baris form, bukan indeks hasil, supaya
+        // baris kosong yang tersisip di tengah tidak membuat baris yang salah
+        // ikut terhapus.
+        const nomorGagal = new Set(
+          res.hasil.map((h, i) => (h.ok ? null : indeksKeBaris[i])).filter(i => i != null)
+        );
+        setBaris(bs => bs.filter((_, j) => nomorGagal.has(j)));
+        showToast(`${res.sukses} ditambahkan, ${gagal.length} gagal: ${gagal.map(g => g.nama || "(kosong)").join(", ")}. Baris yang gagal tetap ada di form.`);
+      }
     } catch (err) {
       showToast(await pesanError(err, "Gagal menyimpan output"));
     } finally {
@@ -680,83 +765,133 @@ function FormOutput({ form, admin, user, sibuk, setSibuk, onTutup, onSelesai, sh
 
   return (
     <Modal
-      title={form.mode === "tambah" ? "Tambah Output" : "Ubah Output"}
+      title={form.mode === "tambah" ? (baris.length > 1 ? `Tambah ${baris.length} Output` : "Tambah Output") : "Ubah Output"}
       subtitle={`Sub kegiatan ${form.sub.kode} · ${form.sub.nama}`}
       icon={form.mode === "tambah" ? "plus" : "edit"}
       onClose={onTutup}
-      maxWidth={560}
+      maxWidth={840}
       lockClose={sibuk}
     >
       <form onSubmit={submit}>
-        <label style={wrap}>
-          <span style={lbl(T)}>Nama output / dokumen *</span>
-          <input value={nama} onChange={e => setNama(e.target.value)}
-            placeholder="mis. Laporan Kinerja Triwulan I" style={inp(T)} autoFocus />
-        </label>
-
-        <label style={{ ...wrap, marginTop: 10 }}>
-          <span style={lbl(T)}>Indikator</span>
-          <input value={indikator} onChange={e => setIndikator(e.target.value)}
-            placeholder="opsional" style={inp(T)} />
-        </label>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginTop: 10 }}>
-          <label style={wrap}>
-            <span style={lbl(T)}>Frekuensi</span>
-            <select value={frekuensi} onChange={e => gantiFrekuensi(e.target.value)} style={inp(T)}>
-              {FREKUENSI.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-            </select>
-          </label>
-          <label style={wrap}>
-            <span style={lbl(T)}>Target per tahun</span>
-            <input type="number" min="1" value={target} onChange={e => gantiTarget(e.target.value)} style={inp(T)} />
-          </label>
-          <label style={wrap}>
-            <span style={lbl(T)}>PIC</span>
-            <input value={pic} onChange={e => setPic(e.target.value)} placeholder="NIP atau nama" style={inp(T)} />
-          </label>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <span style={{ fontSize: 11.5, color: T.textMuted, flex: 1 }}>
+            Tiap baris jadi satu output dengan deadline sendiri.
+          </span>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginTop: 10 }}>
-          <label style={wrap}>
-            <span style={lbl(T)}>Periode wajib</span>
-            <input value={bulanWajib} onChange={e => setBulanWajib(e.target.value)}
-              placeholder="* atau 1,3,5,7,9,11" style={inp(T)} />
-            <span style={{ fontSize: 10.5, color: T.textMuted, display: "block", marginTop: 3 }}>
-              * = semua {totalPeriode} periode wajib. Angka = nomor periode (1 = Januari/Bulan I).
-            </span>
-          </label>
-          <label style={wrap}>
-            <span style={lbl(T)}>Aturan deadline</span>
-            <select value={deadlineRule} onChange={e => setDeadlineRule(e.target.value)} style={inp(T)}>
-              {(DEADLINE_PRESET[frekuensi] || []).map(d =>
-                <option key={d.value} value={d.value}>{d.label}</option>
+        {baris.map((b, i) => (
+          <div key={i} style={{
+            border: `1px solid ${T.border}`, borderRadius: 9, padding: 12, marginTop: 10,
+            background: T.bg,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <span style={{
+                fontSize: 10, fontWeight: 700, color: T.textMuted,
+                background: T.surfaceHover, borderRadius: 999, padding: "2px 8px",
+              }}>
+                Output {i + 1}
+              </span>
+              <span style={{ fontSize: 10.5, color: T.textMuted, flex: 1 }}>
+                {jumlahPeriode(b.target)} periode/tahun · {labelDeadline(b.frekuensi, b.deadlineRule)}
+              </span>
+              {banyak && baris.length > 1 && (
+                <button type="button" onClick={() => hapusBaris(i)} title="Hapus baris ini" style={iconBtn(T)}>
+                  <Icon name="trash" size={11} />
+                </button>
               )}
-            </select>
-            <span style={{ fontSize: 10.5, color: T.textMuted, display: "block", marginTop: 3 }}>
-              Sekarang: {labelDeadline(frekuensi, deadlineRule)}
-            </span>
-          </label>
-        </div>
+            </div>
 
-        <label style={{ ...wrap, marginTop: 10 }}>
-          <span style={lbl(T)}>Keterangan</span>
-          <input value={keterangan} onChange={e => setKeterangan(e.target.value)} placeholder="opsional" style={inp(T)} />
-        </label>
+            <label style={wrap}>
+              <span style={lbl(T)}>Nama output / dokumen *</span>
+              <input value={b.nama} onChange={e => ubahBaris(i, { nama: e.target.value })}
+                placeholder="mis. Laporan Kinerja Triwulan I" style={inp(T)} autoFocus={i === 0} />
+            </label>
 
-        {form.mode === "tambah" && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginTop: 10 }}>
+              <label style={wrap}>
+                <span style={lbl(T)}>Frekuensi</span>
+                <select value={b.frekuensi} onChange={e => gantiFrekuensi(i, e.target.value)} style={inp(T)}>
+                  {FREKUENSI.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                </select>
+              </label>
+              <label style={wrap}>
+                <span style={lbl(T)}>Target per tahun</span>
+                <input type="number" min="1" value={b.target} onChange={e => gantiTarget(i, e.target.value)} style={inp(T)} />
+              </label>
+              <label style={wrap}>
+                <span style={lbl(T)}>Aturan deadline</span>
+                <select value={b.deadlineRule} onChange={e => ubahBaris(i, { deadlineRule: e.target.value })} style={inp(T)}>
+                  {(DEADLINE_PRESET[b.frekuensi] || []).map(d =>
+                    <option key={d.value} value={d.value}>{d.label}</option>
+                  )}
+                </select>
+              </label>
+            </div>
+
+            <details style={{ marginTop: 10 }}>
+              <summary style={{ fontSize: 11, color: T.textSecondary, cursor: "pointer" }}>
+                Detail (indikator, periode wajib, PIC, keterangan)
+              </summary>
+              <label style={{ ...wrap, marginTop: 8 }}>
+                <span style={lbl(T)}>Indikator</span>
+                <input value={b.indikator} onChange={e => ubahBaris(i, { indikator: e.target.value })}
+                  placeholder="opsional" style={inp(T)} />
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginTop: 10 }}>
+                <label style={wrap}>
+                  <span style={lbl(T)}>Periode wajib</span>
+                  <input value={b.bulanWajib} onChange={e => ubahBaris(i, { bulanWajib: e.target.value })}
+                    placeholder="* atau 1,3,5,7,9,11" style={inp(T)} />
+                  <span style={{ fontSize: 10.5, color: T.textMuted, display: "block", marginTop: 3 }}>
+                    * = semua {jumlahPeriode(b.target)} periode wajib.
+                  </span>
+                </label>
+                <CariPilih
+                  label="PIC"
+                  value={b.pic}
+                  onChange={v => ubahBaris(i, { pic: v })}
+                  opsi={opsiPengguna}
+                  placeholder="Cari nama atau NIP…"
+                  disabled={sibuk}
+                />
+              </div>
+              <label style={{ ...wrap, marginTop: 10 }}>
+                <span style={lbl(T)}>Keterangan</span>
+                <input value={b.keterangan} onChange={e => ubahBaris(i, { keterangan: e.target.value })}
+                  placeholder="opsional" style={inp(T)} />
+              </label>
+            </details>
+          </div>
+        ))}
+
+        {banyak && (
+          <button type="button" onClick={tambahBaris} disabled={sibuk || baris.length >= 50}
+            style={{
+              marginTop: 10, width: "100%", padding: "9px", fontSize: 12,
+              background: "transparent", color: T.primary, border: `1.5px dashed ${T.inputBorder}`,
+              borderRadius: 9, cursor: "pointer", display: "flex", alignItems: "center",
+              justifyContent: "center", gap: 6, fontFamily: "inherit",
+            }}>
+            <Icon name="plus" size={12} />
+            Tambah baris output lain ({baris.length}/50)
+          </button>
+        )}
+
+        {banyak && (
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 12 }}>
             <input type="checkbox" id="kk-otomatis" checked={nya} onChange={e => setNya(e.target.checked)}
               style={{ width: 14, height: 14, accentColor: T.primary, cursor: "pointer" }} />
             <label htmlFor="kk-otomatis" style={{ fontSize: 11.5, color: T.textSecondary, cursor: "pointer" }}>
-              Langsung buat {totalPeriode} periode untuk tahun {form.tahun} setelah disimpan
+              Langsung buat periode untuk setiap baris (deadline mengikuti aturan masing-masing)
             </label>
           </div>
         )}
 
         <div style={{ display: "flex", gap: 8, marginTop: 16, paddingTop: 14, borderTop: `1px solid ${T.border}` }}>
           <button type="submit" disabled={sibuk} style={btn(T, T.primary, "#fff", sibuk)}>
-            {sibuk ? "Menyimpan…" : "Simpan"}
+            {sibuk ? "Menyimpan…"
+              : form.mode === "edit" ? "Simpan"
+                : `Simpan${baris.filter(b => b.nama.trim()).length > 1 ? ` ${baris.filter(b => b.nama.trim()).length} output` : ""}`}
           </button>
           <button type="button" onClick={onTutup} disabled={sibuk} style={btn(T, "transparent", T.text, sibuk, T.inputBorder)}>Batal</button>
         </div>

@@ -5,14 +5,23 @@ import { ThemeContext } from "../App.jsx";
 
 export default function BankDataDashboard({ emptyMessage = null }) {
   const { T } = useContext(ThemeContext);
-  const { data: tree = [] } = useQuery({
+
+  // Response tidak pernah dijamin array: endpoint yang menolak atau sedang
+  // salah akan membalas { error: ... }, dan `data` lalu berisi objek. Karena
+  // `= []` hanya berlaku untuk undefined, objek itu lolos ke pemanggil dan
+  // .some() di bawah melempar TypeError yang menggagalkan seluruh halaman. Jadi
+  // bentuknya dinormalkan di satu tempat.
+  const ambilArray = d => (Array.isArray(d) ? d : []);
+  const { data: tree } = useQuery({
     queryKey: ['bankdata-dashboard'],
     queryFn: () => fetch('/api/bankdata').then(r => r.json())
   });
-  const { data: tahunList = [] } = useQuery({
+  const { data: tahunList } = useQuery({
     queryKey: ['bankdata-tahun'],
     queryFn: () => fetch('/api/bankdata/tahun').then(r => r.json())
   });
+  const data = ambilArray(tree);
+  const tahun = ambilArray(tahunList);
   const [expanded, setExpanded] = useState(() => {
     try { return JSON.parse(localStorage.getItem("bd-dashboard-open")) || {}; } catch { return {}; }
   });
@@ -25,16 +34,16 @@ export default function BankDataDashboard({ emptyMessage = null }) {
   const hitIkk = (k) => `${k.nama} ${k.aspek || ""}`.toLowerCase().includes(nq);
   const hitSekt = (ind) => `${ind.indikator} ${ind.aspek || ""}`.toLowerCase().includes(nq);
 
-  const shown = searching ? tree.map(b => {
-    const opds = b.opds.map(o => {
-      const ikus = o.ikus.map(i => {
-        const ikks = (i.ikks || []).filter(hitIkk);
+  const shown = searching ? data.map(b => {
+    const opds = ambilArray(b.opds).map(o => {
+      const ikus = ambilArray(o.ikus).map(i => {
+        const ikks = ambilArray(i.ikks).filter(hitIkk);
         if (hitIku(i)) return i;
         if (ikks.length) return { ...i, ikks };
         return null;
       }).filter(Boolean);
-      const sektorals = o.sektorals.map(s => {
-        const inds = s.indikator.filter(hitSekt);
+      const sektorals = ambilArray(o.sektorals).map(s => {
+        const inds = ambilArray(s.indikator).filter(hitSekt);
         if (inds.length) return { ...s, indikator: inds };
         return null;
       }).filter(Boolean);
@@ -43,11 +52,11 @@ export default function BankDataDashboard({ emptyMessage = null }) {
     }).filter(Boolean);
     if (opds.length) return { ...b, opds };
     return null;
-  }).filter(Boolean) : tree;
+  }).filter(Boolean) : data;
 
-  const hasData = shown.some(b => b.opds.some(o =>
-    o.sektorals.some(s => s.indikator.length) ||
-    o.ikus.some(i => (i.ikks || []).length || (i.nilai && i.nilai.length))
+  const hasData = shown.some(b => ambilArray(b.opds).some(o =>
+    ambilArray(o.sektorals).some(s => ambilArray(s.indikator).length) ||
+    ambilArray(o.ikus).some(i => ambilArray(i.ikks).length || (i.nilai && i.nilai.length))
   ));
   if (!hasData) {
     return emptyMessage ? (
@@ -94,7 +103,7 @@ export default function BankDataDashboard({ emptyMessage = null }) {
           {isOpen(`b${b.id}`) && (
             <div style={{ padding: "8px 12px" }}>
               {b.opds.map(o => (
-                <OPDView key={o.id} o={o} tahunList={tahunList} forceOpen={searching} expanded={expanded} toggle={toggle} T={T} />
+                <OPDView key={o.id} o={o} tahunList={tahun} forceOpen={searching} expanded={expanded} toggle={toggle} T={T} />
               ))}
             </div>
           )}
@@ -169,7 +178,7 @@ function SubHeader({ icon, label, name, expanded, onToggle, T }) {
 function ValueTable({ rows, tahunList, conf, hideAspek, T }) {
   const confA = conf === "iku" ? { k: "target", label: "Target" } : conf === "ikk" ? { k: "target", label: "Target" } : { k: "data", label: "Data" };
   const confB = conf === "iku" ? { k: "capaian", label: "Capaian" } : conf === "ikk" ? { k: "capaian", label: "Capaian" } : null;
-  const years = tahunList.length > 0 ? tahunList : [...new Set(rows.flatMap(r => r.nilai.map(n => n.tahun)))].sort();
+  const years = tahunList.length > 0 ? tahunList : [...new Set(rows.flatMap(r => (Array.isArray(r.nilai) ? r.nilai : []).map(n => n.tahun)))].sort();
   const [detail, setDetail] = useState(null); // { ind, tahun }
 
   if (years.length === 0) return null;

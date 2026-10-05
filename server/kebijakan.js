@@ -55,6 +55,10 @@ const ATURAN = [
   t('PUT', ADMIN, '/api/pks/[^/]+/[^/]+'),
   t('DELETE', ADMIN, '/api/pks/[^/]+/[^/]+'),
   t('POST', ADMIN, '/api/kertas-kerja'),
+  // Wajib ditulis eksplisit: pola di tabel di-anchor penuh, jadi
+  // /api/kertas-kerja/bulk tidak akan cocok dengan /api/kertas-kerja dan
+  // jatuh ke default LOGIN. Padahal membuat output adalah hak admin.
+  t('POST', ADMIN, '/api/kertas-kerja/bulk'),
   t('PUT', ADMIN, '/api/kertas-kerja/[^/]+'),
   t('DELETE', ADMIN, '/api/kertas-kerja/[^/]+'),
   t('POST', ADMIN, '/api/kertas-kerja/[^/]+/generate'),
@@ -64,7 +68,20 @@ const ATURAN = [
   // '(/x)*' dipakai supaya sub-path di semua tingkat ikut tertutup:
   // /api/users, /api/users/4, /api/bankdata/opd, /api/bankdata/iku/5.
   semua(ADMIN, '/api/users(/[^/]+)*'),
-  semua(ADMIN, '/api/bankdata(/[^/]+)*'),
+
+  // Baca bank data boleh untuk semua user yang sudah login. Halaman ini memang
+  // punya tampilan read-only untuk non-admin (BankDataReadOnly di App.jsx),
+  // jadi menutup bacanya jadi admin membuat halaman tersebut tidak pernah
+  // berisi apa-apa — dan sebelum aturan ini ada, bacanya jatuh ke default LOGIN
+  // dan justru bisa dipakai. Tulis tetap admin.
+  //
+  // Methodenya ditulis satu per satu, bukan pakai semua(), karena default-nya
+  // LOGIN: pola umum tanpa PENULISAN eksplisit akan membuka POST/PUT/DELETE.
+  t('GET', LOGIN, '/api/bankdata(/[^/]+)*'),
+  t('POST', ADMIN, '/api/bankdata(/[^/]+)*'),
+  t('PUT', ADMIN, '/api/bankdata(/[^/]+)*'),
+  t('PATCH', ADMIN, '/api/bankdata(/[^/]+)*'),
+  t('DELETE', ADMIN, '/api/bankdata(/[^/]+)*'),
 
   // ── Admin: seluruh metode tulis pada modul master data ─────────────────
   ...MODUL_ADMIN.flatMap(awalan => [

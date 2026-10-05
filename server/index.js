@@ -1944,15 +1944,20 @@ app.get('/api/kertas-kerja', async (req, res) => {
   }
 });
 
-app.post('/api/kertas-kerja', async (req, res) => {
-  const b = req.body;
-  const tahun = parseInt(b.tahun, 10);
-  if (!b.subkegiatan_id) return res.status(400).json({ error: 'Sub kegiatan wajib dipilih' });
-  if (!b.nama || !String(b.nama).trim()) return res.status(400).json({ error: 'Nama output wajib diisi' });
-  if (!b.frekuensi) return res.status(400).json({ error: 'Frekuensi wajib dipilih' });
-  if (!tahun) return res.status(400).json({ error: 'Tahun wajib diisi' });
+// Satu output: insert baris kertas_kerja, lalu bila diminta buat periodenya.
+// Dipakai oleh POST /api/kertas-kerja (satu per satu) dan POST /api/kertas-kerja/bulk
+// (beberapa sekaligus) supaya keduanya tidak bisa berbeda perilaku.
+async function buatOutputDanPeriode(b, tahun, buatPeriode) {
+  // Output dan periodenya dibuat dalam satu transaksi. Tanpa itu, kalau
+  // INSERT periode gagal di tengah jalan, output-nya sudah terlanjur ada tapi
+  // periodenya belum lengkap — dan karena nama output jadi bentrok saat user
+  // mencoba ulang, halaman selesai memberi tahu gagal padahal masalahnya bukan
+  // di isian user. Transaksi membuat kegagalan berikutnya tidak meninggalkan sisa.
+  const client = await pool.connect();
   try {
-    const rows = await queryDB(`
+    await client.query('BEGIN');
+
+    const ins = await client.query(`
       INSERT INTO kertas_kerja
         (subkegiatan_id, nama, indikator, frekuensi, target_per_tahun,
          bulan_wajib, deadline_rule, pic_id, keterangan, created_by)
@@ -1963,7 +1968,97 @@ app.post('/api/kertas-kerja', async (req, res) => {
        b.deadline_rule || 'year_end', b.pic_id || null, b.keterangan || null,
        b.created_by || null]
     );
-    res.json({ message: 'Output berhasil ditambahkan', row: rows[0] });
+    const kk = ins.rows[0];
+
+    let dibuat = 0;
+    const periodeBaru = [];
+    if (buatPeriode) {
+      const rencana = rencanaPeriode(kk.frekuensi, tahun, kk.target_per_tahun);
+      const wajibSet = hitungBulanWajib(kk.bulan_wajib, rencana.length);
+      for (const p of rencana) {
+        const r = await client.query(`
+          INSERT INTO kertas_kerja_periode
+            (kertas_kerja_id, tahun, periode, periode_label, deadline, is_wajib)
+          VALUES ($1,$2,$3,$4,$5,$6)
+          ON CONFLICT (kertas_kerja_id, tahun, periode) DO NOTHING
+          RETURNING id, deadline`,
+          [kk.id, tahun, p.periode, p.label,
+           hitungDeadline(kk.deadline_rule, tahun, p.periode), wajibSet.has(p.periode)]
+        );
+        if (r.rows.length) {
+          dibuat += 1;
+          periodeBaru.push({ id: r.rows[0].id, periode: p.periode, label: p.label, deadline: r.rows[0].deadline });
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+    return { row: kk, dibuat, periodeBaru };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// Tambah banyak output sekaligus, satu sub kegiatan, satu tahun.
+//
+// Setiap output boleh punya frekuensi, target, dan aturan deadline sendiri,
+// jadi satu periode bisa punya beberapa laporan dengan deadline berbeda.
+// Per-output dilindungi try/catch: satu nama yang bentrok tidak boleh
+// menggagalkan output lain yang sudah berhasil.
+app.post('/api/kertas-kerja/bulk', async (req, res) => {
+  const b = req.body;
+  const tahun = parseInt(b.tahun, 10);
+  if (!b.subkegiatan_id) return res.status(400).json({ error: 'Sub kegiatan wajib dipilih' });
+  if (!tahun) return res.status(400).json({ error: 'Tahun wajib diisi' });
+  if (!Array.isArray(b.outputs) || !b.outputs.length)
+    return res.status(400).json({ error: 'Tidak ada output untuk ditambahkan' });
+  if (b.outputs.length > 50)
+    return res.status(400).json({ error: 'Maksimal 50 output sekaligus' });
+
+  const buatPeriode = b.buat_periode !== false;
+  const hasil = [];
+
+  for (const [i, o] of b.outputs.entries()) {
+    const nama = String(o?.nama || '').trim();
+    if (!nama) { hasil.push({ nama: '', ok: false, error: 'Nama output kosong' }); continue; }
+    try {
+      const r = await buatOutputDanPeriode({
+        ...o, nama, subkegiatan_id: b.subkegiatan_id,
+        created_by: o.created_by || b.created_by || null,
+      }, tahun, buatPeriode);
+      hasil.push({ nama, ok: true, id: r.row.id, dibuat: r.dibuat, periodeBaru: r.periodeBaru });
+    } catch (err) {
+      if (err.code === '23505') {
+        hasil.push({ nama, ok: false, error: `Output "${nama}" sudah ada di sub kegiatan ini` });
+      } else {
+        console.error(`Bulk kertas kerja error (baris ${i + 1}):`, err);
+        hasil.push({ nama, ok: false, error: 'Gagal menyimpan output' });
+      }
+    }
+  }
+
+  const sukses = hasil.filter(h => h.ok).length;
+  res.json({
+    message: `${sukses} dari ${hasil.length} output ditambahkan`,
+    sukses, gagal: hasil.length - sukses, hasil, buatPeriode,
+  });
+});
+
+app.post('/api/kertas-kerja', async (req, res) => {
+  const b = req.body;
+  const tahun = parseInt(b.tahun, 10);
+  if (!b.subkegiatan_id) return res.status(400).json({ error: 'Sub kegiatan wajib dipilih' });
+  if (!b.nama || !String(b.nama).trim()) return res.status(400).json({ error: 'Nama output wajib diisi' });
+  if (!b.frekuensi) return res.status(400).json({ error: 'Frekuensi wajib dipilih' });
+  if (!tahun) return res.status(400).json({ error: 'Tahun wajib diisi' });
+  try {
+    // Periode sengaja tidak dibuat di sini. Klien yang butuh periode memanggil
+    // /generate supaya generate satu kali untuk semua output di form banyak.
+    const r = await buatOutputDanPeriode(b, tahun, false);
+    res.json({ message: 'Output berhasil ditambahkan', row: r.row });
   } catch (err) {
     if (err.code === '23505') {
       return res.status(409).json({ error: `Output "${b.nama}" sudah ada di sub kegiatan ini` });
