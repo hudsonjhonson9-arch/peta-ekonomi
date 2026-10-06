@@ -24,14 +24,14 @@ function normalisasiHeader(h) {
     .trim();
 }
 
-// Koerce harga: buang "Rp", spasi, titik ribuan, koma desimal → number.
-// "1.500.500,00" → 1500500; "Rp 65.000" → 65000; "65000.50" → 65000.5.
+// Koerce harga teks: aturan literal brief — titik = ribuan, koma = desimal.
+// Buang semua karakter non-numerik (Rp, spasi, huruf), buang semua titik,
+// lalu koma pertama → titik. "Rp 65.000" → 65000; "1.500.500,00" → 1500500.
+// Sel angka (cell numerik) sudah datang sebagai number → jalur atas.
 function keHarga(v) {
   if (typeof v === 'number') return Number.isFinite(v) ? v : NaN;
-  let s = String(v ?? '').trim().toLowerCase().replace(/rp/g, '').replace(/\s+/g, '');
+  const s = String(v ?? '').replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
   if (!s) return NaN;
-  if (s.includes(',')) s = s.replace(/\./g, '').replace(/,/g, '.');
-  else if ((s.match(/\./g) || []).length > 1) s = s.replace(/\./g, '');
   const n = Number(s);
   return Number.isFinite(n) ? n : NaN;
 }
@@ -45,8 +45,10 @@ const KOLOM_TEKS = [
 // Baris tanpa uraian_barang ATAU dengan harga yang gagal dikoerce/<0 → dilewati.
 // Jika semua baris gugur → {ok:false, error}.
 export function validasiUpload(tahun, jenis, rows) {
-  const t = Number(tahun);
-  if (!Number.isInteger(t)) return { ok: false, error: 'tahun harus int' };
+  // String kosong/null → Number('') === 0 lolos isInteger; tolak dulu sebelum koerce.
+  const teks = String(tahun ?? '').trim();
+  const t = Number(teks);
+  if (!teks || !Number.isInteger(t)) return { ok: false, error: 'tahun harus int' };
   if (jenis !== 'SSH' && jenis !== 'SBU') return { ok: false, error: 'jenis harus SSH atau SBU' };
   if (!Array.isArray(rows) || rows.length === 0) return { ok: false, error: 'tidak ada baris' };
 

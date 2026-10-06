@@ -48,13 +48,22 @@ uji('baris valid lolos semua field', () => {
   }]);
 });
 
-// 3. Format ribuan Indonesia: titik = ribuan, koma = desimal.
-uji('harga "1.500.500,00" → 1500500', () => {
+// 3. Format ribuan Indonesia: titik = ribuan, koma = desimal (jalur teks).
+uji('harga teks Indonesia: "1.500.500,00" → 1500500', () => {
   const r = validasiUpload(2026, 'SSH', [
     { 'URAIAN BARANG': 'Kabel NYM 3x2.5', 'HARGA SATUAN': '1.500.500,00' },
   ]);
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(r.items[0].harga_satuan, 1500500);
+
+  // Aturan literal: tanpa koma sekalipun, titik di teks tetap pemisah ribuan.
+  const r2 = validasiUpload(2026, 'SSH', [
+    { 'URAIAN BARANG': 'Semen', 'HARGA SATUAN': 'Rp 65.000' },
+    { 'URAIAN BARANG': 'Pipa', 'HARGA SATUAN': '65.000' },
+  ]);
+  assert.equal(r2.ok, true, JSON.stringify(r2));
+  assert.equal(r2.items[0].harga_satuan, 65000, '"Rp 65.000" → 65000');
+  assert.equal(r2.items[1].harga_satuan, 65000, '"65.000" → 65000');
 });
 
 // 4. Baris tanpa uraian (atau harga gugur) dilewati; semua gugur → error.
@@ -79,10 +88,14 @@ uji('uraian kosong di-skip; semua gugur → ok:false', () => {
 });
 
 // 5. Jenis di luar ['SSH','SBU'] ditolak sebelum memproses baris.
-uji('jenis tak dikenal → ok:false', () => {
+uji('jenis tak dikenal / tahun kosong → ok:false', () => {
   const r = validasiUpload(2026, 'LAIN', [{ 'URAIAN BARANG': 'X', 'HARGA SATUAN': '1' }]);
   assert.equal(r.ok, false);
   assert.equal(typeof r.error, 'string');
+  // Tahun kosong harus ditolak, bukan jatuh ke Number('') === 0.
+  assert.equal(validasiUpload('', 'SSH', [{ 'URAIAN BARANG': 'X', 'HARGA SATUAN': '1' }]).ok, false);
+  assert.equal(validasiUpload('  ', 'SSH', [{ 'URAIAN BARANG': 'X', 'HARGA SATUAN': '1' }]).ok, false);
+  assert.equal(validasiUpload(null, 'SSH', [{ 'URAIAN BARANG': 'X', 'HARGA SATUAN': '1' }]).ok, false);
 });
 
 console.log('filterDaftar');
