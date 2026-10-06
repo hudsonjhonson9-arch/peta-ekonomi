@@ -3099,15 +3099,15 @@ app.post('/api/bankdata/indikator/:level', async (req, res) => {
   const { level } = req.params;
   const conf = BD_CONF[level];
   if (!conf || !conf.indTable) return res.status(400).json({ error: 'Level tidak memakai indikator' });
-  const { indikator, sumber_data, aspek } = req.body;
+  const { indikator, sumber_data, aspek, satuan } = req.body;
   const parentId = req.body[conf.indParentKey];
   if (!parentId || !indikator) return res.status(400).json({ error: 'Indikator wajib diisi' });
   try {
     const max = await queryDB(`SELECT COALESCE(MAX(urutan), 0) + 1 AS next FROM ${conf.indTable} WHERE ${conf.indParentKey} = $1`, [parentId]);
     const result = await queryDB(
-      `INSERT INTO ${conf.indTable} (${conf.indParentKey}, indikator, sumber_data, aspek, urutan)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [parentId, indikator.trim(), sumber_data ?? null, aspek ?? null, max[0].next]
+      `INSERT INTO ${conf.indTable} (${conf.indParentKey}, indikator, sumber_data, aspek, satuan, urutan)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [parentId, indikator.trim(), sumber_data ?? null, aspek ?? null, satuan ?? null, max[0].next]
     );
     res.json({ message: 'Indikator berhasil ditambahkan', indikator: result[0] });
   } catch (err) {
@@ -3120,12 +3120,12 @@ app.put('/api/bankdata/indikator/:level/:id', async (req, res) => {
   const { level, id } = req.params;
   const conf = BD_CONF[level];
   if (!conf || !conf.indTable) return res.status(400).json({ error: 'Level tidak memakai indikator' });
-  const { indikator, sumber_data, aspek } = req.body;
+  const { indikator, sumber_data, aspek, satuan } = req.body;
   if (!indikator) return res.status(400).json({ error: 'Indikator wajib diisi' });
   try {
     await queryDB(
-      `UPDATE ${conf.indTable} SET indikator = $1, sumber_data = $2, aspek = $3 WHERE id = $4`,
-      [indikator.trim(), sumber_data ?? null, aspek ?? null, id]
+      `UPDATE ${conf.indTable} SET indikator = $1, sumber_data = $2, aspek = $3, satuan = $4 WHERE id = $5`,
+      [indikator.trim(), sumber_data ?? null, aspek ?? null, satuan ?? null, id]
     );
     res.json({ message: 'Indikator berhasil diperbarui' });
   } catch (err) {

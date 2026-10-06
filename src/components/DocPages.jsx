@@ -1029,10 +1029,14 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
       {/* ── Floating Action Bar (Bulk Selection) ── */}
       {selectionMode && selectedIds.size > 0 && (
         <div style={{
-          position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+          position: "fixed", bottom: isMobile ? 76 : 24, left: "50%", transform: "translateX(-50%)",
+          // Mobile: baris tombol muat lebarnya; batasi selebar layar dan
+          // bungkus supaya tidak keluar viewport. bottom 76 = di atas BottomNav.
+          width: "max-content", maxWidth: "calc(100vw - 24px)",
           background: T.card, borderRadius: 16, padding: "12px 20px",
           boxShadow: "0 8px 32px rgba(0,0,0,0.2)", border: `1px solid ${T.border}`,
-          display: "flex", alignItems: "center", gap: 12, zIndex: 1000,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexWrap: "wrap", gap: 12, zIndex: 1000,
         }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: T.text, marginRight: 4, whiteSpace: "nowrap" }}>
             {selectedIds.size} dipilih

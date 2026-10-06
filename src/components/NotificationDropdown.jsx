@@ -3,6 +3,7 @@ import { Icon } from "./ui.jsx";
 import { useNotifications, api } from "../hooks.js";
 import { queryClient } from "../main.jsx";
 import { ThemeContext } from "../App.jsx";
+import useResponsive from "../useResponsive.js";
 
 const TYPE_ICON = { info: "bell", success: "check", warning: "x" };
 const TYPE_COLOR = { info: "#2563EB", success: "#059669", warning: "#DC2626" };
@@ -25,6 +26,7 @@ export default function NotificationDropdown({ userId, onBukaKertasKerja }) {
   const ref = useRef(null);
   const { data: notifs = [] } = useNotifications(userId);
   const { T } = useContext(ThemeContext);
+  const { isMobile } = useResponsive();
   const unread = notifs.filter(n => !n.is_read).length;
 
   useEffect(() => {
@@ -76,8 +78,13 @@ export default function NotificationDropdown({ userId, onBukaKertasKerja }) {
 
       {open && (
         <div style={{
-          position: "absolute", top: "calc(100% + 8px)", right: 0,
-          width: 340, maxHeight: 400, background: T.card, borderRadius: 12,
+          // Mobile: bell ada di ujung kanan topbar, jadi panel absolut yang
+          // lebarnya 340px meluber ke kiri keluar layar (mis. viewport 360px).
+          // Panel dipaku ke viewport selebar layar dengan jarak 14px.
+          ...(isMobile
+            ? { position: "fixed", top: 54, left: 14, right: 14, width: "auto" }
+            : { position: "absolute", top: "calc(100% + 8px)", right: 0, width: 340 }),
+          maxHeight: 400, background: T.card, borderRadius: 12,
           boxShadow: "0 10px 40px rgba(0,0,0,0.15)", border: `1px solid ${T.border}`,
           overflow: "hidden", zIndex: 999,
         }}>

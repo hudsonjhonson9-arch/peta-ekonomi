@@ -289,11 +289,11 @@ function IndikatorPanel({ level, parentId, parentLabel, list, tahunList, form, s
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{ind.indikator}</div>
                   <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
-                    {ind.sumber_data ? `Sumber: ${ind.sumber_data}` : "" || "—"}
+                    {[ind.sumber_data ? `Sumber: ${ind.sumber_data}` : "", ind.satuan ? `Satuan: ${ind.satuan}` : ""].filter(Boolean).join(" · ") || "—"}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
-                  <button onClick={() => openForm(level, parentId, ind.id, { indikator: ind.indikator, sumber_data: ind.sumber_data || "" })}
+                  <button onClick={() => openForm(level, parentId, ind.id, { indikator: ind.indikator, sumber_data: ind.sumber_data || "", satuan: ind.satuan || "" })}
                     style={{ padding: 4, background: "none", border: "none", cursor: "pointer", color: T.textMuted, display: "flex" }}>
                     <Icon name="edit" size={13} />
                   </button>
@@ -320,7 +320,8 @@ function IndikatorForm({ title, values, setVal, submit, cancel, T }) {
       <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, marginBottom: 10 }}>{title}</div>
       {[
         { k: "indikator", label: "Indikator" },
-        { k: "sumber_data", label: "Sumber Data" }
+        { k: "sumber_data", label: "Sumber Data" },
+        { k: "satuan", label: "Satuan" }
       ].map(f => (
         <label key={f.k} style={{ display: "block", marginBottom: 8 }}>
           <span style={{ fontSize: 11, color: T.textSecondary, marginBottom: 3, display: "block" }}>{f.label}</span>
@@ -608,7 +609,7 @@ function OpdContent(props) {
   const ds = o.sektorals[0];
 
   const submitIkuEdit = (id) => async () => {
-    const body = { nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, satuan: (form.values.satuan || "").trim() || null };
+    const body = { nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, aspek: (form.values.aspek || "").trim() || null, satuan: (form.values.satuan || "").trim() || null };
     if (!body.nama) return showToast("Nama IKU wajib diisi");
     const res = await fetch(`/api/bankdata/iku/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (!res.ok) return showToast((await res.json()).error);
@@ -656,7 +657,7 @@ function OpdContent(props) {
             <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
               <EntityHead bare level="iku" node={iku} expandedKey={`i${iku.id}`} expanded={expanded[`i${iku.id}`]} onToggle={() => toggle(`i${iku.id}`)}
                 extraCount={ikusDesc(iku)}
-                onEdit={() => { if (!expanded[`i${iku.id}`]) toggle(`i${iku.id}`); openFormForEntity("iku", o.id, iku.id, { nama: iku.nama, sumber_data: iku.sumber_data || "", aspek: iku.aspek || "" }); }}
+                onEdit={() => { if (!expanded[`i${iku.id}`]) toggle(`i${iku.id}`); openFormForEntity("iku", o.id, iku.id, { nama: iku.nama, sumber_data: iku.sumber_data || "", aspek: iku.aspek || "", satuan: iku.satuan || "" }); }}
                 onDel={() => delEntity("iku", iku.id, iku.nama, "IKU")} T={T} />
 
               {expanded[`i${iku.id}`] && (
@@ -680,8 +681,8 @@ function OpdContent(props) {
                 </div>
                 <InlineEntityAdd label="Tambah IKK" show={form && form.level === "ikk" && form.parentId === iku.id && !form.editId}
                   onOpen={() => openFormForEntity("ikk", iku.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
-                  title="IKK baru" fields={[{ k: "nama", label: "Nama IKK" }, { k: "sumber_data", label: "Sumber Data" }, { k: "aspek", label: "Aspek" }, { k: "satuan", label: "Satuan" }, { k: "satuan", label: "Satuan" }]} submit={async () => {
-                    const body = { iku_id: iku.id, nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, satuan: (form.values.satuan || "").trim() || null };
+                  title="IKK baru" fields={[{ k: "nama", label: "Nama IKK" }, { k: "sumber_data", label: "Sumber Data" }, { k: "aspek", label: "Aspek" }, { k: "satuan", label: "Satuan" }]} submit={async () => {
+                    const body = { iku_id: iku.id, nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, aspek: (form.values.aspek || "").trim() || null, satuan: (form.values.satuan || "").trim() || null };
                     if (!body.nama) return showToast("Nama IKK wajib diisi");
                     const res = await fetch('/api/bankdata/ikk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                     if (!res.ok) return showToast((await res.json()).error);
@@ -728,7 +729,7 @@ function IkkRow({ ikk, ikuId, form, setForm, cancelForm, openFormForEntity, relo
   const diisi = (ikk.nilai || []).length;
 
   const submitEdit = async () => {
-    const body = { nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, satuan: (form.values.satuan || "").trim() || null };
+    const body = { nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, aspek: (form.values.aspek || "").trim() || null, satuan: (form.values.satuan || "").trim() || null };
     if (!body.nama) return showToast("Nama IKK wajib diisi");
     const res = await fetch(`/api/bankdata/ikk/${ikk.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (!res.ok) return showToast((await res.json()).error);
@@ -768,10 +769,10 @@ function IkkRow({ ikk, ikuId, form, setForm, cancelForm, openFormForEntity, relo
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{ikk.nama}<span style={{ fontWeight: 500, color: T.textMuted, marginLeft: 6 }}>{diisi ? `· ${diisi} tahun diisi` : ""}</span></div>
           <div style={{ fontSize: 11, color: T.textMuted }}>
-            {[ikk.sumber_data ? `Sumber: ${ikk.sumber_data}` : "", ikk.aspek ? `Aspek: ${ikk.aspek}` : ""].filter(Boolean).join(" · ") || "Klik untuk mengisi Target/Capaian per tahun"}
+            {[ikk.sumber_data ? `Sumber: ${ikk.sumber_data}` : "", ikk.aspek ? `Aspek: ${ikk.aspek}` : "", ikk.satuan ? `Satuan: ${ikk.satuan}` : ""].filter(Boolean).join(" · ") || "Klik untuk mengisi Target/Capaian per tahun"}
           </div>
         </div>
-        <button onClick={e => { e.stopPropagation(); openFormForEntity("ikk", ikuId, ikk.id, { nama: ikk.nama, sumber_data: ikk.sumber_data || "", aspek: ikk.aspek || "" }); }}
+        <button onClick={e => { e.stopPropagation(); openFormForEntity("ikk", ikuId, ikk.id, { nama: ikk.nama, sumber_data: ikk.sumber_data || "", aspek: ikk.aspek || "", satuan: ikk.satuan || "" }); }}
           style={{ padding: 4, background: "none", border: "none", cursor: "pointer", color: T.textMuted, display: "flex" }}>
           <Icon name="edit" size={13} />
         </button>
@@ -795,7 +796,7 @@ function IkuDataRow({ iku, tahunList, saveNilai, saveTriwulan, T }) {
   return (
     <div>
       <div style={{ fontSize: 11, color: T.textMuted, margin: "2px 2px 6px" }}>
-        {[iku.sumber_data ? `Sumber: ${iku.sumber_data}` : "", iku.aspek ? `Aspek: ${iku.aspek}` : ""].filter(Boolean).join(" · ") || "Isi Target/Capaian IKU per tahun di bawah"}
+        {[iku.sumber_data ? `Sumber: ${iku.sumber_data}` : "", iku.aspek ? `Aspek: ${iku.aspek}` : "", iku.satuan ? `Satuan: ${iku.satuan}` : ""].filter(Boolean).join(" · ") || "Isi Target/Capaian IKU per tahun di bawah"}
       </div>
       <NilaiTable level="iku" ind={iku} conf={LEVEL_CONF.iku} tahunList={tahunList}
         onSave={saveNilai} onSaveTw={saveTriwulan} T={T} />

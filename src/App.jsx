@@ -162,7 +162,7 @@ export default function App() {
   // sia-sia, dan hereof penuh 403 menutupi 403 yang penting.
   const siapAdmin = siap && user.role === "Admin";
 
-  const { data: serverDocs = [], isLoading: docsLoading } = useDocs(siap);
+  const { data: serverDocs = [], isLoading: docsLoading, isSuccess: docsReady } = useDocs(siap);
   const { data: logsData } = useLogs(siapAdmin);
   const { data: usersData } = useUsers(siapAdmin);
   const { data: categoriesData = [] } = useCategories(siap);
@@ -171,35 +171,30 @@ export default function App() {
 
   // Sync server data into local state, preserving local overrides
   useEffect(() => {
-    if (serverDocs.length === 0) return;
+    // Hanya merge kalau query benar-benar sukses. Saat initial load, query
+    // error, atau query disabled, serverDocs = [] — kalau dipaksa merge,
+    // list local dikosongkan padahal dokumennya belum tentu hilang.
+    if (!docsReady || !Array.isArray(serverDocs)) return;
     setDocs(prev => {
       const map = new Map(serverDocs.map(d => [d.id, d]));
-      // Untuk id yang sudah dikenal server, objek server dipakai utuh.
-      //
       // Entri optimistik hasil upload perlu DICOCOKKAN, bukan sekadar
       // dipertahankan. Id-nya dibuat lokal dengan Date.now(), sedangkan server
-      // memakai id baris bapperida_dokumen. Kalau lokal selalu kept karena id-nya
-      // tidak ada di server, begitu /api/docs menyusul dokumen yang sama sudah
-      // ada dua kali: satu dari server, satu lagi dari entri optimistik yang
-      // tidak pernahsuperseded. Url dipakai sebagai kunci pencocokan karena
-      // keduanya berasal dari GAS dan nilainya sama.
+      // memakai id baris bapperida_dokumen. Url dipakai sebagai kunci
+      // pencocokan karena keduanya berasal dari GAS dan nilainya sama.
       //
-      // Entri optimistik yang belum punya pasangan di server (request masih
-      // jalan) tetap disimpan supaya UI responsif.
+      // Selain entri optimistik, isi local adalah salinan server. Kalau sebuah
+      // id sudah tidak ada di serverDocs, dokumennya sudah dihapus klien lain —
+      // salinan lokalnya harus ikut hilang supaya semua klien melihat
+      // penghapusan yang sama. Entri optimistik yang belum punya pasangan di
+      // server (request upload masih jalan) tetap disimpan supaya UI
+      // responsif.
       const urlServer = new Set(serverDocs.map(d => d.url).filter(Boolean));
-      const pending = prev.filter(d => {
-        if (map.has(d.id)) return false;
-        // Entri yang bukan hasil upload optimistik tetap dipertahankan.
-        if (!d.__optimis) return true;
-        // Sudah ada padanannya di server -> entri lokal ini usang, buang.
-        return !(d.url && urlServer.has(d.url));
-      });
-      // Entri optimistik yang belum ada di server (request masih jalan)
-      // dikembalikan di depan, tidak dimasukkan ke map, supaya tidak masuk
-      // dua kali ke hasil akhir.
+      const pending = prev.filter(d =>
+        d.__optimis && !map.has(d.id) && !(d.url && urlServer.has(d.url))
+      );
       return [...pending, ...map.values()];
     });
-  }, [serverDocs]);
+  }, [serverDocs, docsReady]);
 
   // Query-nya bisa mati untuk user biasa dan bisa membalas objek { error } kalau
   // sesinya ditolak, jadi bentuk responsnya dinormalkan dulu.

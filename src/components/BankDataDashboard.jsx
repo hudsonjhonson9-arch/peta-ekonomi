@@ -1,6 +1,6 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Icon } from "./ui.jsx";
+import { Icon, CariPilih } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
 
 export default function BankDataDashboard({ emptyMessage = null }) {
@@ -30,6 +30,25 @@ export default function BankDataDashboard({ emptyMessage = null }) {
   const searching = q.trim().length > 0;
   const nq = q.trim().toLowerCase();
 
+  // Opsi dropdown pencarian: daftar aspek unik dari seluruh data
+  // (IKU, IKK, dan indikator sektoral), plus "Semua" untuk menghapus filter.
+  const aspekOpsi = useMemo(() => {
+    const set = new Set();
+    data.forEach(b => ambilArray(b.opds).forEach(o => {
+      ambilArray(o.ikus).forEach(i => {
+        if (i.aspek) set.add(i.aspek);
+        ambilArray(i.ikks).forEach(k => { if (k.aspek) set.add(k.aspek); });
+      });
+      ambilArray(o.sektorals).forEach(s =>
+        ambilArray(s.indikator).forEach(ind => { if (ind.aspek) set.add(ind.aspek); })
+      );
+    }));
+    return [
+      { label: "Semua aspek", value: "", hint: "Tampilkan semua data" },
+      ...[...set].sort((a, b) => a.localeCompare(b, "id")).map(a => ({ label: a, value: a })),
+    ];
+  }, [data]);
+
   const hitIku = (i) => `${i.nama} ${i.aspek || ""} ${i.sumber_data || ""}`.toLowerCase().includes(nq);
   const hitIkk = (k) => `${k.nama} ${k.aspek || ""}`.toLowerCase().includes(nq);
   const hitSekt = (ind) => `${ind.indikator} ${ind.aspek || ""}`.toLowerCase().includes(nq);
@@ -54,7 +73,10 @@ export default function BankDataDashboard({ emptyMessage = null }) {
     return null;
   }).filter(Boolean) : data;
 
-  const hasData = shown.some(b => ambilArray(b.opds).some(o =>
+  // Harus dihitung dari data mentah, BUKAN dari shown. Kalau dari shown, hasil
+  // pencarian yang tidak cocok (atau cocok tapi lemah) membuat hasData false dan
+  // seluruh komponen — termasuk kotak pencariannya — hilang dari layar.
+  const hasData = data.some(b => ambilArray(b.opds).some(o =>
     ambilArray(o.sektorals).some(s => ambilArray(s.indikator).length) ||
     ambilArray(o.ikus).some(i => ambilArray(i.ikks).length || (i.nilai && i.nilai.length))
   ));
@@ -74,41 +96,50 @@ export default function BankDataDashboard({ emptyMessage = null }) {
   const isOpen = (key) => searching || !!expanded[key];
 
   return (
-    <div style={{ background: T.card, borderRadius: 12, padding: 20, border: `1px solid ${T.border}`, marginBottom: 24 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-        <Icon name="chart" size={14} style={{ color: T.primary }} />
+    <div style={{ marginBottom: 24 }}>
+      {/* Judul di luar card, sama seperti Kertas Kerja di dashboard. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12 }}>
+        <Icon name="chart" size={15} style={{ color: T.primary, flexShrink: 0 }} />
         <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Bank Data</span>
       </div>
-      <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 12 }}>Bidang → OPD → IKU (Target/Capaian) → IKK · Data Sektoral</div>
+      <div style={{ background: T.card, borderRadius: 12, padding: 20, border: `1px solid ${T.border}` }}>
+        <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 12 }}>Bidang → OPD → IKU (Target/Capaian) → IKK · Data Sektoral</div>
 
-      <div style={{ position: "relative", marginBottom: 12 }}>
-        <Icon name="search" size={13} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: T.textMuted }} />
-        <input value={q} onChange={e => setQ(e.target.value)}
-          placeholder="Cari IKU, IKK, Data Sektoral, atau aspek..."
-          style={{ width: "100%", padding: "8px 12px 8px 32px", border: `1px solid ${T.inputBorder}`, borderRadius: 8, fontSize: 12.5, outline: "none", boxSizing: "border-box", background: T.inputBg, color: T.text }} />
-      </div>
-
-      {shown.map(b => (
-        <div key={b.id} style={{ border: `1px solid ${T.border}`, borderRadius: 10, marginBottom: 8, overflow: "hidden" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 14px", background: T.surfaceHover, cursor: "pointer" }}
-            onClick={() => toggle(`b${b.id}`)}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Icon name="building" size={14} style={{ color: T.primary }} />
-              <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{b.nama}</span>
-              <span style={{ fontSize: 11, color: T.textMuted }}>({b.opds.length} OPD)</span>
-            </div>
-            <Icon name="chevronRight" size={13} style={{ color: T.textMuted, transform: isOpen(`b${b.id}`) ? "rotate(90deg)" : "", transition: "transform .2s" }} />
-          </div>
-
-          {isOpen(`b${b.id}`) && (
-            <div style={{ padding: "8px 12px" }}>
-              {b.opds.map(o => (
-                <OPDView key={o.id} o={o} tahunList={tahun} forceOpen={searching} expanded={expanded} toggle={toggle} T={T} />
-              ))}
-            </div>
-          )}
+        <div style={{ marginBottom: 12 }}>
+          <CariPilih
+            value={q}
+            onChange={setQ}
+            opsi={aspekOpsi}
+            placeholder="Pilih aspek, atau ketik kata kunci…"
+          />
         </div>
-      ))}
+
+        {searching && shown.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "32px 8px", fontSize: 13, color: T.textMuted }}>
+            Tidak ada hasil untuk “{q.trim()}”. Coba pilih aspek lain.
+          </div>
+        ) : shown.map(b => (
+          <div key={b.id} style={{ border: `1px solid ${T.border}`, borderRadius: 10, marginBottom: 8, overflow: "hidden" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 14px", background: T.surfaceHover, cursor: "pointer" }}
+              onClick={() => toggle(`b${b.id}`)}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Icon name="building" size={14} style={{ color: T.primary }} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{b.nama}</span>
+                <span style={{ fontSize: 11, color: T.textMuted }}>({b.opds.length} OPD)</span>
+              </div>
+              <Icon name="chevronRight" size={13} style={{ color: T.textMuted, transform: isOpen(`b${b.id}`) ? "rotate(90deg)" : "", transition: "transform .2s" }} />
+            </div>
+
+            {isOpen(`b${b.id}`) && (
+              <div style={{ padding: "8px 12px" }}>
+                {b.opds.map(o => (
+                  <OPDView key={o.id} o={o} tahunList={tahun} forceOpen={searching} expanded={expanded} toggle={toggle} T={T} />
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
