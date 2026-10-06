@@ -20,7 +20,32 @@
 
 var DRIVE_FOLDER_ID = '1yJXskcIfVjH-X7HWQh0b-BgnmTimkNQs';
 var API_BASE_URL    = 'https://arsipdigital.mindcloud.my.id';
-var API_KEY         = '';
+
+// Kunci API SENGAJA TIDAK ditulis di berkas ini dan tidak boleh di-commit.
+//
+// Nilai aslinya pernah bocor ke riwayat git, jadi sekarang hanya ada di Coolify
+// (env UPLOAD_API_KEY) dan di Script Properties proyek ini. Kalau kosong, setiap
+// POST /api/docs dari GAS ditolak 401 "Sesi berakhir" — GAS tidak punya session
+// cookie, jadi satu-satunya cara lolos adalah header X-Upload-Key ini.
+//
+// Cara pasang: Project Settings > Script Properties > UPLOAD_API_KEY = <nilai
+// yang sama dengan UPLOAD_API_KEY di Coolify>.
+var API_KEY = '';
+
+/**
+ * Kunci API, dibaca dari Script Properties lebih dulu lalu jatuh ke konstanta di
+ * atas. Konstanta dibiarkan kosong supaya repo ini tidak pernah menyimpan
+ * secret; isinya hanya relevan untuk署 yang masih memakai konfigurensi lama.
+ */
+function apiKey() {
+  try {
+    var p = PropertiesService.getScriptProperties().getProperty('UPLOAD_API_KEY');
+    if (p) return String(p).trim();
+  } catch (e) {
+    // Script Properties tidak bisa dibaca: lanjut ke konstanta.
+  }
+  return String(API_KEY || '').trim();
+}
 
 function doPost(e) {
   var res = function (code, body) {
@@ -197,6 +222,11 @@ function doPost(e) {
           nomor_dokumen: params.nomor_dokumen || '',
           tanggal_dokumen: params.tanggal_dokumen || '',
           fileType: params.fileType || '',
+          // Dikirim hanya saat unggah dipicu dari Kertas Kerja. Server
+          // menautkan dokumen ke periodenya di transaksi yang sama dengan
+          // INSERT, jadi bukti dukung tidak pernah bisa ada di arsip tanpa
+          // pemilik. Kosong di halaman Upload biasa.
+          kertas_kerja_periode_id: params.kertas_kerja_periode_id || '',
         };
 
         var apiOpts = {
@@ -206,8 +236,8 @@ function doPost(e) {
           muteHttpExceptions: true
         };
 
-        if (API_KEY) {
-          apiOpts.headers = { 'X-Upload-Key': API_KEY };
+        if (apiKey()) {
+          apiOpts.headers = { "X-Upload-Key": apiKey() };
         }
 
         var apiRes = UrlFetchApp.fetch(API_BASE_URL + '/api/docs', apiOpts);
@@ -275,8 +305,8 @@ function doPost(e) {
         muteHttpExceptions: true
       };
 
-      if (API_KEY) {
-        apiOpts.headers = { 'X-Upload-Key': API_KEY };
+      if (apiKey()) {
+        apiOpts.headers = { "X-Upload-Key": apiKey() };
       }
 
       var apiRes = UrlFetchApp.fetch(API_BASE_URL + '/api/docs', apiOpts);
@@ -333,6 +363,9 @@ function doPost(e) {
         nomor_dokumen: params.nomor_dokumen || '',
         tanggal_dokumen: params.tanggal_dokumen || '',
         fileType: params.fileType || '',
+        // Lihat catatan pada payload di handler finalize. Menautkan di server
+        // membuat bukti dukung tidak bisa lepas dari periodenya.
+        kertas_kerja_periode_id: params.kertas_kerja_periode_id || '',
       };
 
       var apiOpts = {
@@ -342,8 +375,8 @@ function doPost(e) {
         muteHttpExceptions: true
       };
 
-      if (API_KEY) {
-        apiOpts.headers = { 'X-Upload-Key': API_KEY };
+      if (apiKey()) {
+        apiOpts.headers = { "X-Upload-Key": apiKey() };
       }
 
       var apiRes = UrlFetchApp.fetch(API_BASE_URL + '/api/docs', apiOpts);

@@ -14,6 +14,10 @@ import {
   STATUS_PERIODE,
 } from "../data.js";
 import PksAdmin, { pesanError, btn } from "./PksAdmin.jsx";
+// Pemuat judul bukti dukung yang sama dipakai server saat repairing tautan.
+// Kalau dirakit di dua tempat, perubahan sepele di sini membuat dokumen yang
+// sudah terunggah tidak pernah ditemukan kembali.
+import { judulDokumenPeriode } from "../../server/tautan-periode.js";
 
 // onUnggahPeriode dipakai dialog unggah: form-nya UploadForm yang sama dengan
 // halaman Upload Dokumen, jadi GAS + Google Drive tidak punya dua implementasi.
@@ -562,8 +566,9 @@ return (
             </thead>
             <tbody>
               {output.periods.map(p => <BarisPeriode key={p.id} T={T} p={p} admin={admin} reload={reload}
-                judul={`${output.nama} — ${p.periode_label}`} tahun={tahun}
-                onEdit={() => onEditPeriode(p)} onUnggah={onUnggah} onLihatRiwayat={onLihatRiwayat} showToast={showToast} />)}
+                judul={judulDokumenPeriode(output.nama, p.periode_label) || output.nama} tahun={tahun}
+                onEdit={() => onEditPeriode(p)} onUnggah={onUnggah} onLihatRiwayat={onLihatRiwayat}
+                showToast={showToast} />)}
             </tbody>
           </table>
         </div>
@@ -587,8 +592,46 @@ function BarisPeriode({ T, p, admin, onEdit, onUnggah, onLihatRiwayat, reload, s
     }
   };
 
+  // Menutup periode yang dokumennya sudah ada di arsip tapi tautannya hilang.
+  // Kandidat diambil dari server dengan judul yang sama persis seperti saat
+  // unggah, dan user tetap memilih sendiri: tidak ada yang ditebak otomatis.
+  const [kandidat, setKandidat] = useState(null);
+  const [memuat, setMemuat] = useState(false);
+  const [sibukHubung, setSibukHubung] = useState(false);
+
+  const bukaKandidat = async () => {
+    setMemuat(true);
+    setKandidat([]);
+    try {
+      const rows = await api(
+        `/api/kertas-kerja/periode/${p.id}/kandidat?judul=${encodeURIComponent(judul)}`
+      );
+      setKandidat(rows);
+    } catch (err) {
+      showToast(await pesanError(err, "Gagal mencari dokumen"));
+      setKandidat(null);
+    } finally {
+      setMemuat(false);
+    }
+  };
+
+  const hubung = async doc => {
+    setSibukHubung(true);
+    try {
+      await api(`/api/kertas-kerja/periode/${p.id}/tautan`, "POST", { doc_id: doc.id });
+      setKandidat(null);
+      showToast(`"${doc.judul}" terhubung ke ${p.periode_label}.`);
+      reload();
+    } catch (err) {
+      showToast(await pesanError(err, "Gagal menghubungkan dokumen"));
+    } finally {
+      setSibukHubung(false);
+    }
+  };
+
   return (
-    <tr>
+    <>
+    <tr key={p.id}>
       <td style={{ padding: "5px 7px", borderBottom: `1px solid ${T.border}`, color: T.text, fontWeight: 500, whiteSpace: "nowrap" }}>
         {p.periode_label}
         {!p.is_wajib && <span style={{ fontSize: 9.5, color: T.textMuted, marginLeft: 4 }}>(opsional)</span>}
@@ -628,11 +671,17 @@ function BarisPeriode({ T, p, admin, onEdit, onUnggah, onLihatRiwayat, reload, s
                 <Icon name="x" size={11} />
               </button>
             </>
-          ) : (
-            <button onClick={() => onUnggah({ periodeId: p.id, judul, tahun })}
-              title="Unggah dokumen untuk periode ini" style={iconBtn(T)}>
-              <Icon name="upload" size={11} />
-            </button>
+) : (
+            <>
+              <button onClick={() => onUnggah({ periodeId: p.id, judul, tahun })}
+                title="Unggah dokumen untuk periode ini" style={iconBtn(T)}>
+                <Icon name="upload" size={11} />
+              </button>
+              <button onClick={bukaKandidat} disabled={memuat}
+                title="Hubungkan dokumen yang sudah ada di arsip" style={iconBtn(T)}>
+                <Icon name="link" size={11} />
+              </button>
+            </>
           )}
           {admin && (
             <button onClick={onEdit} title="Ubah deadline / catatan" style={iconBtn(T)}>
@@ -642,6 +691,41 @@ function BarisPeriode({ T, p, admin, onEdit, onUnggah, onLihatRiwayat, reload, s
         </span>
       </td>
     </tr>
+      {kandidat && (
+          <tr key={p.id + "-kandidat"}>
+            <td colSpan={5} style={{ padding: "6px 7px", background: T.surfaceHover }}>
+              {memuat ? (
+                <span style={{ fontSize: 10.5, color: T.textMuted }}>Mencari dokumen…</span>
+              ) : kandidat.length === 0 ? (
+                <span style={{ fontSize: 10.5, color: T.textMuted }}>
+                  Tidak ada dokumen di arsip yang cocok dengan &quot;{judul}&quot;.
+                </span>
+              ) : (
+                <span style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <span style={{ fontSize: 10, color: T.textSecondary, fontWeight: 600 }}>
+                    Pilih dokumen yang sudah terunggah untuk periode ini
+                  </span>
+                  {kandidat.map(d => (
+                    <button key={d.id} disabled={sibukHubung || d.terpakai > 0}
+                      onClick={() => hubung(d)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 6, width: "100%",
+                        padding: "4px 6px", fontSize: 10.5, textAlign: "left", cursor: d.terpakai > 0 ? "not-allowed" : "pointer",
+                        background: T.surface, border: `1px solid ${T.border}`,
+                        borderRadius: 6, color: d.terpakai > 0 ? T.textMuted : T.text, opacity: d.terpakai > 0 ? 0.6 : 1,
+                      }}>
+                      <Icon name={d.persis ? "checkCircle" : "file"} size={11} />
+                      <span style={{ flex: 1 }}>{d.judul}</span>
+                      {d.terpakai > 0 && <span style={{ fontSize: 9.5 }}>sudah dipakai periode lain</span>}
+                      {!d.persis && d.terpakai === 0 && <span style={{ fontSize: 9.5, color: T.textMuted }}>judul tidak persis</span>}
+                    </button>
+                  ))}
+                </span>
+              )}
+            </td>
+          </tr>
+      )}
+    </>
   );
 }
 

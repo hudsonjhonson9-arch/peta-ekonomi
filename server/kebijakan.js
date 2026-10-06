@@ -65,6 +65,17 @@ const ATURAN = [
   t('POST', ADMIN, '/api/kertas-kerja/[^/]+/generate'),
   t('POST', ADMIN, '/api/kertas-kerja/[^/]+/sinkron-wajib'),
 
+  // ── Staf: mengisi periode Kertas Kerja ──────────────────────────────────
+  // Mengunggah bukti dukung dan mencari dokumen yang sudah ada bukan
+  // perubahan struktur, jadi levelnya LOGIN — sama seperti PATCH periode di
+  // bawahnya yang tidak terdaftar dan jatuh ke default LOGIN.
+  //
+  // Menautkan dokumen yang sudah dipakai periode lain tetap ditolak server
+  // dengan 409, jadi membuka endpoint ini tidak menciptakan tautan ganda.
+  t('POST', LOGIN, '/api/kertas-kerja/periode/[^/]+/tautan'),
+  t('GET',  LOGIN, '/api/kertas-kerja/periode/[^/]+/kandidat'),
+  t('GET',  LOGIN, '/api/kertas-kerja/jatim'),
+
   // ── Admin: pengguna dan bank data ───────────────────────────────────────
   // '(/x)*' dipakai supaya sub-path di semua tingkat ikut tertutup:
   // /api/users, /api/users/4, /api/bankdata/opd, /api/bankdata/iku/5.

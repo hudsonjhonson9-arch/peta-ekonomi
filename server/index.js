@@ -8,6 +8,7 @@ import path    from 'path';
 import fs      from 'fs';
 import { fileURLToPath } from 'url';
 import { susunPatchPeriode } from './patch-periode.js';
+import { idDokumenValid } from './tautan-periode.js';
 import {
   NAMA_COOKIE, MASA_JAM, R_ADMIN, R_REVIEWER, R_STAF,
   normalisasiRole, rahasia, buatToken, verifikasiTokenDetail,
@@ -400,6 +401,14 @@ jalankanMigration('tahap_2', [
   // menambah kolom. Kalau ALTER-nya gagal, ketahuan sebagai "dilewati" dan
   // pengingat deadline diam-diam tidak pernah terkirim.
   .then(() => jalankanMigration('tahap_4', ['notifications', 'kertas_kerja', 'kertas_kerja_periode'], true))
+  // Tahap 5: backfill bukti dukung yang sudah terunggah tapi tidak pernah
+  // tertaut. Jalankan setelah tahap_4 dan sebelum seed.
+  //
+  // Dijalankan tanpa fallback: berkas ini tidak membuat tabel, jadi pengecekan
+  // "tabel sudah ada" tidak berlaku dan UPDATE yang gagal harus kelihatan di
+  // log, bukan dianggap lewati. UPDATE-nya sendiri idempoten (hanya menyentuh
+  // doc_id IS NULL) dan CREATE INDEX memakai IF NOT EXISTS.
+  .then(() => jalankanMigration('tahap_5', ['kertas_kerja_periode', 'bapperida_dokumen'], true))
   .then(jalankanSeed);
 
 const queryDB = async (sql, params = []) => {
@@ -559,9 +568,26 @@ app.post('/api/docs', async (req, res) => {
 
   const { title, type, sector, uploader, url, ukuran, bidang, files, pages,
           desc, tags, uploader_id, nomor_dokumen, tanggal_dokumen, tahun,
-          fileType } = req.body;
+          fileType, kertas_kerja_periode_id } = req.body;
+
+  // Bukti dukung Kertas Kerja harus lahir sudah terhubung ke periodenya.
+  //
+  // Sebelumnya tautan dibuat oleh permintaan terpisah dari browser setelah
+  // upload selesai. Dua permintaan, dua transaksi terpisah: kalau yang kedua
+  // gagal — session habis, jaringan putus, tab ditutup — dokumennya tetap ada
+  // di arsip tapi periodenya kosong, dan tidak ada kolom yang bisa menyimpan
+  // asal-usulnya. Dokumen seperti itu mustahil ditemukan lagi dari sisi
+  // Kertas Kerja. Sekarang tautan ikut dalam transaksi yang sama, jadi dokumen
+  // ada berarti tertaut.
+  const idPeriode = idDokumenValid(kertas_kerja_periode_id);
+  if (kertas_kerja_periode_id != null && idPeriode == null)
+    return res.status(400).json({ error: 'kertas_kerja_periode_id tidak valid' });
+
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
+    await client.query('BEGIN');
+
+    const result = await client.query(
       `INSERT INTO bapperida_dokumen
        (judul, kategori, tipe, file_type, tanggal, ukuran, url, created_at, bidang, files, pages,
         "desc", tags, uploader_id, nomor_dokumen, tanggal_dokumen)
@@ -573,13 +599,34 @@ app.post('/api/docs', async (req, res) => {
        desc || '', tanggal_dokumen || null, tags || '',
        uploader_id || '', nomor_dokumen || '', fileType || '']
     );
+    const doc = result.rows[0];
+
+    // Idempoten: periode yang sudah punya dokumen tidak ditimpa. Unggah ulang
+    // karena salah judul tidak boleh menghapus bukti dukung yang sudah benar.
+    let tertaut = null;
+    const pengunggah = siapa(req);
+    if (idPeriode) {
+      const up = await client.query(
+        `UPDATE kertas_kerja_periode
+            SET doc_id = $1,
+                uploaded_by = COALESCE($2, uploaded_by),
+                uploaded_at = NOW()
+          WHERE id = $3 AND doc_id IS NULL
+          RETURNING id, kertas_kerja_id, tahun, periode, periode_label`,
+        [doc.id, pengunggah.id || null, idPeriode]
+      );
+      tertaut = up.rows[0] || null;
+    }
+
+    await client.query('COMMIT');
+
     // Insert doc_history
-    const pelamar = siapa(req);
+    const pelamar = pengunggah;
     try {
       await pool.query(
         `INSERT INTO doc_history (doc_id, action, from_status, to_status, actor_id, actor_name)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [result.rows[0].id, 'upload', null, 'Menunggu Review', pelamar.id || '', pelamar.nama || 'System']
+        [doc.id, 'upload', null, 'Menunggu Review', pelamar.id || '', pelamar.nama || 'System']
       );
     } catch (_) {}
     await pool.query(
@@ -601,13 +648,20 @@ app.post('/api/docs', async (req, res) => {
       for (const a of admins) {
         // Menunggu: tanpa await, INSERT bisa berjalan setelah respons terkirim
         // dan hilang kalau proses keburu restart.
-        await createNotification(a.nip, 'Dokumen Baru', `"${title}" diunggah oleh ${pelamar.nama || 'System'}.`, 'info', result.rows[0].id);
+        await createNotification(a.nip, 'Dokumen Baru', `"${title}" diunggah oleh ${pelamar.nama || 'System'}.`, 'info', doc.id);
       }
     } catch (_) {}
-    res.json({ message: 'Dokumen berhasil diunggah', doc: result.rows[0] });
+    // tertaut: null saat tidak ada periode yang dituju. Klien memakai ini untuk
+    // tahu apakah masih perlu melakukan permintaan tautan kedua.
+    res.json({ message: 'Dokumen berhasil diunggah', doc, tertaut });
   } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
     console.error('Upload error:', err);
+    if (err.code === '23503')
+      return res.status(409).json({ error: 'Periode Kertas Kerja tidak ditemukan' });
     res.status(500).json({ error: 'Gagal menyimpan dokumen' });
+  } finally {
+    client.release();
   }
 });
 
@@ -2397,6 +2451,128 @@ app.patch('/api/kertas-kerja/periode/:id', async (req, res) => {
     if (err.code === '23503') return res.status(409).json({ error: 'Dokumen tidak ditemukan' });
     console.error('Patch periode error:', err);
     res.status(500).json({ error: 'Gagal memperbarui periode' });
+  }
+});
+
+// ── Hubungkan dokumen arsip yang sudah ada ke satu periode ───────────────
+//
+// Jalur ini yang dipakai ketika bukti dukung sudah terunggah lebih dulu lalu
+// diunggah ke periode yang salah atau tautan-create-nya gagal. Tanpa endpoint
+// ini, satu-satunya cara menutup periode kosong adalah mengunggah ulang, dan
+// dokumen lama tetap menggantung di arsip tanpa pemilik.
+//
+// Berbeda dengan PATCH di atas, di sini dokumen yang ditunjuk harus benar-benar
+// ada dan belum dipakai periode lain. Satu dokumen jadi bukti dua periode
+// membuat progres output BERBEDA satu dokumen yang sama, jadi itu ditolak.
+app.post('/api/kertas-kerja/periode/:id/tautan', async (req, res) => {
+  const idPeriode = idDokumenValid(req.params.id);
+  if (idPeriode == null) return res.status(400).json({ error: 'Id periode tidak valid' });
+  const idDoc = idDokumenValid(req.body?.doc_id);
+  if (idDoc == null) return res.status(400).json({ error: 'doc_id tidak valid' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const periode = (await client.query(
+      `SELECT id, kertas_kerja_id, tahun, periode, periode_label, doc_id
+         FROM kertas_kerja_periode WHERE id = $1 FOR UPDATE`, [idPeriode]
+    )).rows[0];
+    if (!periode) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Periode tidak ditemukan' });
+    }
+    if (periode.doc_id === idDoc) {
+      await client.query('ROLLBACK');
+      return res.json({ message: 'Dokumen sudah terhubung', row: periode, sudah: true });
+    }
+
+    const dipakai = (await client.query(
+      'SELECT id FROM kertas_kerja_periode WHERE doc_id = $1', [idDoc]
+    )).rows[0];
+    if (dipakai) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Dokumen ini sudah dipakai periode lain' });
+    }
+
+    const doc = (await client.query(
+      'SELECT id, judul FROM bapperida_dokumen WHERE id = $1', [idDoc]
+    )).rows[0];
+    if (!doc) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Dokumen tidak ditemukan di arsip' });
+    }
+
+    const row = (await client.query(
+      `UPDATE kertas_kerja_periode
+          SET doc_id = $1, uploaded_by = $2, uploaded_at = NOW()
+        WHERE id = $3
+        RETURNING id, kertas_kerja_id, tahun, periode, periode_label, doc_id`,
+      [idDoc, req.pengguna?.nip || null, idPeriode]
+    )).rows[0];
+
+    await client.query('COMMIT');
+    res.json({ message: 'Dokumen terhubung ke periode', row, doc });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    if (err.code === '23503') return res.status(409).json({ error: 'Dokumen tidak ditemukan di arsip' });
+    console.error('Tautan periode error:', err);
+    res.status(500).json({ error: 'Gagal menghubungkan dokumen' });
+  } finally {
+    client.release();
+  }
+});
+
+// ── Dokumen yang belum terhubung ke periode mana pun ──────────────────────
+//
+// Hanya dokumen yang judulnya persis "<nama output> — <label periode>" karena
+// itulah format yang dipakai dialog unggah Kertas Kerja. Pencocokan dibuat di
+// server, bukan lewat ILIKE, supaya tidak pernah daredokan otomatis: user yang
+// memilih tetap memutuskan dokumen mana yang benar.
+app.get('/api/kertas-kerja/jatim', async (req, res) => {
+  const tahun = parseInt(req.query.tahun, 10);
+  try {
+    const params = [];
+    let filter = '';
+    if (tahun) { params.push(tahun); filter = ' AND p.tahun = $1'; }
+    const rows = await queryDB(
+      `SELECT p.id AS periode_id, p.tahun, p.periode, p.periode_label, p.deadline,
+              p.is_wajib, k.id AS kertas_kerja_id, k.nama AS output_nama
+         FROM kertas_kerja_periode p
+         JOIN kertas_kerja k ON k.id = p.kertas_kerja_id
+        WHERE p.doc_id IS NULL${filter}
+        ORDER BY k.nama, p.periode`,
+      params
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Get periode jatim error:', err);
+    res.status(500).json({ error: 'Gagal mengambil daftar periode kosong' });
+  }
+});
+
+// Kandidat dokumen untuk satu periode: judulnya sama persis dengan format
+// unggah Kertas Kerja, atau mengandung nama output sebagai awal judul.
+app.get('/api/kertas-kerja/periode/:id/kandidat', async (req, res) => {
+  const idPeriode = idDokumenValid(req.params.id);
+  if (idPeriode == null) return res.status(400).json({ error: 'Id periode tidak valid' });
+  try {
+    const rows = await queryDB(
+      `SELECT d.id, d.judul, d.status,
+              TO_CHAR(d.tanggal, 'YYYY-MM-DD') AS tanggal,
+              COALESCE(d.uploader_id, '') AS pengunggah,
+              (d.judul = $1) AS persis,
+              (SELECT count(*)::int FROM kertas_kerja_periode x WHERE x.doc_id = d.id) AS terpakai
+         FROM bapperida_dokumen d
+        WHERE d.judul = $1 OR d.judul LIKE $2
+        ORDER BY d.judul = $1 DESC, d.id DESC
+        LIMIT 20`,
+      [req.query.judul || '', (req.query.judul || '') + '%']
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Get kandidat dokumen error:', err);
+    res.status(500).json({ error: 'Gagal mencari dokumen' });
   }
 });
 

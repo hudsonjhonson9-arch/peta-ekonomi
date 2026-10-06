@@ -9,6 +9,7 @@ import BottomNav        from "./components/BottomNav.jsx";
 import Dashboard        from "./components/Dashboard.jsx";
 import { DocList, DocDetail } from "./components/DocPages.jsx";
 import { pesanError } from "./components/PksAdmin.jsx";
+import { idDokumenValid } from "../server/tautan-periode.js";
 import UploadForm       from "./components/UploadForm.jsx";
 import NotificationDropdown from "./components/NotificationDropdown.jsx";
 import PublicShare from "./components/PublicShare.jsx";
@@ -365,27 +366,33 @@ export default function App() {
     queryClient.invalidateQueries({ queryKey: ['docs'] });
 
     if (opts.periodeId != null && !opts.noLink) {
-      const dok = docsBaru[0];
-      // Hanya lakukan linking jika ada catatan dokumen di database server (/api/docs).
-      // docId dari GAS murni bukan necessarily id di bapperida_dokumen (bisa jadi Drive file ID),
-      // sehingga FK constraint akan gagal dengan error 23503.
-      // Kami cek apakah dok memiliki status "Menunggu Review" di daftar docs (via query client),
-      // atau kita coba link dan tangkap FK violation sebagai gagal linking.
-      if (opts.docId == null) {
-        showToast("Dokumen terunggah, tetapi id-nya tidak bisa ditautkan otomatis. Perbarui periodenya manual lewat tombol di baris periode.");
+      // Server sudah menautkan dokumen ke periodenya di transaksi INSERT
+      // (POST /api/docs menerima kertas_kerja_periode_id). Kalau itu terjadi,
+      // tidak ada permintaan kedua yang perlu dilakukan — dan tidak ada
+      // requests yang bisa gagal setelah dokumen terlanjur ada di arsip.
+      if (opts.tertaut) {
+        queryClient.invalidateQueries({ queryKey: ['pks-tree'] });
+        queryClient.invalidateQueries({ queryKey: ['pks-ringkasan'] });
+        queryClient.invalidateQueries({ queryKey: ['pks-deadline'] });
+        showToast("Dokumen terunggah dan terhubung ke periode Kertas Kerja.");
+        setPage(opts.returnPage || "dokumen");
         return;
       }
-      const rawId = opts.docId;
-      const parsedId = parseInt(rawId, 10);
-      const realId = (!isNaN(parsedId) && parsedId > 0 && parsedId < 1e13) ? parsedId : null;
+
+      // Jalur ini hanya dipakai kalau GAS yang mendaftarkan dokumen, sehingga
+      // tautannya belum ada sama sekali. id-nya harus digit penuh: parseInt
+      // dulu menerima Drive file id "1AbCd..." lalu menghasilkan 1 dan
+      // menautkan periode ke dokumen yang tidak ada hubungannya.
+      const realId = idDokumenValid(opts.docId);
       if (realId == null) {
-        showToast("Dokumen terunggah, tetapi id-nya tidak valid. Perbarui periodenya manual.");
+        showToast("Dokumen terunggah, tetapi belum terhubung ke periode. Buka Kertas Kerja, lalu pakai tombol Hubungkan pada baris periode tersebut.");
+        setPage(opts.returnPage || "dokumen");
         return;
       }
       try {
         // uploaded_by tidak dikirim: server memakai identitas dari session,
         // jadi nama di audit tidak bisa dipalsukan dari sisi klien.
-        await api(`/api/kertas-kerja/periode/${opts.periodeId}`, "PATCH", {
+        await api(`/api/kertas-kerja/periode/${opts.periodeId}/tautan`, "POST", {
           doc_id: realId
         });
         queryClient.invalidateQueries({ queryKey: ['pks-tree'] });
@@ -393,7 +400,7 @@ export default function App() {
         queryClient.invalidateQueries({ queryKey: ['pks-deadline'] });
         showToast("Dokumen diunggah dan ditautkan ke periode Kertas Kerja.");
       } catch (_) {
-        showToast("Dokumen terunggah, tetapi gagal ditautkan ke periode. Perbarui periodenya manual lewat tombol di baris periode.");
+        showToast("Dokumen terunggah, tetapi belum terhubung ke periode. Buka Kertas Kerja, lalu pakai tombol Hubungkan pada baris periode tersebut.");
       }
     } else {
       showToast(pesan);
@@ -654,6 +661,9 @@ export default function App() {
             fileType: form.fileType || "",
             folderId: groupMode ? folderId : undefined,
             group:    groupMode,
+            // Dibawa sampai ke POST /api/docs di server, supaya dokumen dan
+            // tautan ke periodeya tersimpan dalam satu transaksi.
+            kertas_kerja_periode_id: uploadOpts.periodeId ?? "",
           });
         } else {
           // ── Resumable mode (chunked, file > 30MB) ─────────────────────────
@@ -738,6 +748,9 @@ export default function App() {
             tanggal_dokumen: form.tanggal_dokumen || "",
             fileType: form.fileType || "",
             group: groupMode,
+            // Dibawa sampai ke POST /api/docs di server, supaya dokumen dan
+            // tautan ke periodeya tersimpan dalam satu transaksi.
+            kertas_kerja_periode_id: uploadOpts.periodeId ?? "",
           });
         }
 
@@ -751,6 +764,14 @@ export default function App() {
         // Jika GAS tidak mengembalikan docId (karena GAS hanya menyimpan ke Drive),
         // daftarkan dokumen ke backend database PostgreSQL (/api/docs) agar tersimpan
         // secara permanen dan id-nya bisa ditautkan ke Kertas Kerja.
+        //
+        // Id periodenya ikut dikirim supaya server menautkannya dalam transaksi
+        // yang sama dengan INSERT. Kalau tidak, dokumennya tetap ada di arsip
+        // sementara periodenya kosong, dan tidak ada yang bisa mencarinya lagi.
+        var idPeriode = uploadOpts.periodeId ?? null;
+        // Balasan server: null berarti tautan belum ada dan harus dibuat di
+        // bawah. Hanya mungkin terjadi kalau GAS yang mendaftarkan dokumen.
+        var tertautServer = null;
         if (!result.docId) {
           try {
             var srvRes = await api('/api/docs', 'POST', {
@@ -769,16 +790,25 @@ export default function App() {
               nomor_dokumen: form.nomor_dokumen || '',
               tanggal_dokumen: form.tanggal_dokumen || '',
               fileType: form.fileType || '',
+              kertas_kerja_periode_id: idPeriode,
             });
             if (srvRes && srvRes.doc && srvRes.doc.id) {
               result.docId = srvRes.doc.id;
+              tertautServer = srvRes.tertaut || null;
             }
           } catch (e) {
             console.error('Gagal mendaftarkan dokumen ke database server:', e);
           }
         }
 
-        if (result.docId) idAsli = Number(result.docId);
+        // Sengaja bukan Number(result.docId): GAS juga pernah mengembalikan
+        // Drive file id, dan Number("1AbCd...") menghasilkan NaN yang
+        // diteruskan sebagai tautan. idDokumenValid menolak apa pun yang
+        // bukan digit penuh.
+        var idAsli = idDokumenValid(result.docId);
+        if (result.docId && idAsli == null) {
+          console.warn('docId dari GAS tidak dipakai untuk tautan Kertas Kerja:', result.docId);
+        }
 
         allDocs.push({
           id:         result.docId ? Number(result.docId) : Date.now() + fi,
@@ -899,7 +929,7 @@ export default function App() {
         await selesaiUpload(
           allDocs,
           allDocs.length + " dokumen berhasil diunggah dan dikirim untuk review.",
-          { ...uploadOpts, docId: idAsli, returnPage: uploadOpts.returnPage || "dokumen" }
+          { ...uploadOpts, docId: idAsli, tertaut: tertautServer, returnPage: uploadOpts.returnPage || "dokumen" }
         );
       }
       return true;
