@@ -70,7 +70,7 @@ function InfoKertasKerja({ T, onNav }) {
   );
 }
 
-export default function Dashboard({ docs, onNav, sectors = [], categories = [] }) {
+export default function Dashboard({ docs, onNav, onView, sectors = [], categories = [] }) {
   const { isMobile } = useResponsive();
   const { T } = useContext(ThemeContext);
   const archived  = docs.filter(d => d.status === "Diarsipkan").length;
@@ -132,6 +132,9 @@ export default function Dashboard({ docs, onNav, sectors = [], categories = [] }
               <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>{d.type} · {d.year} · {d.uploader}</div>
             </div>
             <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
+            <button onClick={() => onView && onView(d)} style={{ fontSize: 11, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>
+              Lihat →
+            </button>
           </div>
         ))}
       </div>

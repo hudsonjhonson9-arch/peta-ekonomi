@@ -1032,7 +1032,7 @@ if (!user) {
           {/* Main */}
           <div style={{ flex: 1, padding: isMobile ? "10px 14px 14px" : "14px 24px 24px", overflowY: "auto" }}>
             {page === "dashboard" && !viewDoc && (
-              <Dashboard docs={docs} onNav={goPage} sectors={sectors} categories={categories} />
+              <Dashboard docs={docs} onNav={goPage} onView={openDoc} sectors={sectors} categories={categories} />
             )}
             {page === "dokumen" && !viewDoc && (
               <DocList docs={docs} onView={openDoc} onNav={goPage} user={user} categories={categories} sectors={sectors} bidangs={bidangs} loading={docsLoading} onBulkAction={handleBulkAction} />
