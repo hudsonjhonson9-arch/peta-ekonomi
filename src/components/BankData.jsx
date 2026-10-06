@@ -1,3 +1,9 @@
+const ASPEK_OPTS = [
+  "Daya Saing Daerah",
+  "Pelayanan Umum",
+  "Geografi dan Demografi",
+  "Kesejahteraan Masyarakat",
+];
 import { useState, useContext, Fragment, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Icon } from "./ui.jsx";
@@ -60,7 +66,7 @@ export default function BankData({ showToast }) {
   const cancelForm = () => setForm(null);
   const submitIndikator = async () => {
     if (!form) return;
-    const body = { indikator: (form.values.indikator || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, aspek: (form.values.aspek || "").trim() || null };
+    const body = { indikator: (form.values.indikator || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, satuan: (form.values.satuan || "").trim() || null };
     if (!body.indikator) return showToast("Nama indikator wajib diisi");
     if (!form.editId) body[LEVEL_CONF[form.level].parentKey] = form.parentId;
     const url = `/api/bankdata/indikator/${form.level}${form.editId ? `/${form.editId}` : ""}`;
@@ -602,7 +608,7 @@ function OpdContent(props) {
   const ds = o.sektorals[0];
 
   const submitIkuEdit = (id) => async () => {
-    const body = { nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, aspek: (form.values.aspek || "").trim() || null };
+    const body = { nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, satuan: (form.values.satuan || "").trim() || null };
     if (!body.nama) return showToast("Nama IKU wajib diisi");
     const res = await fetch(`/api/bankdata/iku/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (!res.ok) return showToast((await res.json()).error);
@@ -635,8 +641,8 @@ function OpdContent(props) {
       </div>
       <InlineEntityAdd label="Tambah IKU" show={form && form.level === "iku" && form.parentId === o.id && !form.editId}
         onOpen={() => openFormForEntity("iku", o.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
-        title="IKU baru" fields={[{ k: "nama", label: "Nama IKU" }, { k: "sumber_data", label: "Sumber Data" }, { k: "aspek", label: "Aspek" }]} submit={async () => {
-          const body = { opd_id: o.id, nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, aspek: (form.values.aspek || "").trim() || null };
+        title="IKU baru" fields={[{ k: "nama", label: "Nama IKU" }, { k: "sumber_data", label: "Sumber Data" }, { k: "satuan", label: "Satuan" }]} submit={async () => {
+          const body = { opd_id: o.id, nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, satuan: (form.values.satuan || "").trim() || null };
           if (!body.nama) return showToast("Nama IKU wajib diisi");
           const res = await fetch('/api/bankdata/iku', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
           if (!res.ok) return showToast((await res.json()).error);
@@ -674,8 +680,8 @@ function OpdContent(props) {
                 </div>
                 <InlineEntityAdd label="Tambah IKK" show={form && form.level === "ikk" && form.parentId === iku.id && !form.editId}
                   onOpen={() => openFormForEntity("ikk", iku.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
-                  title="IKK baru" fields={[{ k: "nama", label: "Nama IKK" }, { k: "sumber_data", label: "Sumber Data" }, { k: "aspek", label: "Aspek" }]} submit={async () => {
-                    const body = { iku_id: iku.id, nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, aspek: (form.values.aspek || "").trim() || null };
+                  title="IKK baru" fields={[{ k: "nama", label: "Nama IKK" }, { k: "sumber_data", label: "Sumber Data" }, { k: "aspek", label: "Aspek" }, { k: "satuan", label: "Satuan" }, { k: "satuan", label: "Satuan" }]} submit={async () => {
+                    const body = { iku_id: iku.id, nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, satuan: (form.values.satuan || "").trim() || null };
                     if (!body.nama) return showToast("Nama IKK wajib diisi");
                     const res = await fetch('/api/bankdata/ikk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                     if (!res.ok) return showToast((await res.json()).error);
@@ -722,7 +728,7 @@ function IkkRow({ ikk, ikuId, form, setForm, cancelForm, openFormForEntity, relo
   const diisi = (ikk.nilai || []).length;
 
   const submitEdit = async () => {
-    const body = { nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, aspek: (form.values.aspek || "").trim() || null };
+    const body = { nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, satuan: (form.values.satuan || "").trim() || null };
     if (!body.nama) return showToast("Nama IKK wajib diisi");
     const res = await fetch(`/api/bankdata/ikk/${ikk.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (!res.ok) return showToast((await res.json()).error);
@@ -736,7 +742,8 @@ function IkkRow({ ikk, ikuId, form, setForm, cancelForm, openFormForEntity, relo
         {[
           { k: "nama", label: "Nama IKK" },
           { k: "sumber_data", label: "Sumber Data" },
-          { k: "aspek", label: "Aspek" }
+          { k: "aspek", label: "Aspek" },
+          { k: "satuan", label: "Satuan" }
         ].map(f => (
           <label key={f.k} style={{ display: "block", marginBottom: 8 }}>
             <span style={{ fontSize: 11, color: T.textSecondary, marginBottom: 3, display: "block" }}>{f.label}</span>
@@ -804,7 +811,8 @@ function IkuEdit({ iku, values, setVal, submit, cancel, T }) {
       {[
         { k: "nama", label: "Nama IKU" },
         { k: "sumber_data", label: "Sumber Data" },
-        { k: "aspek", label: "Aspek" }
+        { k: "aspek", label: "Aspek" },
+        { k: "satuan", label: "Satuan" }
       ].map(f => (
         <label key={f.k} style={{ display: "block", marginBottom: 8 }}>
           <span style={{ fontSize: 11, color: T.textSecondary, marginBottom: 3, display: "block" }}>{f.label}</span>
