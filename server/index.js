@@ -410,6 +410,11 @@ jalankanMigration('tahap_2', [
   // doc_id IS NULL) dan CREATE INDEX memakai IF NOT EXISTS.
   .then(() => jalankanMigration('tahap_5', ['kertas_kerja_periode', 'bapperida_dokumen'], true))
   .then(() => jalankanMigration('tahap_6', ['bank_data_iku', 'bank_data_ikk', 'bank_data_sektoral_indikator'], true))
+  // Tahap 7: tabel standar_harga (SSH/SBU) + kolom pagu/kode_rekening pada
+  // pks_subkegiatan. Dijalankan tanpa fallback seperti tahap_4/6: migration
+  // ini menambah kolom, jadi kegagalan ALTER harus terlihat di log — fallback
+  // "tabel sudah ada -> lewati" akan menutupi ALTER pks_subkegiatan yang gagal.
+  .then(() => jalankanMigration('tahap_7', ['standar_harga'], true))
   .then(jalankanSeed);
 
 const queryDB = async (sql, params = []) => {
