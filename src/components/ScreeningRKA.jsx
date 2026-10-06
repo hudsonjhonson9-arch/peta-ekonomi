@@ -1,10 +1,12 @@
 import { useState, useContext, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import * as XLSX from "xlsx";
 import { Icon } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
-import { api, usePksTree, usePksTahun } from "../hooks.js";
+import { api, usePksTree, usePksTahun, useStandarHarga } from "../hooks.js";
 import { canManageOutput } from "../data.js";
 import { btn } from "./PksAdmin.jsx";
+import { parseRows } from "../uploadStandarHarga.js";
 
 // Format rupiah lokal — sengaja tidak dibagi ke data.js: hanya dipakai di sini
 // (Task 5 bisa memakai sendiri bila perlu).
@@ -86,7 +88,7 @@ export default function ScreeningRKA({ user, showToast }) {
             <Panel key={`k${k.id}`} T={T} buka={!!buka[`k${k.id}`]} onToggle={() => toggle(`k${k.id}`)}
               ikon="list" kode={k.kode} nama={k.nama}>
               {k.subkegiatan.map(s => (
-                <SubRow key={`s${s.id}`} T={T} sub={s} admin={admin}
+                <SubRow key={`s${s.id}`} T={T} sub={s} admin={admin} tahun={tahun}
                   buka={!!buka[`s${s.id}`]} onToggle={() => toggle(`s${s.id}`)}
                   showToast={showToast} reload={reload} />
               ))}
@@ -122,7 +124,7 @@ function Panel({ T, buka, onToggle, ikon, kode, nama, children }) {
 }
 
 // ── Baris sub kegiatan + panel detailnya ─────────────────────────────────
-function SubRow({ T, sub, admin, buka, onToggle, showToast, reload }) {
+function SubRow({ T, sub, admin, tahun, buka, onToggle, showToast, reload }) {
   const chips = sub.kode_rekening || [];
   return (
     <div style={{ marginBottom: 8 }}>
@@ -162,17 +164,15 @@ function SubRow({ T, sub, admin, buka, onToggle, showToast, reload }) {
 
       {buka && (
         <div style={{ margin: "6px 0 0 18px", paddingLeft: 10, borderLeft: `1px solid ${T.border}` }}>
-          <DetailSub T={T} sub={sub} admin={admin} showToast={showToast} onSave={reload} />
+          <DetailSub T={T} sub={sub} admin={admin} tahun={tahun} showToast={showToast} onSave={reload} />
         </div>
       )}
     </div>
   );
 }
 
-// ── Detail sub kegiatan: pagu + chips kode rekening ──────────────────────
-// Tabel standar harga menyusul di Task 5; panel ini sengaja hanya berisi dua
-// hal itu sesuai brief.
-function DetailSub({ T, sub, admin, showToast, onSave }) {
+// ── Detail sub kegiatan: pagu + chips kode rekening + tabel standar harga ─
+function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
   const [paguTeks, setPaguTeks] = useState(() => (sub.pagu ?? "").toString());
   const [chips, setChips] = useState(() => sub.kode_rekening || []);
   const [teks, setTeks] = useState("");
@@ -292,6 +292,207 @@ function DetailSub({ T, sub, admin, showToast, onSave }) {
             </button>
           </div>
         </>
+      )}
+
+      <TabelStandarHarga T={T} tahun={tahun} sub={sub} admin={admin} showToast={showToast} />
+    </div>
+  );
+}
+
+// ── Tabel standar harga + panel upload Excel (Task 5) ─────────────────────
+// Filter rekening memakai chips TERSIMPAN di tree (`sub.kode_rekening`),
+// bukan draft yang belum ditekan "Simpan rekening". Upload = Admin saja di
+// UI; server juga memagari POST /api/standar-harga/upload dengan ADMIN.
+function TabelStandarHarga({ T, tahun, sub, admin, showToast }) {
+  const qc = useQueryClient();
+  const chips = sub.kode_rekening || [];
+  const [jenis, setJenis] = useState("SSH");
+  const [q, setQ] = useState("");
+  const [qD, setQD] = useState("");     // debounce 300ms → state `q` hook
+  const [preview, setPreview] = useState(null);  // {nama, tahun, jenis, items}
+  const [sibuk, setSibuk] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setQD(q), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const { data: daftar = [], isLoading } = useStandarHarga({
+    tahun,
+    jenis,
+    q: qD.trim() || undefined,
+    rekening: chips.length ? chips.join(",") : undefined,
+  });
+
+  const bacaFile = async e => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";              // file sama bisa dipilih ulang
+    if (!f) return;
+    try {
+      const buf = await f.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: "" });
+      if (aoa.length < 2) { showToast("File tidak punya baris data."); return; }
+      const kepala = aoa[0];
+      const rows = aoa.slice(1).map(r => {
+        const o = {};
+        kepala.forEach((h, i) => { if (h !== "" && h != null) o[h] = r[i]; });
+        return o;
+      });
+      // tahun/jenis ditangkap SEKARANG: ganti file → pindah select tahun/jenis
+      // tidak boleh mengubah tujuan replace yang sudah dipreview.
+      setPreview({ nama: f.name, tahun, jenis, items: parseRows(rows) });
+    } catch (err) {
+      showToast(`Gagal membaca file: ${err.message}`);
+    }
+  };
+
+  const gantiData = async () => {
+    if (!preview || !preview.items.length) return;
+    const ok = window.confirm(
+      `Ganti SEMUA standar harga ${preview.jenis} ${preview.tahun} dengan ${preview.items.length} baris dari ${preview.nama}? Data lama dihapus.`
+    );
+    if (!ok) return;
+    setSibuk(true);
+    try {
+      const r = await api("/api/standar-harga/upload", "POST", {
+        tahun: preview.tahun, jenis: preview.jenis, items: preview.items,
+      });
+      showToast(`${r.n} baris ${preview.jenis} ${preview.tahun} berhasil diganti.`);
+      setPreview(null);
+      qc.invalidateQueries({ queryKey: ["standar-harga"] });
+    } catch (err) {
+      showToast(`Gagal mengunggah: ${err.message}`);
+    } finally {
+      setSibuk(false);
+    }
+  };
+
+  const th = { padding: "6px 8px", fontSize: 11, fontWeight: 700, color: T.textSecondary, textAlign: "left", whiteSpace: "nowrap" };
+
+  return (
+    <div style={{ marginTop: 14, borderTop: `1px solid ${T.border}`, paddingTop: 10 }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: T.text }}>Standar Harga</span>
+        <select value={jenis} onChange={e => setJenis(e.target.value)} aria-label="Jenis standar harga"
+          style={{
+            padding: "6px 8px", border: `1px solid ${T.inputBorder}`, borderRadius: 8,
+            fontSize: 12, background: T.inputBg, color: T.text, fontFamily: "inherit",
+          }}>
+          <option value="SSH">SSH</option>
+          <option value="SBU">SBU</option>
+        </select>
+        <input value={q} onChange={e => setQ(e.target.value)}
+          placeholder="Cari uraian / spesifikasi / kode barang…"
+          style={{ ...inputStyle(T), maxWidth: 260 }} />
+      </div>
+
+      {chips.length === 0 && (
+        <div style={{ fontSize: 11.5, color: T.textMuted, marginBottom: 6 }}>
+          Belum ada rekening — menampilkan semua data.
+        </div>
+      )}
+
+      {admin && (
+        <div style={{
+          padding: 10, background: T.surfaceHover, border: `1px dashed ${T.inputBorder}`,
+          borderRadius: 8, marginBottom: 10,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary }}>
+              Unggah Excel — ganti semua data {jenis} {tahun}
+            </span>
+            <input type="file" accept=".xlsx,.xls" onChange={bacaFile}
+              style={{ fontSize: 12, color: T.textSecondary, fontFamily: "inherit" }} />
+          </div>
+
+          {preview && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 12, color: T.text, marginBottom: 5 }}>
+                {preview.nama} · {preview.items.length} baris siap mengganti{" "}
+                {preview.jenis} {preview.tahun} · 5 pertama:
+              </div>
+
+              {preview.items.length === 0 ? (
+                <div style={{ fontSize: 12, color: "#DC2626", marginBottom: 6 }}>
+                  Tidak ada baris valid di file ini (uraian barang &amp; harga wajib terisi).
+                </div>
+              ) : (
+                <div style={{ overflowX: "auto", border: `1px solid ${T.border}`, borderRadius: 8 }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: T.card }}>
+                        <th style={th}>Uraian</th>
+                        <th style={th}>Satuan</th>
+                        <th style={{ ...th, textAlign: "right" }}>Harga</th>
+                        <th style={th}>Rekening</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.items.slice(0, 5).map((it, i) => (
+                        <tr key={i} style={{ borderTop: `1px solid ${T.border}` }}>
+                          <td style={{ padding: "5px 8px", color: T.text }}>{it.uraian_barang}</td>
+                          <td style={{ padding: "5px 8px", color: T.textSecondary, whiteSpace: "nowrap" }}>{it.satuan || "—"}</td>
+                          <td style={{ padding: "5px 8px", textAlign: "right", whiteSpace: "nowrap", fontFamily: "ui-monospace, monospace", color: T.text }}>{rupiah(it.harga_satuan)}</td>
+                          <td style={{ padding: "5px 8px", whiteSpace: "nowrap", fontFamily: "ui-monospace, monospace", color: T.textMuted }}>{it.kode_rekening || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                <button onClick={gantiData} disabled={sibuk || !preview.items.length}
+                  style={btn(T, "#DC2626", "#fff", sibuk || !preview.items.length)}>
+                  Ganti data (replace)
+                </button>
+                <button onClick={() => setPreview(null)}
+                  style={btn(T, T.surfaceHover, T.textSecondary, false, T.inputBorder)}>
+                  Batal
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {isLoading ? (
+        <div style={{ fontSize: 12, color: T.textMuted, padding: "8px 4px" }}>Memuat standar harga…</div>
+      ) : daftar.length === 0 ? (
+        <div style={{ fontSize: 12, color: T.textMuted, padding: "8px 4px" }}>
+          {qD.trim()
+            ? `Tidak ada data ${jenis} untuk pencarian "${qD.trim()}".`
+            : chips.length
+              ? `Belum ada data ${jenis} ${tahun} untuk rekening terpilih.`
+              : `Belum ada data standar harga ${jenis} ${tahun}.`}
+        </div>
+      ) : (
+        <div style={{ overflowX: "auto", border: `1px solid ${T.border}`, borderRadius: 8 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: T.surfaceHover }}>
+                <th style={th}>Uraian</th>
+                <th style={th}>Spesifikasi</th>
+                <th style={th}>Satuan</th>
+                <th style={{ ...th, textAlign: "right" }}>Harga</th>
+                <th style={th}>Kode Rekening</th>
+              </tr>
+            </thead>
+            <tbody>
+              {daftar.map(it => (
+                <tr key={it.id} style={{ borderTop: `1px solid ${T.border}` }}>
+                  <td style={{ padding: "6px 8px", color: T.text, minWidth: 220 }}>{it.uraian_barang}</td>
+                  <td style={{ padding: "6px 8px", color: T.textSecondary, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.spesifikasi || "—"}</td>
+                  <td style={{ padding: "6px 8px", color: T.textSecondary, whiteSpace: "nowrap" }}>{it.satuan || "—"}</td>
+                  <td style={{ padding: "6px 8px", textAlign: "right", whiteSpace: "nowrap", fontFamily: "ui-monospace, monospace", color: T.text }}>{rupiah(it.harga_satuan)}</td>
+                  <td style={{ padding: "6px 8px", whiteSpace: "nowrap", fontFamily: "ui-monospace, monospace", color: T.textMuted }}>{it.kode_rekening || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
