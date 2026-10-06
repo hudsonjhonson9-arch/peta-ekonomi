@@ -1676,7 +1676,7 @@ app.get('/api/pks/tree', async (req, res) => {
       [tahun]
     );
     const sub = await queryDB(
-      `SELECT id, kegiatan_id, kode, nama, urutan, indikator, target
+      `SELECT id, kegiatan_id, kode, nama, urutan, indikator, target, pagu, kode_rekening
        FROM pks_subkegiatan WHERE tahun = $1 ORDER BY urutan, kode`,
       [tahun]
     );
@@ -2030,7 +2030,7 @@ app.put('/api/pks/:level/:id', async (req, res) => {
   const cfg = pksLevel(req);
   if (!cfg) return res.status(404).json({ error: 'Level tidak dikenal' });
   const { id } = req.params;
-  const { kode, nama, parent_id, indikator, target } = req.body;
+  const { kode, nama, parent_id, indikator, target, pagu, kode_rekening } = req.body;
   if (!kode || !String(kode).trim()) return res.status(400).json({ error: 'Kode wajib diisi' });
   if (!nama || !String(nama).trim()) return res.status(400).json({ error: 'Nama wajib diisi' });
   try {
@@ -2046,6 +2046,21 @@ app.put('/api/pks/:level/:id', async (req, res) => {
       sets.push(`indikator = $${params.length}`);
       params.push(target || null);
       sets.push(`target = $${params.length}`);
+      // Screening RKA: pagu & chips rekening. Opsional — tidak dikirim = tidak
+      // diubah, jadi pemanggilan lama (hanya kode/nama) tetap berperilaku sama.
+      if (pagu !== undefined) {
+        const n = pagu === null || pagu === '' ? null : Number(pagu);
+        if (n !== null && !Number.isFinite(n)) return res.status(400).json({ error: 'Pagu harus angka' });
+        params.push(n);
+        sets.push(`pagu = $${params.length}`);
+      }
+      if (kode_rekening !== undefined) {
+        if (!Array.isArray(kode_rekening) || kode_rekening.some(c => typeof c !== 'string')) {
+          return res.status(400).json({ error: 'Kode rekening harus berupa array teks' });
+        }
+        params.push(kode_rekening);
+        sets.push(`kode_rekening = $${params.length}`);
+      }
     }
     params.push(id);
     const rows = await queryDB(

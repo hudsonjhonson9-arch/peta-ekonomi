@@ -85,6 +85,7 @@ export const NAV_GROUPS = [
     icon: "checkCircle",
     items: [
       { key: "kertas-kerja", label: "Kertas Kerja", icon: "checkCircle" },
+      { key: "screening",    label: "Screening RKA", icon: "filter"     },
       { key: "bankdata",     label: "Bank Data",    icon: "chart"       },
     ],
   },
