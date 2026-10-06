@@ -31,12 +31,11 @@ export default function BankDataDashboard({ emptyMessage = null }) {
   const nq = q.trim().toLowerCase();
 
   // Opsi dropdown pencarian: daftar aspek unik dari seluruh data
-  // (IKU, IKK, dan indikator sektoral), plus "Semua" untuk menghapus filter.
+  // (IKK dan indikator sektoral — IKU tidak punya aspek), plus "Semua" untuk menghapus filter.
   const aspekOpsi = useMemo(() => {
     const set = new Set();
     data.forEach(b => ambilArray(b.opds).forEach(o => {
       ambilArray(o.ikus).forEach(i => {
-        if (i.aspek) set.add(i.aspek);
         ambilArray(i.ikks).forEach(k => { if (k.aspek) set.add(k.aspek); });
       });
       ambilArray(o.sektorals).forEach(s =>
@@ -49,7 +48,7 @@ export default function BankDataDashboard({ emptyMessage = null }) {
     ];
   }, [data]);
 
-  const hitIku = (i) => `${i.nama} ${i.aspek || ""} ${i.sumber_data || ""}`.toLowerCase().includes(nq);
+  const hitIku = (i) => `${i.nama} ${i.sumber_data || ""}`.toLowerCase().includes(nq);
   const hitIkk = (k) => `${k.nama} ${k.aspek || ""}`.toLowerCase().includes(nq);
   const hitSekt = (ind) => `${ind.indikator} ${ind.aspek || ""}`.toLowerCase().includes(nq);
 
@@ -174,8 +173,8 @@ function OPDView({ o, tahunList, forceOpen, expanded, toggle, T }) {
           <SubHeader icon="layers" label="IKU" name={iku.nama} expanded={isOpen(`iku${iku.id}`)} onToggle={() => toggle(`iku${iku.id}`)} T={T} />
           {isOpen(`iku${iku.id}`) && (
             <>
-              <ValueTable rows={[{ id: iku.id, indikator: iku.nama, aspek: iku.aspek, sumber_data: iku.sumber_data, nilai: iku.nilai }]}
-                tahunList={tahunList2} conf="iku" T={T} />
+              <ValueTable rows={[{ id: iku.id, indikator: iku.nama, sumber_data: iku.sumber_data, nilai: iku.nilai }]}
+                tahunList={tahunList2} conf="iku" hideAspek T={T} />
               {(iku.ikks || []).map(k => (
                 <div key={`ikk${iku.id}-${k.id}`} style={{ margin: "4px 0 0 12px", borderLeft: `1px solid ${T.border}`, paddingLeft: 10 }}>
                   <SubHeader icon="list" label="IKK" name={k.nama} expanded={isOpen(`ikk${iku.id}-${k.id}`)} onToggle={() => toggle(`ikk${iku.id}-${k.id}`)} T={T} />
