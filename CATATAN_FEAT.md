@@ -34,3 +34,11 @@ REQ BANK DATA (baru):
 - Masing-masing Data Sektoral, IKU, IKK tambahkan Satuannya
 - Untuk Aspek pengisiannya menggunakan dropdown custom dengan search
 - Opsi Aspek saat ini: Daya Saing Daerah, Pelayanan Umum, Geografi dan Demografi, Kesejahteraan Masyarakat
+
+## REQ SCREENING RKA (V1)
+
+- Menu "Screening RKA" di grup Perencanaan (icon filter), terlihat semua role: daftar tahun → pohon Program → Kegiatan → Sub Kegiatan (accordion).
+- Sub kegiatan: input pagu + editor chips kode rekening — Admin saja (canManageOutput); non-admin lihat saja. Chips kosong = semua rekening.
+- Tabel standar harga (SSH/SBU) per sub: filter otomatis pakai chips rekening tersimpan (rekening=chips.join(','), kosong = semua + notice "Belum ada rekening — menampilkan semua data"), search box debounce 300ms, maks 500 baris.
+- Upload Excel (.xlsx/.xls) client-side (paket xlsx): header dipetakan lewat HEADER_MAP di src/uploadStandarHarga.js (WAJIB sinkron dengan server/standar-harga.js), preview 5 baris + jumlah baris, tombol "Ganti data (replace)" + confirm → POST /api/standar-harga/upload = replace-all per (tahun, jenis); Admin saja.
+- Kolom tabel: Uraian, Spesifikasi, Satuan, Harga (rupiah), Kode Rekening.
