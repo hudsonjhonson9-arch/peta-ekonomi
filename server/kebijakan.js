@@ -97,6 +97,12 @@ const ATURAN = [
   t('GET', LOGIN, '/api/standar-harga'),
   t('POST', ADMIN, '/api/standar-harga/upload'),
 
+  // Draft rincian: semua staf boleh susun rencana (keputusan user 2026-10-06)
+  t('GET', LOGIN, '/api/draft-rincian'),
+  t('POST', LOGIN, '/api/draft-rincian'),
+  t('PUT', LOGIN, '/api/draft-rincian/[^/]+'),
+  t('DELETE', LOGIN, '/api/draft-rincian/[^/]+'),
+
   // ── Admin: seluruh metode tulis pada modul master data ─────────────────
   ...MODUL_ADMIN.flatMap(awalan => [
     t('POST', ADMIN, `${awalan}(/[^/]+)*`),

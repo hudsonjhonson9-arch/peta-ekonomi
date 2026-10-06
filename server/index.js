@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import { susunPatchPeriode } from './patch-periode.js';
 import { idDokumenValid } from './tautan-periode.js';
 import { validasiUpload, filterDaftar } from './standar-harga.js';
+import { validasiItem, jumlahItem } from './draft-rincian.js';
 import {
   NAMA_COOKIE, MASA_JAM, R_ADMIN, R_REVIEWER, R_STAF,
   normalisasiRole, rahasia, buatToken, verifikasiTokenDetail,
@@ -3333,6 +3334,102 @@ app.post('/api/standar-harga/upload', async (req, res) => {
     res.status(500).json({ error: 'Gagal mengunggah standar harga' });
   } finally {
     client.release();
+  }
+});
+
+// ── Draft Rincian: rencana belanja per sub kegiatan ──────────────────────
+// Semua staf boleh susun rencana (kebijakan LOGIN — keputusan user
+// 2026-10-06). idAman: param transaksional dipaksa integer > 0 supaya tidak
+// pernah masuk sebagai string ke query.
+const idAman = (v) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
+
+// GET → {items, total} — total = Σ jumlahItem dihitung di server supaya
+// ringkasan vs pagu memakai angka yang sama dengan daftar baris.
+app.get('/api/draft-rincian', async (req, res) => {
+  const sid = idAman(req.query.subkegiatan_id);
+  if (!sid) return res.status(404).json({ error: 'subkegiatan_id wajib' });
+  try {
+    const rows = await queryDB(
+      'SELECT * FROM draft_rincian WHERE subkegiatan_id = $1 ORDER BY urutan, id',
+      [sid]
+    );
+    const total = rows.reduce((s, r) => s + jumlahItem(r.volume, r.harga_satuan), 0);
+    res.json({ items: rows, total });
+  } catch (err) {
+    console.error('Get draft-rincian error:', err);
+    res.status(500).json({ error: 'Gagal mengambil draft rincian' });
+  }
+});
+
+// POST → validasiItem; urutan = (max urutan)+1; created_by dari session.
+app.post('/api/draft-rincian', async (req, res) => {
+  const sid = idAman(req.body.subkegiatan_id);
+  if (!sid) return res.status(400).json({ error: 'subkegiatan_id wajib' });
+  const v = validasiItem(req.body);
+  if (!v.ok) return res.status(400).json({ error: v.error });
+  try {
+    const u = await queryDB(
+      'SELECT COALESCE(MAX(urutan), -1) + 1 AS urutan FROM draft_rincian WHERE subkegiatan_id = $1',
+      [sid]
+    );
+    const r = await queryDB(
+      `INSERT INTO draft_rincian
+        (subkegiatan_id, urutan, uraian, spesifikasi, satuan, volume, harga_satuan,
+         kode_rekening, standar_harga_id, harga_standar, catatan, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       RETURNING *`,
+      [sid, u[0].urutan, v.item.uraian, v.item.spesifikasi, v.item.satuan,
+       v.item.volume, v.item.harga_satuan, v.item.kode_rekening,
+       v.item.standar_harga_id, v.item.harga_standar, v.item.catatan,
+       req.pengguna?.id ?? null]
+    );
+    res.json(r[0]);
+  } catch (err) {
+    console.error('Post draft-rincian error:', err);
+    res.status(500).json({ error: 'Gagal menambah baris rencana' });
+  }
+});
+
+// PUT → validasiItem (subkegiatan_id di luar cakupan — baris sudah ada, id
+// yang menentukan). rowCount 0 = baris tidak ada → 404.
+app.put('/api/draft-rincian/:id', async (req, res) => {
+  const id = idAman(req.params.id);
+  if (!id) return res.status(404).json({ error: 'Baris tidak ditemukan' });
+  const v = validasiItem(req.body);
+  if (!v.ok) return res.status(400).json({ error: v.error });
+  try {
+    const r = await queryDB(
+      `UPDATE draft_rincian SET
+         uraian=$1, spesifikasi=$2, satuan=$3, volume=$4, harga_satuan=$5,
+         kode_rekening=$6, standar_harga_id=$7, harga_standar=$8, catatan=$9,
+         updated_at=now()
+       WHERE id=$10 RETURNING *`,
+      [v.item.uraian, v.item.spesifikasi, v.item.satuan, v.item.volume,
+       v.item.harga_satuan, v.item.kode_rekening, v.item.standar_harga_id,
+       v.item.harga_standar, v.item.catatan, id]
+    );
+    if (!r.length) return res.status(404).json({ error: 'Baris tidak ditemukan' });
+    res.json(r[0]);
+  } catch (err) {
+    console.error('Put draft-rincian error:', err);
+    res.status(500).json({ error: 'Gagal memperbarui baris rencana' });
+  }
+});
+
+// DELETE → RETURNING id; 0 baris = sudah tidak ada → 404.
+app.delete('/api/draft-rincian/:id', async (req, res) => {
+  const id = idAman(req.params.id);
+  if (!id) return res.status(404).json({ error: 'Baris tidak ditemukan' });
+  try {
+    const r = await queryDB('DELETE FROM draft_rincian WHERE id = $1 RETURNING id', [id]);
+    if (!r.length) return res.status(404).json({ error: 'Baris tidak ditemukan' });
+    res.json({ ok: true, id: r[0].id });
+  } catch (err) {
+    console.error('Delete draft-rincian error:', err);
+    res.status(500).json({ error: 'Gagal menghapus baris rencana' });
   }
 });
 

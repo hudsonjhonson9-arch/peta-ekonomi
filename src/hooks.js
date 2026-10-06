@@ -175,6 +175,14 @@ export const useStandarHarga = ({ tahun, jenis, q, rekening }) => useQuery({
   enabled: !!tahun && !!jenis,
 });
 
+// ── Draft Rincian ───────────────────────────────────────────────────────────
+// Respons server {items, total} — total = Σ jumlahItem dihitung server.
+export const useDraftRincian = (subkegiatanId) => useQuery({
+  queryKey: ['draft-rincian', subkegiatanId],
+  queryFn: () => api(`/api/draft-rincian?subkegiatan_id=${subkegiatanId}`),
+  enabled: !!subkegiatanId,
+});
+
 export function useKertasKerja(subkegiatanId) {
   return useQuery({
     queryKey: ['kertas-kerja', subkegiatanId],
