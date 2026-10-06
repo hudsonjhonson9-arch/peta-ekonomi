@@ -6,6 +6,7 @@ export default function LoginPage({ onLogin }) {
   const [pass, setPass]   = useState("");
   const [err, setErr]     = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPass, setShowPass] = useState(false);
 
   const handle = async () => {
     if (!nip || !pass) {
@@ -89,18 +90,32 @@ export default function LoginPage({ onLogin }) {
           <label style={{ fontSize: 12, fontWeight: 600, color: "#444", display: "block", marginBottom: 6 }}>
             Password
           </label>
-          <input
-            type="password"
-            value={pass}
-            onChange={e => { setPass(e.target.value); setErr(""); }}
-            onKeyDown={e => e.key === "Enter" && handle()}
-            placeholder="••••••••"
-            style={{
-              width: "100%", padding: "10px 12px",
-              border: "1.5px solid #e0e0e0", borderRadius: 8,
-              fontSize: 13, outline: "none", boxSizing: "border-box",
-            }}
-          />
+          <div style={{ position: "relative" }}>
+            <input
+              type={showPass ? "text" : "password"}
+              value={pass}
+              onChange={e => { setPass(e.target.value); setErr(""); }}
+              onKeyDown={e => e.key === "Enter" && handle()}
+              placeholder="••••••••"
+              style={{
+                width: "100%", padding: "10px 38px 10px 12px",
+                border: "1.5px solid #e0e0e0", borderRadius: 8,
+                fontSize: 13, outline: "none", boxSizing: "border-box",
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPass(s => !s)}
+              aria-label={showPass ? "Sembunyikan password" : "Tampilkan password"}
+              style={{
+                position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+                background: "none", border: "none", cursor: "pointer",
+                color: "#999", padding: 4, display: "flex",
+              }}
+            >
+              <Icon name={showPass ? "eyeOff" : "eye"} size={16} />
+            </button>
+          </div>
         </div>
 
         {err && (
