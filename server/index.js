@@ -416,6 +416,10 @@ jalankanMigration('tahap_2', [
   // ini menambah kolom, jadi kegagalan ALTER harus terlihat di log — fallback
   // "tabel sudah ada -> lewati" akan menutupi ALTER pks_subkegiatan yang gagal.
   .then(() => jalankanMigration('tahap_7', ['standar_harga'], true))
+  // Tahap 8: tabel draft_rincian (rencana belanja per sub kegiatan). CREATE
+  // TABLE IF NOT EXISTS + index; tetap tanpa fallback agar kegagalan terlihat
+  // di log, konsisten dengan tahap_7.
+  .then(() => jalankanMigration('tahap_8', ['draft_rincian'], true))
   .then(jalankanSeed);
 
 const queryDB = async (sql, params = []) => {
