@@ -6,7 +6,7 @@ const ASPEK_OPTS = [
 ];
 import { useState, useContext, Fragment, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Icon } from "./ui.jsx";
+import { Icon, CariPilih } from "./ui.jsx";
 import useResponsive from "../useResponsive.js";
 import { ThemeContext } from "../App.jsx";
 
@@ -247,7 +247,9 @@ function InlineEntityAdd({ label, show, onOpen, onCancel, T, form, setVal, title
       {fields.map(f => (
         <label key={f.k} style={{ display: "block", marginBottom: 8 }}>
           <span style={{ fontSize: 11, color: T.textSecondary, marginBottom: 3, display: "block" }}>{f.label}</span>
-          <input value={form.values[f.k] || ""} onChange={e => setVal(f.k, e.target.value)} style={{ width: "100%", padding: "8px 11px", border: `1px solid ${T.inputBorder}`, borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box", background: T.inputBg, color: T.text }} />
+          {f.k === "aspek"
+            ? <CariPilih value={form.values[f.k] || ""} onChange={v => setVal(f.k, v)} opsi={ASPEK_OPTS.map(a => ({ label: a, value: a }))} placeholder="Pilih atau ketik aspek…" />
+            : <input value={form.values[f.k] || ""} onChange={e => setVal(f.k, e.target.value)} style={{ width: "100%", padding: "8px 11px", border: `1px solid ${T.inputBorder}`, borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box", background: T.inputBg, color: T.text }} />}
         </label>
       ))}
       <div style={{ display: "flex", gap: 8 }}>
@@ -609,7 +611,7 @@ function OpdContent(props) {
   const ds = o.sektorals[0];
 
   const submitIkuEdit = (id) => async () => {
-    const body = { nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, aspek: (form.values.aspek || "").trim() || null, satuan: (form.values.satuan || "").trim() || null };
+    const body = { nama: (form.values.nama || "").trim(), sumber_data: (form.values.sumber_data || "").trim() || null, satuan: (form.values.satuan || "").trim() || null };
     if (!body.nama) return showToast("Nama IKU wajib diisi");
     const res = await fetch(`/api/bankdata/iku/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (!res.ok) return showToast((await res.json()).error);
@@ -657,7 +659,7 @@ function OpdContent(props) {
             <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
               <EntityHead bare level="iku" node={iku} expandedKey={`i${iku.id}`} expanded={expanded[`i${iku.id}`]} onToggle={() => toggle(`i${iku.id}`)}
                 extraCount={ikusDesc(iku)}
-                onEdit={() => { if (!expanded[`i${iku.id}`]) toggle(`i${iku.id}`); openFormForEntity("iku", o.id, iku.id, { nama: iku.nama, sumber_data: iku.sumber_data || "", aspek: iku.aspek || "", satuan: iku.satuan || "" }); }}
+                onEdit={() => { if (!expanded[`i${iku.id}`]) toggle(`i${iku.id}`); openFormForEntity("iku", o.id, iku.id, { nama: iku.nama, sumber_data: iku.sumber_data || "", satuan: iku.satuan || "" }); }}
                 onDel={() => delEntity("iku", iku.id, iku.nama, "IKU")} T={T} />
 
               {expanded[`i${iku.id}`] && (
@@ -748,8 +750,10 @@ function IkkRow({ ikk, ikuId, form, setForm, cancelForm, openFormForEntity, relo
         ].map(f => (
           <label key={f.k} style={{ display: "block", marginBottom: 8 }}>
             <span style={{ fontSize: 11, color: T.textSecondary, marginBottom: 3, display: "block" }}>{f.label}</span>
-            <input value={form.values[f.k] || ""} onChange={e => setVal(f.k, e.target.value)}
-              style={{ width: "100%", padding: "8px 11px", border: `1px solid ${T.inputBorder}`, borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box", background: T.inputBg, color: T.text }} />
+            {f.k === "aspek"
+              ? <CariPilih value={form.values[f.k] || ""} onChange={v => setVal(f.k, v)} opsi={ASPEK_OPTS.map(a => ({ label: a, value: a }))} placeholder="Pilih atau ketik aspek…" />
+              : <input value={form.values[f.k] || ""} onChange={e => setVal(f.k, e.target.value)}
+                  style={{ width: "100%", padding: "8px 11px", border: `1px solid ${T.inputBorder}`, borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box", background: T.inputBg, color: T.text }} />}
           </label>
         ))}
         <div style={{ display: "flex", gap: 8 }}>
@@ -796,7 +800,7 @@ function IkuDataRow({ iku, tahunList, saveNilai, saveTriwulan, T }) {
   return (
     <div>
       <div style={{ fontSize: 11, color: T.textMuted, margin: "2px 2px 6px" }}>
-        {[iku.sumber_data ? `Sumber: ${iku.sumber_data}` : "", iku.aspek ? `Aspek: ${iku.aspek}` : "", iku.satuan ? `Satuan: ${iku.satuan}` : ""].filter(Boolean).join(" · ") || "Isi Target/Capaian IKU per tahun di bawah"}
+        {[iku.sumber_data ? `Sumber: ${iku.sumber_data}` : "", iku.satuan ? `Satuan: ${iku.satuan}` : ""].filter(Boolean).join(" · ") || "Isi Target/Capaian IKU per tahun di bawah"}
       </div>
       <NilaiTable level="iku" ind={iku} conf={LEVEL_CONF.iku} tahunList={tahunList}
         onSave={saveNilai} onSaveTw={saveTriwulan} T={T} />
@@ -804,7 +808,7 @@ function IkuDataRow({ iku, tahunList, saveNilai, saveTriwulan, T }) {
   );
 }
 
-/* ── Form edit IKU (nama + sumber_data/aspek) ──────────────────────────── */
+/* ── Form edit IKU (nama + sumber_data/satuan) ─────────────────────────── */
 function IkuEdit({ iku, values, setVal, submit, cancel, T }) {
   return (
     <div style={{ background: T.card, borderRadius: 10, border: `1px solid ${T.inputBorder}`, padding: 12, margin: "2px 0 10px" }}>
@@ -812,7 +816,6 @@ function IkuEdit({ iku, values, setVal, submit, cancel, T }) {
       {[
         { k: "nama", label: "Nama IKU" },
         { k: "sumber_data", label: "Sumber Data" },
-        { k: "aspek", label: "Aspek" },
         { k: "satuan", label: "Satuan" }
       ].map(f => (
         <label key={f.k} style={{ display: "block", marginBottom: 8 }}>
@@ -847,10 +850,10 @@ function SearchResults({ tree, q, T }) {
       }
     }
     for (const iku of o.ikus) {
-      if (`${iku.nama} ${iku.aspek || ""} ${iku.sumber_data || ""}`.toLowerCase().includes(nq)) {
+      if (`${iku.nama} ${iku.sumber_data || ""}`.toLowerCase().includes(nq)) {
         hits.push({
           kind: "iku", path, name: iku.nama, id: `i${iku.id}`,
-          meta: [iku.sumber_data ? `Sumber: ${iku.sumber_data}` : "", iku.aspek ? `Aspek: ${iku.aspek}` : ""].filter(Boolean).join(" · "),
+          meta: [iku.sumber_data ? `Sumber: ${iku.sumber_data}` : ""].filter(Boolean).join(" · "),
           rows: iku.nilai, ikks: iku.ikks
         });
       }
