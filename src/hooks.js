@@ -165,6 +165,16 @@ export function usePksDeadlineTerdekat(tahun) {
   });
 }
 
+// ── Standar Harga (SSH/SBU) ─────────────────────────────────────────────────
+// q/rekening opsional (falsy = tanpa filter). rekening berupa string dipisah
+// koma dari chips sub kegiatan: chips.join(','). Respons server array mentah,
+// jadi hook.data = array item.
+export const useStandarHarga = ({ tahun, jenis, q, rekening }) => useQuery({
+  queryKey: ['standar-harga', tahun, jenis, q || '', rekening || ''],
+  queryFn: () => api(`/api/standar-harga?${new URLSearchParams(Object.entries({ tahun, jenis, q: q || undefined, rekening: rekening || undefined }).filter(([,v]) => v))}`),
+  enabled: !!tahun && !!jenis,
+});
+
 export function useKertasKerja(subkegiatanId) {
   return useQuery({
     queryKey: ['kertas-kerja', subkegiatanId],

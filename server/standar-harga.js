@@ -41,7 +41,13 @@ const KOLOM_TEKS = [
   'spesifikasi', 'satuan', 'kode_rekening',
 ];
 
-// rows: array objek dengan key header mentah (hasil parsing sheet).
+// Nama kolom target yang diterima apa adanya (klien sudah memetakan sheet
+// sendiri lewat HEADER_MAP duplikat di src). tahun/jenis dikecualikan:
+// nilainya selalu diambil dari body, bukan dari baris.
+const KOLOM_ITEM = new Set([...KOLOM_TEKS, 'uraian_barang', 'harga_satuan']);
+
+// rows: array baris — key header mentah (hasil parsing sheet) ATAU key berupa
+// nama kolom target (klien sudah memetakan). Keduanya divalidasi sama.
 // Baris tanpa uraian_barang ATAU dengan harga yang gagal dikoerce/<0 → dilewati.
 // Jika semua baris gugur → {ok:false, error}.
 export function validasiUpload(tahun, jenis, rows) {
@@ -56,7 +62,7 @@ export function validasiUpload(tahun, jenis, rows) {
   for (const row of rows) {
     const item = { tahun: t, jenis };
     for (const [h, v] of Object.entries(row ?? {})) {
-      const kolom = HEADER_MAP[normalisasiHeader(h)];
+      const kolom = KOLOM_ITEM.has(h) ? h : HEADER_MAP[normalisasiHeader(h)];
       if (!kolom) continue;
       item[kolom] = typeof v === 'string' ? v.trim() : v;
     }
@@ -72,11 +78,15 @@ export function validasiUpload(tahun, jenis, rows) {
 }
 
 // q: substring case-insensitive terhadap uraian_barang/spesifikasi/kode_barang.
-// rekening: string satu KODE REKENING (exact match) — multi-koma ditangani konsumen berikutnya.
+// rekening: string dipisah koma (chips.join(',')) — tiap kode dicocokkan persis;
+// satu kode pun tetap exact match.
 export function filterDaftar(daftar, { q, rekening } = {}) {
   const kata = String(q ?? '').trim().toLowerCase();
+  const set = rekening
+    ? new Set(String(rekening).split(',').map(s => s.trim()).filter(Boolean))
+    : null;
   return (Array.isArray(daftar) ? daftar : []).filter((it) => {
-    if (rekening && it.kode_rekening !== rekening) return false;
+    if (set && !set.has(it.kode_rekening)) return false;
     if (!kata) return true;
     return [it.uraian_barang, it.spesifikasi, it.kode_barang]
       .some((v) => String(v ?? '').toLowerCase().includes(kata));

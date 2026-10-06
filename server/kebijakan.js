@@ -94,6 +94,8 @@ const ATURAN = [
   t('PUT', ADMIN, '/api/bankdata(/[^/]+)*'),
   t('PATCH', ADMIN, '/api/bankdata(/[^/]+)*'),
   t('DELETE', ADMIN, '/api/bankdata(/[^/]+)*'),
+  t('GET', LOGIN, '/api/standar-harga'),
+  t('POST', ADMIN, '/api/standar-harga/upload'),
 
   // ── Admin: seluruh metode tulis pada modul master data ─────────────────
   ...MODUL_ADMIN.flatMap(awalan => [

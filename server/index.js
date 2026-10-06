@@ -9,6 +9,7 @@ import fs      from 'fs';
 import { fileURLToPath } from 'url';
 import { susunPatchPeriode } from './patch-periode.js';
 import { idDokumenValid } from './tautan-periode.js';
+import { validasiUpload, filterDaftar } from './standar-harga.js';
 import {
   NAMA_COOKIE, MASA_JAM, R_ADMIN, R_REVIEWER, R_STAF,
   normalisasiRole, rahasia, buatToken, verifikasiTokenDetail,
@@ -3246,6 +3247,73 @@ app.delete('/api/bankdata/triwulan/:level/:id', async (req, res) => {
   } catch (err) {
     console.error('Delete triwulan error:', err);
     res.status(500).json({ error: 'Gagal menghapus triwulan' });
+  }
+});
+
+// ── Standar Harga (SSH/SBU): daftar + ganti data per tahun+jenis ──────────
+// Blok terpisah dari PKS: membaca daftar cukup login, mengganti data admin
+// (lihat kebijakan.js). q/rekening difilter di JS — kontraknya "q falsy =
+// tanpa pencarian", jadi tidak ada LIKE di SQL — dan LIMIT 500 diterapkan
+// setelah filter supaya hasil pencarian tidak kepotong di tengah.
+app.get('/api/standar-harga', async (req, res) => {
+  const { tahun, jenis, q, rekening } = req.query;
+  try {
+    const rows = await queryDB(
+      `SELECT * FROM standar_harga WHERE tahun = $1 AND jenis = $2
+       ORDER BY uraian_barang`,
+      [tahun, jenis]
+    );
+    res.json(filterDaftar(rows, { q, rekening }).slice(0, 500));
+  } catch (err) {
+    console.error('Get standar-harga error:', err);
+    res.status(500).json({ error: 'Gagal mengambil standar harga' });
+  }
+});
+
+app.post('/api/standar-harga/upload', async (req, res) => {
+  const { tahun, jenis, items } = req.body;
+  const v = validasiUpload(tahun, jenis, items);
+  if (!v.ok) return res.status(400).json({ error: v.error });
+
+  // Replace per tahun+jenis. Transaksi seperti pola buatOutputDanPeriode:
+  // tanpa itu kegagalan di tengah batch meninggalkan data setelah DELETE
+  // sudah terlanjur ter-commit — separuh data dan tidak bisa diulang sendiri.
+  const KOLOM = [
+    'tahun', 'jenis', 'kode_kelompok', 'uraian_kelompok', 'id_standar_harga',
+    'kode_barang', 'uraian_barang', 'spesifikasi', 'satuan', 'harga_satuan',
+    'kode_rekening',
+  ];
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      'DELETE FROM standar_harga WHERE tahun = $1 AND jenis = $2',
+      [tahun, jenis]
+    );
+    let n = 0;
+    for (let i = 0; i < v.items.length; i += 200) {
+      const chunk = v.items.slice(i, i + 200);
+      const ph = [], vals = [];
+      chunk.forEach((it, j) => {
+        const mulai = j * KOLOM.length;
+        ph.push(`(${KOLOM.map((_, k) => `$${mulai + k + 1}`).join(',')})`);
+        // tahun/jenis dari body (sudah divalidasi), bukan dari baris.
+        vals.push(tahun, jenis, ...KOLOM.slice(2).map((c) => it[c] ?? null));
+      });
+      await client.query(
+        `INSERT INTO standar_harga (${KOLOM.join(', ')}) VALUES ${ph.join(',')}`,
+        vals
+      );
+      n += chunk.length;
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true, n });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Upload standar-harga error:', err);
+    res.status(500).json({ error: 'Gagal mengunggah standar harga' });
+  } finally {
+    client.release();
   }
 });
 
