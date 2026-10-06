@@ -409,6 +409,7 @@ jalankanMigration('tahap_2', [
   // log, bukan dianggap lewati. UPDATE-nya sendiri idempoten (hanya menyentuh
   // doc_id IS NULL) dan CREATE INDEX memakai IF NOT EXISTS.
   .then(() => jalankanMigration('tahap_5', ['kertas_kerja_periode', 'bapperida_dokumen'], true))
+  .then(() => jalankanMigration('tahap_6', ['bank_data_iku', 'bank_data_ikk', 'bank_data_sektoral_indikator'], true))
   .then(jalankanSeed);
 
 const queryDB = async (sql, params = []) => {
@@ -2789,14 +2790,14 @@ app.get('/api/bankdata', async (_, res) => {
     const [bidangs, opds, ikus, ikks, nilIkuR, twIkuR, nilIkkR, twIkkR, sektorals, indSektR, nilSektR, twSektR] = await Promise.all([
       queryDB(`SELECT id, nama_bidang AS nama FROM bidang_list WHERE instansi_id = 'bapperida' AND id = ANY($1::int[]) ORDER BY id`, [BIDANG_BANKDATA]),
       queryDB(`SELECT id, bidang_id, nama, urutan FROM bank_data_opd ORDER BY bidang_id, urutan, id`),
-      queryDB(`SELECT id, opd_id, nama, sumber_data, aspek, urutan FROM bank_data_iku ORDER BY opd_id, urutan, id`),
-      queryDB(`SELECT id, iku_id, nama, sumber_data, aspek, urutan FROM bank_data_ikk ORDER BY iku_id, urutan, id`),
+      queryDB(`SELECT id, opd_id, nama, sumber_data, aspek, satuan, urutan FROM bank_data_iku ORDER BY opd_id, urutan, id`),
+      queryDB(`SELECT id, iku_id, nama, sumber_data, aspek, satuan, urutan FROM bank_data_ikk ORDER BY iku_id, urutan, id`),
       queryDB(`SELECT id, iku_id, tahun, target, capaian FROM bank_data_iku_nilai ORDER BY iku_id, tahun`),
       queryDB(`SELECT * FROM bank_data_iku_triwulan ORDER BY iku_id, tahun`),
       queryDB(`SELECT id, ikk_id, tahun, target, capaian FROM bank_data_ikk_nilai ORDER BY ikk_id, tahun`),
       queryDB(`SELECT * FROM bank_data_ikk_triwulan ORDER BY ikk_id, tahun`),
       queryDB(`SELECT id, opd_id, nama, urutan FROM bank_data_sektoral ORDER BY opd_id, urutan, id`),
-      queryDB(`SELECT id, sektoral_id, indikator, sumber_data, aspek, urutan FROM bank_data_sektoral_indikator ORDER BY sektoral_id, urutan, id`),
+      queryDB(`SELECT id, sektoral_id, indikator, sumber_data, aspek, satuan, urutan FROM bank_data_sektoral_indikator ORDER BY sektoral_id, urutan, id`),
       queryDB(`SELECT id, indikator_id, tahun, data FROM bank_data_sektoral_nilai ORDER BY indikator_id, tahun`),
       queryDB(`SELECT * FROM bank_data_sektoral_triwulan ORDER BY indikator_id, tahun`)
     ]);
@@ -2957,8 +2958,8 @@ app.post('/api/bankdata/iku', async (req, res) => {
   try {
     const max = await queryDB('SELECT COALESCE(MAX(urutan), 0) + 1 AS next FROM bank_data_iku WHERE opd_id = $1', [opd_id]);
     const result = await queryDB(
-      'INSERT INTO bank_data_iku (opd_id, nama, sumber_data, aspek, urutan) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [opd_id, nama.trim(), sumber_data ?? null, aspek ?? null, max[0].next]
+      'INSERT INTO bank_data_iku (opd_id, nama, sumber_data, aspek, satuan, urutan) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+      [opd_id, nama.trim(), sumber_data ?? null, aspek ?? null, (req.body.satuan ?? null), max[0].next]
     );
     res.json({ message: 'IKU berhasil ditambahkan', iku: result[0] });
   } catch (err) {
@@ -2972,7 +2973,7 @@ app.put('/api/bankdata/iku/:id', async (req, res) => {
   const { nama, sumber_data, aspek } = req.body;
   if (!nama) return res.status(400).json({ error: 'Nama wajib diisi' });
   try {
-    await queryDB('UPDATE bank_data_iku SET nama = $1, sumber_data = $2, aspek = $3 WHERE id = $4', [nama.trim(), sumber_data ?? null, aspek ?? null, id]);
+    await queryDB('UPDATE bank_data_iku SET nama = $1, sumber_data = $2, aspek = $3, satuan = $4 WHERE id = $5', [nama.trim(), sumber_data ?? null, aspek ?? null, (req.body.satuan ?? null), id]);
     res.json({ message: 'IKU berhasil diperbarui' });
   } catch (err) {
     console.error('Update IKU error:', err);
@@ -2998,8 +2999,8 @@ app.post('/api/bankdata/ikk', async (req, res) => {
   try {
     const max = await queryDB('SELECT COALESCE(MAX(urutan), 0) + 1 AS next FROM bank_data_ikk WHERE iku_id = $1', [iku_id]);
     const result = await queryDB(
-      'INSERT INTO bank_data_ikk (iku_id, nama, sumber_data, aspek, urutan) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [iku_id, nama.trim(), sumber_data ?? null, aspek ?? null, max[0].next]
+      'INSERT INTO bank_data_ikk (iku_id, nama, sumber_data, aspek, satuan, urutan) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+      [iku_id, nama.trim(), sumber_data ?? null, aspek ?? null, (req.body.satuan ?? null), max[0].next]
     );
     res.json({ message: 'IKK berhasil ditambahkan', ikk: result[0] });
   } catch (err) {
@@ -3013,7 +3014,7 @@ app.put('/api/bankdata/ikk/:id', async (req, res) => {
   const { nama, sumber_data, aspek } = req.body;
   if (!nama) return res.status(400).json({ error: 'Nama wajib diisi' });
   try {
-    await queryDB('UPDATE bank_data_ikk SET nama = $1, sumber_data = $2, aspek = $3 WHERE id = $4', [nama.trim(), sumber_data ?? null, aspek ?? null, id]);
+    await queryDB('UPDATE bank_data_ikk SET nama = $1, sumber_data = $2, aspek = $3, satuan = $4 WHERE id = $5', [nama.trim(), sumber_data ?? null, aspek ?? null, (req.body.satuan ?? null), id]);
     res.json({ message: 'IKK berhasil diperbarui' });
   } catch (err) {
     console.error('Update IKK error:', err);
