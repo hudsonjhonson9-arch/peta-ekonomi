@@ -294,9 +294,61 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
         </>
       )}
 
+      <RingkasanPagu T={T} sub={sub} />
+
       <DraftRincian T={T} tahun={tahun} sub={sub} showToast={showToast} />
 
       <TabelStandarHarga T={T} tahun={tahun} sub={sub} admin={admin} showToast={showToast} />
+    </div>
+  );
+}
+
+// ── Ringkasan rencana vs pagu (Task 10) ───────────────────────────────────
+// useDraftRincian(sub.id) = key yang sama dengan DraftRincian → react-query
+// dedup, tidak dobel fetch. totalRencana = Σ jumlahItem (dihitung server).
+function RingkasanPagu({ T, sub }) {
+  const { data } = useDraftRincian(sub.id);
+  const totalRencana = data ? data.total : 0;
+  const pagu = sub.pagu;
+  // ponytail: pagu 0 = praktis "belum diisi" — juga menghindari 0-division
+  const adaPagu = pagu != null && pagu > 0;
+  const sisa = adaPagu ? pagu - totalRencana : null;
+  const persen = adaPagu ? (totalRencana / pagu) * 100 : null;
+
+  // Status klien: <90% Aman · 90–100% Mendekati (inklusif) · >100% Melebihi
+  const badge = !adaPagu
+    ? { label: "Pagu belum diisi", warna: T.textMuted }
+    : persen < 90
+      ? { label: "Aman", warna: "#16A34A" }
+      : persen <= 100
+        ? { label: "Mendekati", warna: "#CA8A04" }
+        : { label: "Melebihi", warna: "#DC2626" };
+
+  const item = (label, nilai, warna) => (
+    <span style={{ fontSize: 12, color: T.textSecondary }}>
+      {label}:{" "}
+      <b style={{ color: warna || T.text, fontFamily: "ui-monospace, monospace" }}>
+        {nilai}
+      </b>
+    </span>
+  );
+
+  return (
+    <div style={{ marginTop: 14, border: `1px solid ${T.border}`, borderRadius: 8,
+      padding: "8px 10px", background: T.surfaceHover, display: "flex",
+      flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+      <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary }}>
+        Rencana vs Pagu
+      </span>
+      {adaPagu && item("Pagu", rupiah(pagu))}
+      {item("Total rencana", rupiah(totalRencana))}
+      {adaPagu && item("Sisa", rupiah(sisa))}
+      {adaPagu && item("Terpakai", `${persen.toFixed(1)}%`)}
+      <span style={{ fontSize: 11, fontWeight: 700, color: badge.warna,
+        background: `${badge.warna}1A`, border: `1px solid ${badge.warna}4D`,
+        borderRadius: 999, padding: "2px 8px" }}>
+        {badge.label}
+      </span>
     </div>
   );
 }
