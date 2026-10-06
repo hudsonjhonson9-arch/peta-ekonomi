@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { Icon } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
-import { api, usePksTree, usePksTahun, useStandarHarga } from "../hooks.js";
+import { api, usePksTree, usePksTahun, useStandarHarga, useDraftRincian } from "../hooks.js";
 import { canManageOutput } from "../data.js";
 import { btn } from "./PksAdmin.jsx";
 import { parseRows } from "../uploadStandarHarga.js";
@@ -294,7 +294,356 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
         </>
       )}
 
+      <DraftRincian T={T} tahun={tahun} sub={sub} showToast={showToast} />
+
       <TabelStandarHarga T={T} tahun={tahun} sub={sub} admin={admin} showToast={showToast} />
+    </div>
+  );
+}
+
+// ── Draft Rincian: rencana belanja per sub kegiatan (Task 9) ──────────────
+// Semua staf boleh CRUD — kebijakan LOGIN (keputusan 2026-10-06) — jadi tidak
+// ada pintu admin di sini, berbeda dengan blok pagu/chips di atasnya.
+// 3 patch plan: (1) tombol Cocokkan di baris harus masuk mode edit dulu
+// karena panel cocok ada di FormBaris; (2) key form = init.id ?? "baru"
+// (bukan init.id != null) — form baru juga boleh cocok; (3) tampil null pakai
+// cek eksplisit, bukan rupiah(x) || "—".
+function DraftRincian({ T, tahun, sub, showToast }) {
+  const qc = useQueryClient();
+  const { data, isLoading } = useDraftRincian(sub.id);
+  const items = (data && data.items) || [];
+
+  const [editId, setEditId] = useState(null);   // null | id baris yang diedit
+  const [form, setForm] = useState(null);       // null | salinan item (kerja)
+  const [tambahBuka, setTambahBuka] = useState(false);
+  const [cocok, setCocok] = useState(null);     // null | {key, q}
+  const [sibuk, setSibuk] = useState(false);
+
+  const tutup = () => {
+    setEditId(null); setTambahBuka(false); setForm(null); setCocok(null);
+  };
+  const muatUlang = () =>
+    qc.invalidateQueries({ queryKey: ["draft-rincian", sub.id] });
+
+  const tambah = () => {
+    setEditId(null);
+    setForm({
+      uraian: "", spesifikasi: "", satuan: "", volume: "", harga_satuan: "",
+      kode_rekening: "", catatan: "", standar_harga_id: null, harga_standar: null,
+    });
+    setCocok(null);
+    setTambahBuka(true);
+  };
+
+  const edit = (it) => {
+    setEditId(it.id); setForm({ ...it }); setTambahBuka(false); setCocok(null);
+  };
+
+  // PATCH-1: panel cocok ada di FormBaris → dari baris, wajib masuk mode edit
+  // (salinan item masuk `form`) dulu, baru state cocok diset.
+  const cocokkan = (it) => {
+    setEditId(it.id);
+    setForm({ ...it });
+    setTambahBuka(false);
+    setCocok({ key: it.id, q: it.uraian });
+  };
+
+  // PATCH-2 (bagian Simpan): init.id ada → PUT (editId terisi), tidak ada →
+  // POST. Muat ulang key yang sama persis: ['draft-rincian', sub.id].
+  const simpan = async () => {
+    if (!form) return;
+    const isi = {
+      uraian: form.uraian, spesifikasi: form.spesifikasi, satuan: form.satuan,
+      volume: form.volume, harga_satuan: form.harga_satuan,
+      kode_rekening: form.kode_rekening, catatan: form.catatan,
+      standar_harga_id: form.standar_harga_id, harga_standar: form.harga_standar,
+    };
+    setSibuk(true);
+    try {
+      if (editId != null) await api(`/api/draft-rincian/${editId}`, "PUT", isi);
+      else await api("/api/draft-rincian", "POST", { subkegiatan_id: sub.id, ...isi });
+      showToast("Baris rencana disimpan.");
+      tutup();
+      muatUlang();
+    } catch (e) {
+      showToast(`Gagal menyimpan: ${e.message}`);
+    } finally {
+      setSibuk(false);
+    }
+  };
+
+  const hapus = async (it) => {
+    if (!window.confirm(`Hapus baris "${it.uraian}"?`)) return;
+    setSibuk(true);
+    try {
+      await api(`/api/draft-rincian/${it.id}`, "DELETE");
+      showToast("Baris dihapus.");
+      muatUlang();
+    } catch (e) {
+      showToast(`Gagal menghapus: ${e.message}`);
+    } finally {
+      setSibuk(false);
+    }
+  };
+
+  // init = salinan ASLI baris yang diedit (untuk key form); {} saat tambah.
+  const init = editId != null ? (items.find(i => i.id === editId) || {}) : {};
+
+  const th = {
+    padding: "6px 8px", fontSize: 11, fontWeight: 700,
+    color: T.textSecondary, textAlign: "left", whiteSpace: "nowrap",
+  };
+
+  return (
+    <div style={{ marginTop: 14, borderTop: `1px solid ${T.border}`, paddingTop: 10 }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: T.text }}>
+          Rencana Belanja
+        </span>
+        <button onClick={tambah} disabled={sibuk} style={btn(T, T.primary, "#fff", sibuk)}>
+          + Tambah baris
+        </button>
+      </div>
+
+      {form && (
+        <FormBaris T={T} tahun={tahun} sub={sub} form={form} setForm={setForm}
+          init={init} cocok={cocok} setCocok={setCocok}
+          onSimpan={simpan} onBatal={tutup} sibuk={sibuk} />
+      )}
+
+      {isLoading ? (
+        <div style={{ fontSize: 12, color: T.textMuted, padding: "6px 4px" }}>
+          Memuat rencana…
+        </div>
+      ) : items.length === 0 && !form ? (
+        <div style={{ fontSize: 12, color: T.textMuted, padding: "6px 4px" }}>
+          Belum ada rencana belanja
+        </div>
+      ) : (
+        <div style={{ overflowX: "auto", border: `1px solid ${T.border}`, borderRadius: 8 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: T.surfaceHover }}>
+                <th style={th}>Uraian</th>
+                <th style={th}>Spesifikasi</th>
+                <th style={th}>Volume</th>
+                <th style={{ ...th, textAlign: "right" }}>Harga</th>
+                <th style={th}>Rekening</th>
+                <th style={{ ...th, textAlign: "right" }}>Total</th>
+                <th style={th}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map(it => {
+                // PATCH-3: cek null eksplisit sebelum rupiah(), jangan || "—".
+                const total = it.volume == null || it.harga_satuan == null
+                  ? null
+                  : Math.round(Number(it.volume) * Number(it.harga_satuan));
+                return (
+                  <tr key={it.id} style={{ borderTop: `1px solid ${T.border}` }}>
+                    <td style={{ padding: "6px 8px", color: T.text, minWidth: 180 }}>
+                      {it.uraian}
+                    </td>
+                    <td style={{ padding: "6px 8px", color: T.textSecondary, maxWidth: 180,
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {it.spesifikasi || "—"}
+                    </td>
+                    <td style={{ padding: "6px 8px", color: T.textSecondary, whiteSpace: "nowrap" }}>
+                      {Number(it.volume)} {it.satuan}
+                    </td>
+                    <td style={{ padding: "6px 8px", textAlign: "right", whiteSpace: "nowrap",
+                      fontFamily: "ui-monospace, monospace", color: T.text }}>
+                      {it.harga_satuan == null ? "—" : rupiah(it.harga_satuan)}
+                    </td>
+                    <td style={{ padding: "6px 8px", whiteSpace: "nowrap",
+                      fontFamily: "ui-monospace, monospace", color: T.textMuted }}>
+                      {it.kode_rekening || "—"}
+                    </td>
+                    <td style={{ padding: "6px 8px", textAlign: "right", whiteSpace: "nowrap",
+                      fontFamily: "ui-monospace, monospace", fontWeight: 700, color: T.text }}>
+                      {total == null ? "—" : rupiah(total)}
+                    </td>
+                    <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                      <span style={{ display: "inline-flex", gap: 4 }}>
+                        <button onClick={() => cocokkan(it)} disabled={sibuk}
+                          style={btn(T, T.surfaceHover, T.textSecondary, sibuk, T.inputBorder)}>
+                          Cocokkan
+                        </button>
+                        <button onClick={() => edit(it)} disabled={sibuk}
+                          style={btn(T, T.surfaceHover, T.textSecondary, sibuk, T.inputBorder)}>
+                          Edit
+                        </button>
+                        <button onClick={() => hapus(it)} disabled={sibuk}
+                          style={btn(T, "#DC2626", "#fff", sibuk)}>
+                          Hapus
+                        </button>
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// FormBaris: shared tambah & edit. Total live = rumus identik dengan server
+// (jumlahItem): Math.round(volume * harga).
+function FormBaris({ T, tahun, sub, form, setForm, init, cocok, setCocok,
+                     onSimpan, onBatal, sibuk }) {
+  // PATCH-2: key = init.id ?? "baru" — form baru (init tanpa id) tetap bisa
+  // buka panel cocok; jangan pakai init.id != null sebagai syarat aktifCocok.
+  const key = (init && init.id) ?? "baru";
+  const aktifCocok = cocok != null && cocok.key === key;
+  const qCocok = aktifCocok ? cocok.q : "";
+  const set = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
+
+  const volume = Number(form.volume) || 0;
+  const harga = Number(form.harga_satuan) || 0;
+  const total = Math.round(volume * harga);
+
+  const inp = inputStyle(T);
+  const lb = {
+    fontSize: 10.5, fontWeight: 700, color: T.textSecondary,
+    display: "block", marginBottom: 2,
+  };
+  const kolom = flex => ({
+    flex, minWidth: 0,
+  });
+  const field = { ...inp, width: "100%" };
+
+  const daftar = [
+    ["Uraian", "uraian", "Uraian belanja", "2 1 220px"],
+    ["Spesifikasi", "spesifikasi", "", "2 1 180px"],
+    ["Satuan", "satuan", "sak", "1 1 90px"],
+    ["Volume", "volume", "0", "1 1 90px"],
+    ["Harga satuan", "harga_satuan", "0", "1 1 130px"],
+    ["Kode rekening", "kode_rekening", "5.1.02.01", "1 1 130px"],
+    ["Catatan", "catatan", "", "2 1 160px"],
+  ];
+
+  return (
+    <div style={{ border: `1px solid ${T.inputBorder}`, borderRadius: 8,
+      padding: 10, background: T.surfaceHover, marginBottom: 8 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {daftar.map(([label, k, ph, flex]) => (
+          <label key={k} style={kolom(flex)}>
+            <span style={lb}>{label}</span>
+            <input value={form[k] == null ? "" : form[k]} onChange={set(k)}
+              placeholder={ph} inputMode={k === "volume" || k === "harga_satuan" ? "decimal" : undefined}
+              style={field} />
+          </label>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: 6, alignItems: "center",
+        marginTop: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, color: T.textSecondary }}>
+          Total:{" "}
+          <b style={{ color: T.text, fontFamily: "ui-monospace, monospace" }}>
+            {rupiah(total)}
+          </b>
+        </span>
+        <span style={{ fontSize: 11, color: form.standar_harga_id != null ? T.primary : T.textMuted }}>
+          {form.standar_harga_id != null ? "✓ cocok standar harga" : "tanpa standar harga"}
+        </span>
+        <button onClick={() => setCocok({ key, q: form.uraian || "" })}
+          disabled={sibuk} style={btn(T, T.surfaceHover, T.textSecondary, sibuk, T.inputBorder)}>
+          Cocokkan
+        </button>
+        <button onClick={onSimpan} disabled={sibuk} style={btn(T, T.primary, "#fff", sibuk)}>
+          Simpan
+        </button>
+        <button onClick={onBatal} disabled={sibuk}
+          style={btn(T, T.surfaceHover, T.textSecondary, sibuk, T.inputBorder)}>
+          Batal
+        </button>
+      </div>
+
+      {aktifCocok && (
+        <PanelCocok T={T} tahun={tahun} sub={sub} form={form} setForm={setForm}
+          q={qCocok} setQ={v => setCocok({ key, q: v })} />
+      )}
+    </div>
+  );
+}
+
+// Panel pencocokan SSH (top-5). Komponen TERPISAH — hook di dalamnya hanya
+// fetching saat panel terbuka (aktifCocok), bukan tiap form baris.
+// rekening: kode baris diisi → kirim (filter server exact); kosong → jangan
+// kirim chips[0] (melewatkan kandidat kode lain) — kirim undefined lalu
+// filter lokal dengan chips; daftar sudah di tangan, cukup slice(0, 5).
+function PanelCocok({ T, tahun, sub, form, setForm, q, setQ }) {
+  const chips = sub.kode_rekening || [];
+  const { data: kandidat = [], isLoading } = useStandarHarga({
+    tahun, jenis: "SSH", q: q || undefined,
+    rekening: form.kode_rekening || undefined,
+  });
+  const top5 = (form.kode_rekening
+    ? kandidat
+    : chips.length
+      ? kandidat.filter(it => chips.includes(it.kode_rekening))
+      : kandidat
+  ).slice(0, 5);
+
+  const pakai = it => setForm(p => ({
+    ...p,
+    standar_harga_id: it.id,
+    harga_standar: it.harga_satuan,
+    ...((p.harga_satuan == null || p.harga_satuan === "" || Number(p.harga_satuan) === 0)
+      ? { harga_satuan: it.harga_satuan } : {}),
+  }));
+  const tanpa = () => setForm(p => ({
+    ...p, standar_harga_id: null, harga_standar: null,
+  }));
+
+  return (
+    <div style={{ marginTop: 8, borderTop: `1px dashed ${T.inputBorder}`, paddingTop: 8 }}>
+      <div style={{ display: "flex", gap: 6, alignItems: "center",
+        marginBottom: 6, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary }}>
+          Cocokkan ke SSH {tahun}
+        </span>
+        <input value={q} onChange={e => setQ(e.target.value)}
+          placeholder="Kata kunci pencarian" style={{ ...inputStyle(T), maxWidth: 240 }} />
+        <button onClick={tanpa} style={btn(T, T.surfaceHover, T.textSecondary, false, T.inputBorder)}>
+          Tanpa standar
+        </button>
+      </div>
+      {isLoading ? (
+        <div style={{ fontSize: 11.5, color: T.textMuted }}>Mencari…</div>
+      ) : top5.length === 0 ? (
+        <div style={{ fontSize: 11.5, color: T.textMuted }}>
+          Tidak ada kandidat SSH{q ? ` untuk "${q}"` : ""}.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {top5.map(it => (
+            <button key={it.id} onClick={() => pakai(it)}
+              style={{ display: "flex", justifyContent: "space-between", gap: 8,
+                alignItems: "center", padding: "5px 8px", borderRadius: 6,
+                cursor: "pointer", textAlign: "left",
+                border: `1px solid ${T.inputBorder}`, background: T.card,
+                color: T.text, fontSize: 12, fontFamily: "inherit" }}>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis",
+                whiteSpace: "nowrap" }}>
+                {it.uraian_barang}
+                {it.kode_rekening ? (
+                  <span style={{ color: T.textMuted, fontFamily: "ui-monospace, monospace" }}>
+                    {" · "}{it.kode_rekening}
+                  </span>
+                ) : null}
+              </span>
+              <span style={{ whiteSpace: "nowrap", fontFamily: "ui-monospace, monospace" }}>
+                {it.harga_satuan == null ? "—" : rupiah(it.harga_satuan)}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
