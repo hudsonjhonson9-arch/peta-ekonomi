@@ -176,8 +176,9 @@ export const useStandarHarga = ({ tahun, jenis, q, rekening }) => useQuery({
 });
 
 // Kode rekening distinct dari standar_harga (gabungan SSH+SBU) — sumber
-// dropdown "Kode rekening" ala SIPD. Respons: array string; FE menggabungkan
-// dengan chips kode_rekening sub kegiatan. Data jarang berubah → tanpa polling.
+// dropdown "Kode rekening" ala SIPD. Respons: [{kode, uraian:[uraian_kelompok
+// …]}] — uraian kelompok barang dipakai sebagai teks pencarian di dropdown.
+// FE menggabungkan dengan chips kode_rekening sub kegiatan. Tanpa polling.
 export const useKodeRekening = (tahun) => useQuery({
   queryKey: ['standar-harga-rekening', tahun],
   queryFn: () => api(`/api/standar-harga/rekening?tahun=${encodeURIComponent(tahun)}`),

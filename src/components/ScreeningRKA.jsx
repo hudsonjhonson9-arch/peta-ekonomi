@@ -1032,15 +1032,21 @@ function FormBaris({ T, tahun, sub, form, setForm, onSimpan, onBatal, sibuk,
   ];
 
   // Opsi "Kode rekening": chips sub kegiatan ∪ distinct standar harga tahun
-  // ini (urut abjad, dedupe). Pilih salah satu → filter uraian di PilihUraian
-  // (exact) ikut menyaring; ketik manual tetap diterima (CariPilih) untuk
-  // kode yang belum ada di daftar.
+  // ini (urut abjad, dedupe). Kode dari standar_harga membawa teks uraian
+  // kelompok barang (sub) → dropdown bisa dicari lewat uraian, bukan hanya
+  // angka kodenya. Pilih salah satu → filter uraian di PilihUraian (exact)
+  // ikut menyaring; ketik manual tetap diterima (CariPilih) untuk kode yang
+  // belum ada di daftar.
   const daftarRek = useKodeRekening(tahun);
   const chipsRek = [...new Set((sub.kode_rekening || [])
     .map(s => String(s).trim()).filter(Boolean))];
-  const opsiRekening = [...new Set([...chipsRek, ...(daftarRek.data || [])])]
+  const petaRek = new Map((daftarRek.data || [])
+    .map(o => [String(o.kode).trim(), o.uraian || []]));
+  const uraianTeks = (arr) => !arr.length ? undefined
+    : arr.slice(0, 2).join(" · ") + (arr.length > 2 ? ` +${arr.length - 2} lainnya` : "");
+  const opsiRekening = [...new Set([...chipsRek, ...(daftarRek.data || []).map(o => o.kode)])]
     .sort((a, b) => a.localeCompare(b))
-    .map(k => ({ value: k, label: k }));
+    .map(k => ({ value: k, label: k, sub: uraianTeks(petaRek.get(k) || []) }));
 
   const opsiKelompok = saranKelompok.map(n => ({ value: n, label: n }));
 

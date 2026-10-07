@@ -3321,21 +3321,29 @@ app.get('/api/standar-harga', async (req, res) => {
 
 // Daftar kode rekening distinct (gabungan SSH+SBU) — sumber dropdown
 // "Kode rekening" ala SIPD ("Pilih Rekening/Akun"): FE menggabungkannya
-// dengan chips kode_rekening sub kegiatan. Tanpa jenis supaya pemilihan
-// rekening tidak tergantung jenis halaman; hanya baris berkode yang keluar.
+// dengan chips kode_rekening sub kegiatan. Tiap kode membawa uraian kelompok
+// barang (maks 2 uraian per kode) supaya pencarian dropdown bisa lewat uraian,
+// bukan hanya angka kodenya. Tanpa jenis supaya pemilihan rekening tidak
+// tergantung jenis halaman; hanya baris berkode yang keluar.
 app.get('/api/standar-harga/rekening', async (req, res) => {
   const { tahun } = req.query;
   if (!tahun) return res.status(400).json({ error: 'tahun wajib diisi' });
   try {
     const rows = await queryDB(
-      `SELECT DISTINCT btrim(kode_rekening) AS kode
+      `SELECT DISTINCT btrim(kode_rekening) AS kode,
+              btrim(COALESCE(uraian_kelompok, '')) AS uraian
          FROM standar_harga
         WHERE tahun = $1 AND kode_rekening IS NOT NULL
           AND btrim(kode_rekening) <> ''
-        ORDER BY 1`,
+        ORDER BY 1, 2`,
       [tahun]
     );
-    res.json(rows.map(r => r.kode));
+    const peta = new Map();
+    for (const r of rows) {
+      if (!peta.has(r.kode)) peta.set(r.kode, []);
+      if (r.uraian && !peta.get(r.kode).includes(r.uraian)) peta.get(r.kode).push(r.uraian);
+    }
+    res.json([...peta].map(([kode, uraian]) => ({ kode, uraian })));
   } catch (err) {
     console.error('Get standar-harga rekening error:', err);
     res.status(500).json({ error: 'Gagal mengambil daftar kode rekening' });
