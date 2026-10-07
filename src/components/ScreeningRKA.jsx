@@ -797,7 +797,8 @@ function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
 // ada pintu admin di sini, berbeda dengan blok pagu/chips di atasnya.
 // Uraian dipilih lewat dropdown search SSH+SBU (data Admin) — mengikuti pola
 // SIPD (Standar Harga → pilih komponen); baris dikelompokkan per
-// kelompok_belanja sebagai header grup.
+// kelompok_belanja sebagai header grup — keterangan (catatan) tampil di bawah
+// nama grup bila seragam di seluruh baris grup.
 // `terkunci`: sub kegiatan menunggu/disetujui → CRUD diblokir (server juga
 // menolak 409); isi form yang sudah terbuka dibiarkan apa adanya.
 function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
@@ -870,17 +871,20 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
   };
 
   // Kelompok header ala SIPD: urut sesuai kemunculan pertama; nama kosong =
-  // baris tanpa kelompok, tampil biasa tanpa header.
+  // baris tanpa kelompok, tampil biasa tanpa header. Keterangan (catatan)
+  // grup disimpan: bila SEMUA baris dalam grup punya catatan sama & tidak
+  // kosong, tampil di bawah nama grup pada header.
   const grup = [];
   const indeks = new Map();
   items.forEach(it => {
     const nama = (it.kelompok_belanja || "").trim();
     if (!indeks.has(nama)) {
-      const g = { nama, baris: [], total: 0 };
+      const g = { nama, baris: [], total: 0, kat: (it.catatan || "").trim(), katSama: true };
       indeks.set(nama, g);
       grup.push(g);
     }
     const g = indeks.get(nama);
+    if (g.baris.length && (it.catatan || "").trim() !== g.kat) g.katSama = false;
     g.baris.push(it);
     if (it.volume != null && it.harga_satuan != null)
       g.total += Math.round(Number(it.volume) * Number(it.harga_satuan));
@@ -957,6 +961,11 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
                           {rupiah(g.total)}
                         </span>
                       </div>
+                      {g.katSama && g.kat && (
+                        <div style={{ fontSize: 10.5, color: T.textMuted, marginTop: 2 }}>
+                          Keterangan: {g.kat}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ) : null,
