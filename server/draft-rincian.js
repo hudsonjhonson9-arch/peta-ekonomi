@@ -8,8 +8,10 @@ export const jumlahItem = (volume, harga) => Math.round(volume * harga);
 
 // → {ok: true, item} | {ok: false, error}
 // wajib: uraian (string, trim, maks 500), satuan (trim), volume number > 0,
-// harga_satuan number >= 0; opsional: spesifikasi, kode_rekening (trim),
-// standar_harga_id (integer|null), harga_standar (number|null), catatan (trim).
+// harga_satuan number >= 0; opsional: kelompok_belanja (trim — pengelompokan
+// belanja ala SIPD, jadi header grup di daftar), spesifikasi, kode_rekening
+// (trim), standar_harga_id (integer|null), harga_standar (number|null),
+// catatan (trim).
 // Field opsional yang kosong/hilang → null. subkegiatan_id TIDAK diproses di
 // sini — route POST yang menempelkannya dari query param.
 export function validasiItem(body) {
@@ -49,6 +51,7 @@ export function validasiItem(body) {
 
   return { ok: true, item: {
     uraian, satuan, volume, harga_satuan: harga,
+    kelompok_belanja: optTeks(b.kelompok_belanja),
     spesifikasi: optTeks(b.spesifikasi),
     kode_rekening: optTeks(b.kode_rekening),
     catatan: optTeks(b.catatan),

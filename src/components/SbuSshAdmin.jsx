@@ -18,12 +18,13 @@ const inputStyle = T => ({
 
 // ── Halaman administrasi Standar Harga (SSH / SBU) ────────────────────────
 // Satu menu "Standar Harga" dengan pemilih jenis (SSH/SBU). Data = tabel
-// standar_harga (sumber yang sama dengan pencocokan draft rincian di
+// standar_harga (sumber yang sama dengan dropdown uraian draft rincian di
 // Screening RKA), jadi tidak ada tabel harga ganda.
 //
 // Lazy load: tahun default null → useStandarHarga disabled, nol request
-// sampai user memilih tahun. Upload Excel memakai alur yang sama dengan
-// TabelStandarHarga di ScreeningRKA (baca client-side, preview, replace-all).
+// sampai user memilih tahun. Upload Excel (baca client-side, preview,
+// replace-all) hanya ada di menu ini — detail sub kegiatan tidak lagi
+// menampilkan tabel standar harga.
 export default function SbuSshAdmin({ showToast }) {
   const { T } = useContext(ThemeContext);
   const qc = useQueryClient();

@@ -42,11 +42,13 @@ REQ BANK DATA (baru):
 - Tabel standar harga (SSH/SBU) per sub: filter otomatis pakai chips rekening tersimpan (rekening=chips.join(','), kosong = semua + notice "Belum ada rekening — menampilkan semua data"), search box debounce 300ms, maks 500 baris.
 - Upload Excel (.xlsx/.xls) client-side (paket xlsx): header dipetakan lewat HEADER_MAP di src/uploadStandarHarga.js (WAJIB sinkron dengan server/standar-harga.js), preview 5 baris + jumlah baris, tombol "Ganti data (replace)" + confirm → POST /api/standar-harga/upload = replace-all per (tahun, jenis); Admin saja.
 - Kolom tabel: Uraian, Spesifikasi, Satuan, Harga (rupiah), Kode Rekening.
+  (Catatan 2026-10-07: tabel standar harga + upload di detail sub DIHAPUS — lihat section "INPUT RINCIAN ala SIPD".)
 
 ## REQ SCREENING RKA — FASE 2 (draft rincian)
 
 - Tabel "Rencana Belanja" (draft_rincian) per sub kegiatan, antara chips rekening dan tabel standar harga: semua staf CRUD (kebijakan LOGIN), kolom Uraian, Spesifikasi, Volume×Satuan, Harga, Rekening, Total (Math.round(volume*harga)), aksi Cocokkan/Edit/Hapus; empty state "Belum ada rencana belanja" + "+ Tambah baris".
 - Cocokkan: dari baris otomatis masuk mode edit dulu (panel ada di form); key form = init.id ?? "baru" — form baru juga bisa cocok. Panel top-5 SSH: rekening = kode baris bila diisi (filter server), kosong → tanpa filter server + filter lokal pakai chips; klik kandidat → isi standar_harga_id + harga_standar (+harga_satuan bila kosong/0), "Tanpa standar" → null. Tanpa fuzzy/hierarki/PPN.
+  (Catatan 2026-10-07: tombol Cocokkan + PanelCocok diganti dropdown search uraian — lihat section "INPUT RINCIAN ala SIPD".)
 - Ringkasan "Rencana vs Pagu" di atas DraftRincian (query react-query sama → dedup): pagu, total rencana (Σ jumlahItem dihitung server), sisa, %, badge Aman <90% / Mendekati 90–100% / Melebihi >100%; pagu kosong → total saja + "Pagu belum diisi".
 - API /api/draft-rincian: GET (→ {items, total}) + POST + PUT + DELETE, semua LOGIN; param id/subkegiatan_id dipaksa integer >0 (idAman) → 404 bila tak valid/tidak ada; urutan = MAX+1 saat insert.
 
@@ -65,6 +67,14 @@ REQ BANK DATA (baru):
 - Kunci: selama status menunggu/disetujui, server menolak 409 perubahan pagu & kode_rekening (PUT /api/pks/subkegiatan/:id) dan seluruh CRUD /api/draft-rincian; FE menonaktifkan input/tombol + notice "Terkunci". Realisasi TIDAK ikut dikunci (angka aktual sepanjang tahun). Admin membuka lewat "Kembalikan ke Draft".
 - Warning selisih harga vs standar (AMBANG_SELISIH = 10%): badge merah "+12,5%" di kolom Harga baris rincian, warning live di form baris, dan chip "n baris selisih >10% dari standar" di ringkasan Rencana vs Pagu. Peringatan saja — TIDAK memblokir persetujuan (blokir hanya pagu vs total).
 - Bugfix ikut-terpasang: SELECT /api/pks/tree sebelumnya tidak ikut memilih kolom realisasi (nilai Realisasi tidak pernah tampil ulang setelah refetch) — sekarang ikut dipilih bersama 4 kolom status baru.
+
+## REQ SCREENING RKA — INPUT RINCIAN ala SIPD (2026-10-07)
+
+- Tabel Standar Harga (baca + upload Excel) DIHAPUS dari detail sub kegiatan — mengikuti pola SIPD-RI (Juknis Bappeda Pekalongan): di SIPD tombol "Standar Harga" hanya pintu memilih komponen untuk baris rincian, bukan konten permanen. Upload/ganti data Excel hanya di menu admin "Standar Harga" (SbuSshAdmin.jsx), server tetap memagari POST /api/standar-harga/upload dengan ADMIN. Import xlsx/parseRows di ScreeningRKA ikut dihapus.
+- Uraian baris kini lewat dropdown search (komponen PilihUraian di FormBaris): dua query paralel GET /api/standar-harga (SSH + SBU, react-query), debounce 300ms dari input uraian, filter lokal pakai chips rekening sub kegiatan bila kode_rekening baris kosong (bila terisi → kirim rekening ke server, exact), tampil maks 8 + "n lainnya — persempit pencarian". Pilih item → isi uraian, spesifikasi, satuan, kode_rekening, standar_harga_id, harga_standar (+ harga_satuan bila masih kosong/0); opsi "Tanpa standar harga" → null; mengetik tanpa memilih tetap jadi uraian manual. Badge SSH/SBU per opsi. Tombol "Cocokkan" di form & baris dihapus.
+- Kelompok belanja (keputusan user 2026-10-07: input manual per baris, bukan turunan kode rekening): kolom baru `draft_rincian.kelompok_belanja` (migration tahap_11, ALTER-only tanpa fallback). Form baris punya field "Kelompok belanja"; tabel Rencana Belanja dirender bergrup — header per kelompok (urut kemunculan pertama) + subtotal grup, kelompok kosong tampil tanpa header. Server: validasiItem menerima kelompok_belanja (trim, opsional → null) dan POST/PUT /api/draft-rincian ikut menyimpan (INSERT 13 param / UPDATE $10).
+- Label "Catatan" pada form baris diganti "Keterangan" (istilah SIPD: subheader per baris) — tanpa migrasi, kolom `catatan` tetap.
+- Verifikasi: node --check bersih; 33 uji lulus (6 draft-rincian + asersi kelompok_belanja, 10 screening, 6 standar-harga, 11 tautan-periode; server/index.uji.mjs sengaja dilewati karena memulai server); npm run build sukses.
 
 ## MENU ADMIN STANDAR HARGA
 

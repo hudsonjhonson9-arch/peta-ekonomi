@@ -17,6 +17,7 @@ uji('item valid lolos semua field dan ter-coerce', () => {
     uraian: '  Beli semen  ', spesifikasi: ' PCC 40kg ', satuan: ' sak ',
     volume: '2', harga_satuan: '65000', kode_rekening: ' 5.2.02.01 ',
     standar_harga_id: '17', harga_standar: '65000', catatan: ' urgensi ',
+    kelompok_belanja: ' Belanja Barang Pakai Habis ',
   });
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(r.item.uraian, 'Beli semen', 'trim uraian');
@@ -28,6 +29,7 @@ uji('item valid lolos semua field dan ter-coerce', () => {
   assert.equal(r.item.standar_harga_id, 17, 'id string dikoerce ke integer');
   assert.equal(r.item.harga_standar, 65000);
   assert.equal(r.item.catatan, 'urgensi');
+  assert.equal(r.item.kelompok_belanja, 'Belanja Barang Pakai Habis', 'trim kelompok_belanja');
 });
 
 // 2. uraian wajib: kosong / whitespace → error.
@@ -59,6 +61,7 @@ uji('semua field opsional hilang → ok (defaults)', () => {
   assert.equal(r.item.spesifikasi, null);
   assert.equal(r.item.kode_rekening, null);
   assert.equal(r.item.catatan, null);
+  assert.equal(r.item.kelompok_belanja, null, 'kelompok hilang → null');
   assert.equal(r.item.standar_harga_id, null, 'string kosong tidak jatuh ke 0');
   assert.equal(r.item.harga_standar, null);
 });

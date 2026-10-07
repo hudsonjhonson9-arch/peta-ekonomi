@@ -429,6 +429,9 @@ jalankanMigration('tahap_2', [
   // status_oleh, status_at). Tanpa fallback seperti tahap_9: migration menambah
   // kolom, jadi kegagalan ALTER harus terlihat di log.
   .then(() => jalankanMigration('tahap_10', ['pks_subkegiatan'], true))
+  // Tahap 11: kolom draft_rincian.kelompok_belanja (header grup rencana belanja).
+  // Tanpa fallback seperti tahap_10: migration menambah kolom.
+  .then(() => jalankanMigration('tahap_11', ['draft_rincian'], true))
   .then(jalankanSeed);
 
 const queryDB = async (sql, params = []) => {
@@ -3436,13 +3439,14 @@ app.post('/api/draft-rincian', async (req, res) => {
     const r = await queryDB(
       `INSERT INTO draft_rincian
         (subkegiatan_id, urutan, uraian, spesifikasi, satuan, volume, harga_satuan,
-         kode_rekening, standar_harga_id, harga_standar, catatan, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         kode_rekening, standar_harga_id, harga_standar, catatan, kelompok_belanja,
+         created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
       [sid, u[0].urutan, v.item.uraian, v.item.spesifikasi, v.item.satuan,
        v.item.volume, v.item.harga_satuan, v.item.kode_rekening,
        v.item.standar_harga_id, v.item.harga_standar, v.item.catatan,
-       req.pengguna?.id ?? null]
+       v.item.kelompok_belanja, req.pengguna?.id ?? null]
     );
     res.json(r[0]);
   } catch (err) {
@@ -3467,11 +3471,11 @@ app.put('/api/draft-rincian/:id', async (req, res) => {
       `UPDATE draft_rincian SET
          uraian=$1, spesifikasi=$2, satuan=$3, volume=$4, harga_satuan=$5,
          kode_rekening=$6, standar_harga_id=$7, harga_standar=$8, catatan=$9,
-         updated_at=now()
-       WHERE id=$10 RETURNING *`,
+         kelompok_belanja=$10, updated_at=now()
+       WHERE id=$11 RETURNING *`,
       [v.item.uraian, v.item.spesifikasi, v.item.satuan, v.item.volume,
        v.item.harga_satuan, v.item.kode_rekening, v.item.standar_harga_id,
-       v.item.harga_standar, v.item.catatan, id]
+       v.item.harga_standar, v.item.catatan, v.item.kelompok_belanja, id]
     );
     if (!r.length) return res.status(404).json({ error: 'Baris tidak ditemukan' });
     res.json(r[0]);
