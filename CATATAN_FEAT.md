@@ -49,3 +49,17 @@ REQ BANK DATA (baru):
 - Cocokkan: dari baris otomatis masuk mode edit dulu (panel ada di form); key form = init.id ?? "baru" — form baru juga bisa cocok. Panel top-5 SSH: rekening = kode baris bila diisi (filter server), kosong → tanpa filter server + filter lokal pakai chips; klik kandidat → isi standar_harga_id + harga_standar (+harga_satuan bila kosong/0), "Tanpa standar" → null. Tanpa fuzzy/hierarki/PPN.
 - Ringkasan "Rencana vs Pagu" di atas DraftRincian (query react-query sama → dedup): pagu, total rencana (Σ jumlahItem dihitung server), sisa, %, badge Aman <90% / Mendekati 90–100% / Melebihi >100%; pagu kosong → total saja + "Pagu belum diisi".
 - API /api/draft-rincian: GET (→ {items, total}) + POST + PUT + DELETE, semua LOGIN; param id/subkegiatan_id dipaksa integer >0 (idAman) → 404 bila tak valid/tidak ada; urutan = MAX+1 saat insert.
+
+## REQ SCREENING RKA — PERUBAHAN ANGGARAN
+
+- Tombol "Inisiasi Perubahan" (Admin saja, header Screening RKA): inisiasi perubahan anggaran pada tahun aktif, opsional catatan. Setiap inisiasi memsnapshot pagu + total rencana tiap sub kegiatan (tabel screening_perubahan + screening_perubahan_item, migration tahap_9).
+- Setelah inisiasi, di detail sub kegiatan muncul kolom: Sebelum perubahan (snapshot inisiasi terakhir), Sesudah perubahan (nilai live total rencana), Selisih (+/−, merah/hijau). Riwayat inisiasi tampil ringkas di header (maks 3 + jumlah/terakhir).
+- Kolom Realisasi selalu tampil per sub kegiatan (diisi Admin via PUT /api/pks/subkegiatan/:id → kolom pks_subkegiatan.realisasi); non-admin lihat saja.
+- API: POST /api/screening/perubahan (ADMIN), GET /api/screening/perubahan?tahun= (LOGIN) → {riwayat, item}.
+
+## MENU ADMIN SBU/SSH
+
+- Menu "SBU" & "SSH" di grup Administrasi (adminOnly), satu komponen SbuSshAdmin.jsx dengan mode.
+- Lazy load: tahun default null → tanpa request sampai user pilih tahun.
+- Penginputan = upload Excel client-side (parseRows) → POST /api/standar-harga/upload (replace-all per tahun+jenis) — sumber data satu: tabel standar_harga (dipakai pencocokan draft rincian Screening RKA).
+- Daftar data + search debounce 300ms (maks 500 baris).

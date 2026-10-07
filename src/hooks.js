@@ -183,6 +183,17 @@ export const useDraftRincian = (subkegiatanId) => useQuery({
   enabled: !!subkegiatanId,
 });
 
+// ── Screening RKA: perubahan anggaran ───────────────────────────────────────
+// {riwayat: [{id, catatan, oleh, created_at}], item: [{subkegiatan_id,
+// sebelum_pagu, sebelum_rencana}]} — item = snapshot inisiasi TERAKHIR.
+// Key sama untuk semua RingkasanPagu pada tahun yang sama → react-query dedup.
+export const usePerubahan = (tahun) => useQuery({
+  queryKey: ['screening-perubahan', tahun],
+  queryFn: () => api(`/api/screening/perubahan?tahun=${encodeURIComponent(tahun)}`),
+  enabled: !!tahun,
+  refetchInterval: tahun ? POLLING : false,
+});
+
 export function useKertasKerja(subkegiatanId) {
   return useQuery({
     queryKey: ['kertas-kerja', subkegiatanId],

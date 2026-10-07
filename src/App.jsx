@@ -57,6 +57,7 @@ import BankData          from "./components/BankData.jsx";
 import BankDataDashboard from "./components/BankDataDashboard.jsx";
 import KertasKerja from "./components/KertasKerja.jsx";
 import ScreeningRKA from "./components/ScreeningRKA.jsx";
+import SbuSshAdmin   from "./components/SbuSshAdmin.jsx";
 import { Icon, Toast }  from "./components/ui.jsx";
 import { ROLE_COLOR } from "./data.js";
 import { Badge } from "./components/ui.jsx";
@@ -1006,6 +1007,8 @@ if (!user) {
                   {page === "bankdata" && "Bank Data"}
                   {page === "kertas-kerja" && "Kertas Kerja"}
                   {page === "screening" && "Screening RKA"}
+                  {page === "sbu" && "Standar Harga SBU"}
+                  {page === "ssh" && "Standar Harga SSH"}
                 </div>
               )}
             </div>
@@ -1091,6 +1094,12 @@ if (!user) {
             )}
             {page === "screening" && (
               <ScreeningRKA user={user} showToast={showToast} />
+            )}
+            {page === "sbu" && user.role === "Admin" && (
+              <SbuSshAdmin mode="sbu" showToast={showToast} />
+            )}
+            {page === "ssh" && user.role === "Admin" && (
+              <SbuSshAdmin mode="ssh" showToast={showToast} />
             )}
             {page === "pengguna" && user.role === "Admin" && (
               <ManajemenPengguna users={users} onReload={() => queryClient.invalidateQueries({ queryKey: ['users'] })} showToast={showToast} />

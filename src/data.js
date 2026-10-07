@@ -97,6 +97,8 @@ export const NAV_GROUPS = [
       { key: "pengguna",         label: "Pengguna",      icon: "users",   adminOnly: true },
       { key: "kategori-dokumen", label: "Jenis Dokumen", icon: "tag",     adminOnly: true },
       { key: "sektor",           label: "Sektor",        icon: "layers",  adminOnly: true },
+      { key: "sbu",              label: "SBU",           icon: "dollar",  adminOnly: true },
+      { key: "ssh",              label: "SSH",           icon: "shield",  adminOnly: true },
       { key: "audit",            label: "Audit Trail",   icon: "history", adminOnly: true },
     ],
   },

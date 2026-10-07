@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { Icon } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
-import { api, usePksTree, usePksTahun, useStandarHarga, useDraftRincian } from "../hooks.js";
+import { api, usePksTree, usePksTahun, useStandarHarga, useDraftRincian, usePerubahan } from "../hooks.js";
 import { canManageOutput } from "../data.js";
 import { btn } from "./PksAdmin.jsx";
 import { parseRows } from "../uploadStandarHarga.js";
@@ -11,6 +11,10 @@ import { parseRows } from "../uploadStandarHarga.js";
 // Format rupiah lokal — sengaja tidak dibagi ke data.js: hanya dipakai di sini
 // (Task 5 bisa memakai sendiri bila perlu).
 const rupiah = n => (n == null ? "—" : "Rp " + Math.round(n).toLocaleString("id-ID"));
+
+// Tanggal riwayat perubahan — ringkas, tanpa jam.
+const tgl = t => new Date(t).toLocaleDateString("id-ID",
+  { day: "2-digit", month: "short", year: "numeric" });
 
 const inputStyle = T => ({
   padding: "7px 10px", border: `1px solid ${T.inputBorder}`, borderRadius: 8,
@@ -39,6 +43,30 @@ export default function ScreeningRKA({ user, showToast }) {
   const reload = () => qc.invalidateQueries({ queryKey: ["pks-tree", tahun] });
   const toggle = key => setBuka(prev => ({ ...prev, [key]: !prev[key] }));
 
+  // Inisiasi perubahan anggaran (Admin, tahun aktif): form inline di header.
+  const { data: perubahan } = usePerubahan(tahun);
+  const [bukaPerubahan, setBukaPerubahan] = useState(false);
+  const [catatanPerubahan, setCatatanPerubahan] = useState("");
+  const [sibukPerubahan, setSibukPerubahan] = useState(false);
+
+  const inisiasi = async () => {
+    setSibukPerubahan(true);
+    try {
+      const r = await api("/api/screening/perubahan", "POST",
+        { tahun, catatan: catatanPerubahan });
+      showToast(`Perubahan ${tahun} diinisiasi — ${r.n} sub kegiatan disnapshot.`);
+      setBukaPerubahan(false);
+      setCatatanPerubahan("");
+      qc.invalidateQueries({ queryKey: ["screening-perubahan", tahun] });
+    } catch (e) {
+      showToast(`Gagal menginisiasi: ${e.message}`);
+    } finally {
+      setSibukPerubahan(false);
+    }
+  };
+
+  const riwayat = perubahan?.riwayat || [];
+
   const programs = tree?.tree || [];
 
   return (
@@ -63,7 +91,74 @@ export default function ScreeningRKA({ user, showToast }) {
               <option key={y} value={y}>{y}</option>
             )}
           </select>
+
+          {admin && tahun != null && (
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <button
+                onClick={() => setBukaPerubahan(v => !v)}
+                disabled={sibukPerubahan}
+                style={btn(T, T.primary, "#fff", sibukPerubahan)}
+              >
+                <Icon name="history" size={13} /> Inisiasi Perubahan
+              </button>
+              {riwayat.length > 0 && (
+                <span style={{
+                  fontSize: 11, color: T.textSecondary, fontFamily: "ui-monospace, monospace",
+                }}>
+                  {riwayat.length}× · terakhir {tgl(riwayat[0].created_at)}
+                </span>
+              )}
+            </div>
+          )}
         </div>
+
+        {/* Form inisiasi + riwayat perubahan tahun aktif */}
+        {bukaPerubahan && tahun != null && (
+          <div style={{
+            marginTop: 12, padding: 10, borderRadius: 8,
+            border: `1px solid ${T.inputBorder}`, background: T.surfaceHover,
+          }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: T.text, marginBottom: 6 }}>
+              Inisiasi perubahan anggaran {tahun}
+            </div>
+            <div style={{ fontSize: 11.5, color: T.textSecondary, marginBottom: 8 }}>
+              Snapshot pagu + total rencana tiap sub kegiatan disimpan sebagai nilai
+              "sebelum perubahan". Kolom sebelum/sesudah muncul di detail sub
+              kegiatan setelah inisiasi.
+            </div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <input
+                value={catatanPerubahan}
+                onChange={e => setCatatanPerubahan(e.target.value)}
+                placeholder="Catatan perubahan (opsional)"
+                style={{ ...inputStyle(T), maxWidth: 340 }}
+                onKeyDown={e => { if (e.key === "Enter") inisiasi(); }}
+              />
+              <button onClick={inisiasi} disabled={sibukPerubahan}
+                style={btn(T, T.primary, "#fff", sibukPerubahan)}>
+                Simpan inisiasi
+              </button>
+              <button onClick={() => setBukaPerubahan(false)}
+                style={btn(T, T.surfaceHover, T.textSecondary, false, T.inputBorder)}>
+                Batal
+              </button>
+            </div>
+          </div>
+        )}
+
+        {riwayat.length > 0 && (
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 4 }}>
+            {riwayat.slice(0, 3).map(r => (
+              <div key={r.id} style={{ fontSize: 11, color: T.textMuted }}>
+                <b style={{ color: T.textSecondary, fontFamily: "ui-monospace, monospace" }}>
+                  {tgl(r.created_at)}
+                </b>
+                {" · "}{r.oleh || "Admin"}
+                {r.catatan ? ` · ${r.catatan}` : ""}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {isError && (
@@ -294,7 +389,8 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
         </>
       )}
 
-      <RingkasanPagu T={T} sub={sub} />
+      <RingkasanPagu T={T} sub={sub} tahun={tahun} admin={admin}
+        showToast={showToast} onSave={onSave} />
 
       <DraftRincian T={T} tahun={tahun} sub={sub} showToast={showToast} />
 
@@ -306,8 +402,14 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
 // ── Ringkasan rencana vs pagu (Task 10) ───────────────────────────────────
 // useDraftRincian(sub.id) = key yang sama dengan DraftRincian → react-query
 // dedup, tidak dobel fetch. totalRencana = Σ jumlahItem (dihitung server).
-function RingkasanPagu({ T, sub }) {
+//
+// Perubahan anggaran: setelah Admin menginisiasi perubahan untuk tahun aktif,
+// snapshot inisiasi terakhir (usePerubahan — key sama antar sub, dedup)
+// menampilkan kolom "Sebelum perubahan"; nilai live = "Sesudah perubahan".
+// Realisasi selalu tampil (disimpan Admin via PUT pks subkegiatan).
+function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
   const { data } = useDraftRincian(sub.id);
+  const { data: perubahan } = usePerubahan(tahun);
   const totalRencana = data ? data.total : 0;
   const pagu = sub.pagu;
   // ponytail: pagu 0 = praktis "belum diisi" — juga menghindari 0-division
@@ -333,22 +435,116 @@ function RingkasanPagu({ T, sub }) {
     </span>
   );
 
+  // Snapshot inisiasi terakhir untuk sub ini (bila tahun sudah diinisiasi).
+  const snap = (perubahan?.item || [])
+    .find(i => Number(i.subkegiatan_id) === Number(sub.id));
+  const inisiasi = perubahan?.riwayat?.[0];
+
+  // Realisasi: draft disinkronkan dengan data server hanya saat nilainya
+  // berubah (pola pagu di DetailSub) supaya refetch polling tidak menimpa
+  // input yang sedang diketik.
+  const [realTeks, setRealTeks] = useState(() => (sub.realisasi ?? "").toString());
+  const [sibukReal, setSibukReal] = useState(false);
+  useEffect(() => {
+    setRealTeks((sub.realisasi ?? "").toString());
+  }, [sub.realisasi]);
+
+  const simpanRealisasi = async () => {
+    const n = realTeks.trim() === "" ? null : Number(realTeks);
+    if (realTeks.trim() !== "" && (!Number.isFinite(n) || n < 0)) {
+      showToast("Realisasi harus angka nol atau lebih.");
+      return;
+    }
+    setSibukReal(true);
+    try {
+      // PUT pks mewajibkan kode+nama, ikut dikirim walau tidak berubah.
+      await api(`/api/pks/subkegiatan/${sub.id}`, "PUT",
+        { kode: sub.kode, nama: sub.nama, realisasi: n });
+      showToast("Realisasi disimpan.");
+      onSave && onSave();
+    } catch (e) {
+      showToast(`Gagal menyimpan: ${e.message}`);
+    } finally {
+      setSibukReal(false);
+    }
+  };
+
+  const selisih = snap ? totalRencana - Number(snap.sebelum_rencana || 0) : null;
+
   return (
-    <div style={{ marginTop: 14, border: `1px solid ${T.border}`, borderRadius: 8,
-      padding: "8px 10px", background: T.surfaceHover, display: "flex",
-      flexWrap: "wrap", gap: 12, alignItems: "center" }}>
-      <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary }}>
-        Rencana vs Pagu
-      </span>
-      {adaPagu && item("Pagu", rupiah(pagu))}
-      {item("Total rencana", rupiah(totalRencana))}
-      {adaPagu && item("Sisa", rupiah(sisa))}
-      {adaPagu && item("Terpakai", `${persen.toFixed(1)}%`)}
-      <span style={{ fontSize: 11, fontWeight: 700, color: badge.warna,
-        background: `${badge.warna}1A`, border: `1px solid ${badge.warna}4D`,
-        borderRadius: 999, padding: "2px 8px" }}>
-        {badge.label}
-      </span>
+    <div>
+      <div style={{ marginTop: 14, border: `1px solid ${T.border}`, borderRadius: 8,
+        padding: "8px 10px", background: T.surfaceHover, display: "flex",
+        flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary }}>
+          Rencana vs Pagu
+        </span>
+        {adaPagu && item("Pagu", rupiah(pagu))}
+        {item("Total rencana", rupiah(totalRencana))}
+        {adaPagu && item("Sisa", rupiah(sisa))}
+        {adaPagu && item("Terpakai", `${persen.toFixed(1)}%`)}
+        <span style={{ fontSize: 11, fontWeight: 700, color: badge.warna,
+          background: `${badge.warna}1A`, border: `1px solid ${badge.warna}4D`,
+          borderRadius: 999, padding: "2px 8px" }}>
+          {badge.label}
+        </span>
+      </div>
+
+      {/* Perubahan anggaran + realisasi */}
+      <div style={{ marginTop: 8, border: `1px solid ${T.border}`, borderRadius: 8,
+        padding: "8px 10px", background: T.surfaceHover }}>
+        {snap ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary }}>
+              Perubahan Anggaran {tahun}
+              {inisiasi && (
+                <span style={{ fontWeight: 400, color: T.textMuted }}>
+                  {" "}· diinisiasi {tgl(inisiasi.created_at)}
+                </span>
+              )}
+            </span>
+            {item("Sebelum perubahan", rupiah(Number(snap.sebelum_rencana || 0)))}
+            {item("Sesudah perubahan", rupiah(totalRencana))}
+            {item("Selisih",
+              `${selisih > 0 ? "+" : selisih < 0 ? "−" : ""}${rupiah(Math.abs(selisih))}`,
+              selisih > 0 ? "#DC2626" : selisih < 0 ? "#16A34A" : T.textSecondary)}
+          </div>
+        ) : (
+          <div style={{ fontSize: 11, color: T.textMuted }}>
+            Belum ada inisiasi perubahan untuk {tahun ?? "tahun ini"}
+            {admin ? " — gunakan tombol \"Inisiasi Perubahan\"." : "."}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 6, alignItems: "center",
+          marginTop: snap ? 8 : 6, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary }}>
+            Realisasi
+          </span>
+          {admin ? (
+            <>
+              <input
+                type="number" min="0" step="any" inputMode="decimal"
+                value={realTeks} onChange={e => setRealTeks(e.target.value)}
+                placeholder="0"
+                style={{ ...inputStyle(T), maxWidth: 170, padding: "4px 8px", fontSize: 12 }}
+                onKeyDown={e => { if (e.key === "Enter") simpanRealisasi(); }}
+              />
+              <button onClick={simpanRealisasi} disabled={sibukReal}
+                style={btn(T, T.primary, "#fff", sibukReal)}>
+                Simpan
+              </button>
+              <span style={{ fontSize: 11.5, color: T.textMuted }}>
+                {rupiah(sub.realisasi ?? null)}
+              </span>
+            </>
+          ) : (
+            <b style={{ fontSize: 12, color: T.text, fontFamily: "ui-monospace, monospace" }}>
+              {rupiah(sub.realisasi ?? null)}
+            </b>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

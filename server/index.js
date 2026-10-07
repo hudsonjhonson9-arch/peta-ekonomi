@@ -421,6 +421,9 @@ jalankanMigration('tahap_2', [
   // TABLE IF NOT EXISTS + index; tetap tanpa fallback agar kegagalan terlihat
   // di log, konsisten dengan tahap_7.
   .then(() => jalankanMigration('tahap_8', ['draft_rincian'], true))
+  // Tahap 9: tabel screening_perubahan (+item) dan kolom
+  // pks_subkegiatan.realisasi. Sisip setelah tahap_8 dan sebelum seed.
+  .then(() => jalankanMigration('tahap_9', ['screening_perubahan', 'screening_perubahan_item'], true))
   .then(jalankanSeed);
 
 const queryDB = async (sql, params = []) => {
@@ -2035,7 +2038,7 @@ app.put('/api/pks/:level/:id', async (req, res) => {
   const cfg = pksLevel(req);
   if (!cfg) return res.status(404).json({ error: 'Level tidak dikenal' });
   const { id } = req.params;
-  const { kode, nama, parent_id, indikator, target, pagu, kode_rekening } = req.body;
+  const { kode, nama, parent_id, indikator, target, pagu, kode_rekening, realisasi } = req.body;
   if (!kode || !String(kode).trim()) return res.status(400).json({ error: 'Kode wajib diisi' });
   if (!nama || !String(nama).trim()) return res.status(400).json({ error: 'Nama wajib diisi' });
   try {
@@ -2065,6 +2068,13 @@ app.put('/api/pks/:level/:id', async (req, res) => {
         }
         params.push(kode_rekening);
         sets.push(`kode_rekening = $${params.length}`);
+      }
+      // Screening RKA: realisasi anggaran. Opsional seperti pagu.
+      if (realisasi !== undefined) {
+        const n = realisasi === null || realisasi === '' ? null : Number(realisasi);
+        if (n !== null && !Number.isFinite(n)) return res.status(400).json({ error: 'Realisasi harus angka' });
+        params.push(n);
+        sets.push(`realisasi = $${params.length}`);
       }
     }
     params.push(id);
@@ -3430,6 +3440,82 @@ app.delete('/api/draft-rincian/:id', async (req, res) => {
   } catch (err) {
     console.error('Delete draft-rincian error:', err);
     res.status(500).json({ error: 'Gagal menghapus baris rencana' });
+  }
+});
+
+// ── Screening RKA: perubahan anggaran (inisiasi Admin per tahun) ──────────
+// Admin menginisiasi perubahan pada tahun yang ditentukan. Saat inisiasi,
+// snapshot pagu + total rencana (Σ draft_rincian) tiap sub kegiatan tahun itu
+// disimpan sebagai "sebelum perubahan"; nilai live berikutnya = "sesudah
+// perubahan". Realisasi disimpan terpisah: pks_subkegiatan.realisasi lewat
+// PUT /api/pks/subkegiatan/:id.
+//
+// POST diatur ADMIN di kebijakan.js; GET cukup LOGIN (semua staf boleh lihat).
+app.post('/api/screening/perubahan', async (req, res) => {
+  const tahun = Number(req.body.tahun);
+  if (!Number.isInteger(tahun) || tahun < 1970) {
+    return res.status(400).json({ error: 'Tahun wajib diisi' });
+  }
+  const catatan = (req.body.catatan || '').toString().trim().slice(0, 500) || null;
+  const oleh = req.pengguna?.name || req.pengguna?.nip || null;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const p = await client.query(
+      `INSERT INTO screening_perubahan (tahun, catatan, created_by)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [tahun, catatan, oleh]
+    );
+    // Snapshot sekali jalan per inisiasi. ROUND() di Postgres (half-away-
+    // from-zero) identik dengan Math.round klien untuk bilangan ≥ 0 —
+    // volume & harga selalu non-negatif.
+    const r = await client.query(
+      `INSERT INTO screening_perubahan_item
+         (perubahan_id, subkegiatan_id, sebelum_pagu, sebelum_rencana)
+       SELECT $1, s.id, s.pagu, COALESCE((
+         SELECT SUM(ROUND(dr.volume * dr.harga_satuan))
+         FROM draft_rincian dr WHERE dr.subkegiatan_id = s.id), 0)
+       FROM pks_subkegiatan s
+       WHERE s.tahun = $2 AND s.is_active
+       RETURNING id`,
+      [p.rows[0].id, tahun]
+    );
+    await client.query('COMMIT');
+    res.json({ ok: true, id: p.rows[0].id, n: r.rows.length });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Post screening perubahan error:', err);
+    res.status(500).json({ error: 'Gagal menginisiasi perubahan' });
+  } finally {
+    client.release();
+  }
+});
+
+// GET → {riwayat, item}. item = snapshot inisiasi TERAKHIR per sub kegiatan;
+// key react-query sama di semua RingkasanPagu → dedup, satu fetch.
+app.get('/api/screening/perubahan', async (req, res) => {
+  const tahun = Number(req.query.tahun);
+  if (!Number.isInteger(tahun)) return res.status(400).json({ error: 'tahun wajib' });
+  try {
+    const riwayat = await queryDB(
+      `SELECT id, catatan, created_by AS oleh, created_at
+         FROM screening_perubahan WHERE tahun = $1
+        ORDER BY created_at DESC, id DESC LIMIT 50`,
+      [tahun]
+    );
+    const item = await queryDB(
+      `SELECT i.subkegiatan_id, i.sebelum_pagu, i.sebelum_rencana
+         FROM screening_perubahan_item i
+        WHERE i.perubahan_id = (
+          SELECT id FROM screening_perubahan
+           WHERE tahun = $1 ORDER BY created_at DESC, id DESC LIMIT 1)`,
+      [tahun]
+    );
+    res.json({ riwayat, item });
+  } catch (err) {
+    console.error('Get screening perubahan error:', err);
+    res.status(500).json({ error: 'Gagal mengambil riwayat perubahan' });
   }
 });
 

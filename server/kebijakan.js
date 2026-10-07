@@ -103,6 +103,11 @@ const ATURAN = [
   t('PUT', LOGIN, '/api/draft-rincian/[^/]+'),
   t('DELETE', LOGIN, '/api/draft-rincian/[^/]+'),
 
+  // Screening RKA: inisiasi perubahan anggaran hanya Admin; riwayat dibuka
+  // untuk semua staf (realisasi/pagu tetap lewat PUT pks = ADMIN).
+  t('GET', LOGIN, '/api/screening/perubahan'),
+  t('POST', ADMIN, '/api/screening/perubahan'),
+
   // ── Admin: seluruh metode tulis pada modul master data ─────────────────
   ...MODUL_ADMIN.flatMap(awalan => [
     t('POST', ADMIN, `${awalan}(/[^/]+)*`),
