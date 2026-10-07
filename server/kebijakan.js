@@ -107,6 +107,11 @@ const ATURAN = [
   // untuk semua staf (realisasi/pagu tetap lewat PUT pks = ADMIN).
   t('GET', LOGIN, '/api/screening/perubahan'),
   t('POST', ADMIN, '/api/screening/perubahan'),
+  // Alur validasi sub kegiatan: staf mengajukan (Draft/Ditolak → Menunggu),
+  // Admin memvalidasi (Disetujui — pagu & total rencana dicek server —,
+  // Ditolak — catatan wajib —, atau kembalikan ke Draft).
+  t('POST', LOGIN, '/api/screening/ajukan'),
+  t('POST', ADMIN, '/api/screening/validasi'),
 
   // ── Admin: seluruh metode tulis pada modul master data ─────────────────
   ...MODUL_ADMIN.flatMap(awalan => [

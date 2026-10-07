@@ -16,6 +16,44 @@ const rupiah = n => (n == null ? "—" : "Rp " + Math.round(n).toLocaleString("i
 const tgl = t => new Date(t).toLocaleDateString("id-ID",
   { day: "2-digit", month: "short", year: "numeric" });
 
+// ── Alur validasi sub kegiatan (pola SIPD-RI) ─────────────────────────────
+// Draft → Menunggu → Disetujui/Ditolak. Saat menunggu/disetujui sub kegiatan
+// terkunci (server menolak perubahan pagu/rekening & rencana belanja dengan
+// 409); realisasi tetap boleh diisi.
+const SUB_TERKUNCI = ["menunggu", "disetujui"];
+
+const STATUS_UI = {
+  draft: { label: "Draft", warna: "#6B7280" },
+  menunggu: { label: "Menunggu", warna: "#CA8A04" },
+  disetujui: { label: "Disetujui", warna: "#16A34A" },
+  ditolak: { label: "Ditolak", warna: "#DC2626" },
+};
+
+// Ambang selisih harga rincian vs standar (persen). Di luar ambang → warning.
+// Peringatan saja, tidak memblokir persetujuan (cek ketat ada di server).
+const AMBANG_SELISIH = 10;
+
+// Selisih persen harga baris vs harga standarnya; null = tanpa standar/harga.
+const selisihStandar = (harga, hargaStandar) => {
+  if (hargaStandar == null || harga == null || harga === "") return null;
+  const hs = Number(hargaStandar);
+  const h = Number(harga);
+  if (!Number.isFinite(hs) || hs <= 0 || !Number.isFinite(h)) return null;
+  return ((h - hs) / hs) * 100;
+};
+
+// "+12,5%" / "−8,0%" — koma desimal Indonesia.
+const teksSelisih = s => `${s > 0 ? "+" : "−"}${Math.abs(s).toFixed(1).replace(".", ",")}%`;
+
+const chipStatus = status => {
+  const s = STATUS_UI[status] || STATUS_UI.draft;
+  return {
+    fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 999,
+    flexShrink: 0, color: s.warna, background: `${s.warna}1A`,
+    border: `1px solid ${s.warna}4D`,
+  };
+};
+
 const inputStyle = T => ({
   padding: "7px 10px", border: `1px solid ${T.inputBorder}`, borderRadius: 8,
   fontSize: 12.5, outline: "none", background: T.inputBg, color: T.text,
@@ -232,6 +270,10 @@ function SubRow({ T, sub, admin, tahun, buka, onToggle, showToast, reload }) {
         <span style={{ fontSize: 11, fontFamily: "ui-monospace, monospace", color: T.textMuted, flexShrink: 0 }}>{sub.kode}</span>
         <span style={{ fontSize: 12.5, fontWeight: 600, color: T.text, flex: 1, minWidth: 0 }}>{sub.nama}</span>
 
+        <span style={chipStatus(sub.status_validasi)}>
+          {(STATUS_UI[sub.status_validasi] || STATUS_UI.draft).label}
+        </span>
+
         {sub.indikator && (
           <span style={{ fontSize: 10.5, color: T.textMuted, maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {sub.indikator}{sub.target ? ` · ${sub.target}` : ""}
@@ -272,6 +314,9 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
   const [chips, setChips] = useState(() => sub.kode_rekening || []);
   const [teks, setTeks] = useState("");
   const [sibuk, setSibuk] = useState(false);
+
+  const status = sub.status_validasi || "draft";
+  const terkunci = SUB_TERKUNCI.includes(status);
 
   // Sinkronkan draft dengan data server HANYA bila isinya berubah — dependensi
   // berupa string, bukan array, supaya refetch polling (30 dtk) tidak
@@ -322,15 +367,22 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
 
       {/* Pagu */}
       <div style={{ fontSize: 11.5, fontWeight: 700, color: T.text, marginBottom: 5 }}>Pagu</div>
+      {terkunci && (
+        <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 6 }}>
+          Terkunci — {status === "disetujui" ? "sudah disetujui" : "menunggu validasi Admin"}.
+          {" "}Admin bisa membuka lewat "Kembalikan ke Draft" di blok Validasi.
+        </div>
+      )}
       {admin ? (
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <input
             type="number" min="0" step="any" inputMode="decimal"
             value={paguTeks} onChange={e => setPaguTeks(e.target.value)}
             placeholder="0" style={{ ...inputStyle(T), maxWidth: 220 }}
+            disabled={terkunci || sibuk}
             onKeyDown={e => { if (e.key === "Enter") simpanPagu(); }}
           />
-          <button onClick={simpanPagu} disabled={sibuk} style={btn(T, T.primary, "#fff", sibuk)}>
+          <button onClick={simpanPagu} disabled={sibuk || terkunci} style={btn(T, T.primary, "#fff", sibuk || terkunci)}>
             Simpan
           </button>
           <span style={{ fontSize: 11.5, color: T.textMuted }}>{rupiah(sub.pagu)}</span>
@@ -352,7 +404,7 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
             background: T.surfaceHover, border: `1px solid ${T.border}`, color: T.text,
           }}>
             {c}
-            {admin && (
+            {admin && !terkunci && (
               <button onClick={() => setChips(prev => prev.filter(x => x !== c))}
                 title={`Hapus ${c}`} aria-label={`Hapus kode rekening ${c}`}
                 style={{
@@ -365,7 +417,7 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
         ))}
       </div>
 
-      {admin && (
+      {admin && !terkunci && (
         <>
           <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
             <input
@@ -392,9 +444,147 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
       <RingkasanPagu T={T} sub={sub} tahun={tahun} admin={admin}
         showToast={showToast} onSave={onSave} />
 
-      <DraftRincian T={T} tahun={tahun} sub={sub} showToast={showToast} />
+      <BlokStatus T={T} sub={sub} admin={admin}
+        showToast={showToast} onSave={onSave} />
+
+      <DraftRincian T={T} tahun={tahun} sub={sub} terkunci={terkunci}
+        showToast={showToast} />
 
       <TabelStandarHarga T={T} tahun={tahun} sub={sub} admin={admin} showToast={showToast} />
+    </div>
+  );
+}
+
+// ── Blok alur validasi: Draft → Menunggu → Disetujui/Ditolak ──────────────
+// Staf mengajukan (Draft/Ditolak → Menunggu), Admin memvalidasi (Setujui /
+// Tolak / Kembalikan ke Draft). Server tetap memaksa prasyarat: pagu terisi
+// dan total rencana ≤ pagu saat menyetujui; catatan wajib saat menolak —
+// tombol dinonaktifkan di klien supaya alasan kelihatan sebelum diklik.
+function BlokStatus({ T, sub, admin, showToast, onSave }) {
+  const status = sub.status_validasi || "draft";
+  const { data } = useDraftRincian(sub.id);
+  const total = data ? data.total : 0;
+  const pagu = sub.pagu;
+  const adaPagu = pagu != null && pagu > 0;          // sama dengan RingkasanPagu
+  const melebihi = adaPagu && total > pagu;
+
+  const [sibuk, setSibuk] = useState(false);
+  const [tolakBuka, setTolakBuka] = useState(false);
+  const [catatan, setCatatan] = useState("");
+
+  // Tutup form catatan saat status berubah (mis. setelah diajukan ulang).
+  useEffect(() => { setTolakBuka(false); setCatatan(""); }, [status]);
+
+  const kirim = async (path, body, pesan) => {
+    setSibuk(true);
+    try {
+      await api(path, "POST", body);
+      showToast(pesan);
+      setTolakBuka(false);
+      onSave && onSave();
+    } catch (e) {
+      showToast(`Gagal: ${e.message}`);
+    } finally {
+      setSibuk(false);
+    }
+  };
+
+  const ajukan = () =>
+    kirim("/api/screening/ajukan", { subkegiatan_id: sub.id },
+      "Diajukan untuk validasi Admin.");
+  const setujui = () =>
+    kirim("/api/screening/validasi", { subkegiatan_id: sub.id, status: "disetujui" },
+      "Disetujui.");
+  const tolak = () => {
+    if (!catatan.trim()) { showToast("Catatan wajib diisi saat menolak."); return; }
+    kirim("/api/screening/validasi",
+      { subkegiatan_id: sub.id, status: "ditolak", catatan },
+      "Ditolak — catatan terkirim.");
+  };
+  const kembalikan = () =>
+    kirim("/api/screening/validasi", { subkegiatan_id: sub.id, status: "draft" },
+      "Dikembalikan ke Draft.");
+
+  const alasan = !adaPagu ? "Pagu belum diisi"
+    : melebihi ? "Total rencana melebihi pagu"
+    : "";
+  const ui = STATUS_UI[status] || STATUS_UI.draft;
+
+  return (
+    <div style={{ marginTop: 14, border: `1px solid ${T.border}`, borderRadius: 8,
+      padding: "8px 10px", background: T.surfaceHover }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary }}>
+          Validasi
+        </span>
+        <span style={chipStatus(status)}>{ui.label}</span>
+        {sub.status_oleh && sub.status_at && (
+          <span style={{ fontSize: 11, color: T.textMuted }}>
+            oleh {sub.status_oleh} · {tgl(sub.status_at)}
+          </span>
+        )}
+      </div>
+
+      {sub.catatan_validasi && (
+        <div style={{
+          fontSize: 11.5, marginTop: 6, color: status === "ditolak" ? "#DC2626" : T.textSecondary,
+        }}>
+          Catatan: {sub.catatan_validasi}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 6, alignItems: "center",
+        marginTop: 8, flexWrap: "wrap" }}>
+        {(status === "draft" || status === "ditolak") && (
+          <button onClick={ajukan} disabled={sibuk} style={btn(T, T.primary, "#fff", sibuk)}>
+            <Icon name="check" size={13} /> Ajukan ke Admin
+          </button>
+        )}
+        {status === "menunggu" && !admin && (
+          <span style={{ fontSize: 12, color: T.textMuted }}>
+            Menunggu validasi Admin…
+          </span>
+        )}
+        {status === "menunggu" && admin && (
+          <>
+            <button onClick={setujui} disabled={sibuk || !!alasan}
+              style={btn(T, "#16A34A", "#fff", sibuk || !!alasan)}>
+              <Icon name="check" size={13} /> Setujui
+            </button>
+            <button onClick={() => setTolakBuka(v => !v)} disabled={sibuk}
+              style={btn(T, "#DC2626", "#fff", sibuk)}>
+              <Icon name="x" size={13} /> Tolak
+            </button>
+            {alasan && (
+              <span style={{ fontSize: 11, color: "#DC2626" }}>
+                {alasan} — Setujui dinonaktifkan.
+              </span>
+            )}
+          </>
+        )}
+        {admin && (status === "disetujui" || status === "ditolak") && (
+          <button onClick={kembalikan} disabled={sibuk}
+            style={btn(T, T.surfaceHover, T.textSecondary, sibuk, T.inputBorder)}>
+            Kembalikan ke Draft
+          </button>
+        )}
+      </div>
+
+      {tolakBuka && (
+        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+          <input value={catatan} onChange={e => setCatatan(e.target.value)}
+            placeholder="Alasan penolakan (wajib)"
+            style={{ ...inputStyle(T), maxWidth: 340 }}
+            onKeyDown={e => { if (e.key === "Enter") tolak(); }} />
+          <button onClick={tolak} disabled={sibuk} style={btn(T, "#DC2626", "#fff", sibuk)}>
+            Konfirmasi tolak
+          </button>
+          <button onClick={() => { setTolakBuka(false); setCatatan(""); }}
+            style={btn(T, T.surfaceHover, T.textSecondary, false, T.inputBorder)}>
+            Batal
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -434,6 +624,13 @@ function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
       </b>
     </span>
   );
+
+  // Baris yang harganya menyimpang > ambang dari standar SSH/SBU — warning
+  // saja, tidak memblokir persetujuan.
+  const deviasi = ((data && data.items) || []).filter(it => {
+    const s = selisihStandar(it.harga_satuan, it.harga_standar);
+    return s != null && Math.abs(s) > AMBANG_SELISIH;
+  }).length;
 
   // Snapshot inisiasi terakhir untuk sub ini (bila tahun sudah diinisiasi).
   const snap = (perubahan?.item || [])
@@ -488,6 +685,16 @@ function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
           borderRadius: 999, padding: "2px 8px" }}>
           {badge.label}
         </span>
+        {deviasi > 0 && (
+          <span title="Baris dengan selisih harga vs standar di luar ambang"
+            style={{ fontSize: 11, fontWeight: 700, color: "#DC2626",
+              background: "#DC26261A", border: "1px solid #DC26264D",
+              borderRadius: 999, padding: "2px 8px",
+              display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <Icon name="alert" size={11} />
+            {deviasi} baris selisih &gt;{AMBANG_SELISIH}% dari standar
+          </span>
+        )}
       </div>
 
       {/* Perubahan anggaran + realisasi */}
@@ -556,7 +763,9 @@ function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
 // karena panel cocok ada di FormBaris; (2) key form = init.id ?? "baru"
 // (bukan init.id != null) — form baru juga boleh cocok; (3) tampil null pakai
 // cek eksplisit, bukan rupiah(x) || "—".
-function DraftRincian({ T, tahun, sub, showToast }) {
+// `terkunci`: sub kegiatan menunggu/disetujui → CRUD diblokir (server juga
+// menolak 409); isi form yang sudah terbuka dibiarkan apa adanya.
+function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
   const qc = useQueryClient();
   const { data, isLoading } = useDraftRincian(sub.id);
   const items = (data && data.items) || [];
@@ -648,9 +857,15 @@ function DraftRincian({ T, tahun, sub, showToast }) {
         <span style={{ fontSize: 11.5, fontWeight: 700, color: T.text }}>
           Rencana Belanja
         </span>
-        <button onClick={tambah} disabled={sibuk} style={btn(T, T.primary, "#fff", sibuk)}>
+        <button onClick={tambah} disabled={sibuk || terkunci}
+          style={btn(T, T.primary, "#fff", sibuk || terkunci)}>
           + Tambah baris
         </button>
+        {terkunci && (
+          <span style={{ fontSize: 11, color: T.textMuted }}>
+            Terkunci — sub kegiatan sedang divalidasi atau sudah disetujui.
+          </span>
+        )}
       </div>
 
       {form && (
@@ -687,6 +902,9 @@ function DraftRincian({ T, tahun, sub, showToast }) {
                 const total = it.volume == null || it.harga_satuan == null
                   ? null
                   : Math.round(Number(it.volume) * Number(it.harga_satuan));
+                // Selisih vs standar SSH/SBU — warning bila di luar ambang.
+                const sel = selisihStandar(it.harga_satuan, it.harga_standar);
+                const banding = sel != null && Math.abs(sel) > AMBANG_SELISIH;
                 return (
                   <tr key={it.id} style={{ borderTop: `1px solid ${T.border}` }}>
                     <td style={{ padding: "6px 8px", color: T.text, minWidth: 180 }}>
@@ -702,6 +920,12 @@ function DraftRincian({ T, tahun, sub, showToast }) {
                     <td style={{ padding: "6px 8px", textAlign: "right", whiteSpace: "nowrap",
                       fontFamily: "ui-monospace, monospace", color: T.text }}>
                       {it.harga_satuan == null ? "—" : rupiah(it.harga_satuan)}
+                      {banding && (
+                        <div title="Selisih harga vs standar di luar ambang"
+                          style={{ fontSize: 10, fontWeight: 700, color: "#DC2626" }}>
+                          {teksSelisih(sel)}
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: "6px 8px", whiteSpace: "nowrap",
                       fontFamily: "ui-monospace, monospace", color: T.textMuted }}>
@@ -713,16 +937,16 @@ function DraftRincian({ T, tahun, sub, showToast }) {
                     </td>
                     <td style={{ padding: "6px 8px", textAlign: "right" }}>
                       <span style={{ display: "inline-flex", gap: 4 }}>
-                        <button onClick={() => cocokkan(it)} disabled={sibuk}
-                          style={btn(T, T.surfaceHover, T.textSecondary, sibuk, T.inputBorder)}>
+                        <button onClick={() => cocokkan(it)} disabled={sibuk || terkunci}
+                          style={btn(T, T.surfaceHover, T.textSecondary, sibuk || terkunci, T.inputBorder)}>
                           Cocokkan
                         </button>
-                        <button onClick={() => edit(it)} disabled={sibuk}
-                          style={btn(T, T.surfaceHover, T.textSecondary, sibuk, T.inputBorder)}>
+                        <button onClick={() => edit(it)} disabled={sibuk || terkunci}
+                          style={btn(T, T.surfaceHover, T.textSecondary, sibuk || terkunci, T.inputBorder)}>
                           Edit
                         </button>
-                        <button onClick={() => hapus(it)} disabled={sibuk}
-                          style={btn(T, "#DC2626", "#fff", sibuk)}>
+                        <button onClick={() => hapus(it)} disabled={sibuk || terkunci}
+                          style={btn(T, "#DC2626", "#fff", sibuk || terkunci)}>
                           Hapus
                         </button>
                       </span>
@@ -752,6 +976,10 @@ function FormBaris({ T, tahun, sub, form, setForm, init, cocok, setCocok,
   const volume = Number(form.volume) || 0;
   const harga = Number(form.harga_satuan) || 0;
   const total = Math.round(volume * harga);
+
+  // Selisih live vs standar — tampil selama di luar ambang (peringatan saja).
+  const sel = selisihStandar(form.harga_satuan, form.harga_standar);
+  const banding = sel != null && Math.abs(sel) > AMBANG_SELISIH;
 
   const inp = inputStyle(T);
   const lb = {
@@ -798,6 +1026,11 @@ function FormBaris({ T, tahun, sub, form, setForm, init, cocok, setCocok,
         <span style={{ fontSize: 11, color: form.standar_harga_id != null ? T.primary : T.textMuted }}>
           {form.standar_harga_id != null ? "✓ cocok standar harga" : "tanpa standar harga"}
         </span>
+        {banding && (
+          <span style={{ fontSize: 11, fontWeight: 700, color: "#DC2626" }}>
+            Selisih {teksSelisih(sel)} dari standar
+          </span>
+        )}
         <button onClick={() => setCocok({ key, q: form.uraian || "" })}
           disabled={sibuk} style={btn(T, T.surfaceHover, T.textSecondary, sibuk, T.inputBorder)}>
           Cocokkan

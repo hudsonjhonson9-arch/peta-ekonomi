@@ -57,6 +57,15 @@ REQ BANK DATA (baru):
 - Kolom Realisasi selalu tampil per sub kegiatan (diisi Admin via PUT /api/pks/subkegiatan/:id → kolom pks_subkegiatan.realisasi); non-admin lihat saja.
 - API: POST /api/screening/perubahan (ADMIN), GET /api/screening/perubahan?tahun= (LOGIN) → {riwayat, item}.
 
+## REQ SCREENING RKA — ALUR VALIDASI (pola SIPD-RI, scope "inti saja" 2026-10-06)
+
+- Status sub kegiatan: Draft → Menunggu → Disetujui/Ditolak (migration tahap_10: pks_subkegiatan.status_validasi DEFAULT 'draft' + catatan_validasi + status_oleh + status_at). Badge status tampil di baris sub kegiatan + blok "Validasi" di detail sub.
+- API: POST /api/screening/ajukan (LOGIN) = Draft/Ditolak → Menunggu (catatan lama dibersihkan, pelaku+waktu dicatat); POST /api/screening/validasi (ADMIN) = status ∈ disetujui|ditolak|draft. Ditolak wajib catatan; Disetujui dipaksa server: pagu terisi >0 DAN total rencana (Σ ROUND(volume*harga_satuan) dihitung ulang di server) ≤ pagu, selain itu 400. Transisi tak sah → 409. Helper murni di server/screening.js (ajukanDari/validasiStatus/cekSetujui) + uji server/screening.uji.mjs.
+- Aksi di blok Validasi: staf/Admin saat Draft/Ditolak → "Ajukan ke Admin"; non-admin saat Menunggu → teks "Menunggu validasi Admin…"; Admin saat Menunggu → "Setujui" (dinonaktifkan + alasan bila pagu belum diisi / total melebihi pagu) + "Tolak" (input catatan inline, Enter = konfirmasi); Admin saat Disetujui/Ditolak → "Kembalikan ke Draft" (buka kunci).
+- Kunci: selama status menunggu/disetujui, server menolak 409 perubahan pagu & kode_rekening (PUT /api/pks/subkegiatan/:id) dan seluruh CRUD /api/draft-rincian; FE menonaktifkan input/tombol + notice "Terkunci". Realisasi TIDAK ikut dikunci (angka aktual sepanjang tahun). Admin membuka lewat "Kembalikan ke Draft".
+- Warning selisih harga vs standar (AMBANG_SELISIH = 10%): badge merah "+12,5%" di kolom Harga baris rincian, warning live di form baris, dan chip "n baris selisih >10% dari standar" di ringkasan Rencana vs Pagu. Peringatan saja — TIDAK memblokir persetujuan (blokir hanya pagu vs total).
+- Bugfix ikut-terpasang: SELECT /api/pks/tree sebelumnya tidak ikut memilih kolom realisasi (nilai Realisasi tidak pernah tampil ulang setelah refetch) — sekarang ikut dipilih bersama 4 kolom status baru.
+
 ## MENU ADMIN STANDAR HARGA
 
 - Satu menu "Standar Harga" di grup Administrasi (adminOnly) → SbuSshAdmin.jsx, dengan pemilih jenis SSH/SBU di dalam halaman (ganti jenis = reset preview + pencarian).

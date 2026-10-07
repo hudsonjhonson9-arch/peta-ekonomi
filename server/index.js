@@ -11,6 +11,7 @@ import { susunPatchPeriode } from './patch-periode.js';
 import { idDokumenValid } from './tautan-periode.js';
 import { validasiUpload, filterDaftar } from './standar-harga.js';
 import { validasiItem, jumlahItem } from './draft-rincian.js';
+import { ajukanDari, validasiStatus, cekSetujui } from './screening.js';
 import {
   NAMA_COOKIE, MASA_JAM, R_ADMIN, R_REVIEWER, R_STAF,
   normalisasiRole, rahasia, buatToken, verifikasiTokenDetail,
@@ -424,6 +425,10 @@ jalankanMigration('tahap_2', [
   // Tahap 9: tabel screening_perubahan (+item) dan kolom
   // pks_subkegiatan.realisasi. Sisip setelah tahap_8 dan sebelum seed.
   .then(() => jalankanMigration('tahap_9', ['screening_perubahan', 'screening_perubahan_item'], true))
+  // Tahap 10: kolom alur validasi sub kegiatan (status_validasi, catatan_validasi,
+  // status_oleh, status_at). Tanpa fallback seperti tahap_9: migration menambah
+  // kolom, jadi kegagalan ALTER harus terlihat di log.
+  .then(() => jalankanMigration('tahap_10', ['pks_subkegiatan'], true))
   .then(jalankanSeed);
 
 const queryDB = async (sql, params = []) => {
@@ -1684,7 +1689,8 @@ app.get('/api/pks/tree', async (req, res) => {
       [tahun]
     );
     const sub = await queryDB(
-      `SELECT id, kegiatan_id, kode, nama, urutan, indikator, target, pagu, kode_rekening
+      `SELECT id, kegiatan_id, kode, nama, urutan, indikator, target, pagu, kode_rekening,
+              realisasi, status_validasi, catatan_validasi, status_oleh, status_at
        FROM pks_subkegiatan WHERE tahun = $1 ORDER BY urutan, kode`,
       [tahun]
     );
@@ -2056,6 +2062,16 @@ app.put('/api/pks/:level/:id', async (req, res) => {
       sets.push(`target = $${params.length}`);
       // Screening RKA: pagu & chips rekening. Opsional — tidak dikirim = tidak
       // diubah, jadi pemanggilan lama (hanya kode/nama) tetap berperilaku sama.
+      //
+      // Selama sub kegiatan menunggu/disetujui, pagu & rekening terkunci
+      // (rencana sedang/akan divalidasi). Realisasi di bawah TIDAK dikunci:
+      // angka aktual terus berjalan sepanjang tahun.
+      if (pagu !== undefined || kode_rekening !== undefined) {
+        const st = await statusSub(idAman(id));
+        if (st && SUB_TERKUNCI.includes(st)) {
+          return res.status(409).json({ error: pesanTerkunci(st) });
+        }
+      }
       if (pagu !== undefined) {
         const n = pagu === null || pagu === '' ? null : Number(pagu);
         if (n !== null && !Number.isFinite(n)) return res.status(400).json({ error: 'Pagu harus angka' });
@@ -3356,6 +3372,34 @@ const idAman = (v) => {
   return Number.isInteger(n) && n > 0 ? n : null;
 };
 
+// ── Kunci alur validasi (Pola SIPD-RI) ───────────────────────────────────
+// Selama sub kegiatan "menunggu" (direview Admin) atau "disetujui", rencana
+// belanja dan pagu/rekening dikunci: datanya yang sedang divalidasi, jadi
+// mengubahnya di tengah jalan membuat statusnya bohong. Admin membuka kunci
+// lewat "Kembalikan ke draft" (POST /api/screening/validasi status=draft).
+// Realisasi TIDAK ikut dikunci — realisasi adalah angka aktual yang terus
+// berjalan sepanjang tahun, bukan bagian rencana yang divalidasi.
+const SUB_TERKUNCI = ['menunggu', 'disetujui'];
+const pesanTerkunci = (st) =>
+  `Sub kegiatan ${st === 'disetujui' ? 'sudah disetujui' : 'sedang menunggu validasi'} — kembalikan ke Draft dulu untuk mengubahnya.`;
+
+// Status validasi sebuah sub kegiatan; null = tidak ada (biarkan route yang
+// menentukan 404/FK). Dipakai route draft_rincian dan PUT pks.
+const statusSub = async (subkegiatanId) => {
+  const r = await queryDB('SELECT status_validasi FROM pks_subkegiatan WHERE id = $1', [subkegiatanId]);
+  return r.length ? (r[0].status_validasi || 'draft') : null;
+};
+
+// Kunci berdasarkan baris rincian (untuk PUT/DELETE /api/draft-rincian/:id).
+// null = lolos (termasuk baris tidak ada — route asli yang mengeluarkan 404).
+const statusSubBaris = async (barisId) => {
+  const r = await queryDB(
+    `SELECT s.status_validasi FROM draft_rincian d
+       JOIN pks_subkegiatan s ON s.id = d.subkegiatan_id
+      WHERE d.id = $1`, [barisId]);
+  return r.length ? (r[0].status_validasi || 'draft') : null;
+};
+
 // GET → {items, total} — total = Σ jumlahItem dihitung di server supaya
 // ringkasan vs pagu memakai angka yang sama dengan daftar baris.
 app.get('/api/draft-rincian', async (req, res) => {
@@ -3381,6 +3425,10 @@ app.post('/api/draft-rincian', async (req, res) => {
   const v = validasiItem(req.body);
   if (!v.ok) return res.status(400).json({ error: v.error });
   try {
+    const st = await statusSub(sid);
+    if (st && SUB_TERKUNCI.includes(st)) {
+      return res.status(409).json({ error: pesanTerkunci(st) });
+    }
     const u = await queryDB(
       'SELECT COALESCE(MAX(urutan), -1) + 1 AS urutan FROM draft_rincian WHERE subkegiatan_id = $1',
       [sid]
@@ -3411,6 +3459,10 @@ app.put('/api/draft-rincian/:id', async (req, res) => {
   const v = validasiItem(req.body);
   if (!v.ok) return res.status(400).json({ error: v.error });
   try {
+    const st = await statusSubBaris(id);
+    if (st && SUB_TERKUNCI.includes(st)) {
+      return res.status(409).json({ error: pesanTerkunci(st) });
+    }
     const r = await queryDB(
       `UPDATE draft_rincian SET
          uraian=$1, spesifikasi=$2, satuan=$3, volume=$4, harga_satuan=$5,
@@ -3434,6 +3486,10 @@ app.delete('/api/draft-rincian/:id', async (req, res) => {
   const id = idAman(req.params.id);
   if (!id) return res.status(404).json({ error: 'Baris tidak ditemukan' });
   try {
+    const st = await statusSubBaris(id);
+    if (st && SUB_TERKUNCI.includes(st)) {
+      return res.status(409).json({ error: pesanTerkunci(st) });
+    }
     const r = await queryDB('DELETE FROM draft_rincian WHERE id = $1 RETURNING id', [id]);
     if (!r.length) return res.status(404).json({ error: 'Baris tidak ditemukan' });
     res.json({ ok: true, id: r[0].id });
@@ -3516,6 +3572,72 @@ app.get('/api/screening/perubahan', async (req, res) => {
   } catch (err) {
     console.error('Get screening perubahan error:', err);
     res.status(500).json({ error: 'Gagal mengambil riwayat perubahan' });
+  }
+});
+
+// ── Screening RKA: alur validasi sub kegiatan (Pola SIPD-RI) ─────────────
+// Draft → Menunggu → Disetujui/Ditolak, dengan pelaku & waktu transisi.
+// Ajukan (LOGIN): staf mengirim sub kegiatan untuk direview — dari Draft /
+// Ditolak saja, catatan lama dibersihkan.
+// Validasi (ADMIN): Disetujui (server memaksa pagu terisi >0 dan total rencana
+// ≤ pagu — cekSetujui), Ditolak (catatan wajib), atau kembalikan ke Draft
+// (buka kunci). Helper murni di screening.js diuji terpisah.
+app.post('/api/screening/ajukan', async (req, res) => {
+  const sid = idAman(req.body.subkegiatan_id);
+  if (!sid) return res.status(400).json({ error: 'subkegiatan_id wajib' });
+  try {
+    const s = await queryDB(
+      'SELECT id, status_validasi FROM pks_subkegiatan WHERE id = $1', [sid]);
+    if (!s.length) return res.status(404).json({ error: 'Sub kegiatan tidak ditemukan' });
+    const t = ajukanDari(s[0].status_validasi);
+    if (!t.ok) return res.status(t.http).json({ error: t.error });
+    const oleh = req.pengguna?.name || req.pengguna?.nip || null;
+    const rows = await queryDB(
+      `UPDATE pks_subkegiatan
+          SET status_validasi = 'menunggu', catatan_validasi = NULL,
+              status_oleh = $2, status_at = now(), updated_at = now()
+        WHERE id = $1 RETURNING *`,
+      [sid, oleh]);
+    res.json({ message: 'Diajukan untuk validasi Admin', row: rows[0] });
+  } catch (err) {
+    console.error('Post screening ajukan error:', err);
+    res.status(500).json({ error: 'Gagal mengajukan sub kegiatan' });
+  }
+});
+
+app.post('/api/screening/validasi', async (req, res) => {
+  const sid = idAman(req.body.subkegiatan_id);
+  if (!sid) return res.status(400).json({ error: 'subkegiatan_id wajib' });
+  const ke = String(req.body.status ?? '').trim();
+  const catatan = String(req.body.catatan ?? '').trim().slice(0, 500) || null;
+  try {
+    const s = await queryDB(
+      'SELECT id, status_validasi, pagu FROM pks_subkegiatan WHERE id = $1', [sid]);
+    if (!s.length) return res.status(404).json({ error: 'Sub kegiatan tidak ditemukan' });
+    const t = validasiStatus(s[0].status_validasi, ke, catatan);
+    if (!t.ok) return res.status(t.http).json({ error: t.error });
+    if (ke === 'disetujui') {
+      // Total rencana dihitung ulang di server — jangan percaya angka klien
+      // untuk keputusan persetujuan. ROUND() identik dengan jumlahItem klien.
+      const r = await queryDB(
+        `SELECT COALESCE(SUM(ROUND(volume * harga_satuan)), 0) AS total
+           FROM draft_rincian WHERE subkegiatan_id = $1`, [sid]);
+      const c = cekSetujui(s[0].pagu, Number(r[0].total));
+      if (!c.ok) return res.status(c.http).json({ error: c.error });
+    }
+    const oleh = req.pengguna?.name || req.pengguna?.nip || null;
+    const rows = await queryDB(
+      `UPDATE pks_subkegiatan
+          SET status_validasi = $2, catatan_validasi = $3,
+              status_oleh = $4, status_at = now(), updated_at = now()
+        WHERE id = $1 RETURNING *`,
+      [sid, t.ke, catatan, oleh]);
+    const pesan = t.ke === 'disetujui' ? 'Disetujui'
+      : t.ke === 'ditolak' ? 'Ditolak' : 'Dikembalikan ke Draft';
+    res.json({ message: pesan, row: rows[0] });
+  } catch (err) {
+    console.error('Post screening validasi error:', err);
+    res.status(500).json({ error: 'Gagal memvalidasi sub kegiatan' });
   }
 });
 
