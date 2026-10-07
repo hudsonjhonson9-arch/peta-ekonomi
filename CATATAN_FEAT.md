@@ -84,6 +84,7 @@ REQ BANK DATA (baru):
 - Field "Kelompok belanja" tetap teks bebas ala SIPD (keputusan user: header ketik manual), kini dengan saran otomatis lewat CariPilih: opsi = kelompok yang sudah pernah dipakai di sub kegiatan ini (distinct `draft_rincian.kelompok_belanja`, dihitung DraftRincian → prop `saranKelompok`); ketik baru tetap diterima.
 - Endpoint baru: `GET /api/standar-harga/rekening?tahun=` (LOGIN, aturan eksplisit di kebijakan.js) → array string kode rekening distinct (btrim, tanpa filter jenis, hanya baris berkode). Hook `useKodeRekening(tahun)` (react-query, tanpa polling — data jarang berubah).
 - CariPilih (ui.jsx) menerima pesan empty-state opsional `kosongDaftar`/`kosongCari` — default tetap bahasa lama ("Belum ada pengguna." dsb), pemakaian PIC tidak berubah.
+- Layout header Screening RKA ikut dirapikan: select tahun sebelumnya mengambang di tengah baris (space-between dengan 3 anak); kini judul + subtitle "Program → Kegiatan → Sub Kegiatan · pagu & kode rekening" di kiri, label "Tahun" + select (mis. 2027) + tombol "Inisiasi Perubahan" digabung satu grup di kanan.
 - Verifikasi: node --check bersih; 33 uji lulus (draft-rincian/screening/standar-harga/tautan-periode; index.uji.mjs dilewati); npm run build sukses.
 
 ## MENU ADMIN STANDAR HARGA

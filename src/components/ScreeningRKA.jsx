@@ -109,7 +109,7 @@ export default function ScreeningRKA({ user, showToast }) {
     <div>
       <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 18, marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <Icon name="filter" size={14} style={{ color: T.primary }} />
               <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Screening RKA</span>
@@ -118,34 +118,45 @@ export default function ScreeningRKA({ user, showToast }) {
               Program → Kegiatan → Sub Kegiatan · pagu &amp; kode rekening{admin ? "" : " (lihat saja)"}
             </div>
           </div>
-          <select value={tahun ?? ""} onChange={e => setTahun(parseInt(e.target.value, 10))}
-            style={{
-              padding: "6px 9px", border: `1px solid ${T.inputBorder}`, borderRadius: 8,
-              fontSize: 12, background: T.inputBg, color: T.text, fontFamily: "inherit",
-            }}>
-            {[...new Set([tahun, ...tahunList].filter(Boolean))].sort((a, b) => b - a).map(y =>
-              <option key={y} value={y}>{y}</option>
-            )}
-          </select>
 
-          {admin && tahun != null && (
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <button
-                onClick={() => setBukaPerubahan(v => !v)}
-                disabled={sibukPerubahan}
-                style={btn(T, T.primary, "#fff", sibukPerubahan)}
-              >
-                <Icon name="history" size={13} /> Inisiasi Perubahan
-              </button>
-              {riwayat.length > 0 && (
-                <span style={{
-                  fontSize: 11, color: T.textSecondary, fontFamily: "ui-monospace, monospace",
+          {/* Kanan: pemilih tahun + aksi dalam satu grup — sebelumnya select
+              mengambang di tengah baris (space-between dgn 3 anak). */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary }}>
+                Tahun
+              </span>
+              <select value={tahun ?? ""} aria-label="Tahun anggaran"
+                onChange={e => setTahun(parseInt(e.target.value, 10))}
+                style={{
+                  padding: "6px 9px", border: `1px solid ${T.inputBorder}`, borderRadius: 8,
+                  fontSize: 12, background: T.inputBg, color: T.text, fontFamily: "inherit",
                 }}>
-                  {riwayat.length}× · terakhir {tgl(riwayat[0].created_at)}
-                </span>
-              )}
-            </div>
-          )}
+                {[...new Set([tahun, ...tahunList].filter(Boolean))].sort((a, b) => b - a).map(y =>
+                  <option key={y} value={y}>{y}</option>
+                )}
+              </select>
+            </label>
+
+            {admin && tahun != null && (
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <button
+                  onClick={() => setBukaPerubahan(v => !v)}
+                  disabled={sibukPerubahan}
+                  style={btn(T, T.primary, "#fff", sibukPerubahan)}
+                >
+                  <Icon name="history" size={13} /> Inisiasi Perubahan
+                </button>
+                {riwayat.length > 0 && (
+                  <span style={{
+                    fontSize: 11, color: T.textSecondary, fontFamily: "ui-monospace, monospace",
+                  }}>
+                    {riwayat.length}× · terakhir {tgl(riwayat[0].created_at)}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Form inisiasi + riwayat perubahan tahun aktif */}
