@@ -1007,8 +1007,7 @@ if (!user) {
                   {page === "bankdata" && "Bank Data"}
                   {page === "kertas-kerja" && "Kertas Kerja"}
                   {page === "screening" && "Screening RKA"}
-                  {page === "sbu" && "Standar Harga SBU"}
-                  {page === "ssh" && "Standar Harga SSH"}
+                  {page === "standar-harga" && "Standar Harga"}
                 </div>
               )}
             </div>
@@ -1095,11 +1094,8 @@ if (!user) {
             {page === "screening" && (
               <ScreeningRKA user={user} showToast={showToast} />
             )}
-            {page === "sbu" && user.role === "Admin" && (
-              <SbuSshAdmin mode="sbu" showToast={showToast} />
-            )}
-            {page === "ssh" && user.role === "Admin" && (
-              <SbuSshAdmin mode="ssh" showToast={showToast} />
+            {page === "standar-harga" && user.role === "Admin" && (
+              <SbuSshAdmin showToast={showToast} />
             )}
             {page === "pengguna" && user.role === "Admin" && (
               <ManajemenPengguna users={users} onReload={() => queryClient.invalidateQueries({ queryKey: ['users'] })} showToast={showToast} />

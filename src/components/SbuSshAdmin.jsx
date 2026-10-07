@@ -16,18 +16,18 @@ const inputStyle = T => ({
   fontFamily: "inherit", width: "100%", boxSizing: "border-box",
 });
 
-// ── Halaman administrasi SBU / SSH ────────────────────────────────────────
-// Satu komponen untuk dua menu (mode "sbu" | "ssh"). Data = tabel
+// ── Halaman administrasi Standar Harga (SSH / SBU) ────────────────────────
+// Satu menu "Standar Harga" dengan pemilih jenis (SSH/SBU). Data = tabel
 // standar_harga (sumber yang sama dengan pencocokan draft rincian di
 // Screening RKA), jadi tidak ada tabel harga ganda.
 //
 // Lazy load: tahun default null → useStandarHarga disabled, nol request
 // sampai user memilih tahun. Upload Excel memakai alur yang sama dengan
 // TabelStandarHarga di ScreeningRKA (baca client-side, preview, replace-all).
-export default function SbuSshAdmin({ showToast, mode = "sbu" }) {
+export default function SbuSshAdmin({ showToast }) {
   const { T } = useContext(ThemeContext);
   const qc = useQueryClient();
-  const jenis = mode === "ssh" ? "SSH" : "SBU";
+  const [jenis, setJenis] = useState("SSH");
 
   const [tahun, setTahun] = useState(null);   // null = belum load (lazy)
   const [q, setQ] = useState("");
@@ -110,21 +110,38 @@ export default function SbuSshAdmin({ showToast, mode = "sbu" }) {
               </span>
             </div>
             <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 3 }}>
-              Input standar harga {jenis} — upload Excel, data dipakai untuk
+              Input standar harga — upload Excel, data dipakai untuk
               pencocokan rincian belanja di Screening RKA.
             </div>
           </div>
-          <select
-            value={tahun ?? ""}
-            onChange={e => setTahun(e.target.value ? parseInt(e.target.value, 10) : null)}
-            aria-label="Pilih tahun"
-            style={{
-              padding: "6px 9px", border: `1px solid ${T.inputBorder}`, borderRadius: 8,
-              fontSize: 12, background: T.inputBg, color: T.text, fontFamily: "inherit",
-            }}>
-            <option value="">— pilih tahun —</option>
-            {tahunList.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <select
+              value={jenis}
+              onChange={e => {
+                setJenis(e.target.value);
+                setPreview(null);   // preview tidak boleh bocor ke jenis lain
+                setQ(""); setQD("");
+              }}
+              aria-label="Jenis standar harga"
+              style={{
+                padding: "6px 9px", border: `1px solid ${T.inputBorder}`, borderRadius: 8,
+                fontSize: 12, background: T.inputBg, color: T.text, fontFamily: "inherit",
+              }}>
+              <option value="SSH">SSH</option>
+              <option value="SBU">SBU</option>
+            </select>
+            <select
+              value={tahun ?? ""}
+              onChange={e => setTahun(e.target.value ? parseInt(e.target.value, 10) : null)}
+              aria-label="Pilih tahun"
+              style={{
+                padding: "6px 9px", border: `1px solid ${T.inputBorder}`, borderRadius: 8,
+                fontSize: 12, background: T.inputBg, color: T.text, fontFamily: "inherit",
+              }}>
+              <option value="">— pilih tahun —</option>
+              {tahunList.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
         </div>
       </div>
 

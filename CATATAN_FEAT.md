@@ -57,9 +57,9 @@ REQ BANK DATA (baru):
 - Kolom Realisasi selalu tampil per sub kegiatan (diisi Admin via PUT /api/pks/subkegiatan/:id → kolom pks_subkegiatan.realisasi); non-admin lihat saja.
 - API: POST /api/screening/perubahan (ADMIN), GET /api/screening/perubahan?tahun= (LOGIN) → {riwayat, item}.
 
-## MENU ADMIN SBU/SSH
+## MENU ADMIN STANDAR HARGA
 
-- Menu "SBU" & "SSH" di grup Administrasi (adminOnly), satu komponen SbuSshAdmin.jsx dengan mode.
+- Satu menu "Standar Harga" di grup Administrasi (adminOnly) → SbuSshAdmin.jsx, dengan pemilih jenis SSH/SBU di dalam halaman (ganti jenis = reset preview + pencarian).
 - Lazy load: tahun default null → tanpa request sampai user pilih tahun.
 - Penginputan = upload Excel client-side (parseRows) → POST /api/standar-harga/upload (replace-all per tahun+jenis) — sumber data satu: tabel standar_harga (dipakai pencocokan draft rincian Screening RKA).
 - Daftar data + search debounce 300ms (maks 500 baris).
