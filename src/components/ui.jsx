@@ -183,6 +183,10 @@ export function CariPilih({
   // rekening) — default memakai bahasa pemakaian awal, pencarian PIC.
   kosongDaftar = "Belum ada pengguna.",
   kosongCari = "Tidak ada pengguna cocok. Tekan Enter untuk memakai nama ini.",
+  // Untuk input chips (mis. Kode Rekening di DetailSub): teks ber-koma yang
+  // di-Enter dikomit apa adanya, bukan memilih sorotan — supaya "a, b" tetap
+  // utuh dan dipecah oleh handler pemanggil.
+  pisahKoma = false,
 }) {
   const { T } = useContext(ThemeContext);
   const [buka, setBuka] = useState(false);
@@ -268,7 +272,7 @@ export function CariPilih({
     else if (e.key === "Enter") {
       e.preventDefault();
       const o = cocok[sorot];
-      if (o) pilih(o);
+      if (o && !(pisahKoma && cari.includes(","))) pilih(o);
       else if (cari.trim()) { onChange(cari.trim()); setBuka(false); setCari(""); }
     } else if (e.key === "Tab") {
       if (sisaKetikan) onChange(cari.trim());

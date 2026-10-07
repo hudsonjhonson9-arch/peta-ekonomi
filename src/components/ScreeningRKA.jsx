@@ -58,6 +58,11 @@ const inputStyle = T => ({
   fontFamily: "inherit", width: "100%", boxSizing: "border-box",
 });
 
+// Teks uraian kelompok barang utk opsi dropdown kode rekening: maks 2 uraian
+// digabung " · ", sisanya "+n lainnya" supaya baris tidak panjang.
+const uraianTeks = arr => !arr || !arr.length ? undefined
+  : arr.slice(0, 2).join(" · ") + (arr.length > 2 ? ` +${arr.length - 2} lainnya` : "");
+
 // Fork struktur Panel/SubKey dari KertasKerja.jsx (Panel:274, SubKey:297) —
 // KertasKerja tidak diubah dan tidak diekspor, jadi polanya disalin lalu
 // disederhanakan: tanpa output/periode, tanpa pencarian.
@@ -324,6 +329,17 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
   const [teks, setTeks] = useState("");
   const [sibuk, setSibuk] = useState(false);
 
+  // Kandidat chips dari standar_harga (punya uraian kelompok barang) — dropdown
+  // bisa dicari lewat uraian, bukan hanya angka. Kode yang sudah jadi chip
+  // dikeluarkan dari daftar; kode manual tetap bisa diketik (isian bebas).
+  const daftarRek = useKodeRekening(tahun);
+  const petaRek = new Map((daftarRek.data || [])
+    .map(o => [String(o.kode).trim(), o.uraian || []]));
+  const opsiRek = [...new Set((daftarRek.data || []).map(o => String(o.kode).trim()))]
+    .filter(k => !chips.includes(k))
+    .sort((a, b) => a.localeCompare(b))
+    .map(k => ({ value: k, label: k, sub: uraianTeks(petaRek.get(k) || []) }));
+
   const status = sub.status_validasi || "draft";
   const terkunci = SUB_TERKUNCI.includes(status);
 
@@ -361,8 +377,10 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
     return simpan({ pagu: n }, "Pagu disimpan.");
   };
 
-  const tambahChip = () => {
-    const bagian = teks.split(",").map(x => x.trim()).filter(Boolean);
+  // Menerima hasil commit CariPilih: kode pilihan dari daftar ATAU teks
+  // ketikan (Enter/klik di luar). Koma memecah jadi beberapa kode sekaligus.
+  const tambahChip = (v) => {
+    const bagian = String(v ?? "").split(",").map(x => x.trim()).filter(Boolean);
     if (!bagian.length) return;
     setChips(prev => [...prev, ...bagian.filter(c => !prev.includes(c))]);
     setTeks("");
@@ -428,16 +446,18 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
 
       {admin && !terkunci && (
         <>
-          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-            <input
-              value={teks} onChange={e => setTeks(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === "Enter" || e.key === ",") { e.preventDefault(); tambahChip(); }
-              }}
-              placeholder="Ketik kode rekening — Enter atau koma untuk menambah"
-              style={inputStyle(T)}
+          <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
+            <CariPilih
+              value={teks}
+              onChange={tambahChip}
+              opsi={opsiRek}
+              placeholder="Cari kode / uraian kelompok — Enter atau koma untuk menambah"
+              pisahKoma
+              kosongDaftar="Belum ada daftar kode — ketik kode lalu Enter."
+              kosongCari="Tidak ada kode cocok. Tekan Enter untuk menambah."
+              style={{ flex: 1, minWidth: 0 }}
             />
-            <button onClick={tambahChip} style={btn(T, T.surfaceHover, T.textSecondary, false, T.inputBorder)}>
+            <button onClick={() => tambahChip(teks)} style={btn(T, T.surfaceHover, T.textSecondary, false, T.inputBorder)}>
               Tambah
             </button>
           </div>
@@ -1042,8 +1062,6 @@ function FormBaris({ T, tahun, sub, form, setForm, onSimpan, onBatal, sibuk,
     .map(s => String(s).trim()).filter(Boolean))];
   const petaRek = new Map((daftarRek.data || [])
     .map(o => [String(o.kode).trim(), o.uraian || []]));
-  const uraianTeks = (arr) => !arr.length ? undefined
-    : arr.slice(0, 2).join(" · ") + (arr.length > 2 ? ` +${arr.length - 2} lainnya` : "");
   const opsiRekening = [...new Set([...chipsRek, ...(daftarRek.data || []).map(o => o.kode)])]
     .sort((a, b) => a.localeCompare(b))
     .map(k => ({ value: k, label: k, sub: uraianTeks(petaRek.get(k) || []) }));
