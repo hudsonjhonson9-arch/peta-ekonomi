@@ -63,6 +63,15 @@ const inputStyle = T => ({
 const uraianTeks = arr => !arr || !arr.length ? undefined
   : arr.slice(0, 2).join(" · ") + (arr.length > 2 ? ` +${arr.length - 2} lainnya` : "");
 
+// Hierarki kode rekening (induk–anak): cocok bila sama persis ATAU val adalah
+// keturunan prefix "rek." — memilih induk menampilkan baris berkode anak.
+// Padanan logika ini ada di filterDaftar (server/standar-harga.js).
+const rekCocok = (rek, val) => {
+  const r = String(rek ?? "").trim();
+  const v = String(val ?? "").trim();
+  return !!r && (v === r || v.startsWith(`${r}.`));
+};
+
 // Fork struktur Panel/SubKey dari KertasKerja.jsx (Panel:274, SubKey:297) —
 // KertasKerja tidak diubah dan tidak diekspor, jadi polanya disalin lalu
 // disederhanakan: tanpa output/periode, tanpa pencarian.
@@ -1054,9 +1063,9 @@ function FormBaris({ T, tahun, sub, form, setForm, onSimpan, onBatal, sibuk,
   // Opsi "Kode rekening": chips sub kegiatan ∪ distinct standar harga tahun
   // ini (urut abjad, dedupe). Kode dari standar_harga membawa teks uraian
   // kelompok barang (sub) → dropdown bisa dicari lewat uraian, bukan hanya
-  // angka kodenya. Pilih salah satu → filter uraian di PilihUraian (exact)
-  // ikut menyaring; ketik manual tetap diterima (CariPilih) untuk kode yang
-  // belum ada di daftar.
+  // angka kodenya. Pilih salah satu → filter uraian di PilihUraian secara
+  // hierarki (induk → anak) ikut menyaring; ketik manual tetap diterima
+  // (CariPilih) untuk kode yang belum ada di daftar.
   const daftarRek = useKodeRekening(tahun);
   const chipsRek = [...new Set((sub.kode_rekening || [])
     .map(s => String(s).trim()).filter(Boolean))];
@@ -1160,7 +1169,9 @@ function PilihUraian({ T, tahun, sub, form, setForm, sibuk }) {
 
   const chips = sub.kode_rekening || [];
   const semua = [...(ssh.data || []), ...(sbu.data || [])]
-    .filter(it => rek || !chips.length || chips.includes(it.kode_rekening))
+    // Tanpa kode rekening terpilih: batasi ke chips sub kegiatan secara
+    // hierarki (induk → anak), sama seperti filterDaftar di server.
+    .filter(it => rek || !chips.length || chips.some(c => rekCocok(c, it.kode_rekening)))
     .sort((a, b) => String(a.uraian_barang).localeCompare(String(b.uraian_barang)));
   const kandidat = semua.slice(0, 8);
   const sisa = semua.length - kandidat.length;

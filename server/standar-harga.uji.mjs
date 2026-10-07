@@ -131,4 +131,22 @@ uji('q + rekening menyaring benar; q kosong = semua', () => {
   assert.equal(filterDaftar(daftar, { q: 'semen', rekening: '5.2.02.02,9.9.9.9' }).length, 0, 'kode di luar set tetap gugur');
 });
 
+// 7. Hierarki kode rekening: kode induk menampilkan baris berkode anak.
+uji('kode induk menampilkan keturunan; saudara & induk-kebalikan gugur', () => {
+  const daftar = [
+    { uraian_barang: 'Induk', kode_rekening: '5.2.02.01' },
+    { uraian_barang: 'Anak', kode_rekening: '5.2.02.01.01' },
+    { uraian_barang: 'Cucu', kode_rekening: '5.2.02.01.01.02' },
+    { uraian_barang: 'Saudara', kode_rekening: '5.2.02.02' },
+    { uraian_barang: 'Tanpa kode', kode_rekening: null },
+  ];
+  const hasil = (rek) => filterDaftar(daftar, { q: '', rekening: rek }).map(x => x.uraian_barang);
+  assert.deepEqual(hasil('5.2.02.01'), ['Induk', 'Anak', 'Cucu'], 'induk → semua keturunan');
+  assert.deepEqual(hasil('5.2.02.01.01'), ['Anak', 'Cucu'], 'anak → diri + cucu, induk gugur');
+  assert.deepEqual(hasil(' 5.2.02.01 '), ['Induk', 'Anak', 'Cucu'], 'kode di-trim dulu');
+  assert.deepEqual(hasil('5.2.02.0'), [], 'prefix sebagian bukan induk');
+  assert.deepEqual(hasil('5.2.02.01, 5.2.02.02'), ['Induk', 'Anak', 'Cucu', 'Saudara'], 'multi-kode OR hierarki');
+  assert.deepEqual(hasil('9.9.9.9'), [], 'kode tanpa baris → kosong');
+});
+
 console.log(`${lulus} uji lulus`);

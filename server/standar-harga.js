@@ -78,15 +78,21 @@ export function validasiUpload(tahun, jenis, rows) {
 }
 
 // q: substring case-insensitive terhadap uraian_barang/spesifikasi/kode_barang.
-// rekening: string dipisah koma (chips.join(',')) — tiap kode dicocokkan persis;
-// satu kode pun tetap exact match.
+// rekening: string dipisah koma (chips.join(',')) — dicocokkan secara hierarki:
+// sama persis ATAU kode baris adalah keturunan (prefix "rek."), jadi memilih
+// kode induk (5.1.02.01) tetap menampilkan baris berkode anak (5.1.02.01.01).
+// Kode yang cocok boleh mana saja dari daftar (OR).
 export function filterDaftar(daftar, { q, rekening } = {}) {
   const kata = String(q ?? '').trim().toLowerCase();
   const set = rekening
     ? new Set(String(rekening).split(',').map(s => s.trim()).filter(Boolean))
     : null;
+  const rekCocok = (rek, val) => {
+    const v = String(val ?? '').trim();
+    return v !== '' && (v === rek || v.startsWith(`${rek}.`));
+  };
   return (Array.isArray(daftar) ? daftar : []).filter((it) => {
-    if (set && !set.has(it.kode_rekening)) return false;
+    if (set && ![...set].some(rek => rekCocok(rek, it.kode_rekening))) return false;
     if (!kata) return true;
     return [it.uraian_barang, it.spesifikasi, it.kode_barang]
       .some((v) => String(v ?? '').toLowerCase().includes(kata));
