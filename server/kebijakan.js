@@ -95,6 +95,8 @@ const ATURAN = [
   t('PATCH', ADMIN, '/api/bankdata(/[^/]+)*'),
   t('DELETE', ADMIN, '/api/bankdata(/[^/]+)*'),
   t('GET', LOGIN, '/api/standar-harga'),
+  // Daftar kode rekening distinct untuk dropdown "Kode rekening" (baca saja).
+  t('GET', LOGIN, '/api/standar-harga/rekening'),
   t('POST', ADMIN, '/api/standar-harga/upload'),
 
   // Draft rincian: semua staf boleh susun rencana (keputusan user 2026-10-06)

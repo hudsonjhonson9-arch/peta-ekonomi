@@ -175,6 +175,15 @@ export const useStandarHarga = ({ tahun, jenis, q, rekening }) => useQuery({
   enabled: !!tahun && !!jenis,
 });
 
+// Kode rekening distinct dari standar_harga (gabungan SSH+SBU) — sumber
+// dropdown "Kode rekening" ala SIPD. Respons: array string; FE menggabungkan
+// dengan chips kode_rekening sub kegiatan. Data jarang berubah → tanpa polling.
+export const useKodeRekening = (tahun) => useQuery({
+  queryKey: ['standar-harga-rekening', tahun],
+  queryFn: () => api(`/api/standar-harga/rekening?tahun=${encodeURIComponent(tahun)}`),
+  enabled: !!tahun,
+});
+
 // ── Draft Rincian ───────────────────────────────────────────────────────────
 // Respons server {items, total} — total = Σ jumlahItem dihitung server.
 export const useDraftRincian = (subkegiatanId) => useQuery({

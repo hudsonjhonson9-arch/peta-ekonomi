@@ -3319,6 +3319,29 @@ app.get('/api/standar-harga', async (req, res) => {
   }
 });
 
+// Daftar kode rekening distinct (gabungan SSH+SBU) — sumber dropdown
+// "Kode rekening" ala SIPD ("Pilih Rekening/Akun"): FE menggabungkannya
+// dengan chips kode_rekening sub kegiatan. Tanpa jenis supaya pemilihan
+// rekening tidak tergantung jenis halaman; hanya baris berkode yang keluar.
+app.get('/api/standar-harga/rekening', async (req, res) => {
+  const { tahun } = req.query;
+  if (!tahun) return res.status(400).json({ error: 'tahun wajib diisi' });
+  try {
+    const rows = await queryDB(
+      `SELECT DISTINCT btrim(kode_rekening) AS kode
+         FROM standar_harga
+        WHERE tahun = $1 AND kode_rekening IS NOT NULL
+          AND btrim(kode_rekening) <> ''
+        ORDER BY 1`,
+      [tahun]
+    );
+    res.json(rows.map(r => r.kode));
+  } catch (err) {
+    console.error('Get standar-harga rekening error:', err);
+    res.status(500).json({ error: 'Gagal mengambil daftar kode rekening' });
+  }
+});
+
 app.post('/api/standar-harga/upload', async (req, res) => {
   const { tahun, jenis, items } = req.body;
   const v = validasiUpload(tahun, jenis, items);

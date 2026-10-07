@@ -1,8 +1,8 @@
 import { useState, useContext, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Icon } from "./ui.jsx";
+import { Icon, CariPilih } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
-import { api, usePksTree, usePksTahun, useStandarHarga, useDraftRincian, usePerubahan } from "../hooks.js";
+import { api, usePksTree, usePksTahun, useStandarHarga, useKodeRekening, useDraftRincian, usePerubahan } from "../hooks.js";
 import { canManageOutput } from "../data.js";
 import { btn } from "./PksAdmin.jsx";
 
@@ -851,6 +851,12 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
     color: T.textSecondary, textAlign: "left", whiteSpace: "nowrap",
   };
 
+  // Saran kelompok untuk form baris: nama yang sudah pernah dipakai di sub
+  // kegiatan ini. Pengisian tetap teks bebas ala SIPD — daftar hanya membantu.
+  const saranKelompok = [...new Set(items
+    .map(it => (it.kelompok_belanja || "").trim())
+    .filter(Boolean))];
+
   return (
     <div style={{ marginTop: 14, borderTop: `1px solid ${T.border}`, paddingTop: 10 }}>
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
@@ -870,7 +876,8 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
 
       {form && (
         <FormBaris T={T} tahun={tahun} sub={sub} form={form} setForm={setForm}
-          onSimpan={simpan} onBatal={tutup} sibuk={sibuk} />
+          onSimpan={simpan} onBatal={tutup} sibuk={sibuk}
+          saranKelompok={saranKelompok} />
       )}
 
       {isLoading ? (
@@ -978,8 +985,14 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
 // FormBaris: shared tambah & edit. Total live = rumus identik dengan server
 // (jumlahItem): Math.round(volume * harga). Uraian dipilih lewat dropdown
 // search SSH+SBU (PilihUraian) — pola SIPD: Standar Harga → pilih komponen.
-function FormBaris({ T, tahun, sub, form, setForm, onSimpan, onBatal, sibuk }) {
+// Kode rekening dipilih dari daftar (chips sub kegiatan ∪ distinct standar
+// harga) ala SIPD "Pilih Rekening/Akun" — memilihnya langsung menyaring
+// kandidat uraian. Kelompok belanja tetap teks bebas ala SIPD (header grup),
+// dengan saran dari kelompok yang sudah pernah dipakai.
+function FormBaris({ T, tahun, sub, form, setForm, onSimpan, onBatal, sibuk,
+  saranKelompok = [] }) {
   const set = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
+  const setTeks = k => v => setForm(p => ({ ...p, [k]: v }));
 
   const volume = Number(form.volume) || 0;
   const harga = Number(form.harga_satuan) || 0;
@@ -1000,14 +1013,25 @@ function FormBaris({ T, tahun, sub, form, setForm, onSimpan, onBatal, sibuk }) {
   const field = { ...inp, width: "100%" };
 
   const daftar = [
-    ["Kelompok belanja", "kelompok_belanja", "Belanja Barang Pakai Habis", "2 1 200px"],
     ["Spesifikasi", "spesifikasi", "", "2 1 160px"],
     ["Satuan", "satuan", "sak", "1 1 90px"],
     ["Volume", "volume", "0", "1 1 90px"],
     ["Harga satuan", "harga_satuan", "0", "1 1 130px"],
-    ["Kode rekening", "kode_rekening", "5.1.02.01", "1 1 130px"],
     ["Keterangan", "catatan", "", "2 1 160px"],
   ];
+
+  // Opsi "Kode rekening": chips sub kegiatan ∪ distinct standar harga tahun
+  // ini (urut abjad, dedupe). Pilih salah satu → filter uraian di PilihUraian
+  // (exact) ikut menyaring; ketik manual tetap diterima (CariPilih) untuk
+  // kode yang belum ada di daftar.
+  const daftarRek = useKodeRekening(tahun);
+  const chipsRek = [...new Set((sub.kode_rekening || [])
+    .map(s => String(s).trim()).filter(Boolean))];
+  const opsiRekening = [...new Set([...chipsRek, ...(daftarRek.data || [])])]
+    .sort((a, b) => a.localeCompare(b))
+    .map(k => ({ value: k, label: k }));
+
+  const opsiKelompok = saranKelompok.map(n => ({ value: n, label: n }));
 
   return (
     <div style={{ border: `1px solid ${T.inputBorder}`, borderRadius: 8,
@@ -1017,6 +1041,23 @@ function FormBaris({ T, tahun, sub, form, setForm, onSimpan, onBatal, sibuk }) {
           <span style={lb}>Uraian — cari dari SSH / SBU</span>
           <PilihUraian T={T} tahun={tahun} sub={sub} form={form}
             setForm={setForm} sibuk={sibuk} />
+        </div>
+        <div style={kolom("1 1 150px")}>
+          <span style={lb}>Kode rekening</span>
+          <CariPilih value={form.kode_rekening || ""}
+            onChange={setTeks("kode_rekening")}
+            opsi={opsiRekening} placeholder="5.1.02.01" disabled={sibuk}
+            kosongDaftar="Belum ada daftar rekening — ketik kode."
+            kosongCari="Tidak ada rekening cocok. Tekan Enter untuk memakai kode ini." />
+        </div>
+        <div style={kolom("2 1 200px")}>
+          <span style={lb}>Kelompok belanja</span>
+          <CariPilih value={form.kelompok_belanja || ""}
+            onChange={setTeks("kelompok_belanja")}
+            opsi={opsiKelompok} placeholder="Belanja Barang Pakai Habis"
+            disabled={sibuk}
+            kosongDaftar="Belum ada kelompok — ketik baru."
+            kosongCari="Tidak ada kelompok cocok. Tekan Enter untuk memakai teks ini." />
         </div>
         {daftar.map(([label, k, ph, flex]) => (
           <label key={k} style={kolom(flex)}>
@@ -1163,6 +1204,7 @@ function PilihUraian({ T, tahun, sub, form, setForm, sibuk }) {
           ) : kandidat.length === 0 ? (
             <div style={{ fontSize: 11.5, color: T.textMuted, padding: "4px 4px" }}>
               {qKirim ? `Tidak ada data untuk "${qKirim}".`
+                : rek ? `Tidak ada SSH/SBU untuk rekening ${rek}.`
                 : "Belum ada data SSH/SBU — uraian bisa diketik manual."}
             </div>
           ) : kandidat.map((it, i) => (

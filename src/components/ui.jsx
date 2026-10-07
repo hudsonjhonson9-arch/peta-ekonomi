@@ -179,6 +179,10 @@ export function CariPilih({
   label = "",
   style,
   disabled = false,
+  // Pesan empty-state bisa disesuaikan per pemakaian (mis. daftar kode
+  // rekening) — default memakai bahasa pemakaian awal, pencarian PIC.
+  kosongDaftar = "Belum ada pengguna.",
+  kosongCari = "Tidak ada pengguna cocok. Tekan Enter untuk memakai nama ini.",
 }) {
   const { T } = useContext(ThemeContext);
   const [buka, setBuka] = useState(false);
@@ -330,7 +334,7 @@ export function CariPilih({
         >
           {cocok.length === 0 ? (
             <div style={{ padding: "10px 12px", fontSize: 11.5, color: T.textMuted }}>
-              {cari.trim() ? "Tidak ada pengguna cocok. Tekan Enter untuk memakai nama ini." : "Belum ada pengguna."}
+              {cari.trim() ? kosongCari : kosongDaftar}
             </div>
           ) : cocok.map((o, i) => (
             <div
