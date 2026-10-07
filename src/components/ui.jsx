@@ -187,6 +187,7 @@ export function CariPilih({
   const [rect, setRect] = useState(null);
   const boxRef = useRef(null);
   const inputRef = useRef(null);
+  const listRef = useRef(null);
 
   // Panel memakai position fixed, bukan absolute, karena form ini berada dalam
   // dialog yang bodinya overflow-y:auto. Panel absolute akan terpotong tepi
@@ -241,6 +242,12 @@ export function CariPilih({
   }, [cari, value, sisaKetikan, onChange]);
 
   useEffect(() => { setSorot(0); }, [cari]);
+
+  // Sorotan keyboard ikut terlihat saat daftar digulir ke bawah/atas.
+  useEffect(() => {
+    const el = listRef.current?.children?.[sorot];
+    if (el?.scrollIntoView) el.scrollIntoView({ block: "nearest" });
+  }, [sorot, buka]);
 
   const pilih = o => {
     onChange(o.value);
@@ -307,6 +314,7 @@ export function CariPilih({
 
       {buka && rect && (
         <div
+          ref={listRef}
           id={listId}
           role="listbox"
           style={{

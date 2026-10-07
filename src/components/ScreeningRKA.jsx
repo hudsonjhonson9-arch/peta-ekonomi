@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect } from "react";
+import { useState, useContext, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Icon } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
@@ -1067,6 +1067,8 @@ function FormBaris({ T, tahun, sub, form, setForm, onSimpan, onBatal, sibuk }) {
 function PilihUraian({ T, tahun, sub, form, setForm, sibuk }) {
   const [buka, setBuka] = useState(false);
   const [qD, setQD] = useState(form.uraian || "");
+  const [sorot, setSorot] = useState(0);
+  const listRef = useRef(null);
 
   const q = form.uraian || "";
   useEffect(() => {
@@ -1086,6 +1088,31 @@ function PilihUraian({ T, tahun, sub, form, setForm, sibuk }) {
     .sort((a, b) => String(a.uraian_barang).localeCompare(String(b.uraian_barang)));
   const kandidat = semua.slice(0, 8);
   const sisa = semua.length - kandidat.length;
+  const sorotEfektif = kandidat.length ? Math.min(sorot, kandidat.length - 1) : 0;
+
+  // Navigasi keyboard: sorotan kembali ke baris pertama tiap daftar berubah
+  // (q, filter rekening, atau refetch), dan panel digulir supaya baris yang
+  // disorot selalu terlihat.
+  useEffect(() => { setSorot(0); }, [qD, rek, ssh.data, sbu.data, chips.join("")]);
+  useEffect(() => {
+    const el = listRef.current?.children?.[sorotEfektif];
+    if (el?.scrollIntoView) el.scrollIntoView({ block: "nearest" });
+  }, [sorotEfektif, buka, kandidat.length]);
+
+  const onKeyDown = e => {
+    if (e.key === "Escape") { setBuka(false); return; }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setBuka(true);
+      setSorot(s => Math.min(s + 1, Math.max(kandidat.length - 1, 0)));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSorot(s => Math.max(s - 1, 0));
+    } else if (e.key === "Enter" && buka && kandidat[sorotEfektif]) {
+      e.preventDefault();
+      pilih(kandidat[sorotEfektif]);
+    }
+  };
 
   const pilih = it => {
     setForm(p => ({
@@ -1119,12 +1146,12 @@ function PilihUraian({ T, tahun, sub, form, setForm, sibuk }) {
         onChange={e => setForm(p => ({ ...p, uraian: e.target.value }))}
         onFocus={() => setBuka(true)}
         onBlur={() => setBuka(false)}
-        onKeyDown={e => { if (e.key === "Escape") setBuka(false); }}
+        onKeyDown={onKeyDown}
         placeholder="Ketik untuk cari SSH / SBU…"
         style={inp}
       />
       {buka && !sibuk && (
-        <div style={{ position: "absolute", top: "100%", left: 0, right: 0,
+        <div ref={listRef} role="listbox" style={{ position: "absolute", top: "100%", left: 0, right: 0,
           zIndex: 30, marginTop: 4, background: T.card,
           border: `1px solid ${T.inputBorder}`, borderRadius: 8,
           boxShadow: "0 8px 24px rgba(0,0,0,.14)", padding: 6,
@@ -1138,10 +1165,15 @@ function PilihUraian({ T, tahun, sub, form, setForm, sibuk }) {
               {qKirim ? `Tidak ada data untuk "${qKirim}".`
                 : "Belum ada data SSH/SBU — uraian bisa diketik manual."}
             </div>
-          ) : kandidat.map(it => (
-            <button key={`${it.jenis}-${it.id}`} type="button"
+          ) : kandidat.map((it, i) => (
+            <button key={`${it.jenis}-${it.id}`} type="button" role="option"
+              aria-selected={i === sorotEfektif}
               onMouseDown={e => { e.preventDefault(); pilih(it); }}
-              style={opsi}>
+              onMouseEnter={() => setSorot(i)}
+              style={{ ...opsi,
+                background: i === sorotEfektif
+                  ? (T.surfaceHover || "rgba(127,127,127,.08)")
+                  : "transparent" }}>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis",
                 whiteSpace: "nowrap" }}>
                 <span style={{ fontSize: 9.5, fontWeight: 700, marginRight: 5,
