@@ -603,7 +603,11 @@ app.post('/api/docs', async (req, res) => {
   // Kertas Kerja. Sekarang tautan ikut dalam transaksi yang sama, jadi dokumen
   // ada berarti tertaut.
   const idPeriode = idDokumenValid(kertas_kerja_periode_id);
-  if (kertas_kerja_periode_id != null && idPeriode == null)
+  // Kosong ('' dan null/undefined) berarti tidak ada periode tujuan — klien
+  // mengirim '' untuk unggahan biasa dari halaman Upload. Jangan memakai
+  // `!= null` di sini: perbandingan longgar itu menganggap '''' sebagai "ada",
+  // lalu idDokumenValid('') === null dan setiap unggahan biasa ditolak 400.
+  if (kertas_kerja_periode_id != null && kertas_kerja_periode_id !== '' && idPeriode == null)
     return res.status(400).json({ error: 'kertas_kerja_periode_id tidak valid' });
 
   const client = await pool.connect();
