@@ -2057,7 +2057,9 @@ app.put('/api/pks/:level/:id', async (req, res) => {
   try {
     const sets = ['kode = $1', 'nama = $2', 'updated_at = NOW()'];
     const params = [String(kode).trim(), String(nama).trim()];
-    if (cfg.parentCol) {
+    // parent_id opsional saat update (sama seperti pagu & chips di bawah):
+    // tidak dikirim = induk tidak diubah. Dikirim tapi kosong tetap 400.
+    if (cfg.parentCol && parent_id !== undefined) {
       if (!parent_id) return res.status(400).json({ error: `Parent ${cfg.label} wajib dipilih` });
       params.push(parent_id);
       sets.push(`${cfg.parentCol} = $${params.length}`);
