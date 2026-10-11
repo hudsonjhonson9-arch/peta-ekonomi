@@ -871,20 +871,21 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
   };
 
   // Kelompok header ala SIPD: urut sesuai kemunculan pertama; nama kosong =
-  // baris tanpa kelompok, tampil biasa tanpa header. Keterangan (catatan)
-  // grup disimpan: bila SEMUA baris dalam grup punya catatan sama & tidak
-  // kosong, tampil di bawah nama grup pada header.
+  // baris tanpa kelompok, tampil biasa tanpa header. Grup dipecah per
+  // kombinasi kelompok+catatan — kelompok sama tapi keterangan beda =
+  // header terpisah dengan totalnya masing-masing.
   const grup = [];
   const indeks = new Map();
   items.forEach(it => {
     const nama = (it.kelompok_belanja || "").trim();
-    if (!indeks.has(nama)) {
-      const g = { nama, baris: [], total: 0, kat: (it.catatan || "").trim(), katSama: true };
-      indeks.set(nama, g);
+    const kat = (it.catatan || "").trim();
+    const key = nama + "\u0000" + kat;
+    if (!indeks.has(key)) {
+      const g = { nama, baris: [], total: 0, kat };
+      indeks.set(key, g);
       grup.push(g);
     }
-    const g = indeks.get(nama);
-    if (g.baris.length && (it.catatan || "").trim() !== g.kat) g.katSama = false;
+    const g = indeks.get(key);
     g.baris.push(it);
     if (it.volume != null && it.harga_satuan != null)
       g.total += Math.round(Number(it.volume) * Number(it.harga_satuan));
@@ -961,7 +962,7 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
                           {rupiah(g.total)}
                         </span>
                       </div>
-                      {g.katSama && g.kat && (
+                      {g.kat && (
                         <div style={{ fontSize: 10.5, color: T.textMuted, marginTop: 2 }}>
                           Keterangan: {g.kat}
                         </div>
@@ -1023,6 +1024,18 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
                   );
                 }),
               ])}
+              {grup.length > 0 && (
+                <tr style={{ background: T.surfaceHover, borderTop: `2px solid ${T.border}` }}>
+                  <td colSpan={5} style={{ padding: "6px 8px", fontWeight: 700, fontSize: 12,
+                    color: T.text, textAlign: "right" }}>
+                    Total
+                  </td>
+                  <td colSpan={2} style={{ padding: "6px 8px", fontWeight: 700, fontSize: 12,
+                    color: T.text, textAlign: "right", fontFamily: "ui-monospace, monospace" }}>
+                    {rupiah(grup.reduce((a, g) => a + g.total, 0))}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
