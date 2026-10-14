@@ -598,13 +598,15 @@ function BarisPeriode({ T, p, admin, onEdit, onUnggah, onLihatRiwayat, reload, s
   const [kandidat, setKandidat] = useState(null);
   const [memuat, setMemuat] = useState(false);
   const [sibukHubung, setSibukHubung] = useState(false);
+  const [cariDoc, setCariDoc] = useState("");
 
-  const bukaKandidat = async () => {
+  const bukaKandidat = async (q = "") => {
     setMemuat(true);
-    setKandidat([]);
+    setKandidat(k => k || []);
     try {
       const rows = await api(
-        `/api/kertas-kerja/periode/${p.id}/kandidat?judul=${encodeURIComponent(judul)}`
+        `/api/kertas-kerja/periode/${p.id}/kandidat?judul=${encodeURIComponent(judul)}` +
+        (q.trim() ? `&q=${encodeURIComponent(q.trim())}` : "")
       );
       setKandidat(rows);
     } catch (err) {
@@ -677,7 +679,7 @@ function BarisPeriode({ T, p, admin, onEdit, onUnggah, onLihatRiwayat, reload, s
                 title="Unggah dokumen untuk periode ini" style={iconBtn(T)}>
                 <Icon name="upload" size={11} />
               </button>
-              <button onClick={bukaKandidat} disabled={memuat}
+              <button onClick={() => (kandidat ? setKandidat(null) : bukaKandidat())} disabled={memuat}
                 title="Hubungkan dokumen yang sudah ada di arsip" style={iconBtn(T)}>
                 <Icon name="link" size={11} />
               </button>
@@ -694,11 +696,26 @@ function BarisPeriode({ T, p, admin, onEdit, onUnggah, onLihatRiwayat, reload, s
       {kandidat && (
           <tr key={p.id + "-kandidat"}>
             <td colSpan={5} style={{ padding: "6px 7px", background: T.surfaceHover }}>
+              <form onSubmit={e => { e.preventDefault(); bukaKandidat(cariDoc); }}
+                style={{ display: "flex", gap: 4, marginBottom: 6 }}>
+                <input value={cariDoc} onChange={e => setCariDoc(e.target.value)}
+                  placeholder="Cari judul dokumen di arsip…"
+                  style={{
+                    flex: 1, padding: "4px 7px", fontSize: 10.5, borderRadius: 6,
+                    border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontFamily: "inherit",
+                  }} />
+                <button type="submit" disabled={memuat} style={iconBtn(T)}>
+                  <Icon name="search" size={11} />
+                </button>
+                <button type="button" onClick={() => setKandidat(null)} style={iconBtn(T)} title="Tutup">
+                  <Icon name="x" size={11} />
+                </button>
+              </form>
               {memuat ? (
                 <span style={{ fontSize: 10.5, color: T.textMuted }}>Mencari dokumen…</span>
               ) : kandidat.length === 0 ? (
                 <span style={{ fontSize: 10.5, color: T.textMuted }}>
-                  Tidak ada dokumen di arsip yang cocok dengan &quot;{judul}&quot;.
+                  Tidak ada dokumen yang cocok. Coba kata kunci lain di kolom pencarian.
                 </span>
               ) : (
                 <span style={{ display: "flex", flexDirection: "column", gap: 3 }}>

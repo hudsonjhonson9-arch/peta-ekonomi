@@ -2585,6 +2585,47 @@ app.post('/api/kertas-kerja/periode/:id/tautan', async (req, res) => {
   }
 });
 
+// ── Kandidat dokumen arsip untuk satu periode ─────────────────────────────
+//
+// Dipakai tombol "Hubungkan dokumen yang sudah ada" di baris periode. Endpoint
+// ini sebelumnya tidak ada, sehingga dokumen yang sudah terunggah lewat halaman
+// Upload tidak pernah bisa disimpan ke output Kertas Kerja.
+//
+// ?judul= judul baku "<output> — <periode>"; ?q= pencarian bebas dari user.
+// Kandidat dicocokkan ke judul persis, nama output, atau kata kunci q.
+app.get('/api/kertas-kerja/periode/:id/kandidat', async (req, res) => {
+  const idPeriode = idDokumenValid(req.params.id);
+  if (idPeriode == null) return res.status(400).json({ error: 'Id periode tidak valid' });
+  const judul = String(req.query.judul || '').trim();
+  const q = String(req.query.q || '').trim();
+  try {
+    const periode = (await queryDB(
+      `SELECT p.id, k.nama FROM kertas_kerja_periode p
+         JOIN kertas_kerja k ON k.id = p.kertas_kerja_id
+        WHERE p.id = $1`, [idPeriode]
+    ))[0];
+    if (!periode) return res.status(404).json({ error: 'Periode tidak ditemukan' });
+
+    const pola = q ? `%${q}%` : `%${periode.nama}%`;
+    const rows = await queryDB(
+      `SELECT d.id, d.judul,
+              TO_CHAR(d.tanggal, 'DD Mon YYYY') AS tanggal,
+              (lower(d.judul) = lower($1)) AS persis,
+              (SELECT count(*)::int FROM kertas_kerja_periode x
+                WHERE x.doc_id = d.id AND x.id <> $3) AS terpakai
+         FROM bapperida_dokumen d
+        WHERE lower(d.judul) = lower($1) OR d.judul ILIKE $2
+        ORDER BY (lower(d.judul) = lower($1)) DESC, d.id DESC
+        LIMIT 25`,
+      [judul, pola, idPeriode]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Kandidat periode error:', err);
+    res.status(500).json({ error: 'Gagal mencari dokumen' });
+  }
+});
+
 // ── Dokumen yang belum terhubung ke periode mana pun ──────────────────────
 //
 // Hanya dokumen yang judulnya persis "<nama output> — <label periode>" karena
