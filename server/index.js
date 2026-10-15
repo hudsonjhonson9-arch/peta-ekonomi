@@ -656,10 +656,15 @@ app.post('/api/docs', async (req, res) => {
         [doc.id, 'upload', null, 'Menunggu Review', pelamar.id || '', pelamar.nama || 'System']
       );
     } catch (_) {}
-    await pool.query(
-      `INSERT INTO audit_logs (user_name, action, doc_title) VALUES ($1, $2, $3)`,
-      [pelamar.nama || 'System', 'Upload dokumen', title]
-    );
+    // audit_logs tidak boleh menjatuhkan unggahan yang sudah COMMIT.
+    try {
+      await pool.query(
+        `INSERT INTO audit_logs (user_name, action, doc_title) VALUES ($1, $2, $3)`,
+        [pelamar.nama || 'System', 'Upload dokumen', title]
+      );
+    } catch (e) {
+      console.error('audit_logs:', e.message);
+    }
     // Notify all admins about new upload
     try {
       // Disaring lewat user_credentials, bukan user_list: kolom role di
@@ -2548,6 +2553,15 @@ app.post('/api/kertas-kerja/periode/:id/tautan', async (req, res) => {
       await client.query('ROLLBACK');
       return res.json({ message: 'Dokumen sudah terhubung', row: periode, sudah: true });
     }
+    // Idempoten sama seperti POST /api/docs: periode yang sudah punya dokumen
+    // tidak ditimpa. Tanpa guard ini, permintaan tautan kedua (mis. dari
+    // fallback unggah) menggantikan bukti dukung yang sudah benar dan
+    // mendokumen yatim di arsip. Lepas dulu lewat PATCH doc_id = null kalau
+    // memang ingin mengganti.
+    if (periode.doc_id != null) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Periode ini sudah terhubung ke dokumen lain. Lepas dulu sebelum menghubungkan yang baru.' });
+    }
 
     const dipakai = (await client.query(
       'SELECT id FROM kertas_kerja_periode WHERE doc_id = $1', [idDoc]
@@ -2654,30 +2668,9 @@ app.get('/api/kertas-kerja/jatim', async (req, res) => {
   }
 });
 
-// Kandidat dokumen untuk satu periode: judulnya sama persis dengan format
-// unggah Kertas Kerja, atau mengandung nama output sebagai awal judul.
-app.get('/api/kertas-kerja/periode/:id/kandidat', async (req, res) => {
-  const idPeriode = idDokumenValid(req.params.id);
-  if (idPeriode == null) return res.status(400).json({ error: 'Id periode tidak valid' });
-  try {
-    const rows = await queryDB(
-      `SELECT d.id, d.judul, d.status,
-              TO_CHAR(d.tanggal, 'YYYY-MM-DD') AS tanggal,
-              COALESCE(d.uploader_id, '') AS pengunggah,
-              (d.judul = $1) AS persis,
-              (SELECT count(*)::int FROM kertas_kerja_periode x WHERE x.doc_id = d.id) AS terpakai
-         FROM bapperida_dokumen d
-        WHERE d.judul = $1 OR d.judul LIKE $2
-        ORDER BY d.judul = $1 DESC, d.id DESC
-        LIMIT 20`,
-      [req.query.judul || '', (req.query.judul || '') + '%']
-    );
-    res.json(rows);
-  } catch (err) {
-    console.error('Get kandidat dokumen error:', err);
-    res.status(500).json({ error: 'Gagal mencari dokumen' });
-  }
-});
+// Catatan: route GET /api/kertas-kerja/periode/:id/kandidat yang lama (dari
+// f1b25d1) sudah dihapus di sini. Route itu terdaftar dua kali; Express
+// memakai yang pertama, jadi yang kedua adalah kode mati yang hanya membingungkan.
 
 // ── Bidang (Unit Kerja) ─────────────────────────────────────────────────
 app.get('/api/bidang', async (_, res) => {

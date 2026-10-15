@@ -396,8 +396,15 @@ export default function App() {
         queryClient.invalidateQueries({ queryKey: ['pks-ringkasan'] });
         queryClient.invalidateQueries({ queryKey: ['pks-deadline'] });
         showToast("Dokumen diunggah dan ditautkan ke periode Kertas Kerja.");
-      } catch (_) {
-        showToast("Dokumen terunggah, tetapi belum terhubung ke periode. Buka Kertas Kerja, lalu pakai tombol Hubungkan pada baris periode tersebut.");
+      } catch (e) {
+        // 409 = periode sudah terhubung ke dokumen lain (server menolak
+        // menimpa). Dokumen barunya tetap ada di arsip, hanya tidak jadi
+        // bukti periode itu.
+        if (e?.status === 409) {
+          showToast("Dokumen terunggah, tetapi periode ini sudah terhubung ke dokumen lain.");
+        } else {
+          showToast("Dokumen terunggah, tetapi belum terhubung ke periode. Buka Kertas Kerja, lalu pakai tombol Hubungkan pada baris periode tersebut.");
+        }
       }
     } else {
       showToast(pesan);
@@ -434,6 +441,10 @@ export default function App() {
       showToast(await pesanError(err, "Gagal menyetujui dokumen"));
     } finally {
       queryClient.invalidateQueries({ queryKey: ['docs'] });
+      // Status dokumen dipakai statusPeriode() di Kertas Kerja, jadi cache
+      // pks harus ikut di-refresh supaya chip status di baris periode tidak
+      // basi sampai poll 30 detik berikutnya.
+      queryClient.invalidateQueries({ queryKey: ['pks-tree'] });
     }
   };
 
@@ -454,6 +465,7 @@ export default function App() {
       showToast(await pesanError(err, "Gagal menolak dokumen"));
     } finally {
       queryClient.invalidateQueries({ queryKey: ['docs'] });
+      queryClient.invalidateQueries({ queryKey: ['pks-tree'] });
     }
   };
 
@@ -507,6 +519,13 @@ export default function App() {
       } catch (_) { /* Drive cleanup best-effort */ }
       setDocs(d => d.filter(x => x.id !== doc.id));
       queryClient.invalidateQueries({ queryKey: ['docs'] });
+      // FK kertas_kerja_periode.doc_id ON DELETE SET NULL: menghapus dokumen
+      // melepas tautan periode secara diam-diam di database. Tanpa invalidasi
+      // ini, Dashboard dan Kertas Kerja masih menghitung dokumen terhapus
+      // sebagai "terisi" sampai poll 30 detik berikutnya.
+      queryClient.invalidateQueries({ queryKey: ['pks-tree'] });
+      queryClient.invalidateQueries({ queryKey: ['pks-ringkasan'] });
+      queryClient.invalidateQueries({ queryKey: ['pks-deadline'] });
       setViewDoc(null);
       setPage("dokumen");
       showToast("Dokumen berhasil dihapus.");
@@ -528,6 +547,11 @@ export default function App() {
         setDocs(d => d.map(x => ids.includes(x.id) ? { ...x, publik: true } : x));
       }
       queryClient.invalidateQueries({ queryKey: ['docs'] });
+      if (action === "delete") {
+        queryClient.invalidateQueries({ queryKey: ['pks-tree'] });
+        queryClient.invalidateQueries({ queryKey: ['pks-ringkasan'] });
+        queryClient.invalidateQueries({ queryKey: ['pks-deadline'] });
+      }
       showToast(`${res.affected} dokumen berhasil ${label}.`);
     } catch (err) {
       showToast(await pesanError(err, `Gagal ${label} dokumen`));
@@ -580,13 +604,19 @@ export default function App() {
           pages: 0, desc: form.desc || "", tags: form.tags || "",
           uploader_id: user.nip || "", nomor_dokumen: form.nomor_dokumen || "",
           tanggal_dokumen: form.tanggal_dokumen || "", fileType: form.fileType || "",
+          kertas_kerja_periode_id: uploadOpts.periodeId ?? "",
         };
         var srvRes = await api('/api/docs', 'POST', payload);
         var newDoc = { ...srvRes.doc, tags: payload.tags ? payload.tags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [] };
         await selesaiUpload(
           [newDoc],
           "Dokumen berhasil ditambahkan via Google Drive link.",
-          { ...uploadOpts, returnPage: uploadOpts.returnPage || "dokumen" }
+          {
+            ...uploadOpts,
+            docId: srvRes?.doc?.id ?? null,
+            tertaut: srvRes?.tertaut || null,
+            returnPage: uploadOpts.returnPage || "dokumen",
+          }
         );
         return true;
       } catch (err) {

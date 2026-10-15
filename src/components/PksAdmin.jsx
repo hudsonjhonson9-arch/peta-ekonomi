@@ -37,6 +37,8 @@ export default function PksAdmin({ tahun, showToast }) {
   const reload = () => {
     qc.invalidateQueries({ queryKey: ["pks-tree", tahun] });
     qc.invalidateQueries({ queryKey: ["pks-ringkasan", tahun] });
+    qc.invalidateQueries({ queryKey: ["pks-deadline"] });
+    qc.invalidateQueries({ queryKey: ["pks-tahun"] });
   };
 
   const bukaTambah = (level, parentId, parentLabel) =>

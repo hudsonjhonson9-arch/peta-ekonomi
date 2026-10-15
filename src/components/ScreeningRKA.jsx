@@ -90,7 +90,12 @@ export default function ScreeningRKA({ user, showToast }) {
     if (tahun == null && tahunList.length) setTahun(tahunList[0]);
   }, [tahunList, tahun]);
 
-  const reload = () => qc.invalidateQueries({ queryKey: ["pks-tree", tahun] });
+  const reload = () => {
+    qc.invalidateQueries({ queryKey: ["pks-tree", tahun] });
+    qc.invalidateQueries({ queryKey: ["pks-ringkasan"] });
+    qc.invalidateQueries({ queryKey: ["pks-deadline"] });
+    qc.invalidateQueries({ queryKey: ["pks-tahun"] });
+  };
   const toggle = key => setBuka(prev => ({ ...prev, [key]: !prev[key] }));
 
   // Inisiasi perubahan anggaran (Admin, tahun aktif): form inline di header.

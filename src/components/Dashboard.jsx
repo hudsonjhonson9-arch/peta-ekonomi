@@ -18,9 +18,18 @@ import { ThemeContext } from "../App.jsx";
 // sama.
 function InfoKertasKerja({ T, onNav }) {
   const { data: tahunList = [] } = usePksTahun();
-  const [tahun, setTahun] = useState(() => new Date().getFullYear());
+  // Tahun disimpan di localStorage supaya Dashboard dan halaman Kertas Kerja
+  // selalu menunjukkan angka yang sama. Tanpa ini, Dashboard memakai tahun
+  // berjalan (mis. 2026) sementara Kertas Kerja memakai tahun terisi pertama
+  // dari daftar (mis. 2027), dan keduanya tampak "tidak sinkron".
+  const [tahun, setTahun] = useState(() => Number(localStorage.getItem("kk-tahun")) || new Date().getFullYear());
   const { data: ringkasan, isLoading } = usePksRingkasan(tahun);
   const { data: deadline = [] } = usePksDeadlineTerdekat(tahun);
+
+  const pilihTahun = v => {
+    setTahun(v);
+    try { localStorage.setItem("kk-tahun", String(v)); } catch { /* kuota penuh */ }
+  };
 
   const wajib = Number(ringkasan?.wajib || 0);
   const opsiTahun = [...new Set([tahun, ...tahunList].filter(y => y != null))].sort((a, b) => b - a);
@@ -35,7 +44,7 @@ function InfoKertasKerja({ T, onNav }) {
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <select
             value={tahun}
-            onChange={e => setTahun(parseInt(e.target.value, 10))}
+            onChange={e => pilihTahun(parseInt(e.target.value, 10))}
             aria-label="Tahun statistik kertas kerja"
             style={{
               padding: "5px 8px", border: `1px solid ${T.inputBorder}`, borderRadius: 8,

@@ -48,13 +48,17 @@ export default function NotificationDropdown({ userId, onBukaKertasKerja }) {
 
   const markRead = async (id) => {
     await api(`/api/notifications/${id}/read`, "PATCH");
-    queryClient.invalidateQueries(["notifications", userId]);
+    // Bentuk v5: objek { queryKey }, bukan array posisional v3.
+    // Array posisional di v5 dianggap filters tanpa queryKey, sehingga
+    // matchQuery menganggap cocok dengan SEMUA query dan memicu refetch
+    // seluruh cache.
+    queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
   };
 
   const markAllRead = async () => {
     // user_id tidak lagi dikirim: server membacanya dari session.
     await api("/api/notifications/read-all", "POST", {});
-    queryClient.invalidateQueries(["notifications", userId]);
+    queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
   };
 
   return (

@@ -58,8 +58,12 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
 
   // Default ke tahun terbaru yang benar-benar punya data. Server mengurutkan
   // tahun terisi lebih dulu, jadi elemen pertama adalah kandidat terbaik.
+  // Kalau user sudah memilih tahun di Dashboard (tersimpan di localStorage),
+  // tahun itulah yang dipakai supaya angka di keduanya selalu sinkron.
   useEffect(() => {
-    if (tahun == null && tahunList.length) setTahun(tahunList[0]);
+    if (tahun != null || !tahunList.length) return;
+    const simpan = Number(localStorage.getItem("kk-tahun"));
+    setTahun(tahunList.includes(simpan) ? simpan : tahunList[0]);
   }, [tahunList, tahun]);
 
   const reload = () => {
@@ -117,7 +121,11 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
           </div>
 
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <select value={tahun ?? ""} onChange={e => setTahun(parseInt(e.target.value, 10))}
+            <select value={tahun ?? ""} onChange={e => {
+              const v = parseInt(e.target.value, 10);
+              setTahun(v);
+              try { localStorage.setItem("kk-tahun", String(v)); } catch { /* kuota penuh */ }
+            }}
               style={{
                 padding: "6px 9px", border: `1px solid ${T.inputBorder}`, borderRadius: 8,
                 fontSize: 12, background: T.inputBg, color: T.text, fontFamily: "inherit",

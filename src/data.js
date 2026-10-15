@@ -268,8 +268,12 @@ export function statusPeriode(p, hariIni = new Date()) {
 // Progres satu output: hanya periode wajib yang dihitung.
 export function progresOutput(output) {
   const wajib = (output.periods || []).filter(p => p.is_wajib);
+  // Tanpa periode wajib, total harus 0 — bukan target_per_tahun. Angka target
+  // dipakai chip di baris, tapi menghitungnya sebagai "belum terisi" membuat
+  // header Kertas Kerja memberontak terhadap ringkasan server (yang hanya
+  // menghitung baris yang benar-benar ada), dan keduanya tampak tidak sinkron.
   if (wajib.length === 0) {
-    return { terisi: 0, total: output.target_per_tahun || 0, persen: 0 };
+    return { terisi: 0, total: 0, persen: 0 };
   }
   const terisi = wajib.filter(p => p.doc_id != null).length;
   const total = wajib.length;

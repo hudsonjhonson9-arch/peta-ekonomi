@@ -1355,7 +1355,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
               <div style={{ fontSize: 14, fontWeight: 600, color: T.danger, marginBottom: 4 }}>Dokumen Ditolak</div>
               <div style={{ fontSize: 13, color: T.text, lineHeight: 1.5 }}>{doc.reviewNote}</div>
               {(user.role === "Uploader" || user.role === "Admin") && (
-                <button onClick={() => { fetch(`/api/docs/${doc.id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "Menunggu Review", note: "Diajukan ulang", actor_id: user.nip || "", actor_name: user.name }) }).then(r => r.ok ? r.json() : Promise.reject()).then(() => { queryClient.invalidateQueries({ queryKey: ['docs'] }); showToast("Berhasil diajukan ulang"); onBack(); }).catch(() => showToast("Gagal mengajukan ulang")); }}
+                <button onClick={() => { fetch(`/api/docs/${doc.id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "Menunggu Review", note: "Diajukan ulang", actor_id: user.nip || "", actor_name: user.name }) }).then(r => r.ok ? r.json() : Promise.reject()).then(() => { queryClient.invalidateQueries({ queryKey: ['docs'] }); queryClient.invalidateQueries({ queryKey: ['pks-tree'] }); showToast("Berhasil diajukan ulang"); onBack(); }).catch(() => showToast("Gagal mengajukan ulang")); }}
                   style={{ ...btnBase, marginTop: 12, padding: "8px 16px", fontSize: 13, background: T.primary, color: "#fff" }}>
                   <Icon name="refresh" size={13} /> Ajukan Ulang
                 </button>
