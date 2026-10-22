@@ -636,7 +636,7 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave, isMobile = false }
       </div>
 
       <DraftRincian T={T} tahun={tahun} sub={sub} terkunci={terkunci}
-        showToast={showToast} />
+        showToast={showToast} isMobile={isMobile} />
     </div>
   );
 }
@@ -968,7 +968,7 @@ function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
 // nama grup bila seragam di seluruh baris grup.
 // `terkunci`: sub kegiatan menunggu/disetujui → CRUD diblokir (server juga
 // menolak 409); isi form yang sudah terbuka dibiarkan apa adanya.
-function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
+function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false }) {
   const qc = useQueryClient();
   const { data, isLoading } = useDraftRincian(sub.id);
   const items = (data && data.items) || [];
@@ -1134,6 +1134,48 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
     .map(it => (it.kelompok_belanja || "").trim())
     .filter(Boolean))];
 
+  // Isi sel/baris volume (input inline + satuan) — dipakai tabel (desktop)
+  // dan kartu (mobile) supaya logika draft volume tidak terbelah dua.
+  const volumeIsi = it => (terkunci || editId === it.id ? (
+    <span>{Number(it.volume)} {it.satuan}</span>
+  ) : (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+      <input
+        type="number" min="0" step="any" inputMode="decimal"
+        value={(() => {
+          const server = teksAngka(it.volume);
+          const d = volLokal[it.id];
+          return d && d.dasar === server ? d.teks : server;
+        })()}
+        onChange={e => setVolLokal(p => ({
+          ...p,
+          // dasar dikunci saat draft dibuat — bila server
+          // berubah di tengah jalan, draft gugur (server menang)
+          [it.id]: {
+            teks: e.target.value,
+            dasar: p[it.id]?.dasar ?? teksAngka(it.volume),
+          },
+        }))}
+        onBlur={e => simpanVolume(it, e.target.value)}
+        onKeyDown={e => {
+          if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+          if (e.key === "Escape") {
+            setVolLokal(p => { const q = { ...p }; delete q[it.id]; return q; });
+            e.currentTarget.blur();
+          }
+        }}
+        disabled={sibuk}
+        aria-label={`Volume ${it.uraian}`}
+        style={{
+          width: 72, padding: "3px 6px", fontSize: 12,
+          border: `1px solid ${T.inputBorder}`, borderRadius: 6,
+          background: T.inputBg, color: T.text, fontFamily: "inherit",
+        }}
+      />
+      <span style={{ fontSize: 11, color: T.textMuted }}>{it.satuan}</span>
+    </span>
+  ));
+
   return (
     <div style={{ marginTop: 14, borderTop: `1px solid ${T.border}`, paddingTop: 10 }}>
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
@@ -1172,6 +1214,103 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
       ) : items.length === 0 && !form ? (
         <div style={{ fontSize: 12, color: T.textMuted, padding: "6px 4px" }}>
           Belum ada rencana belanja
+        </div>
+      ) : isMobile ? (
+        // Kartu per baris (mobile): rekening + total sebaris atas, uraian
+        // lebar penuh, spesifikasi, lalu volume + harga + aksi.
+        <div>
+          {grup.map(g => (
+            <div key={(g.nama || "__") + "__grup"} style={{ marginBottom: 10 }}>
+              {g.nama && (
+                <div style={{
+                  display: "flex", justifyContent: "space-between", gap: 8,
+                  alignItems: "flex-start", flexWrap: "wrap",
+                  background: T.surfaceHover, border: `1px solid ${T.border}`,
+                  borderRadius: 8, padding: "6px 10px", marginBottom: 8,
+                }}>
+                  <div style={{ minWidth: 0 }}>
+                    <span style={{ fontWeight: 700, fontSize: 12, color: T.text }}>{g.nama}</span>
+                    {g.kat && (
+                      <div style={{ fontSize: 10.5, color: T.textMuted, marginTop: 2 }}>
+                        Keterangan: {g.kat}
+                      </div>
+                    )}
+                  </div>
+                  <span style={{ fontFamily: "ui-monospace, monospace", fontWeight: 700,
+                    fontSize: 12, color: T.text }}>
+                    {rupiah(g.total)}
+                  </span>
+                </div>
+              )}
+              {g.baris.map(it => {
+                const total = it.volume == null || it.harga_satuan == null
+                  ? null
+                  : Math.round(Number(it.volume) * Number(it.harga_satuan));
+                const sel = selisihStandar(it.harga_satuan, it.harga_standar);
+                const banding = sel != null && Math.abs(sel) > AMBANG_SELISIH;
+                return (
+                  <div key={it.id} style={{
+                    border: `1px solid ${T.border}`, borderRadius: 8,
+                    padding: "8px 10px", background: T.card, marginBottom: 8,
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      gap: 8, alignItems: "baseline" }}>
+                      <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 11,
+                        color: T.textMuted }}>
+                        {it.kode_rekening || "—"}
+                      </span>
+                      <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 12.5,
+                        fontWeight: 700, color: T.text }}>
+                        {total == null ? "—" : rupiah(total)}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: T.text, marginTop: 2 }}>
+                      {it.uraian}
+                    </div>
+                    {it.spesifikasi && (
+                      <div style={{ fontSize: 11.5, color: T.textSecondary, marginTop: 1 }}>
+                        {it.spesifikasi}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8,
+                      alignItems: "center", marginTop: 6 }}>
+                      {volumeIsi(it)}
+                      <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 11.5,
+                        color: T.text }}>
+                        {it.harga_satuan == null ? "—" : `@ ${rupiah(it.harga_satuan)}`}
+                      </span>
+                      {banding && (
+                        <span style={{ fontSize: 10.5, fontWeight: 700, color: "#DC2626" }}>
+                          {teksSelisih(sel)}
+                        </span>
+                      )}
+                      <span style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+                        <button onClick={() => edit(it)} disabled={sibuk || terkunci}
+                          style={btn(T, T.surfaceHover, T.textSecondary, sibuk || terkunci, T.inputBorder)}>
+                          Edit
+                        </button>
+                        <button onClick={() => hapus(it)} disabled={sibuk || terkunci}
+                          style={btn(T, "#DC2626", "#fff", sibuk || terkunci)}>
+                          Hapus
+                        </button>
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+          {grup.length > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8,
+              background: T.surfaceHover, border: `1px solid ${T.border}`,
+              borderTop: `2px solid ${T.border}`, borderRadius: 8, padding: "6px 10px" }}>
+              <span style={{ fontWeight: 700, fontSize: 12, color: T.text }}>Total</span>
+              <span style={{ fontFamily: "ui-monospace, monospace", fontWeight: 700,
+                fontSize: 12, color: T.text }}>
+                {rupiah(grup.reduce((a, g) => a + g.total, 0))}
+              </span>
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ overflowX: "auto", border: `1px solid ${T.border}`, borderRadius: 8 }}>
@@ -1236,45 +1375,7 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
                         {it.spesifikasi || "—"}
                       </td>
                       <td style={{ padding: "6px 8px", color: T.textSecondary, whiteSpace: "nowrap" }}>
-                        {terkunci || editId === it.id ? (
-                          <span>{Number(it.volume)} {it.satuan}</span>
-                        ) : (
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                            <input
-                              type="number" min="0" step="any" inputMode="decimal"
-                              value={(() => {
-                                const server = teksAngka(it.volume);
-                                const d = volLokal[it.id];
-                                return d && d.dasar === server ? d.teks : server;
-                              })()}
-                              onChange={e => setVolLokal(p => ({
-                                ...p,
-                                // dasar dikunci saat draft dibuat — bila server
-                                // berubah di tengah jalan, draft gugur (server menang)
-                                [it.id]: {
-                                  teks: e.target.value,
-                                  dasar: p[it.id]?.dasar ?? teksAngka(it.volume),
-                                },
-                              }))}
-                              onBlur={e => simpanVolume(it, e.target.value)}
-                              onKeyDown={e => {
-                                if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
-                                if (e.key === "Escape") {
-                                  setVolLokal(p => { const q = { ...p }; delete q[it.id]; return q; });
-                                  e.currentTarget.blur();
-                                }
-                              }}
-                              disabled={sibuk}
-                              aria-label={`Volume ${it.uraian}`}
-                              style={{
-                                width: 72, padding: "3px 6px", fontSize: 12,
-                                border: `1px solid ${T.inputBorder}`, borderRadius: 6,
-                                background: T.inputBg, color: T.text, fontFamily: "inherit",
-                              }}
-                            />
-                            <span style={{ fontSize: 11, color: T.textMuted }}>{it.satuan}</span>
-                          </span>
-                        )}
+                        {volumeIsi(it)}
                       </td>
                       <td style={{ padding: "6px 8px", textAlign: "right", whiteSpace: "nowrap",
                         fontFamily: "ui-monospace, monospace", color: T.text }}>
