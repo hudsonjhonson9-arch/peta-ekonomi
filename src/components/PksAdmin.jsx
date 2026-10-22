@@ -8,7 +8,8 @@ import { api, usePksTree, usePksTahun } from "../hooks.js";
 // anak  = level yang dibuat dari baris ini. Memetakan 'anak' secara eksplisit
 // supaya tombol "+" tidak salah level: memakai cfg.parent pernah membuat
 // Program dibuat di bawah Kegiatan, dan di baris Program tombolnya hilang.
-const LEVELS = {
+// Ekspor dipakai ScreeningRKA & KertasKerja (tombol tambah/edit di pohon).
+export const LEVELS = {
   program:     { label: "Program",      parent: null,       kunci: "program_id",  anak: "kegiatan" },
   kegiatan:    { label: "Kegiatan",     parent: "program",  kunci: "program_id",  anak: "subkegiatan" },
   subkegiatan: { label: "Sub Kegiatan", parent: "kegiatan", kunci: "kegiatan_id", anak: null },
@@ -239,7 +240,9 @@ function Node({ T, level, row, kodeKonteks, children, onTambah, onEdit, onHapus 
   );
 }
 
-function FormPois({ form, tahun, tree, sibuk, setSibuk, onTutup, onSelesai, showToast }) {
+// Form modal tambah/ubah Program–Kegiatan–Sub Kegiatan. Dipakai halaman ini
+// dan juga ScreeningRKA + Kertas Kerja (pohon) lewat ekspor.
+export function FormPois({ form, tahun, tree, sibuk, setSibuk, onTutup, onSelesai, showToast }) {
   const { T } = useContext(ThemeContext);
   const cfg = LEVELS[form.level];
   const [nama, setNama] = useState(form.row?.nama || "");

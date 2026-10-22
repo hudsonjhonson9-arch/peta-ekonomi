@@ -95,6 +95,7 @@ REQ BANK DATA (baru):
 - Blok chips "Kode Rekening / Simpan rekening" di DetailSub sudah DIHAPUS dari kode (sebelumnya commit 870797e) — alasan user: chips itu "kunci" yang memfilter dropdown uraian SSH/SBU per sub kegiatan.
 - Data chips `pks_subkegiatan.kode_rekening` lalu DIKOSONGKAN untuk SEMUA sub kegiatan (37 sub tahun 2027, termasuk membuang entri sampah header Excel "Kode Rekening" yang ikut tersimpan). Akibatnya dropdown PilihUraian = semua rekening ("Kosong = semua rekening"), dan opsi "Kode rekening" di FormBaris hanya memakai daftar `useKodeRekening(tahun)`.
 - Volume rincian kini BOLEH 0 (permintaan user): `validasiItem` server `volume >= 0` (negatif tetap ditolak), migration `tahap_12.sql` longgarkan CHECK DB `draft_rincian_volume_check` (> 0 → >= 0, sudah dijalankan ke DB live), validasi inline klien "Volume harus angka nol atau lebih."; uji draft-rincian disesuaikan (0 lolos).
+- Tambah/ubah Program–Kegiatan–Sub Kegiatan kini bisa langsung dari pohon **Screening RKA** dan **Kertas Kerja** (tab "Kertas Kerja") tanpa buka tab Struktur: `FormPois` + `LEVELS` diekspor dari PksAdmin, tiap baris program/kegiatan dapat pil tambah anak (Kegiatan/Sub Kegiatan) + ikon ubah, baris sub dapat ikon ubah, header dapat tombol "Program" — semua hanya untuk Admin (endpoint `POST/PUT /api/pks/:level` tetap ADMIN di kebijakan.js), klik tombol tidak ikut membuka/menutup panel (stopPropagation).
 
 ## MENU ADMIN STANDAR HARGA
 

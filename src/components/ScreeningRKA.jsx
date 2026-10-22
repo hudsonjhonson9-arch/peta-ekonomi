@@ -4,7 +4,7 @@ import { Icon, CariPilih, Modal } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
 import { api, usePksTree, usePksTahun, useStandarHarga, useKodeRekening, useDraftRincian, usePerubahan } from "../hooks.js";
 import { canManageOutput } from "../data.js";
-import { btn } from "./PksAdmin.jsx";
+import { btn, FormPois, LEVELS } from "./PksAdmin.jsx";
 
 // Format rupiah lokal — sengaja tidak dibagi ke data.js: hanya dipakai di sini
 // (Task 5 bisa memakai sendiri bila perlu).
@@ -58,6 +58,21 @@ const inputStyle = T => ({
   fontFamily: "inherit", width: "100%", boxSizing: "border-box",
 });
 
+// Tombol ikon aksi di baris pohon (ubah program/kegiatan/sub) & pil tambah
+// anak — gaya mengikuti PksAdmin.Node supaya konsisten antar halaman.
+const iconAksi = T => ({
+  background: "none", border: `1px solid ${T.inputBorder}`, color: T.textSecondary,
+  borderRadius: 6, padding: "3px 5px", cursor: "pointer", display: "flex",
+});
+
+const pillTambah = T => ({
+  display: "inline-flex", alignItems: "center", gap: 3,
+  fontSize: 10.5, fontWeight: 600, fontFamily: "inherit",
+  padding: "3px 7px", borderRadius: 6, cursor: "pointer",
+  background: T.card, color: T.primary,
+  border: `1px solid ${T.primary}`, whiteSpace: "nowrap",
+});
+
 // Teks uraian kelompok barang utk opsi dropdown kode rekening: maks 2 uraian
 // digabung " · ", sisanya "+n lainnya" supaya baris tidak panjang.
 const uraianTeks = arr => !arr || !arr.length ? undefined
@@ -80,6 +95,15 @@ export default function ScreeningRKA({ user, showToast }) {
   const qc = useQueryClient();
   const [tahun, setTahun] = useState(null);
   const [buka, setBuka] = useState({});
+
+  // Form tambah/ubah Program–Kegiatan–Sub Kegiatan langsung dari pohon
+  // (admin) — memakai FormPois yang sama dengan halaman Struktur PKS.
+  const [formPks, setFormPks] = useState(null);
+  const [sibukPks, setSibukPks] = useState(false);
+  const bukaTambahPks = (level, parentId) =>
+    setFormPks({ level, mode: "tambah", row: null, parentId, parentLabel: null });
+  const bukaEditPks = (level, row) =>
+    setFormPks({ level, mode: "edit", row, parentId: row[LEVELS[level].kunci] ?? null });
 
   const admin = canManageOutput(user.role);
   const { data: tahunList = [] } = usePksTahun();
@@ -171,6 +195,13 @@ export default function ScreeningRKA({ user, showToast }) {
             </label>
 
             {admin && tahun != null && (
+              <button onClick={() => bukaTambahPks("program", null)}
+                style={btn(T, T.card, T.textSecondary, false, T.inputBorder)}>
+                <Icon name="plus" size={13} /> Program
+              </button>
+            )}
+
+            {admin && tahun != null && (
               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 <button
                   onClick={() => setBukaPerubahan(v => !v)}
@@ -240,6 +271,20 @@ export default function ScreeningRKA({ user, showToast }) {
         )}
       </div>
 
+      {/* Form tambah/ubah program–kegiatan–sub kegiatan (admin) */}
+      {formPks && (
+        <FormPois
+          form={formPks}
+          tahun={tahun}
+          tree={tree?.tree || []}
+          sibuk={sibukPks}
+          setSibuk={setSibukPks}
+          onTutup={() => setFormPks(null)}
+          onSelesai={() => { setFormPks(null); reload(); }}
+          showToast={showToast}
+        />
+      )}
+
       {isError && (
         <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 28, textAlign: "center", color: T.textMuted, fontSize: 13 }}>
           <Icon name="alert" size={20} style={{ color: "#DC2626" }} />
@@ -257,14 +302,44 @@ export default function ScreeningRKA({ user, showToast }) {
 
       {programs.map(p => (
         <Panel key={`p${p.id}`} T={T} buka={!!buka[`p${p.id}`]} onToggle={() => toggle(`p${p.id}`)}
-          ikon="layers" kode={p.kode} nama={p.nama} total={p.totalPagu}>
+          ikon="layers" kode={p.kode} nama={p.nama} total={p.totalPagu}
+          aksi={admin ? (
+            <>
+              <button onClick={() => bukaTambahPks("kegiatan", p.id)}
+                title="Tambah Kegiatan di bawah program ini" style={pillTambah(T)}>
+                <Icon name="plus" size={11} /> {LEVELS.kegiatan.label}
+              </button>
+              <button onClick={() => bukaEditPks("program", p)}
+                title="Ubah Program" style={iconAksi(T)}>
+                <Icon name="edit" size={12} />
+              </button>
+            </>
+          ) : null}>
           {p.kegiatan.map(k => (
             <Panel key={`k${k.id}`} T={T} buka={!!buka[`k${k.id}`]} onToggle={() => toggle(`k${k.id}`)}
-              ikon="list" kode={k.kode} nama={k.nama} total={k.totalPagu}>
+              ikon="list" kode={k.kode} nama={k.nama} total={k.totalPagu}
+              aksi={admin ? (
+                <>
+                  <button onClick={() => bukaTambahPks("subkegiatan", k.id)}
+                    title="Tambah Sub Kegiatan di bawah kegiatan ini" style={pillTambah(T)}>
+                    <Icon name="plus" size={11} /> {LEVELS.subkegiatan.label}
+                  </button>
+                  <button onClick={() => bukaEditPks("kegiatan", k)}
+                    title="Ubah Kegiatan" style={iconAksi(T)}>
+                    <Icon name="edit" size={12} />
+                  </button>
+                </>
+              ) : null}>
               {k.subkegiatan.map(s => (
                 <SubRow key={`s${s.id}`} T={T} sub={s} admin={admin} tahun={tahun}
                   buka={!!buka[`s${s.id}`]} onToggle={() => toggle(`s${s.id}`)}
-                  showToast={showToast} reload={reload} />
+                  showToast={showToast} reload={reload}
+                  aksi={admin ? (
+                    <button onClick={() => bukaEditPks("subkegiatan", s)}
+                      title="Ubah Sub Kegiatan" style={iconAksi(T)}>
+                      <Icon name="edit" size={12} />
+                    </button>
+                  ) : null} />
               ))}
             </Panel>
           ))}
@@ -277,7 +352,9 @@ export default function ScreeningRKA({ user, showToast }) {
 // ── Panel rekursif (program / kegiatan) ──────────────────────────────────
 // `total`: total pagu sub kegiatan di bawahnya (lihat ScreeningRKA) — chip di
 // kanan, gaya sama dengan chip pagu di SubRow.
-function Panel({ T, buka, onToggle, ikon, kode, nama, total, children }) {
+// `aksi`: tombol tambah anak + ubah (admin) — dibungkus pemisah supaya klik
+// tidak ikut menutup/membuka panel.
+function Panel({ T, buka, onToggle, ikon, kode, nama, total, aksi = null, children }) {
   return (
     <div style={{ marginBottom: 8 }}>
       <div onClick={onToggle} style={{
@@ -298,6 +375,12 @@ function Panel({ T, buka, onToggle, ikon, kode, nama, total, children }) {
             {rupiah(total)}
           </span>
         )}
+        {aksi && (
+          <span onClick={e => e.stopPropagation()}
+            style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
+            {aksi}
+          </span>
+        )}
       </div>
       {buka && (
         <div style={{ margin: "6px 0 0 20px", paddingLeft: 10, borderLeft: `1px solid ${T.border}` }}>
@@ -309,7 +392,7 @@ function Panel({ T, buka, onToggle, ikon, kode, nama, total, children }) {
 }
 
 // ── Baris sub kegiatan + panel detailnya ─────────────────────────────────
-function SubRow({ T, sub, admin, tahun, buka, onToggle, showToast, reload }) {
+function SubRow({ T, sub, admin, tahun, buka, onToggle, showToast, reload, aksi = null }) {
   return (
     <div style={{ marginBottom: 8 }}>
       <div onClick={onToggle} style={{
@@ -339,6 +422,13 @@ function SubRow({ T, sub, admin, tahun, buka, onToggle, showToast, reload }) {
         }}>
           {rupiah(sub.pagu)}
         </span>
+
+        {aksi && (
+          <span onClick={e => e.stopPropagation()}
+            style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
+            {aksi}
+          </span>
+        )}
       </div>
 
       {buka && (

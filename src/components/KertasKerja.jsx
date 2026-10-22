@@ -13,7 +13,7 @@ import {
   frekuensiDariTarget, jumlahPeriode,
   STATUS_PERIODE,
 } from "../data.js";
-import PksAdmin, { pesanError, btn } from "./PksAdmin.jsx";
+import PksAdmin, { pesanError, btn, FormPois, LEVELS } from "./PksAdmin.jsx";
 // Pemuat judul bukti dukung yang sama dipakai server saat repairing tautan.
 // Kalau dirakit di dua tempat, perubahan sepele di sini membuat dokumen yang
 // sudah terunggah tidak pernah ditemukan kembali.
@@ -35,6 +35,15 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
   const [uploadPeriode, setUploadPeriode] = useState(null); // { periodeId, judul, tahun }
   const [riwayatDoc, setRiwayatDoc]   = useState(null); // { docId, docJudul, periodeLabel }
   const [sibuk, setSibuk]             = useState(false);
+  // Form tambah/ubah Program–Kegiatan–Sub Kegiatan dari pohon tab "Kertas
+  // Kerja" (admin) — memakai FormPois yang sama dengan Struktur PKS.
+  const [formPks, setFormPks]         = useState(null);
+  const [sibukPks, setSibukPks]       = useState(false);
+
+  const bukaTambahPks = (level, parentId) =>
+    setFormPks({ level, mode: "tambah", row: null, parentId, parentLabel: null });
+  const bukaEditPks = (level, row) =>
+    setFormPks({ level, mode: "edit", row, parentId: row[LEVELS[level].kunci] ?? null });
 
   const admin = canManageOutput(user.role);
   const { data: tahunList = [] } = usePksTahun();
@@ -70,6 +79,8 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
     qc.invalidateQueries({ queryKey: ["pks-tree", tahun] });
     qc.invalidateQueries({ queryKey: ["pks-ringkasan", tahun] });
     qc.invalidateQueries({ queryKey: ["pks-deadline"] });
+    // Ikut di-invalidate: menambah Program bisa membuat tahun baru.
+    qc.invalidateQueries({ queryKey: ["pks-tahun"] });
   };
 
   const toggle = key => setBuka(prev => {
@@ -174,6 +185,12 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
             }}>
               <Icon name="alert" size={13} /> Belum terisi
             </button>
+            {admin && (
+              <button onClick={() => bukaTambahPks("program", null)}
+                style={btn(T, T.card, T.textSecondary, false, T.inputBorder)}>
+                <Icon name="plus" size={13} /> Program
+              </button>
+            )}
           </div>
 
           {isError && (
@@ -197,10 +214,34 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
 
           {PROGRAM.map(p => (
             <Panel key={`p${p.id}`} T={T} buka={!!buka[`p${p.id}`]} onToggle={() => toggle(`p${p.id}`)}
-              force={!!cari} ikon="layers" kode={p.kode} nama={p.nama}>
+              force={!!cari} ikon="layers" kode={p.kode} nama={p.nama}
+              aksi={admin ? (
+                <>
+                  <button onClick={() => bukaTambahPks("kegiatan", p.id)}
+                    title="Tambah Kegiatan di bawah program ini" style={pillTambah(T)}>
+                    <Icon name="plus" size={11} /> {LEVELS.kegiatan.label}
+                  </button>
+                  <button onClick={() => bukaEditPks("program", p)}
+                    title="Ubah Program" style={iconBtn(T)}>
+                    <Icon name="edit" size={12} />
+                  </button>
+                </>
+              ) : null}>
               {p.kegiatan.map(k => (
                 <Panel key={`k${k.id}`} T={T} buka={!!buka[`k${k.id}`]} onToggle={() => toggle(`k${k.id}`)}
-                  force={!!cari} ikon="list" kode={k.kode} nama={k.nama} indent>
+                  force={!!cari} ikon="list" kode={k.kode} nama={k.nama} indent
+                  aksi={admin ? (
+                    <>
+                      <button onClick={() => bukaTambahPks("subkegiatan", k.id)}
+                        title="Tambah Sub Kegiatan di bawah kegiatan ini" style={pillTambah(T)}>
+                        <Icon name="plus" size={11} /> {LEVELS.subkegiatan.label}
+                      </button>
+                      <button onClick={() => bukaEditPks("kegiatan", k)}
+                        title="Ubah Kegiatan" style={iconBtn(T)}>
+                        <Icon name="edit" size={12} />
+                      </button>
+                    </>
+                  ) : null}>
                   {k.subkegiatan.map(s => (
                     <SubKey
                       key={`s${s.id}`} T={T} sub={s} tahun={tahun} admin={admin} user={user}
@@ -211,6 +252,7 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
                       onEditPeriode={(o, p) => setFormPeriode({ output: o, periode: p, tahun })}
                       onUnggah={d => setUploadPeriode(d)}
                       onLihatRiwayat={docInfo => setRiwayatDoc(docInfo)}
+                      onEditSub={() => bukaEditPks("subkegiatan", s)}
                       showToast={showToast}
                       reload={reload} sibuk={sibuk} setSibuk={setSibuk}
                     />
@@ -235,6 +277,20 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
           onTutup={() => setFormPeriode(null)}
           onSelesai={() => { setFormPeriode(null); reload(); }}
           showToast={showToast} />
+      )}
+
+      {/* Form tambah/ubah program–kegiatan–sub kegiatan (admin) */}
+      {formPks && (
+        <FormPois
+          form={formPks}
+          tahun={tahun}
+          tree={tree?.tree || []}
+          sibuk={sibukPks}
+          setSibuk={setSibukPks}
+          onTutup={() => setFormPks(null)}
+          onSelesai={() => { setFormPks(null); reload(); }}
+          showToast={showToast}
+        />
       )}
 
       {/* Unggah dokumen untuk satu periode. Memakai UploadForm yang sama dengan
@@ -279,7 +335,9 @@ function muatBuka(kunci) {
 // oleh Dashboard.
 
 // ── Panel rekursif (program / kegiatan) ──────────────────────────────────
-function Panel({ T, buka, onToggle, force, ikon, kode, nama, children }) {
+// `aksi`: tombol tambah anak + ubah (admin) — dipisah dari area klik baris
+// supaya klik tombol tidak ikut membuka/menutup panel.
+function Panel({ T, buka, onToggle, force, ikon, kode, nama, aksi = null, children }) {
   return (
     <div style={{ marginBottom: 8 }}>
       <div onClick={onToggle} style={{
@@ -291,6 +349,12 @@ function Panel({ T, buka, onToggle, force, ikon, kode, nama, children }) {
         <Icon name={ikon} size={14} style={{ color: T.primary, flexShrink: 0 }} />
         <span style={{ fontSize: 11, fontFamily: "ui-monospace, monospace", color: T.textMuted, flexShrink: 0 }}>{kode}</span>
         <span style={{ fontSize: 13, fontWeight: 700, color: T.text, flex: 1, minWidth: 0 }}>{nama}</span>
+        {aksi && (
+          <span onClick={e => e.stopPropagation()}
+            style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
+            {aksi}
+          </span>
+        )}
       </div>
       {(buka || force) && (
         <div style={{ margin: "6px 0 0 20px", paddingLeft: 10, borderLeft: `1px solid ${T.border}` }}>
@@ -303,7 +367,8 @@ function Panel({ T, buka, onToggle, force, ikon, kode, nama, children }) {
 
 // ── Sub kegiatan + daftar output ─────────────────────────────────────────
 function SubKey({ T, sub, tahun, admin, user, buka, onToggle, force, hanyaTerlambat, cari,
-                  onTambahOutput, onEditOutput, onEditPeriode, onUnggah, onLihatRiwayat, showToast, reload, sibuk, setSibuk }) {
+                  onTambahOutput, onEditOutput, onEditPeriode, onUnggah, onLihatRiwayat,
+                  onEditSub, showToast, reload, sibuk, setSibuk }) {
   const outputs = sub.outputs.filter(o => {
     if (cari) return true;
     if (!hanyaTerlambat) return true;
@@ -374,6 +439,11 @@ function SubKey({ T, sub, tahun, admin, user, buka, onToggle, force, hanyaTerlam
             <button onClick={onTambahOutput} title="Tambah output" style={iconBtn(T)}>
               <Icon name="plus" size={12} />
             </button>
+            {onEditSub && (
+              <button onClick={onEditSub} title="Ubah Sub Kegiatan" style={iconBtn(T)}>
+                <Icon name="edit" size={12} />
+              </button>
+            )}
           </span>
         )}
       </div>
@@ -405,6 +475,15 @@ function SubKey({ T, sub, tahun, admin, user, buka, onToggle, force, hanyaTerlam
 const iconBtn = T => ({
   background: "none", border: `1px solid ${T.inputBorder}`, color: T.textSecondary,
   borderRadius: 6, padding: "3px 5px", cursor: "pointer", display: "flex", fontFamily: "inherit",
+});
+
+// Pil "tambah anak" di baris program/kegiatan — gaya sama dengan PksAdmin.
+const pillTambah = T => ({
+  display: "inline-flex", alignItems: "center", gap: 3,
+  fontSize: 10.5, fontWeight: 600, fontFamily: "inherit",
+  padding: "3px 7px", borderRadius: 6, cursor: "pointer",
+  background: T.card, color: T.primary,
+  border: `1px solid ${T.primary}`, whiteSpace: "nowrap",
 });
 
 // ── Satu output + tabel periodenya ───────────────────────────────────────
