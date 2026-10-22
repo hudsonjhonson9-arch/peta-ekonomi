@@ -1,6 +1,6 @@
 import { useState, useContext, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Icon, CariPilih } from "./ui.jsx";
+import { Icon, CariPilih, Modal } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
 import { api, usePksTree, usePksTahun, useStandarHarga, useKodeRekening, useDraftRincian, usePerubahan } from "../hooks.js";
 import { canManageOutput } from "../data.js";
@@ -872,9 +872,17 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
       </div>
 
       {form && (
-        <FormBaris T={T} tahun={tahun} sub={sub} form={form} setForm={setForm}
-          onSimpan={simpan} onBatal={tutup} sibuk={sibuk}
-          saranKelompok={saranKelompok} />
+        <Modal
+          title={editId != null ? "Edit Baris Rencana" : "Tambah Baris Rencana"}
+          subtitle={sub.nama}
+          onClose={terkunci ? undefined : tutup}
+          lockClose={sibuk || terkunci}
+          maxWidth={640}
+        >
+          <FormBaris T={T} tahun={tahun} sub={sub} form={form} setForm={setForm}
+            onSimpan={simpan} onBatal={tutup} sibuk={sibuk}
+            saranKelompok={saranKelompok} />
+        </Modal>
       )}
 
       {isLoading ? (
@@ -1153,13 +1161,32 @@ function PilihUraian({ T, tahun, sub, form, setForm, sibuk }) {
   const [buka, setBuka] = useState(false);
   const [qD, setQD] = useState(form.uraian || "");
   const [sorot, setSorot] = useState(0);
+  const [rect, setRect] = useState(null);
   const listRef = useRef(null);
+  const inputRef = useRef(null);
 
   const q = form.uraian || "";
   useEffect(() => {
     const t = setTimeout(() => setQD(q), 300);
     return () => clearTimeout(t);
   }, [q]);
+
+  // Panel fixed: dropdown tidak boleh terpotong overflow body Modal.
+  useEffect(() => {
+    if (!buka || !inputRef.current) { setRect(null); return; }
+    const hitung = () => {
+      const r = inputRef.current.getBoundingClientRect();
+      setRect({ top: r.bottom, left: r.left, width: r.width });
+    };
+    hitung();
+    window.addEventListener("scroll", hitung, true);
+    window.addEventListener("resize", hitung);
+    return () => {
+      window.removeEventListener("scroll", hitung, true);
+      window.removeEventListener("resize", hitung);
+    };
+  }, [buka]);
+  const keAtas = rect ? window.innerHeight - rect.top < 400 : false;
 
   const qKirim = qD.trim() || undefined;
   const rek = form.kode_rekening || undefined;
@@ -1231,6 +1258,7 @@ function PilihUraian({ T, tahun, sub, form, setForm, sibuk }) {
   return (
     <div style={{ position: "relative" }}>
       <input
+        ref={inputRef}
         value={q} disabled={sibuk} autoComplete="off"
         onChange={e => setForm(p => ({ ...p, uraian: e.target.value }))}
         onFocus={() => setBuka(true)}
@@ -1239,9 +1267,13 @@ function PilihUraian({ T, tahun, sub, form, setForm, sibuk }) {
         placeholder="Ketik untuk cari SSH / SBU…"
         style={inp}
       />
-      {buka && !sibuk && (
-        <div ref={listRef} role="listbox" style={{ position: "absolute", top: "100%", left: 0, right: 0,
-          zIndex: 30, marginTop: 4, background: T.card,
+      {buka && !sibuk && rect && (
+        <div ref={listRef} role="listbox" style={{
+          position: "fixed",
+          top: keAtas ? undefined : rect.top + 4,
+          bottom: keAtas ? window.innerHeight - rect.top + 4 : undefined,
+          left: rect.left, width: rect.width,
+          zIndex: 1300, background: T.card,
           border: `1px solid ${T.inputBorder}`, borderRadius: 8,
           boxShadow: "0 8px 24px rgba(0,0,0,.14)", padding: 6,
           maxHeight: 380, overflowY: "auto" }}>
