@@ -10,6 +10,14 @@ import { btn, FormPois, LEVELS, pesanError } from "./PksAdmin.jsx";
 // (Task 5 bisa memakai sendiri bila perlu).
 const rupiah = n => (n == null ? "—" : "Rp " + Math.round(n).toLocaleString("id-ID"));
 
+// Teks angka untuk input: buang ".00" hasil kolom NUMERIC supaya tidak
+// tampil "1500,00" di input number. Desimal asli (mis. 2.5) tetap dipertahankan.
+const teksAngka = v => {
+  if (v == null || v === "") return "";
+  const n = Number(v);
+  return Number.isFinite(n) ? String(n) : String(v);
+};
+
 // Tanggal riwayat perubahan — ringkas, tanpa jam.
 const tgl = t => new Date(t).toLocaleDateString("id-ID",
   { day: "2-digit", month: "short", year: "numeric" });
@@ -483,7 +491,7 @@ function SubRow({ T, sub, admin, tahun, buka, onToggle, showToast, reload, aksi 
 
 // ── Detail sub kegiatan: pagu + rencana belanja ───────────────────────────
 function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
-  const [paguTeks, setPaguTeks] = useState(() => (sub.pagu ?? "").toString());
+  const [paguTeks, setPaguTeks] = useState(() => teksAngka(sub.pagu));
   const [sibuk, setSibuk] = useState(false);
 
   const status = sub.status_validasi || "draft";
@@ -493,7 +501,7 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
   // berupa nilai, bukan referensi, supaya refetch polling (30 dtk) tidak
   // menimpa input yang sedang diketik selama nilainya sama.
   useEffect(() => {
-    setPaguTeks((sub.pagu ?? "").toString());
+    setPaguTeks(teksAngka(sub.pagu));
   }, [sub.pagu]);
 
   const simpan = async (body, pesan) => {
@@ -737,14 +745,17 @@ function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
   const sisa = adaPagu ? pagu - totalRencana : null;
   const persen = adaPagu ? (totalRencana / pagu) * 100 : null;
 
-  // Status klien: <90% Aman · 90–100% Mendekati (inklusif) · >100% Melebihi
+  // Status klien: <90% Aman · pas 100% Pas · 90–<100% Mendekati · >100% Melebihi
+  const persenPas = adaPagu && Number(pagu) === Number(totalRencana);
   const badge = !adaPagu
     ? { label: "Pagu belum diisi", warna: T.textMuted }
-    : persen < 90
-      ? { label: "Aman", warna: "#16A34A" }
-      : persen <= 100
-        ? { label: "Mendekati", warna: "#CA8A04" }
-        : { label: "Melebihi", warna: "#DC2626" };
+    : persenPas
+      ? { label: "Pas", warna: "#16A34A" }
+      : persen < 90
+        ? { label: "Aman", warna: "#16A34A" }
+        : persen < 100
+          ? { label: "Mendekati", warna: "#CA8A04" }
+          : { label: "Melebihi", warna: "#DC2626" };
 
   // Stat blok: label kecil di atas, nilai tebal monospace di bawah — lebih
   // terbaca daripada "Label: nilai" panjang dalam satu baris.
@@ -773,10 +784,10 @@ function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
   // Realisasi: draft disinkronkan dengan data server hanya saat nilainya
   // berubah (pola pagu di DetailSub) supaya refetch polling tidak menimpa
   // input yang sedang diketik.
-  const [realTeks, setRealTeks] = useState(() => (sub.realisasi ?? "").toString());
+  const [realTeks, setRealTeks] = useState(() => teksAngka(sub.realisasi));
   const [sibukReal, setSibukReal] = useState(false);
   useEffect(() => {
-    setRealTeks((sub.realisasi ?? "").toString());
+    setRealTeks(teksAngka(sub.realisasi));
   }, [sub.realisasi]);
 
   const simpanRealisasi = async () => {
@@ -826,11 +837,13 @@ function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
             )}
           </span>
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 18px", marginTop: 8 }}>
+        {/* Stat 2×2 biar rapi (tidak ada yang turun sendirian saat wrap) */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: "8px 16px", marginTop: 8 }}>
           {adaPagu && item("Pagu", rupiah(pagu))}
           {item("Total rencana", rupiah(totalRencana))}
           {adaPagu && item("Sisa", rupiah(sisa))}
-          {adaPagu && item("Terpakai", `${persen.toFixed(1)}%`)}
+          {adaPagu && item("Terpakai", `${persen.toFixed(1)}%`, badge.warna)}
         </div>
       </div>
 
@@ -846,7 +859,9 @@ function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
                 </span>
               )}
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 18px", marginTop: 8 }}>
+            <div style={{ display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
+              gap: "8px 16px", marginTop: 8 }}>
               {item("Sebelum perubahan", rupiah(Number(snap.sebelum_rencana || 0)))}
               {item("Sesudah perubahan", rupiah(totalRencana))}
               {item("Selisih",
@@ -935,7 +950,11 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
   };
 
   const edit = (it) => {
-    setEditId(it.id); setForm({ ...it }); setTambahBuka(false);
+    setEditId(it.id);
+    // NUMERIC kembali "1500.00" dari pg — konversi ke teks polos supaya
+    // input number tidak menampilkan "1500,00".
+    setForm({ ...it, volume: teksAngka(it.volume), harga_satuan: teksAngka(it.harga_satuan) });
+    setTambahBuka(false);
   };
 
   // PATCH-2 (bagian Simpan): editId terisi → PUT (baris existing),
@@ -1142,7 +1161,7 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                             <input
                               type="number" min="0" step="any" inputMode="decimal"
-                              value={volLokal[it.id] ?? (it.volume == null ? "" : String(it.volume))}
+                              value={volLokal[it.id] ?? teksAngka(it.volume)}
                               onChange={e => setVolLokal(p => ({ ...p, [it.id]: e.target.value }))}
                               onBlur={e => simpanVolume(it, e.target.value)}
                               onKeyDown={e => {
