@@ -44,6 +44,21 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
     setFormPks({ level, mode: "tambah", row: null, parentId, parentLabel: null });
   const bukaEditPks = (level, row) =>
     setFormPks({ level, mode: "edit", row, parentId: row[LEVELS[level].kunci] ?? null });
+  // Hapus baris struktur — server menolak bila masih punya anak.
+  const hapusPks = async (level, row) => {
+    const ok = window.confirm(
+      `Hapus ${LEVELS[level].label} "${row.nama}"?\n\n` +
+      `Kalau masih ada data di bawahnya, server akan menolak dan Anda harus hapus yang paling bawah dulu.`
+    );
+    if (!ok) return;
+    try {
+      await api(`/api/pks/${level}/${row.id}`, "DELETE");
+      showToast(`${LEVELS[level].label} "${row.nama}" dihapus.`);
+      reload();
+    } catch (err) {
+      showToast(await pesanError(err, "Gagal menghapus"));
+    }
+  };
 
   const admin = canManageOutput(user.role);
   const { data: tahunList = [] } = usePksTahun();
@@ -225,6 +240,10 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
                     title="Ubah Program" style={iconBtn(T)}>
                     <Icon name="edit" size={12} />
                   </button>
+                  <button onClick={() => hapusPks("program", p)}
+                    title="Hapus Program" style={iconBtn(T)}>
+                    <Icon name="trash" size={12} />
+                  </button>
                 </>
               ) : null}>
               {p.kegiatan.map(k => (
@@ -240,6 +259,10 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
                         title="Ubah Kegiatan" style={iconBtn(T)}>
                         <Icon name="edit" size={12} />
                       </button>
+                      <button onClick={() => hapusPks("kegiatan", k)}
+                        title="Hapus Kegiatan" style={iconBtn(T)}>
+                        <Icon name="trash" size={12} />
+                      </button>
                     </>
                   ) : null}>
                   {k.subkegiatan.map(s => (
@@ -253,6 +276,7 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
                       onUnggah={d => setUploadPeriode(d)}
                       onLihatRiwayat={docInfo => setRiwayatDoc(docInfo)}
                       onEditSub={() => bukaEditPks("subkegiatan", s)}
+                      onHapusSub={() => hapusPks("subkegiatan", s)}
                       showToast={showToast}
                       reload={reload} sibuk={sibuk} setSibuk={setSibuk}
                     />
@@ -368,7 +392,7 @@ function Panel({ T, buka, onToggle, force, ikon, kode, nama, aksi = null, childr
 // ── Sub kegiatan + daftar output ─────────────────────────────────────────
 function SubKey({ T, sub, tahun, admin, user, buka, onToggle, force, hanyaTerlambat, cari,
                   onTambahOutput, onEditOutput, onEditPeriode, onUnggah, onLihatRiwayat,
-                  onEditSub, showToast, reload, sibuk, setSibuk }) {
+                  onEditSub, onHapusSub, showToast, reload, sibuk, setSibuk }) {
   const outputs = sub.outputs.filter(o => {
     if (cari) return true;
     if (!hanyaTerlambat) return true;
@@ -442,6 +466,11 @@ function SubKey({ T, sub, tahun, admin, user, buka, onToggle, force, hanyaTerlam
             {onEditSub && (
               <button onClick={onEditSub} title="Ubah Sub Kegiatan" style={iconBtn(T)}>
                 <Icon name="edit" size={12} />
+              </button>
+            )}
+            {onHapusSub && (
+              <button onClick={onHapusSub} title="Hapus Sub Kegiatan" style={iconBtn(T)}>
+                <Icon name="trash" size={12} />
               </button>
             )}
           </span>

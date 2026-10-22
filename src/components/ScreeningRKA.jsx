@@ -4,7 +4,7 @@ import { Icon, CariPilih, Modal } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
 import { api, usePksTree, usePksTahun, useStandarHarga, useKodeRekening, useDraftRincian, usePerubahan } from "../hooks.js";
 import { canManageOutput } from "../data.js";
-import { btn, FormPois, LEVELS } from "./PksAdmin.jsx";
+import { btn, FormPois, LEVELS, pesanError } from "./PksAdmin.jsx";
 
 // Format rupiah lokal — sengaja tidak dibagi ke data.js: hanya dipakai di sini
 // (Task 5 bisa memakai sendiri bila perlu).
@@ -73,6 +73,18 @@ const pillTambah = T => ({
   border: `1px solid ${T.primary}`, whiteSpace: "nowrap",
 });
 
+// Kartu blok di dalam detail sub kegiatan (Pagu, Rencana vs Pagu,
+// Perubahan/Realisasi, Validasi) — satu gaya supaya rapi dan sejajar.
+const kotak = T => ({
+  border: `1px solid ${T.border}`, borderRadius: 8,
+  padding: "8px 10px", background: T.surfaceHover,
+});
+
+// Judul blok di dalam kotak detail sub.
+const judulBlok = T => ({
+  fontSize: 11.5, fontWeight: 700, color: T.textSecondary,
+});
+
 // Teks uraian kelompok barang utk opsi dropdown kode rekening: maks 2 uraian
 // digabung " · ", sisanya "+n lainnya" supaya baris tidak panjang.
 const uraianTeks = arr => !arr || !arr.length ? undefined
@@ -104,6 +116,21 @@ export default function ScreeningRKA({ user, showToast }) {
     setFormPks({ level, mode: "tambah", row: null, parentId, parentLabel: null });
   const bukaEditPks = (level, row) =>
     setFormPks({ level, mode: "edit", row, parentId: row[LEVELS[level].kunci] ?? null });
+  // Hapus baris struktur — server menolak bila masih punya anak.
+  const hapusPks = async (level, row) => {
+    const ok = window.confirm(
+      `Hapus ${LEVELS[level].label} "${row.nama}"?\n\n` +
+      `Kalau masih ada data di bawahnya, server akan menolak dan Anda harus hapus yang paling bawah dulu.`
+    );
+    if (!ok) return;
+    try {
+      await api(`/api/pks/${level}/${row.id}`, "DELETE");
+      showToast(`${LEVELS[level].label} "${row.nama}" dihapus.`);
+      reload();
+    } catch (err) {
+      showToast(await pesanError(err, "Gagal menghapus"));
+    }
+  };
 
   const admin = canManageOutput(user.role);
   const { data: tahunList = [] } = usePksTahun();
@@ -313,6 +340,10 @@ export default function ScreeningRKA({ user, showToast }) {
                 title="Ubah Program" style={iconAksi(T)}>
                 <Icon name="edit" size={12} />
               </button>
+              <button onClick={() => hapusPks("program", p)}
+                title="Hapus Program" style={iconAksi(T)}>
+                <Icon name="trash" size={12} />
+              </button>
             </>
           ) : null}>
           {p.kegiatan.map(k => (
@@ -328,6 +359,10 @@ export default function ScreeningRKA({ user, showToast }) {
                     title="Ubah Kegiatan" style={iconAksi(T)}>
                     <Icon name="edit" size={12} />
                   </button>
+                  <button onClick={() => hapusPks("kegiatan", k)}
+                    title="Hapus Kegiatan" style={iconAksi(T)}>
+                    <Icon name="trash" size={12} />
+                  </button>
                 </>
               ) : null}>
               {k.subkegiatan.map(s => (
@@ -335,10 +370,16 @@ export default function ScreeningRKA({ user, showToast }) {
                   buka={!!buka[`s${s.id}`]} onToggle={() => toggle(`s${s.id}`)}
                   showToast={showToast} reload={reload}
                   aksi={admin ? (
-                    <button onClick={() => bukaEditPks("subkegiatan", s)}
-                      title="Ubah Sub Kegiatan" style={iconAksi(T)}>
-                      <Icon name="edit" size={12} />
-                    </button>
+                    <>
+                      <button onClick={() => bukaEditPks("subkegiatan", s)}
+                        title="Ubah Sub Kegiatan" style={iconAksi(T)}>
+                        <Icon name="edit" size={12} />
+                      </button>
+                      <button onClick={() => hapusPks("subkegiatan", s)}
+                        title="Hapus Sub Kegiatan" style={iconAksi(T)}>
+                        <Icon name="trash" size={12} />
+                      </button>
+                    </>
                   ) : null} />
               ))}
             </Panel>
@@ -486,37 +527,57 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
         {sub.kode} · {sub.nama}
       </div>
 
-      {/* Pagu */}
-      <div style={{ fontSize: 11.5, fontWeight: 700, color: T.text, marginBottom: 5 }}>Pagu</div>
-      {terkunci && (
-        <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 6 }}>
-          Terkunci — {status === "disetujui" ? "sudah disetujui" : "menunggu validasi Admin"}.
-          {" "}Admin bisa membuka lewat "Kembalikan ke Draft" di blok Validasi.
+      {/* Grid seragam (auto-fit): Pagu | Rencana vs Pagu —
+          Perubahan/Realisasi | Validasi. Di layar sempit menumpuk satu kolom. */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+        gap: 10, marginBottom: 14,
+      }}>
+        {/* Pagu */}
+        <div style={kotak(T)}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8,
+            alignItems: "center", flexWrap: "wrap" }}>
+            <span style={judulBlok(T)}>Pagu</span>
+            <span style={{ fontSize: 11.5, color: T.textMuted,
+              fontFamily: "ui-monospace, monospace" }}>
+              {rupiah(sub.pagu)}
+            </span>
+          </div>
+          {terkunci && (
+            <div style={{ fontSize: 11, color: T.textMuted, marginTop: 6 }}>
+              Terkunci — {status === "disetujui" ? "sudah disetujui" : "menunggu validasi Admin"}.
+              {" "}Admin bisa membuka lewat "Kembalikan ke Draft" di blok Validasi.
+            </div>
+          )}
+          {admin ? (
+            <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6 }}>
+              <input
+                type="number" min="0" step="any" inputMode="decimal"
+                value={paguTeks} onChange={e => setPaguTeks(e.target.value)}
+                placeholder="0" style={{ ...inputStyle(T), maxWidth: 200 }}
+                disabled={terkunci || sibuk}
+                onKeyDown={e => { if (e.key === "Enter") simpanPagu(); }}
+              />
+              <button onClick={simpanPagu} disabled={sibuk || terkunci}
+                style={btn(T, T.primary, "#fff", sibuk || terkunci)}>
+                Simpan
+              </button>
+            </div>
+          ) : (
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginTop: 6 }}>
+              {rupiah(sub.pagu)}
+            </div>
+          )}
         </div>
-      )}
-      {admin ? (
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <input
-            type="number" min="0" step="any" inputMode="decimal"
-            value={paguTeks} onChange={e => setPaguTeks(e.target.value)}
-            placeholder="0" style={{ ...inputStyle(T), maxWidth: 220 }}
-            disabled={terkunci || sibuk}
-            onKeyDown={e => { if (e.key === "Enter") simpanPagu(); }}
-          />
-          <button onClick={simpanPagu} disabled={sibuk || terkunci} style={btn(T, T.primary, "#fff", sibuk || terkunci)}>
-            Simpan
-          </button>
-          <span style={{ fontSize: 11.5, color: T.textMuted }}>{rupiah(sub.pagu)}</span>
-        </div>
-      ) : (
-        <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{rupiah(sub.pagu)}</div>
-      )}
 
-      <RingkasanPagu T={T} sub={sub} tahun={tahun} admin={admin}
-        showToast={showToast} onSave={onSave} />
+        {/* Rencana vs Pagu + Perubahan/Realisasi (fragment → 2 sel grid) */}
+        <RingkasanPagu T={T} sub={sub} tahun={tahun} admin={admin}
+          showToast={showToast} onSave={onSave} />
 
-      <BlokStatus T={T} sub={sub} admin={admin}
-        showToast={showToast} onSave={onSave} />
+        {/* Validasi */}
+        <BlokStatus T={T} sub={sub} admin={admin}
+          showToast={showToast} onSave={onSave} />
+      </div>
 
       <DraftRincian T={T} tahun={tahun} sub={sub} terkunci={terkunci}
         showToast={showToast} />
@@ -580,18 +641,55 @@ function BlokStatus({ T, sub, admin, showToast, onSave }) {
   const ui = STATUS_UI[status] || STATUS_UI.draft;
 
   return (
-    <div style={{ marginTop: 14, border: `1px solid ${T.border}`, borderRadius: 8,
-      padding: "8px 10px", background: T.surfaceHover }}>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary }}>
-          Validasi
+    <div style={kotak(T)}>
+      {/* Judul + chip di kiri, aksi di kanan — satu baris, wrap di layar sempit */}
+      <div style={{ display: "flex", gap: 8, alignItems: "center",
+        flexWrap: "wrap", justifyContent: "space-between" }}>
+        <span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={judulBlok(T)}>Validasi</span>
+          <span style={chipStatus(status)}>{ui.label}</span>
+          {sub.status_oleh && sub.status_at && (
+            <span style={{ fontSize: 11, color: T.textMuted }}>
+              oleh {sub.status_oleh} · {tgl(sub.status_at)}
+            </span>
+          )}
         </span>
-        <span style={chipStatus(status)}>{ui.label}</span>
-        {sub.status_oleh && sub.status_at && (
-          <span style={{ fontSize: 11, color: T.textMuted }}>
-            oleh {sub.status_oleh} · {tgl(sub.status_at)}
-          </span>
-        )}
+
+        <span style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+          {(status === "draft" || status === "ditolak") && (
+            <button onClick={ajukan} disabled={sibuk} style={btn(T, T.primary, "#fff", sibuk)}>
+              <Icon name="check" size={13} /> Ajukan ke Admin
+            </button>
+          )}
+          {status === "menunggu" && !admin && (
+            <span style={{ fontSize: 12, color: T.textMuted }}>
+              Menunggu validasi Admin…
+            </span>
+          )}
+          {status === "menunggu" && admin && (
+            <>
+              <button onClick={setujui} disabled={sibuk || !!alasan}
+                style={btn(T, "#16A34A", "#fff", sibuk || !!alasan)}>
+                <Icon name="check" size={13} /> Setujui
+              </button>
+              <button onClick={() => setTolakBuka(v => !v)} disabled={sibuk}
+                style={btn(T, "#DC2626", "#fff", sibuk)}>
+                <Icon name="x" size={13} /> Tolak
+              </button>
+              {alasan && (
+                <span style={{ fontSize: 11, color: "#DC2626" }}>
+                  {alasan} — Setujui dinonaktifkan.
+                </span>
+              )}
+            </>
+          )}
+          {admin && (status === "disetujui" || status === "ditolak") && (
+            <button onClick={kembalikan} disabled={sibuk}
+              style={btn(T, T.card, T.textSecondary, sibuk, T.inputBorder)}>
+              Kembalikan ke Draft
+            </button>
+          )}
+        </span>
       </div>
 
       {sub.catatan_validasi && (
@@ -601,43 +699,6 @@ function BlokStatus({ T, sub, admin, showToast, onSave }) {
           Catatan: {sub.catatan_validasi}
         </div>
       )}
-
-      <div style={{ display: "flex", gap: 6, alignItems: "center",
-        marginTop: 8, flexWrap: "wrap" }}>
-        {(status === "draft" || status === "ditolak") && (
-          <button onClick={ajukan} disabled={sibuk} style={btn(T, T.primary, "#fff", sibuk)}>
-            <Icon name="check" size={13} /> Ajukan ke Admin
-          </button>
-        )}
-        {status === "menunggu" && !admin && (
-          <span style={{ fontSize: 12, color: T.textMuted }}>
-            Menunggu validasi Admin…
-          </span>
-        )}
-        {status === "menunggu" && admin && (
-          <>
-            <button onClick={setujui} disabled={sibuk || !!alasan}
-              style={btn(T, "#16A34A", "#fff", sibuk || !!alasan)}>
-              <Icon name="check" size={13} /> Setujui
-            </button>
-            <button onClick={() => setTolakBuka(v => !v)} disabled={sibuk}
-              style={btn(T, "#DC2626", "#fff", sibuk)}>
-              <Icon name="x" size={13} /> Tolak
-            </button>
-            {alasan && (
-              <span style={{ fontSize: 11, color: "#DC2626" }}>
-                {alasan} — Setujui dinonaktifkan.
-              </span>
-            )}
-          </>
-        )}
-        {admin && (status === "disetujui" || status === "ditolak") && (
-          <button onClick={kembalikan} disabled={sibuk}
-            style={btn(T, T.surfaceHover, T.textSecondary, sibuk, T.inputBorder)}>
-            Kembalikan ke Draft
-          </button>
-        )}
-      </div>
 
       {tolakBuka && (
         <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
@@ -685,13 +746,16 @@ function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
         ? { label: "Mendekati", warna: "#CA8A04" }
         : { label: "Melebihi", warna: "#DC2626" };
 
+  // Stat blok: label kecil di atas, nilai tebal monospace di bawah — lebih
+  // terbaca daripada "Label: nilai" panjang dalam satu baris.
   const item = (label, nilai, warna) => (
-    <span style={{ fontSize: 12, color: T.textSecondary }}>
-      {label}:{" "}
-      <b style={{ color: warna || T.text, fontFamily: "ui-monospace, monospace" }}>
+    <div style={{ minWidth: 84 }}>
+      <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted }}>{label}</div>
+      <div style={{ fontSize: 12.5, fontWeight: 700, marginTop: 1,
+        color: warna || T.text, fontFamily: "ui-monospace, monospace" }}>
         {nilai}
-      </b>
-    </span>
+      </div>
+    </div>
   );
 
   // Baris yang harganya menyimpang > ambang dari standar SSH/SBU — warning
@@ -738,53 +802,58 @@ function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
   const selisih = snap ? totalRencana - Number(snap.sebelum_rencana || 0) : null;
 
   return (
-    <div>
-      <div style={{ marginTop: 14, border: `1px solid ${T.border}`, borderRadius: 8,
-        padding: "8px 10px", background: T.surfaceHover, display: "flex",
-        flexWrap: "wrap", gap: 12, alignItems: "center" }}>
-        <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary }}>
-          Rencana vs Pagu
-        </span>
-        {adaPagu && item("Pagu", rupiah(pagu))}
-        {item("Total rencana", rupiah(totalRencana))}
-        {adaPagu && item("Sisa", rupiah(sisa))}
-        {adaPagu && item("Terpakai", `${persen.toFixed(1)}%`)}
-        <span style={{ fontSize: 11, fontWeight: 700, color: badge.warna,
-          background: `${badge.warna}1A`, border: `1px solid ${badge.warna}4D`,
-          borderRadius: 999, padding: "2px 8px" }}>
-          {badge.label}
-        </span>
-        {deviasi > 0 && (
-          <span title="Baris dengan selisih harga vs standar di luar ambang"
-            style={{ fontSize: 11, fontWeight: 700, color: "#DC2626",
-              background: "#DC26261A", border: "1px solid #DC26264D",
-              borderRadius: 999, padding: "2px 8px",
-              display: "inline-flex", alignItems: "center", gap: 4 }}>
-            <Icon name="alert" size={11} />
-            {deviasi} baris selisih &gt;{AMBANG_SELISIH}% dari standar
+    // Fragment: dua kartu ini jadi dua sel grid di DetailSub (auto-fit).
+    <>
+      <div style={kotak(T)}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8,
+          alignItems: "center", flexWrap: "wrap" }}>
+          <span style={judulBlok(T)}>Rencana vs Pagu</span>
+          <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: badge.warna,
+              background: `${badge.warna}1A`, border: `1px solid ${badge.warna}4D`,
+              borderRadius: 999, padding: "2px 8px" }}>
+              {badge.label}
+            </span>
+            {deviasi > 0 && (
+              <span title="Baris dengan selisih harga vs standar di luar ambang"
+                style={{ fontSize: 11, fontWeight: 700, color: "#DC2626",
+                  background: "#DC26261A", border: "1px solid #DC26264D",
+                  borderRadius: 999, padding: "2px 8px",
+                  display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <Icon name="alert" size={11} />
+                {deviasi} baris selisih &gt;{AMBANG_SELISIH}%
+              </span>
+            )}
           </span>
-        )}
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 18px", marginTop: 8 }}>
+          {adaPagu && item("Pagu", rupiah(pagu))}
+          {item("Total rencana", rupiah(totalRencana))}
+          {adaPagu && item("Sisa", rupiah(sisa))}
+          {adaPagu && item("Terpakai", `${persen.toFixed(1)}%`)}
+        </div>
       </div>
 
       {/* Perubahan anggaran + realisasi */}
-      <div style={{ marginTop: 8, border: `1px solid ${T.border}`, borderRadius: 8,
-        padding: "8px 10px", background: T.surfaceHover }}>
+      <div style={kotak(T)}>
         {snap ? (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary }}>
+          <>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary }}>
               Perubahan Anggaran {tahun}
               {inisiasi && (
                 <span style={{ fontWeight: 400, color: T.textMuted }}>
                   {" "}· diinisiasi {tgl(inisiasi.created_at)}
                 </span>
               )}
-            </span>
-            {item("Sebelum perubahan", rupiah(Number(snap.sebelum_rencana || 0)))}
-            {item("Sesudah perubahan", rupiah(totalRencana))}
-            {item("Selisih",
-              `${selisih > 0 ? "+" : selisih < 0 ? "−" : ""}${rupiah(Math.abs(selisih))}`,
-              selisih > 0 ? "#DC2626" : selisih < 0 ? "#16A34A" : T.textSecondary)}
-          </div>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 18px", marginTop: 8 }}>
+              {item("Sebelum perubahan", rupiah(Number(snap.sebelum_rencana || 0)))}
+              {item("Sesudah perubahan", rupiah(totalRencana))}
+              {item("Selisih",
+                `${selisih > 0 ? "+" : selisih < 0 ? "−" : ""}${rupiah(Math.abs(selisih))}`,
+                selisih > 0 ? "#DC2626" : selisih < 0 ? "#16A34A" : T.textSecondary)}
+            </div>
+          </>
         ) : (
           <div style={{ fontSize: 11, color: T.textMuted }}>
             Belum ada inisiasi perubahan untuk {tahun ?? "tahun ini"}
@@ -792,25 +861,27 @@ function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
           </div>
         )}
 
+        {/* Realisasi dipisah garis putus-putus supaya tidak menyatu
+            dengan info perubahan. */}
         <div style={{ display: "flex", gap: 6, alignItems: "center",
-          marginTop: snap ? 8 : 6, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary }}>
-            Realisasi
-          </span>
+          flexWrap: "wrap", marginTop: 8, paddingTop: 8,
+          borderTop: `1px dashed ${T.inputBorder}` }}>
+          <span style={judulBlok(T)}>Realisasi</span>
           {admin ? (
             <>
               <input
                 type="number" min="0" step="any" inputMode="decimal"
                 value={realTeks} onChange={e => setRealTeks(e.target.value)}
                 placeholder="0"
-                style={{ ...inputStyle(T), maxWidth: 170, padding: "4px 8px", fontSize: 12 }}
+                style={{ ...inputStyle(T), maxWidth: 150, padding: "4px 8px", fontSize: 12 }}
                 onKeyDown={e => { if (e.key === "Enter") simpanRealisasi(); }}
               />
               <button onClick={simpanRealisasi} disabled={sibukReal}
                 style={btn(T, T.primary, "#fff", sibukReal)}>
                 Simpan
               </button>
-              <span style={{ fontSize: 11.5, color: T.textMuted }}>
+              <span style={{ fontSize: 11.5, color: T.textMuted,
+                fontFamily: "ui-monospace, monospace" }}>
                 {rupiah(sub.realisasi ?? null)}
               </span>
             </>
@@ -821,7 +892,7 @@ function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
