@@ -4,6 +4,7 @@ import { Icon, CariPilih, Modal } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
 import { api, usePksTree, usePksTahun, useStandarHarga, useKodeRekening, useDraftRincian, usePerubahan } from "../hooks.js";
 import { canManageOutput } from "../data.js";
+import useResponsive from "../useResponsive.js";
 import { btn, FormPois, LEVELS, pesanError } from "./PksAdmin.jsx";
 
 // Format rupiah lokal — sengaja tidak dibagi ke data.js: hanya dipakai di sini
@@ -112,6 +113,7 @@ const rekCocok = (rek, val) => {
 // disederhanakan: tanpa output/periode, tanpa pencarian.
 export default function ScreeningRKA({ user, showToast }) {
   const { T } = useContext(ThemeContext);
+  const { isMobile } = useResponsive();
   const qc = useQueryClient();
   const [tahun, setTahun] = useState(null);
   const [buka, setBuka] = useState({});
@@ -198,7 +200,8 @@ export default function ScreeningRKA({ user, showToast }) {
 
   return (
     <div>
-      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 18, marginBottom: 16 }}>
+      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12,
+        padding: isMobile ? 14 : 18, marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -237,7 +240,7 @@ export default function ScreeningRKA({ user, showToast }) {
             )}
 
             {admin && tahun != null && (
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                 <button
                   onClick={() => setBukaPerubahan(v => !v)}
                   disabled={sibukPerubahan}
@@ -271,12 +274,12 @@ export default function ScreeningRKA({ user, showToast }) {
               "sebelum perubahan". Kolom sebelum/sesudah muncul di detail sub
               kegiatan setelah inisiasi.
             </div>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
               <input
                 value={catatanPerubahan}
                 onChange={e => setCatatanPerubahan(e.target.value)}
                 placeholder="Catatan perubahan (opsional)"
-                style={{ ...inputStyle(T), maxWidth: 340 }}
+                style={{ ...inputStyle(T), maxWidth: 340, flex: "1 1 180px", minWidth: 0 }}
                 onKeyDown={e => { if (e.key === "Enter") inisiasi(); }}
               />
               <button onClick={inisiasi} disabled={sibukPerubahan}
@@ -337,7 +340,7 @@ export default function ScreeningRKA({ user, showToast }) {
 
       {programs.map(p => (
         <Panel key={`p${p.id}`} T={T} buka={!!buka[`p${p.id}`]} onToggle={() => toggle(`p${p.id}`)}
-          ikon="layers" kode={p.kode} nama={p.nama} total={p.totalPagu}
+          ikon="layers" kode={p.kode} nama={p.nama} total={p.totalPagu} isMobile={isMobile}
           aksi={admin ? (
             <>
               <button onClick={() => bukaTambahPks("kegiatan", p.id)}
@@ -356,7 +359,7 @@ export default function ScreeningRKA({ user, showToast }) {
           ) : null}>
           {p.kegiatan.map(k => (
             <Panel key={`k${k.id}`} T={T} buka={!!buka[`k${k.id}`]} onToggle={() => toggle(`k${k.id}`)}
-              ikon="list" kode={k.kode} nama={k.nama} total={k.totalPagu}
+              ikon="list" kode={k.kode} nama={k.nama} total={k.totalPagu} isMobile={isMobile}
               aksi={admin ? (
                 <>
                   <button onClick={() => bukaTambahPks("subkegiatan", k.id)}
@@ -374,7 +377,7 @@ export default function ScreeningRKA({ user, showToast }) {
                 </>
               ) : null}>
               {k.subkegiatan.map(s => (
-                <SubRow key={`s${s.id}`} T={T} sub={s} admin={admin} tahun={tahun}
+                <SubRow key={`s${s.id}`} T={T} sub={s} admin={admin} tahun={tahun} isMobile={isMobile}
                   buka={!!buka[`s${s.id}`]} onToggle={() => toggle(`s${s.id}`)}
                   showToast={showToast} reload={reload}
                   aksi={admin ? (
@@ -403,18 +406,22 @@ export default function ScreeningRKA({ user, showToast }) {
 // kanan, gaya sama dengan chip pagu di SubRow.
 // `aksi`: tombol tambah anak + ubah (admin) — dibungkus pemisah supaya klik
 // tidak ikut menutup/membuka panel.
-function Panel({ T, buka, onToggle, ikon, kode, nama, total, aksi = null, children }) {
+function Panel({ T, buka, onToggle, ikon, kode, nama, total, isMobile = false, aksi = null, children }) {
   return (
     <div style={{ marginBottom: 8 }}>
       <div onClick={onToggle} style={{
         display: "flex", alignItems: "center", gap: 8, padding: "10px 13px",
         border: `1px solid ${T.border}`, borderRadius: 10, cursor: "pointer",
         background: T.surfaceHover,
+        // Mobile: bila chip total + tombol aksi tidak muat sebaris dengan
+        // nama, baris turun dengan rapi — bukan overflow ke kanan.
+        flexWrap: "wrap",
       }}>
         <Icon name="chevronRight" size={13} style={{ color: T.textMuted, transform: buka ? "rotate(90deg)" : "", transition: "transform .2s" }} />
         <Icon name={ikon} size={14} style={{ color: T.primary, flexShrink: 0 }} />
         <span style={{ fontSize: 11, fontFamily: "ui-monospace, monospace", color: T.textMuted, flexShrink: 0 }}>{kode}</span>
-        <span style={{ fontSize: 13, fontWeight: 700, color: T.text, flex: 1, minWidth: 0 }}>{nama}</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: T.text, flex: 1, minWidth: 0,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nama}</span>
         {total !== undefined && (
           <span style={{
             fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 999, flexShrink: 0,
@@ -432,7 +439,8 @@ function Panel({ T, buka, onToggle, ikon, kode, nama, total, aksi = null, childr
         )}
       </div>
       {buka && (
-        <div style={{ margin: "6px 0 0 20px", paddingLeft: 10, borderLeft: `1px solid ${T.border}` }}>
+        <div style={{ margin: isMobile ? "6px 0 0 4px" : "6px 0 0 20px",
+          paddingLeft: isMobile ? 6 : 10, borderLeft: `1px solid ${T.border}` }}>
           {children}
         </div>
       )}
@@ -441,24 +449,31 @@ function Panel({ T, buka, onToggle, ikon, kode, nama, total, aksi = null, childr
 }
 
 // ── Baris sub kegiatan + panel detailnya ─────────────────────────────────
-function SubRow({ T, sub, admin, tahun, buka, onToggle, showToast, reload, aksi = null }) {
+function SubRow({ T, sub, admin, tahun, buka, onToggle, showToast, reload, isMobile = false, aksi = null }) {
   return (
     <div style={{ marginBottom: 8 }}>
       <div onClick={onToggle} style={{
         display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
         border: `1px solid ${T.border}`, borderRadius: 9, cursor: "pointer",
+        flexWrap: "wrap",
       }}>
         <Icon name="chevronRight" size={12} style={{ color: T.textMuted, transform: buka ? "rotate(90deg)" : "", transition: "transform .2s" }} />
         <Icon name="file" size={13} style={{ color: T.textSecondary, flexShrink: 0 }} />
         <span style={{ fontSize: 11, fontFamily: "ui-monospace, monospace", color: T.textMuted, flexShrink: 0 }}>{sub.kode}</span>
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: T.text, flex: 1, minWidth: 0 }}>{sub.nama}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: T.text, flex: 1, minWidth: 0,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub.nama}</span>
 
         <span style={chipStatus(sub.status_validasi)}>
           {(STATUS_UI[sub.status_validasi] || STATUS_UI.draft).label}
         </span>
 
         {sub.indikator && (
-          <span style={{ fontSize: 10.5, color: T.textMuted, maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <span style={isMobile
+            // Mobile: indikator+target turun ke baris kedua selebar penuh,
+            // supaya baris pertama tetap muat chip status + pagu + aksi.
+            ? { order: 9, flexBasis: "100%", fontSize: 10.5, color: T.textMuted, marginTop: 2 }
+            : { fontSize: 10.5, color: T.textMuted, maxWidth: 240, overflow: "hidden",
+                textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {sub.indikator}{sub.target ? ` · ${sub.target}` : ""}
           </span>
         )}
@@ -481,8 +496,10 @@ function SubRow({ T, sub, admin, tahun, buka, onToggle, showToast, reload, aksi 
       </div>
 
       {buka && (
-        <div style={{ margin: "6px 0 0 18px", paddingLeft: 10, borderLeft: `1px solid ${T.border}` }}>
-          <DetailSub T={T} sub={sub} admin={admin} tahun={tahun} showToast={showToast} onSave={reload} />
+        <div style={{ margin: isMobile ? "6px 0 0 4px" : "6px 0 0 18px",
+          paddingLeft: isMobile ? 6 : 10, borderLeft: `1px solid ${T.border}` }}>
+          <DetailSub T={T} sub={sub} admin={admin} tahun={tahun} showToast={showToast} onSave={reload}
+            isMobile={isMobile} />
         </div>
       )}
     </div>
@@ -490,7 +507,7 @@ function SubRow({ T, sub, admin, tahun, buka, onToggle, showToast, reload, aksi 
 }
 
 // ── Detail sub kegiatan: pagu + rencana belanja ───────────────────────────
-function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
+function DetailSub({ T, sub, admin, tahun, showToast, onSave, isMobile = false }) {
   const [paguTeks, setPaguTeks] = useState(() => teksAngka(sub.pagu));
   const [sibuk, setSibuk] = useState(false);
 
@@ -537,9 +554,11 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
       </div>
 
       {/* Grid seragam (auto-fit): Pagu | Rencana vs Pagu —
-          Perubahan/Realisasi | Validasi. Di layar sempit menumpuk satu kolom. */}
+          Perubahan/Realisasi | Validasi. Di layar sempit menumpuk satu kolom;
+          min(min(300px,100%)) supaya kolom tidak pernah overflow di HP 320px. */}
       <div style={{
-        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))",
         gap: 10, marginBottom: 14,
       }}>
         {/* Pagu */}
@@ -1089,7 +1108,7 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
 
   return (
     <div style={{ marginTop: 14, borderTop: `1px solid ${T.border}`, paddingTop: 10 }}>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
         <span style={{ fontSize: 11.5, fontWeight: 700, color: T.text }}>
           Rencana Belanja
         </span>
