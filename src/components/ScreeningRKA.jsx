@@ -134,7 +134,7 @@ export default function ScreeningRKA({ user, showToast }) {
               <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Screening RKA</span>
             </div>
             <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 3 }}>
-              Program → Kegiatan → Sub Kegiatan · pagu &amp; kode rekening{admin ? "" : " (lihat saja)"}
+              Program → Kegiatan → Sub Kegiatan · pagu &amp; rencana belanja{admin ? "" : " (lihat saja)"}
             </div>
           </div>
 
@@ -286,7 +286,6 @@ function Panel({ T, buka, onToggle, ikon, kode, nama, children }) {
 
 // ── Baris sub kegiatan + panel detailnya ─────────────────────────────────
 function SubRow({ T, sub, admin, tahun, buka, onToggle, showToast, reload }) {
-  const chips = sub.kode_rekening || [];
   return (
     <div style={{ marginBottom: 8 }}>
       <div onClick={onToggle} style={{
@@ -316,15 +315,6 @@ function SubRow({ T, sub, admin, tahun, buka, onToggle, showToast, reload }) {
         }}>
           {rupiah(sub.pagu)}
         </span>
-
-        <span style={{
-          fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 999, flexShrink: 0,
-          color: chips.length ? T.textSecondary : T.textMuted,
-          background: chips.length ? T.surfaceHover : "transparent",
-          border: `1px solid ${T.border}`,
-        }}>
-          {chips.length ? `${chips.length} rekening` : "semua rekening"}
-        </span>
       </div>
 
       {buka && (
@@ -336,35 +326,20 @@ function SubRow({ T, sub, admin, tahun, buka, onToggle, showToast, reload }) {
   );
 }
 
-// ── Detail sub kegiatan: pagu + chips kode rekening + rencana belanja ──────
+// ── Detail sub kegiatan: pagu + rencana belanja ───────────────────────────
 function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
   const [paguTeks, setPaguTeks] = useState(() => (sub.pagu ?? "").toString());
-  const [chips, setChips] = useState(() => sub.kode_rekening || []);
-  const [teks, setTeks] = useState("");
   const [sibuk, setSibuk] = useState(false);
-
-  // Kandidat chips dari standar_harga (punya uraian kelompok barang) — dropdown
-  // bisa dicari lewat uraian, bukan hanya angka. Kode yang sudah jadi chip
-  // dikeluarkan dari daftar; kode manual tetap bisa diketik (isian bebas).
-  const daftarRek = useKodeRekening(tahun);
-  const petaRek = new Map((daftarRek.data || [])
-    .map(o => [String(o.kode).trim(), o.uraian || []]));
-  const opsiRek = [...new Set((daftarRek.data || []).map(o => String(o.kode).trim()))]
-    .filter(k => !chips.includes(k))
-    .sort((a, b) => a.localeCompare(b))
-    .map(k => ({ value: k, label: k, sub: uraianTeks(petaRek.get(k) || []) }));
 
   const status = sub.status_validasi || "draft";
   const terkunci = SUB_TERKUNCI.includes(status);
 
-  // Sinkronkan draft dengan data server HANYA bila isinya berubah — dependensi
-  // berupa string, bukan array, supaya refetch polling (30 dtk) tidak
+  // Sinkronkan draft dengan data server HANYA bila nilainya berubah — dependensi
+  // berupa nilai, bukan referensi, supaya refetch polling (30 dtk) tidak
   // menimpa input yang sedang diketik selama nilainya sama.
-  const kunciChips = (sub.kode_rekening || []).join("\u0001");
   useEffect(() => {
     setPaguTeks((sub.pagu ?? "").toString());
-    setChips(sub.kode_rekening || []);
-  }, [sub.pagu, kunciChips]);
+  }, [sub.pagu]);
 
   const simpan = async (body, pesan) => {
     setSibuk(true);
@@ -389,15 +364,6 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
       return;
     }
     return simpan({ pagu: n }, "Pagu disimpan.");
-  };
-
-  // Menerima hasil commit CariPilih: kode pilihan dari daftar ATAU teks
-  // ketikan (Enter/klik di luar). Koma memecah jadi beberapa kode sekaligus.
-  const tambahChip = (v) => {
-    const bagian = String(v ?? "").split(",").map(x => x.trim()).filter(Boolean);
-    if (!bagian.length) return;
-    setChips(prev => [...prev, ...bagian.filter(c => !prev.includes(c))]);
-    setTeks("");
   };
 
   return (
@@ -430,58 +396,6 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
         </div>
       ) : (
         <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{rupiah(sub.pagu)}</div>
-      )}
-
-      {/* Chips kode rekening */}
-      <div style={{ fontSize: 11.5, fontWeight: 700, color: T.text, margin: "12px 0 5px" }}>Kode Rekening</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-        {chips.length === 0 && (
-          <span style={{ fontSize: 12, color: T.textMuted }}>Kosong = semua rekening.</span>
-        )}
-        {chips.map(c => (
-          <span key={c} style={{
-            display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5,
-            fontFamily: "ui-monospace, monospace", padding: "3px 8px", borderRadius: 999,
-            background: T.surfaceHover, border: `1px solid ${T.border}`, color: T.text,
-          }}>
-            {c}
-            {admin && !terkunci && (
-              <button onClick={() => setChips(prev => prev.filter(x => x !== c))}
-                title={`Hapus ${c}`} aria-label={`Hapus kode rekening ${c}`}
-                style={{
-                  background: "none", border: "none", padding: 0, cursor: "pointer",
-                  color: T.textMuted, fontWeight: 700, fontSize: 13, lineHeight: 1,
-                  fontFamily: "inherit",
-                }}>×</button>
-            )}
-          </span>
-        ))}
-      </div>
-
-      {admin && !terkunci && (
-        <>
-          <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
-            <CariPilih
-              value={teks}
-              onChange={tambahChip}
-              opsi={opsiRek}
-              placeholder="Cari kode / uraian kelompok — Enter atau koma untuk menambah"
-              pisahKoma
-              kosongDaftar="Belum ada daftar kode — ketik kode lalu Enter."
-              kosongCari="Tidak ada kode cocok. Tekan Enter untuk menambah."
-              style={{ flex: 1, minWidth: 0 }}
-            />
-            <button onClick={() => tambahChip(teks)} style={btn(T, T.surfaceHover, T.textSecondary, false, T.inputBorder)}>
-              Tambah
-            </button>
-          </div>
-          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-            <button onClick={() => simpan({ kode_rekening: chips }, "Kode rekening disimpan.")}
-              disabled={sibuk} style={btn(T, T.primary, "#fff", sibuk)}>
-              Simpan rekening
-            </button>
-          </div>
-        </>
       )}
 
       <RingkasanPagu T={T} sub={sub} tahun={tahun} admin={admin}
@@ -815,6 +729,9 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
   const [form, setForm] = useState(null);       // null | salinan item (kerja)
   const [tambahBuka, setTambahBuka] = useState(false);
   const [sibuk, setSibuk] = useState(false);
+  // Draft volume inline per baris (key = id) — diisi saat mengedit di tabel,
+  // dikirim saat blur/Enter bila berbeda dari nilai server.
+  const [volLokal, setVolLokal] = useState({});
 
   const tutup = () => {
     setEditId(null); setTambahBuka(false); setForm(null);
@@ -856,6 +773,36 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
       muatUlang();
     } catch (e) {
       showToast(`Gagal menyimpan: ${e.message}`);
+    } finally {
+      setSibuk(false);
+    }
+  };
+
+  // Simpan volume dari sel tabel (blur / Enter) — hanya bila nilainya berubah.
+  const simpanVolume = async (it, teks) => {
+    const n = Number(teks);
+    if (teks.trim() === "" || !Number.isFinite(n) || n <= 0) {
+      showToast("Volume harus angka lebih besar dari nol.");
+      setVolLokal(p => { const q = { ...p }; delete q[it.id]; return q; });
+      return;
+    }
+    if (Number(it.volume) === n) {
+      setVolLokal(p => { const q = { ...p }; delete q[it.id]; return q; });
+      return;
+    }
+    setSibuk(true);
+    try {
+      await api(`/api/draft-rincian/${it.id}`, "PUT", {
+        kelompok_belanja: it.kelompok_belanja, uraian: it.uraian,
+        spesifikasi: it.spesifikasi, satuan: it.satuan,
+        volume: n, harga_satuan: it.harga_satuan,
+        kode_rekening: it.kode_rekening, catatan: it.catatan,
+        standar_harga_id: it.standar_harga_id, harga_standar: it.harga_standar,
+      });
+      setVolLokal(p => { const q = { ...p }; delete q[it.id]; return q; });
+      muatUlang();
+    } catch (e) {
+      showToast(`Gagal menyimpan volume: ${e.message}`);
     } finally {
       setSibuk(false);
     }
@@ -993,7 +940,33 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
                         {it.spesifikasi || "—"}
                       </td>
                       <td style={{ padding: "6px 8px", color: T.textSecondary, whiteSpace: "nowrap" }}>
-                        {Number(it.volume)} {it.satuan}
+                        {terkunci || editId === it.id ? (
+                          <span>{Number(it.volume)} {it.satuan}</span>
+                        ) : (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            <input
+                              type="number" min="0" step="any" inputMode="decimal"
+                              value={volLokal[it.id] ?? (it.volume == null ? "" : String(it.volume))}
+                              onChange={e => setVolLokal(p => ({ ...p, [it.id]: e.target.value }))}
+                              onBlur={e => simpanVolume(it, e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+                                if (e.key === "Escape") {
+                                  setVolLokal(p => { const q = { ...p }; delete q[it.id]; return q; });
+                                  e.currentTarget.blur();
+                                }
+                              }}
+                              disabled={sibuk}
+                              aria-label={`Volume ${it.uraian}`}
+                              style={{
+                                width: 72, padding: "3px 6px", fontSize: 12,
+                                border: `1px solid ${T.inputBorder}`, borderRadius: 6,
+                                background: T.inputBg, color: T.text, fontFamily: "inherit",
+                              }}
+                            />
+                            <span style={{ fontSize: 11, color: T.textMuted }}>{it.satuan}</span>
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding: "6px 8px", textAlign: "right", whiteSpace: "nowrap",
                         fontFamily: "ui-monospace, monospace", color: T.text }}>
@@ -1200,7 +1173,7 @@ function PilihUraian({ T, tahun, sub, form, setForm, sibuk }) {
     // hierarki (induk → anak), sama seperti filterDaftar di server.
     .filter(it => rek || !chips.length || chips.some(c => rekCocok(c, it.kode_rekening)))
     .sort((a, b) => String(a.uraian_barang).localeCompare(String(b.uraian_barang)));
-  const kandidat = semua.slice(0, 8);
+  const kandidat = semua.slice(0, 12);
   const sisa = semua.length - kandidat.length;
   const sorotEfektif = kandidat.length ? Math.min(sorot, kandidat.length - 1) : 0;
 
@@ -1248,8 +1221,10 @@ function PilihUraian({ T, tahun, sub, form, setForm, sibuk }) {
   };
 
   const inp = { ...inputStyle(T), width: "100%" };
-  const opsi = { display: "flex", justifyContent: "space-between", gap: 8,
-    width: "100%", alignItems: "center", padding: "5px 8px", borderRadius: 6,
+  // Opsi wrap: uraian panjang turun baris (bukan ellipsis) supaya kebaca;
+  // harga/satuan di kanan sejajar atas.
+  const opsi = { display: "flex", justifyContent: "space-between", gap: 10,
+    width: "100%", alignItems: "flex-start", padding: "6px 8px", borderRadius: 6,
     cursor: "pointer", textAlign: "left", border: "none", background: "transparent",
     color: T.text, fontSize: 12, fontFamily: "inherit" };
 
@@ -1269,7 +1244,7 @@ function PilihUraian({ T, tahun, sub, form, setForm, sibuk }) {
           zIndex: 30, marginTop: 4, background: T.card,
           border: `1px solid ${T.inputBorder}`, borderRadius: 8,
           boxShadow: "0 8px 24px rgba(0,0,0,.14)", padding: 6,
-          maxHeight: 260, overflowY: "auto" }}>
+          maxHeight: 380, overflowY: "auto" }}>
           {memuat ? (
             <div style={{ fontSize: 11.5, color: T.textMuted, padding: "4px 4px" }}>
               Mencari standar harga…
@@ -1289,8 +1264,7 @@ function PilihUraian({ T, tahun, sub, form, setForm, sibuk }) {
                 background: i === sorotEfektif
                   ? (T.surfaceHover || "rgba(127,127,127,.08)")
                   : "transparent" }}>
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis",
-                whiteSpace: "nowrap" }}>
+              <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word", lineHeight: 1.35 }}>
                 <span style={{ fontSize: 9.5, fontWeight: 700, marginRight: 5,
                   color: it.jenis === "SBU" ? "#2563EB" : "#16A34A" }}>
                   {it.jenis}
@@ -1301,10 +1275,20 @@ function PilihUraian({ T, tahun, sub, form, setForm, sibuk }) {
                     {" · "}{it.kode_rekening}
                   </span>
                 ) : null}
+                {it.spesifikasi ? (
+                  <div style={{ fontSize: 10.5, color: T.textMuted, marginTop: 2, wordBreak: "break-word" }}>
+                    {it.spesifikasi}
+                  </div>
+                ) : null}
               </span>
-              <span style={{ whiteSpace: "nowrap", fontFamily: "ui-monospace, monospace" }}>
+              <span style={{ flexShrink: 0, textAlign: "right", fontFamily: "ui-monospace, monospace",
+                fontSize: 11.5, lineHeight: 1.35, paddingTop: 1 }}>
                 {it.harga_satuan == null ? "—" : rupiah(it.harga_satuan)}
-                {it.satuan ? ` / ${it.satuan}` : ""}
+                {it.satuan ? (
+                  <div style={{ fontSize: 10.5, color: T.textMuted }}>
+                    / {it.satuan}
+                  </div>
+                ) : null}
               </span>
             </button>
           ))}
@@ -1313,7 +1297,7 @@ function PilihUraian({ T, tahun, sub, form, setForm, sibuk }) {
             <button type="button"
               onMouseDown={e => { e.preventDefault(); tanpa(); }}
               style={{ ...opsi, justifyContent: "flex-start", padding: "4px 6px",
-                color: T.textSecondary, fontSize: 11.5 }}>
+                color: T.textSecondary, fontSize: 11.5, alignItems: "center" }}>
               Tanpa standar harga
             </button>
             {sisa > 0 && (
