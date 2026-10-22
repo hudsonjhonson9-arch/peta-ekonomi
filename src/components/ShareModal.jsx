@@ -24,7 +24,13 @@ export default function ShareModal({ docId, docTitle, api, onClose }) {
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(null);
 
-  useEffect(() => { loadShares(); }, []);
+  // Muat saat dibuka + poll 30 dtk: tautan bisa dibuat/dicabut oleh admin
+  // lain selagi dialog terbuka (truth = database).
+  useEffect(() => {
+    loadShares();
+    const t = setInterval(loadShares, 30000);
+    return () => clearInterval(t);
+  }, []);
 
   async function loadShares() {
     try {

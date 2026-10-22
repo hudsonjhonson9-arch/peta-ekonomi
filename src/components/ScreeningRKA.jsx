@@ -507,8 +507,9 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave }) {
   const simpan = async (body, pesan) => {
     setSibuk(true);
     try {
-      // PUT lama mewajibkan kode+nama, jadi ikut dikirim walau tidak berubah.
-      await api(`/api/pks/subkegiatan/${sub.id}`, "PUT", { kode: sub.kode, nama: sub.nama, ...body });
+      // Kirim HANYA field yang diubah (server parsial) — jangan ikut kode/nama
+      // dari snapshot render, bisa menimpa edit user lain di kolom itu.
+      await api(`/api/pks/subkegiatan/${sub.id}`, "PUT", body);
       showToast(pesan);
       onSave();
     } catch (err) {
@@ -798,9 +799,9 @@ function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
     }
     setSibukReal(true);
     try {
-      // PUT pks mewajibkan kode+nama, ikut dikirim walau tidak berubah.
-      await api(`/api/pks/subkegiatan/${sub.id}`, "PUT",
-        { kode: sub.kode, nama: sub.nama, realisasi: n });
+      // Parsial: hanya realisasi — kode/nama dari snapshot tidak ikut ditulis
+      // (bisa menimpa edit user lain di kolom yang tidak disentuh di sini).
+      await api(`/api/pks/subkegiatan/${sub.id}`, "PUT", { realisasi: n });
       showToast("Realisasi disimpan.");
       onSave && onSave();
     } catch (e) {
@@ -927,20 +928,25 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
 
   const [editId, setEditId] = useState(null);   // null | id baris yang diedit
   const [form, setForm] = useState(null);       // null | salinan item (kerja)
+  const [formAsal, setFormAsal] = useState(null); // salinan saat edit dibuka (basis diff)
   const [tambahBuka, setTambahBuka] = useState(false);
   const [sibuk, setSibuk] = useState(false);
   // Draft volume inline per baris (key = id) — diisi saat mengedit di tabel,
-  // dikirim saat blur/Enter bila berbeda dari nilai server.
+  // dikirim saat blur/Enter bila berbeda dari nilai server. tiap entry:
+  // { teks, dasar }: dasar = nilai server saat draft dibuat; bila server
+  // berubah (edit user lain), dasar ≠ nilai sekarang → draft diabaikan,
+  // nilai database yang menang.
   const [volLokal, setVolLokal] = useState({});
 
   const tutup = () => {
-    setEditId(null); setTambahBuka(false); setForm(null);
+    setEditId(null); setTambahBuka(false); setForm(null); setFormAsal(null);
   };
   const muatUlang = () =>
     qc.invalidateQueries({ queryKey: ["draft-rincian", sub.id] });
 
   const tambah = () => {
     setEditId(null);
+    setFormAsal(null);
     setForm({
       kelompok_belanja: "", uraian: "", spesifikasi: "", satuan: "",
       volume: "", harga_satuan: "", kode_rekening: "", catatan: "",
@@ -952,26 +958,53 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
   const edit = (it) => {
     setEditId(it.id);
     // NUMERIC kembali "1500.00" dari pg — konversi ke teks polos supaya
-    // input number tidak menampilkan "1500,00".
-    setForm({ ...it, volume: teksAngka(it.volume), harga_satuan: teksAngka(it.harga_satuan) });
+    // input number tidak menampilkan "1500,00". Salinan yang sama jadi
+    // basis diff: saat disimpan, hanya field yang berubah yang dikirim.
+    const salinan = { ...it, volume: teksAngka(it.volume), harga_satuan: teksAngka(it.harga_satuan) };
+    setForm(salinan);
+    setFormAsal(salinan);
     setTambahBuka(false);
   };
 
-  // PATCH-2 (bagian Simpan): editId terisi → PUT (baris existing),
-  // tidak ada → POST. Muat ulang key yang sama persis: ['draft-rincian', sub.id].
+  // Diff form terhadap formAsal → hanya field berubah yang masuk PUT
+  // (server menerima update parsial; kolom lain tetap milik user lain).
+  const norm = v => (v == null ? "" : String(v));
+  const patchBerubah = () => {
+    const asal = formAsal || {};
+    const isi = {};
+    for (const k of ["kelompok_belanja", "uraian", "spesifikasi", "satuan", "volume",
+      "harga_satuan", "kode_rekening", "catatan", "standar_harga_id", "harga_standar"]) {
+      if (norm(form[k]) !== norm(asal[k])) isi[k] = form[k];
+    }
+    return isi;
+  };
+
+  // PATCH-2 (bagian Simpan): editId terisi → PUT parsial (hanya field yang
+  // berubah — jangan tulis ulang snapshot utuh, bisa menimpa edit user lain);
+  // tidak ada → POST (baris baru, isi lengkap). Muat ulang key yang sama
+  // persis: ['draft-rincian', sub.id].
   const simpan = async () => {
     if (!form) return;
-    const isi = {
-      kelompok_belanja: form.kelompok_belanja, uraian: form.uraian,
-      spesifikasi: form.spesifikasi, satuan: form.satuan,
-      volume: form.volume, harga_satuan: form.harga_satuan,
-      kode_rekening: form.kode_rekening, catatan: form.catatan,
-      standar_harga_id: form.standar_harga_id, harga_standar: form.harga_standar,
-    };
     setSibuk(true);
     try {
-      if (editId != null) await api(`/api/draft-rincian/${editId}`, "PUT", isi);
-      else await api("/api/draft-rincian", "POST", { subkegiatan_id: sub.id, ...isi });
+      if (editId != null) {
+        const patch = patchBerubah();
+        if (Object.keys(patch).length === 0) {
+          showToast("Tidak ada perubahan.");
+          tutup();
+          return;
+        }
+        await api(`/api/draft-rincian/${editId}`, "PUT", patch);
+      } else {
+        const isi = {
+          kelompok_belanja: form.kelompok_belanja, uraian: form.uraian,
+          spesifikasi: form.spesifikasi, satuan: form.satuan,
+          volume: form.volume, harga_satuan: form.harga_satuan,
+          kode_rekening: form.kode_rekening, catatan: form.catatan,
+          standar_harga_id: form.standar_harga_id, harga_standar: form.harga_standar,
+        };
+        await api("/api/draft-rincian", "POST", { subkegiatan_id: sub.id, ...isi });
+      }
       showToast("Baris rencana disimpan.");
       tutup();
       muatUlang();
@@ -996,13 +1029,9 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
     }
     setSibuk(true);
     try {
-      await api(`/api/draft-rincian/${it.id}`, "PUT", {
-        kelompok_belanja: it.kelompok_belanja, uraian: it.uraian,
-        spesifikasi: it.spesifikasi, satuan: it.satuan,
-        volume: n, harga_satuan: it.harga_satuan,
-        kode_rekening: it.kode_rekening, catatan: it.catatan,
-        standar_harga_id: it.standar_harga_id, harga_standar: it.harga_standar,
-      });
+      // Parsial: hanya volume — kolom lain baris ini bisa saja baru diubah
+      // user lain, jangan dikirim ulang dari snapshot render.
+      await api(`/api/draft-rincian/${it.id}`, "PUT", { volume: n });
       setVolLokal(p => { const q = { ...p }; delete q[it.id]; return q; });
       muatUlang();
     } catch (e) {
@@ -1166,8 +1195,20 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                             <input
                               type="number" min="0" step="any" inputMode="decimal"
-                              value={volLokal[it.id] ?? teksAngka(it.volume)}
-                              onChange={e => setVolLokal(p => ({ ...p, [it.id]: e.target.value }))}
+                              value={(() => {
+                                const server = teksAngka(it.volume);
+                                const d = volLokal[it.id];
+                                return d && d.dasar === server ? d.teks : server;
+                              })()}
+                              onChange={e => setVolLokal(p => ({
+                                ...p,
+                                // dasar dikunci saat draft dibuat — bila server
+                                // berubah di tengah jalan, draft gugur (server menang)
+                                [it.id]: {
+                                  teks: e.target.value,
+                                  dasar: p[it.id]?.dasar ?? teksAngka(it.volume),
+                                },
+                              }))}
                               onBlur={e => simpanVolume(it, e.target.value)}
                               onKeyDown={e => {
                                 if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }

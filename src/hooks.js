@@ -51,7 +51,7 @@ export const api = (url, method = 'GET', body) => fetch(url, {
 // 30 detik: cukup responsif untuk kerja admin, dan request-nya otomatis
 // berhenti saat tab disembunyikan karena React Query menjeda timer query yang
 // tidak terlihat.
-const POLLING = 30000;
+export const POLLING = 30000;
 
 // `aktif` tetap ditentukan oleh hook pemanggil supaya komponen yang sudah terpasang
 // sejak halaman login tidak menembak endpoint privat sebelum ada cookie.
@@ -173,24 +173,29 @@ export const useStandarHarga = ({ tahun, jenis, q, rekening }) => useQuery({
   queryKey: ['standar-harga', tahun, jenis, q || '', rekening || ''],
   queryFn: () => api(`/api/standar-harga?${new URLSearchParams(Object.entries({ tahun, jenis, q: q || undefined, rekening: rekening || undefined }).filter(([,v]) => v))}`),
   enabled: !!tahun && !!jenis,
+  refetchInterval: tahun && jenis ? POLLING : false,
 });
 
 // Kode rekening distinct dari standar_harga (gabungan SSH+SBU) — sumber
 // dropdown "Kode rekening" ala SIPD. Respons: [{kode, uraian:[uraian_kelompok
 // …]}] — uraian kelompok barang dipakai sebagai teks pencarian di dropdown.
-// FE menggabungkan dengan chips kode_rekening sub kegiatan. Tanpa polling.
+// FE menggabungkan dengan chips kode_rekening sub kegiatan.
 export const useKodeRekening = (tahun) => useQuery({
   queryKey: ['standar-harga-rekening', tahun],
   queryFn: () => api(`/api/standar-harga/rekening?tahun=${encodeURIComponent(tahun)}`),
   enabled: !!tahun,
+  refetchInterval: tahun ? POLLING : false,
 });
 
 // ── Draft Rincian ───────────────────────────────────────────────────────────
 // Respons server {items, total} — total = Σ jumlahItem dihitung server.
+// Polling: layar ini diedit banyak staf bersamaan — perubahan volume/harga
+// user lain harus muncul, bukan menunggu fokus/refresh manual.
 export const useDraftRincian = (subkegiatanId) => useQuery({
   queryKey: ['draft-rincian', subkegiatanId],
   queryFn: () => api(`/api/draft-rincian?subkegiatan_id=${subkegiatanId}`),
   enabled: !!subkegiatanId,
+  refetchInterval: subkegiatanId ? POLLING : false,
 });
 
 // ── Screening RKA: perubahan anggaran ───────────────────────────────────────

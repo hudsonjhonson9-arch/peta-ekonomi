@@ -2,6 +2,7 @@ import { useState, useContext, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Icon, CariPilih } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
+import { POLLING } from "../hooks.js";
 
 export default function BankDataDashboard({ emptyMessage = null }) {
   const { T } = useContext(ThemeContext);
@@ -14,11 +15,13 @@ export default function BankDataDashboard({ emptyMessage = null }) {
   const ambilArray = d => (Array.isArray(d) ? d : []);
   const { data: tree } = useQuery({
     queryKey: ['bankdata-dashboard'],
-    queryFn: () => fetch('/api/bankdata').then(r => r.json())
+    queryFn: () => fetch('/api/bankdata').then(r => r.json()),
+    refetchInterval: POLLING, // nilai bisa berubah dari user lain
   });
   const { data: tahunList } = useQuery({
     queryKey: ['bankdata-tahun'],
-    queryFn: () => fetch('/api/bankdata/tahun').then(r => r.json())
+    queryFn: () => fetch('/api/bankdata/tahun').then(r => r.json()),
+    refetchInterval: POLLING,
   });
   const data = ambilArray(tree);
   const tahun = ambilArray(tahunList);

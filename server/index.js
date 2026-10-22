@@ -10,7 +10,7 @@ import { fileURLToPath } from 'url';
 import { susunPatchPeriode } from './patch-periode.js';
 import { idDokumenValid } from './tautan-periode.js';
 import { validasiUpload, filterDaftar } from './standar-harga.js';
-import { validasiItem, jumlahItem } from './draft-rincian.js';
+import { validasiItem, validasiPatch, jumlahItem } from './draft-rincian.js';
 import { ajukanDari, validasiStatus, cekSetujui } from './screening.js';
 import {
   NAMA_COOKIE, MASA_JAM, R_ADMIN, R_REVIEWER, R_STAF,
@@ -2055,65 +2055,79 @@ app.post('/api/pks/:level', async (req, res) => {
   }
 });
 
+// PUT → PARSIAL: field yang tidak dikirim TIDAK diubah (multi-user — salinan
+// render user ini tidak boleh menimpa kolom yang tidak ia sentuh; dulu kode/
+// nama ikut ditulis ulang dari snapshot basi, dan indikator/target sub kegiatan
+// ikut ter-wipe saat hanya pagu yang disimpan). Pagu/rekening yang diubah di
+// bawah kunci sub (denganKunciSub) supaya cek "terkunci" atomik dengan UPDATE.
 app.put('/api/pks/:level/:id', async (req, res) => {
   const cfg = pksLevel(req);
   if (!cfg) return res.status(404).json({ error: 'Level tidak dikenal' });
   const { id } = req.params;
   const { kode, nama, parent_id, indikator, target, pagu, kode_rekening, realisasi } = req.body;
-  if (!kode || !String(kode).trim()) return res.status(400).json({ error: 'Kode wajib diisi' });
-  if (!nama || !String(nama).trim()) return res.status(400).json({ error: 'Nama wajib diisi' });
+
+  const sets = [];
+  const params = [];
+  const isi = (kolom, nilai) => { params.push(nilai); sets.push(`${kolom} = $${params.length}`); };
+
+  if (kode !== undefined) {
+    if (!String(kode ?? '').trim()) return res.status(400).json({ error: 'Kode wajib diisi' });
+    isi('kode', String(kode).trim());
+  }
+  if (nama !== undefined) {
+    if (!String(nama ?? '').trim()) return res.status(400).json({ error: 'Nama wajib diisi' });
+    isi('nama', String(nama).trim());
+  }
+  // parent_id: tidak dikirim = induk tidak diubah. Dikirim tapi kosong tetap 400.
+  if (cfg.parentCol && parent_id !== undefined) {
+    if (!parent_id) return res.status(400).json({ error: `Parent ${cfg.label} wajib dipilih` });
+    isi(cfg.parentCol, parent_id);
+  }
+  let perluKunci = false;
+  if (cfg.table === 'pks_subkegiatan') {
+    if (indikator !== undefined) isi('indikator', indikator || null);
+    if (target !== undefined) isi('target', target || null);
+    // Screening RKA: pagu & chips rekening. Opsional — tidak dikirim = tidak
+    // diubah. Selama sub kegiatan menunggu/disetujui keduanya terkunci;
+    // realisasi TIDAK dikunci (angka aktual terus berjalan sepanjang tahun).
+    if (pagu !== undefined || kode_rekening !== undefined) perluKunci = true;
+    if (pagu !== undefined) {
+      const n = pagu === null || pagu === '' ? null : Number(pagu);
+      if (n !== null && !Number.isFinite(n)) return res.status(400).json({ error: 'Pagu harus angka' });
+      isi('pagu', n);
+    }
+    if (kode_rekening !== undefined) {
+      if (!Array.isArray(kode_rekening) || kode_rekening.some(c => typeof c !== 'string')) {
+        return res.status(400).json({ error: 'Kode rekening harus berupa array teks' });
+      }
+      isi('kode_rekening', kode_rekening);
+    }
+    if (realisasi !== undefined) {
+      const n = realisasi === null || realisasi === '' ? null : Number(realisasi);
+      if (n !== null && !Number.isFinite(n)) return res.status(400).json({ error: 'Realisasi harus angka' });
+      isi('realisasi', n);
+    }
+  }
+  if (!sets.length) return res.status(400).json({ error: 'Tidak ada field yang dikirim' });
+  params.push(id);
+  const SQL = `UPDATE ${cfg.table} SET ${sets.join(', ')}, updated_at = NOW()
+                WHERE id = $${params.length} RETURNING *`;
+
   try {
-    const sets = ['kode = $1', 'nama = $2', 'updated_at = NOW()'];
-    const params = [String(kode).trim(), String(nama).trim()];
-    // parent_id opsional saat update (sama seperti pagu & chips di bawah):
-    // tidak dikirim = induk tidak diubah. Dikirim tapi kosong tetap 400.
-    if (cfg.parentCol && parent_id !== undefined) {
-      if (!parent_id) return res.status(400).json({ error: `Parent ${cfg.label} wajib dipilih` });
-      params.push(parent_id);
-      sets.push(`${cfg.parentCol} = $${params.length}`);
+    let rows;
+    if (perluKunci) {
+      const hasil = await denganKunciSub(Number(id) || -1, async (c, baris) => {
+        if (!baris) return { rows: [] };
+        const st = baris.status_validasi || 'draft';
+        if (SUB_TERKUNCI.includes(st)) return { konflik: pesanTerkunci(st) };
+        const r = await c.query(SQL, params);
+        return { rows: r.rows };
+      });
+      if (hasil.konflik) return res.status(409).json({ error: hasil.konflik });
+      rows = hasil.rows;
+    } else {
+      rows = await queryDB(SQL, params);
     }
-    if (cfg.table === 'pks_subkegiatan') {
-      params.push(indikator || null);
-      sets.push(`indikator = $${params.length}`);
-      params.push(target || null);
-      sets.push(`target = $${params.length}`);
-      // Screening RKA: pagu & chips rekening. Opsional — tidak dikirim = tidak
-      // diubah, jadi pemanggilan lama (hanya kode/nama) tetap berperilaku sama.
-      //
-      // Selama sub kegiatan menunggu/disetujui, pagu & rekening terkunci
-      // (rencana sedang/akan divalidasi). Realisasi di bawah TIDAK dikunci:
-      // angka aktual terus berjalan sepanjang tahun.
-      if (pagu !== undefined || kode_rekening !== undefined) {
-        const st = await statusSub(idAman(id));
-        if (st && SUB_TERKUNCI.includes(st)) {
-          return res.status(409).json({ error: pesanTerkunci(st) });
-        }
-      }
-      if (pagu !== undefined) {
-        const n = pagu === null || pagu === '' ? null : Number(pagu);
-        if (n !== null && !Number.isFinite(n)) return res.status(400).json({ error: 'Pagu harus angka' });
-        params.push(n);
-        sets.push(`pagu = $${params.length}`);
-      }
-      if (kode_rekening !== undefined) {
-        if (!Array.isArray(kode_rekening) || kode_rekening.some(c => typeof c !== 'string')) {
-          return res.status(400).json({ error: 'Kode rekening harus berupa array teks' });
-        }
-        params.push(kode_rekening);
-        sets.push(`kode_rekening = $${params.length}`);
-      }
-      // Screening RKA: realisasi anggaran. Opsional seperti pagu.
-      if (realisasi !== undefined) {
-        const n = realisasi === null || realisasi === '' ? null : Number(realisasi);
-        if (n !== null && !Number.isFinite(n)) return res.status(400).json({ error: 'Realisasi harus angka' });
-        params.push(n);
-        sets.push(`realisasi = $${params.length}`);
-      }
-    }
-    params.push(id);
-    const rows = await queryDB(
-      `UPDATE ${cfg.table} SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *`, params
-    );
     if (!rows.length) return res.status(404).json({ error: `${cfg.label} tidak ditemukan` });
     res.json({ message: `${cfg.label} berhasil diperbarui`, row: rows[0] });
   } catch (err) {
@@ -2495,18 +2509,44 @@ app.post('/api/kertas-kerja/:id/sinkron-wajib', async (req, res) => {
 });
 
 // ── Isi periode dengan dokumen (upload) ──────────────────────────────────
+// Dalam transaksi + FOR UPDATE: baca doc_id lama dan tulis satu aksinya.
+// Guard: menunjuk dokumen BARU hanya boleh ke periode yang masih kosong —
+// kalau sudah terhubung (atau terhubung oleh user lain di antara baca-tulis),
+// 409 seperti endpoint tautan. Melepas (doc_id: null) tetap bebas.
 app.patch('/api/kertas-kerja/periode/:id', async (req, res) => {
   const { id } = req.params;
+  const idInt = parseInt(id, 10);
   // Staf boleh mengisi dokumen; hanya admin yang boleh menetapkan deadline.
-  const { sets, params, galat, status } = susunPatchPeriode(req.body, {
+  const susun = susunPatchPeriode(req.body, {
     admin: req.pengguna?.role === R_ADMIN,
     pelaku: req.pengguna?.nip || null,
   });
-  if (galat) return res.status(status).json({ error: galat });
+  if (susun.galat) return res.status(susun.status).json({ error: susun.galat });
+  const { sets, params } = susun;
 
-  params.push(parseInt(id, 10));
+  // Dokumen baru non-null (bukan pelepasan) → perlu guard "masih kosong".
+  const b = req.body && typeof req.body === 'object' ? req.body : {};
+  const docBaru = b.doc_id === null || b.doc_id === undefined || b.doc_id === ''
+    ? null : parseInt(b.doc_id, 10);
+  const perluGuard = docBaru !== null && Object.prototype.hasOwnProperty.call(b, 'doc_id');
+
+  const c = await pool.connect();
   try {
-    const rows = await queryDB(`
+    await c.query('BEGIN');
+    const lama = (await c.query(
+      'SELECT doc_id FROM kertas_kerja_periode WHERE id = $1 FOR UPDATE', [idInt])).rows[0];
+    if (!lama) {
+      await c.query('ROLLBACK');
+      return res.status(404).json({ error: 'Periode tidak ditemukan' });
+    }
+    if (perluGuard && lama.doc_id != null && Number(lama.doc_id) !== docBaru) {
+      await c.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'Periode ini sudah terhubung ke dokumen lain. Lepas dulu sebelum mengganti.',
+      });
+    }
+    params.push(idInt);
+    const rows = (await c.query(`
       UPDATE kertas_kerja_periode
       SET ${sets.join(', ')}
       WHERE id = $${params.length}
@@ -2514,13 +2554,20 @@ app.patch('/api/kertas-kerja/periode/:id', async (req, res) => {
                 TO_CHAR(deadline, 'YYYY-MM-DD') AS deadline, is_wajib, doc_id, catatan,
                 uploaded_by, uploaded_at`,
       params
-    );
-    if (!rows.length) return res.status(404).json({ error: 'Periode tidak ditemukan' });
+    )).rows;
+    if (!rows.length) {
+      await c.query('ROLLBACK');
+      return res.status(404).json({ error: 'Periode tidak ditemukan' });
+    }
+    await c.query('COMMIT');
     res.json({ message: 'Periode berhasil diperbarui', row: rows[0] });
   } catch (err) {
+    try { await c.query('ROLLBACK'); } catch (_) { /* koneksi bermasalah */ }
     if (err.code === '23503') return res.status(409).json({ error: 'Dokumen tidak ditemukan' });
     console.error('Patch periode error:', err);
     res.status(500).json({ error: 'Gagal memperbarui periode' });
+  } finally {
+    c.release();
   }
 });
 
@@ -3460,21 +3507,37 @@ const SUB_TERKUNCI = ['menunggu', 'disetujui'];
 const pesanTerkunci = (st) =>
   `Sub kegiatan ${st === 'disetujui' ? 'sudah disetujui' : 'sedang menunggu validasi'} — kembalikan ke Draft dulu untuk mengubahnya.`;
 
-// Status validasi sebuah sub kegiatan; null = tidak ada (biarkan route yang
-// menentukan 404/FK). Dipakai route draft_rincian dan PUT pks.
-const statusSub = async (subkegiatanId) => {
-  const r = await queryDB('SELECT status_validasi FROM pks_subkegiatan WHERE id = $1', [subkegiatanId]);
-  return r.length ? (r[0].status_validasi || 'draft') : null;
+// ── Kunci sub kegiatan (FOR UPDATE, transaksi) ─────────────────────────────
+// Multi-user: semua penulis data satu sub kegiatan — pagu/rekening, baris
+// rencana, transisi status — antre pada kunci baris sub yang sama. Cek status
+// dan tulis jadi satu aksinya, jadi tidak ada lagi "baca status lama, tulis di
+// atas status baru" (TOCTOU) dan tidak ada penimpaan kolom antar user.
+// kerja(client, baris) membalas {konflik, http?} | {hilang} | hasil lain;
+// baris = null → sub kegiatan tidak ada.
+const denganKunciSub = async (subkegiatanId, kerja) => {
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    const s = await c.query(
+      'SELECT id, status_validasi, pagu FROM pks_subkegiatan WHERE id = $1 FOR UPDATE',
+      [subkegiatanId]);
+    const hasil = await kerja(c, s.rows[0] || null);
+    await c.query('COMMIT');
+    return hasil;
+  } catch (e) {
+    try { await c.query('ROLLBACK'); } catch (_) { /* koneksi bermasalah — biarkan */ }
+    throw e;
+  } finally {
+    c.release();
+  }
 };
 
-// Kunci berdasarkan baris rincian (untuk PUT/DELETE /api/draft-rincian/:id).
-// null = lolos (termasuk baris tidak ada — route asli yang mengeluarkan 404).
-const statusSubBaris = async (barisId) => {
-  const r = await queryDB(
-    `SELECT s.status_validasi FROM draft_rincian d
-       JOIN pks_subkegiatan s ON s.id = d.subkegiatan_id
-      WHERE d.id = $1`, [barisId]);
-  return r.length ? (r[0].status_validasi || 'draft') : null;
+// Varian untuk rincian: sub kegiatan diturunkan dari baris dulu, lalu dikunci.
+// Baris tidak ada → {hilang} langsung (tanpa transaksi).
+const denganKunciBarisRincian = async (barisId, kerja) => {
+  const d = await queryDB('SELECT subkegiatan_id FROM draft_rincian WHERE id = $1', [barisId]);
+  if (!d.length) return { hilang: true };
+  return denganKunciSub(d[0].subkegiatan_id, kerja);
 };
 
 // GET → {items, total} — total = Σ jumlahItem dihitung di server supaya
@@ -3496,81 +3559,92 @@ app.get('/api/draft-rincian', async (req, res) => {
 });
 
 // POST → validasiItem; urutan = (max urutan)+1; created_by dari session.
+// Ditulis dalam kunci sub: cek "terkunci" dan INSERT satu transaksi.
 app.post('/api/draft-rincian', async (req, res) => {
   const sid = idAman(req.body.subkegiatan_id);
   if (!sid) return res.status(400).json({ error: 'subkegiatan_id wajib' });
   const v = validasiItem(req.body);
   if (!v.ok) return res.status(400).json({ error: v.error });
   try {
-    const st = await statusSub(sid);
-    if (st && SUB_TERKUNCI.includes(st)) {
-      return res.status(409).json({ error: pesanTerkunci(st) });
-    }
-    const u = await queryDB(
-      'SELECT COALESCE(MAX(urutan), -1) + 1 AS urutan FROM draft_rincian WHERE subkegiatan_id = $1',
-      [sid]
-    );
-    const r = await queryDB(
-      `INSERT INTO draft_rincian
-        (subkegiatan_id, urutan, uraian, spesifikasi, satuan, volume, harga_satuan,
-         kode_rekening, standar_harga_id, harga_standar, catatan, kelompok_belanja,
-         created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-       RETURNING *`,
-      [sid, u[0].urutan, v.item.uraian, v.item.spesifikasi, v.item.satuan,
-       v.item.volume, v.item.harga_satuan, v.item.kode_rekening,
-       v.item.standar_harga_id, v.item.harga_standar, v.item.catatan,
-       v.item.kelompok_belanja, req.pengguna?.id ?? null]
-    );
-    res.json(r[0]);
+    const hasil = await denganKunciSub(sid, async (c, baris) => {
+      if (!baris) return { hilang: true };
+      const st = baris.status_validasi || 'draft';
+      if (SUB_TERKUNCI.includes(st)) return { konflik: pesanTerkunci(st) };
+      const u = await c.query(
+        'SELECT COALESCE(MAX(urutan), -1) + 1 AS urutan FROM draft_rincian WHERE subkegiatan_id = $1',
+        [sid]);
+      const r = await c.query(
+        `INSERT INTO draft_rincian
+          (subkegiatan_id, urutan, uraian, spesifikasi, satuan, volume, harga_satuan,
+           kode_rekening, standar_harga_id, harga_standar, catatan, kelompok_belanja,
+           created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+         RETURNING *`,
+        [sid, u.rows[0].urutan, v.item.uraian, v.item.spesifikasi, v.item.satuan,
+         v.item.volume, v.item.harga_satuan, v.item.kode_rekening,
+         v.item.standar_harga_id, v.item.harga_standar, v.item.catatan,
+         v.item.kelompok_belanja, req.pengguna?.id ?? null]);
+      return { row: r.rows[0] };
+    });
+    if (hasil.konflik) return res.status(409).json({ error: hasil.konflik });
+    if (hasil.hilang) return res.status(404).json({ error: 'Sub kegiatan tidak ditemukan' });
+    res.json(hasil.row);
   } catch (err) {
     console.error('Post draft-rincian error:', err);
     res.status(500).json({ error: 'Gagal menambah baris rencana' });
   }
 });
 
-// PUT → validasiItem (subkegiatan_id di luar cakupan — baris sudah ada, id
-// yang menentukan). rowCount 0 = baris tidak ada → 404.
+// PUT → validasiPatch (update PARSIAL): klien mengirim hanya field yang
+// diubah, field lain tetap milik user lain yang mengeditnya (truth = DB).
+// Dalam kunci sub → cek "terkunci" atomik dengan UPDATE. 0 baris → 404.
 app.put('/api/draft-rincian/:id', async (req, res) => {
   const id = idAman(req.params.id);
   if (!id) return res.status(404).json({ error: 'Baris tidak ditemukan' });
-  const v = validasiItem(req.body);
-  if (!v.ok) return res.status(400).json({ error: v.error });
+  const vp = validasiPatch(req.body);
+  if (!vp.ok) {
+    return res.status(400).json({ error: vp.kosong ? 'Tidak ada field yang dikirim' : vp.error });
+  }
   try {
-    const st = await statusSubBaris(id);
-    if (st && SUB_TERKUNCI.includes(st)) {
-      return res.status(409).json({ error: pesanTerkunci(st) });
-    }
-    const r = await queryDB(
-      `UPDATE draft_rincian SET
-         uraian=$1, spesifikasi=$2, satuan=$3, volume=$4, harga_satuan=$5,
-         kode_rekening=$6, standar_harga_id=$7, harga_standar=$8, catatan=$9,
-         kelompok_belanja=$10, updated_at=now()
-       WHERE id=$11 RETURNING *`,
-      [v.item.uraian, v.item.spesifikasi, v.item.satuan, v.item.volume,
-       v.item.harga_satuan, v.item.kode_rekening, v.item.standar_harga_id,
-       v.item.harga_standar, v.item.catatan, v.item.kelompok_belanja, id]
-    );
-    if (!r.length) return res.status(404).json({ error: 'Baris tidak ditemukan' });
-    res.json(r[0]);
+    const kolom = Object.keys(vp.patch);          // whitelist hasil validasiPatch
+    const nilai = kolom.map(k => vp.patch[k]);
+    const set = kolom.map((k, i) => `${k} = $${i + 1}`).join(', ');
+    const params = [...nilai, id];
+    const hasil = await denganKunciBarisRincian(id, async (c, baris) => {
+      if (!baris) return { hilang: true };
+      const st = baris.status_validasi || 'draft';
+      if (SUB_TERKUNCI.includes(st)) return { konflik: pesanTerkunci(st) };
+      const r = await c.query(
+        `UPDATE draft_rincian SET ${set}, updated_at = now()
+          WHERE id = $${params.length} RETURNING *`, params);
+      if (!r.rows.length) return { hilang: true };
+      return { row: r.rows[0] };
+    });
+    if (hasil.konflik) return res.status(409).json({ error: hasil.konflik });
+    if (hasil.hilang) return res.status(404).json({ error: 'Baris tidak ditemukan' });
+    res.json(hasil.row);
   } catch (err) {
     console.error('Put draft-rincian error:', err);
     res.status(500).json({ error: 'Gagal memperbarui baris rencana' });
   }
 });
 
-// DELETE → RETURNING id; 0 baris = sudah tidak ada → 404.
+// DELETE → RETURNING id; 0 baris = sudah tidak ada → 404. Dalam kunci sub.
 app.delete('/api/draft-rincian/:id', async (req, res) => {
   const id = idAman(req.params.id);
   if (!id) return res.status(404).json({ error: 'Baris tidak ditemukan' });
   try {
-    const st = await statusSubBaris(id);
-    if (st && SUB_TERKUNCI.includes(st)) {
-      return res.status(409).json({ error: pesanTerkunci(st) });
-    }
-    const r = await queryDB('DELETE FROM draft_rincian WHERE id = $1 RETURNING id', [id]);
-    if (!r.length) return res.status(404).json({ error: 'Baris tidak ditemukan' });
-    res.json({ ok: true, id: r[0].id });
+    const hasil = await denganKunciBarisRincian(id, async (c, baris) => {
+      if (!baris) return { hilang: true };
+      const st = baris.status_validasi || 'draft';
+      if (SUB_TERKUNCI.includes(st)) return { konflik: pesanTerkunci(st) };
+      const r = await c.query('DELETE FROM draft_rincian WHERE id = $1 RETURNING id', [id]);
+      if (!r.rows.length) return { hilang: true };
+      return { id: r.rows[0].id };
+    });
+    if (hasil.konflik) return res.status(409).json({ error: hasil.konflik });
+    if (hasil.hilang) return res.status(404).json({ error: 'Baris tidak ditemukan' });
+    res.json({ ok: true, id: hasil.id });
   } catch (err) {
     console.error('Delete draft-rincian error:', err);
     res.status(500).json({ error: 'Gagal menghapus baris rencana' });
@@ -3660,59 +3734,71 @@ app.get('/api/screening/perubahan', async (req, res) => {
 // Validasi (ADMIN): Disetujui (server memaksa pagu terisi >0 dan total rencana
 // ≤ pagu — cekSetujui), Ditolak (catatan wajib), atau kembalikan ke Draft
 // (buka kunci). Helper murni di screening.js diuji terpisah.
+// Ajukan (LOGIN): staf mengirim sub kegiatan untuk direview — dari Draft /
+// Ditolak saja, catatan lama dibersihkan. Dalam kunci sub → baca-status dan
+// UPDATE satu aksi (dua user mengajukan/memvalidasi bersamaan = antre, yang
+// kedua mendapat 409 dari mesin transisi, bukan menimpa status pertama).
 app.post('/api/screening/ajukan', async (req, res) => {
   const sid = idAman(req.body.subkegiatan_id);
   if (!sid) return res.status(400).json({ error: 'subkegiatan_id wajib' });
   try {
-    const s = await queryDB(
-      'SELECT id, status_validasi FROM pks_subkegiatan WHERE id = $1', [sid]);
-    if (!s.length) return res.status(404).json({ error: 'Sub kegiatan tidak ditemukan' });
-    const t = ajukanDari(s[0].status_validasi);
-    if (!t.ok) return res.status(t.http).json({ error: t.error });
     const oleh = req.pengguna?.name || req.pengguna?.nip || null;
-    const rows = await queryDB(
-      `UPDATE pks_subkegiatan
-          SET status_validasi = 'menunggu', catatan_validasi = NULL,
-              status_oleh = $2, status_at = now(), updated_at = now()
-        WHERE id = $1 RETURNING *`,
-      [sid, oleh]);
-    res.json({ message: 'Diajukan untuk validasi Admin', row: rows[0] });
+    const hasil = await denganKunciSub(sid, async (c, baris) => {
+      if (!baris) return { hilang: true };
+      const t = ajukanDari(baris.status_validasi || 'draft');
+      if (!t.ok) return { konflik: t.error, http: t.http };
+      const rows = await c.query(
+        `UPDATE pks_subkegiatan
+            SET status_validasi = $2, catatan_validasi = NULL,
+                status_oleh = $3, status_at = now(), updated_at = now()
+          WHERE id = $1 RETURNING *`,
+        [sid, t.ke, oleh]);
+      return { row: rows.rows[0] };
+    });
+    if (hasil.hilang) return res.status(404).json({ error: 'Sub kegiatan tidak ditemukan' });
+    if (hasil.konflik) return res.status(hasil.http || 409).json({ error: hasil.konflik });
+    res.json({ message: 'Diajukan untuk validasi Admin', row: hasil.row });
   } catch (err) {
     console.error('Post screening ajukan error:', err);
     res.status(500).json({ error: 'Gagal mengajukan sub kegiatan' });
   }
 });
 
+// Validasi (ADMIN): Disetujui (server memaksa pagu terisi >0 dan total rencana
+// ≤ pagu — cekSetujui dihitung di dalam kunci sub yang sama), Ditolak (catatan
+// wajib), atau kembalikan ke Draft. Semua dalam satu transaksi ber-lock.
 app.post('/api/screening/validasi', async (req, res) => {
   const sid = idAman(req.body.subkegiatan_id);
   if (!sid) return res.status(400).json({ error: 'subkegiatan_id wajib' });
   const ke = String(req.body.status ?? '').trim();
   const catatan = String(req.body.catatan ?? '').trim().slice(0, 500) || null;
   try {
-    const s = await queryDB(
-      'SELECT id, status_validasi, pagu FROM pks_subkegiatan WHERE id = $1', [sid]);
-    if (!s.length) return res.status(404).json({ error: 'Sub kegiatan tidak ditemukan' });
-    const t = validasiStatus(s[0].status_validasi, ke, catatan);
-    if (!t.ok) return res.status(t.http).json({ error: t.error });
-    if (ke === 'disetujui') {
-      // Total rencana dihitung ulang di server — jangan percaya angka klien
-      // untuk keputusan persetujuan. ROUND() identik dengan jumlahItem klien.
-      const r = await queryDB(
-        `SELECT COALESCE(SUM(ROUND(volume * harga_satuan)), 0) AS total
-           FROM draft_rincian WHERE subkegiatan_id = $1`, [sid]);
-      const c = cekSetujui(s[0].pagu, Number(r[0].total));
-      if (!c.ok) return res.status(c.http).json({ error: c.error });
-    }
     const oleh = req.pengguna?.name || req.pengguna?.nip || null;
-    const rows = await queryDB(
-      `UPDATE pks_subkegiatan
-          SET status_validasi = $2, catatan_validasi = $3,
-              status_oleh = $4, status_at = now(), updated_at = now()
-        WHERE id = $1 RETURNING *`,
-      [sid, t.ke, catatan, oleh]);
-    const pesan = t.ke === 'disetujui' ? 'Disetujui'
-      : t.ke === 'ditolak' ? 'Ditolak' : 'Dikembalikan ke Draft';
-    res.json({ message: pesan, row: rows[0] });
+    const hasil = await denganKunciSub(sid, async (c, baris) => {
+      if (!baris) return { hilang: true };
+      const t = validasiStatus(baris.status_validasi || 'draft', ke, catatan);
+      if (!t.ok) return { konflik: t.error, http: t.http };
+      if (ke === 'disetujui') {
+        // Total rencana dihitung ulang di server — jangan percaya angka klien.
+        const r = await c.query(
+          `SELECT COALESCE(SUM(ROUND(volume * harga_satuan)), 0) AS total
+             FROM draft_rincian WHERE subkegiatan_id = $1`, [sid]);
+        const cek = cekSetujui(baris.pagu, Number(r.rows[0].total));
+        if (!cek.ok) return { konflik: cek.error, http: cek.http };
+      }
+      const rows = await c.query(
+        `UPDATE pks_subkegiatan
+            SET status_validasi = $2, catatan_validasi = $3,
+                status_oleh = $4, status_at = now(), updated_at = now()
+          WHERE id = $1 RETURNING *`,
+        [sid, t.ke, catatan, oleh]);
+      return { row: rows.rows[0], ke: t.ke };
+    });
+    if (hasil.hilang) return res.status(404).json({ error: 'Sub kegiatan tidak ditemukan' });
+    if (hasil.konflik) return res.status(hasil.http || 409).json({ error: hasil.konflik });
+    const pesan = hasil.ke === 'disetujui' ? 'Disetujui'
+      : hasil.ke === 'ditolak' ? 'Ditolak' : 'Dikembalikan ke Draft';
+    res.json({ message: pesan, row: hasil.row });
   } catch (err) {
     console.error('Post screening validasi error:', err);
     res.status(500).json({ error: 'Gagal memvalidasi sub kegiatan' });

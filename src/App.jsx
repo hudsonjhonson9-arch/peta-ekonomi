@@ -167,9 +167,9 @@ export default function App() {
   const { data: serverDocs = [], isLoading: docsLoading, isSuccess: docsReady } = useDocs(siap);
   const { data: logsData } = useLogs(siapAdmin);
   const { data: usersData } = useUsers(siapAdmin);
-  const { data: categoriesData = [] } = useCategories(siap);
-  const { data: sectorsData = [] } = useSectors(siap);
-  const { data: bidangData = [] } = useBidang(siap);
+  const { data: categoriesData } = useCategories(siap);
+  const { data: sectorsData } = useSectors(siap);
+  const { data: bidangData } = useBidang(siap);
 
   // Sync server data into local state, preserving local overrides
   useEffect(() => {
@@ -199,12 +199,15 @@ export default function App() {
   }, [serverDocs, docsReady]);
 
   // Query-nya bisa mati untuk user biasa dan bisa membalas objek { error } kalau
-  // sesinya ditolak, jadi bentuk responsnya dinormalkan dulu.
-  useEffect(() => { if (Array.isArray(logsData) && logsData.length) setLogs(logsData); }, [logsData]);
-  useEffect(() => { if (Array.isArray(usersData) && usersData.length) setUsers(usersData); }, [usersData]);
-  useEffect(() => { if (categoriesData.length > 0) setCategories(categoriesData); }, [categoriesData]);
-  useEffect(() => { if (sectorsData.length > 0) setSectors(sectorsData); }, [sectorsData]);
-  useEffect(() => { if (bidangData.length > 0) setBidangs(bidangData); }, [bidangData]);
+  // sesinya ditolak, jadi hanya array yang dianggap sah (Array.isArray menolak
+  // { error } dan menolak undefined saat query mati). JANGAN difilter
+  // `length > 0`: list yang di server jadi kosong (semua dihapus klien lain)
+  // harus ikut terlihat kosong — bukan membeku dengan salinan lama.
+  useEffect(() => { if (Array.isArray(logsData)) setLogs(logsData); }, [logsData]);
+  useEffect(() => { if (Array.isArray(usersData)) setUsers(usersData); }, [usersData]);
+  useEffect(() => { if (Array.isArray(categoriesData)) setCategories(categoriesData); }, [categoriesData]);
+  useEffect(() => { if (Array.isArray(sectorsData)) setSectors(sectorsData); }, [sectorsData]);
+  useEffect(() => { if (Array.isArray(bidangData)) setBidangs(bidangData); }, [bidangData]);
 
   // Cocokkan user di localStorage dengan cookie session yang sebenarnya.
   // Kalau cookie sudah hilang atau kedaluwarsa, localStorage akan

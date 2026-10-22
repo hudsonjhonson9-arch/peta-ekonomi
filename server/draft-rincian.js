@@ -59,3 +59,71 @@ export function validasiItem(body) {
     harga_standar: hargaStandar,
   } };
 }
+
+// ── Update parsial (PUT multi-user) ───────────────────────────────────────
+// Klien mengirim HANYA field yang benar-benar diubah. Field yang tidak ada di
+// body TIDAK disentuh — supaya edit user lain di kolom lain tidak tertimpa
+// oleh snapshot render user ini (truth = database, bukan salinan klien).
+// Setiap field yang hadir divalidasi dengan aturan yang sama seperti
+// validasiItem; field opsi yang dikirim kosong → null (bersihkan).
+// → {ok: true, patch} | {ok: false, error} | {ok: false, kosong: true}
+export function validasiPatch(body) {
+  const b = body ?? {};
+  const patch = {};
+  const ada = (k) => b[k] !== undefined;
+
+  if (ada('uraian')) {
+    const s = String(b.uraian ?? '').trim();
+    if (!s) return { ok: false, error: 'uraian wajib' };
+    if (s.length > 500) return { ok: false, error: 'uraian maks 500 karakter' };
+    patch.uraian = s;
+  }
+
+  if (ada('satuan')) {
+    const s = String(b.satuan ?? '').trim();
+    if (!s) return { ok: false, error: 'satuan wajib' };
+    patch.satuan = s;
+  }
+
+  if (ada('volume')) {
+    const n = Number(b.volume);
+    if (!Number.isFinite(n) || n < 0) return { ok: false, error: 'volume harus >= 0' };
+    patch.volume = n;
+  }
+
+  if (ada('harga_satuan')) {
+    const n = Number(b.harga_satuan);
+    if (!Number.isFinite(n) || n < 0) return { ok: false, error: 'harga_satuan harus >= 0' };
+    patch.harga_satuan = n;
+  }
+
+  const optTeks = (v) => { const s = String(v ?? '').trim(); return s || null; };
+  for (const k of ['kelompok_belanja', 'spesifikasi', 'kode_rekening', 'catatan']) {
+    if (ada(k)) patch[k] = optTeks(b[k]);
+  }
+
+  if (ada('standar_harga_id')) {
+    let v = b.standar_harga_id;
+    if (v === '' || v == null) v = null;
+    else {
+      const n = Number(v);
+      if (!Number.isInteger(n)) return { ok: false, error: 'standar_harga_id harus integer' };
+      v = n;
+    }
+    patch.standar_harga_id = v;
+  }
+
+  if (ada('harga_standar')) {
+    let v = b.harga_standar;
+    if (v === '' || v == null) v = null;
+    else {
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < 0) return { ok: false, error: 'harga_standar harus >= 0' };
+      v = n;
+    }
+    patch.harga_standar = v;
+  }
+
+  if (Object.keys(patch).length === 0) return { ok: false, kosong: true };
+  return { ok: true, patch };
+}

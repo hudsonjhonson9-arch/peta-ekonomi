@@ -8,6 +8,7 @@ import { useState, useContext, Fragment, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Icon, CariPilih } from "./ui.jsx";
 import useResponsive from "../useResponsive.js";
+import { POLLING } from "../hooks.js";
 import { ThemeContext } from "../App.jsx";
 
 const LEVEL_CONF = {
@@ -22,11 +23,14 @@ export default function BankData({ showToast }) {
   const queryClient = useQueryClient();
   const { data: tree = [], isLoading } = useQuery({
     queryKey: ['bankdata'],
-    queryFn: () => fetch('/api/bankdata').then(r => r.json())
+    queryFn: () => fetch('/api/bankdata').then(r => r.json()),
+    // Polling: nilai ikut berubah dari user lain — jangan menunggu focus/refresh.
+    refetchInterval: POLLING,
   });
   const { data: tahunList = [] } = useQuery({
     queryKey: ['bankdata-tahun'],
-    queryFn: () => fetch('/api/bankdata/tahun').then(r => r.json())
+    queryFn: () => fetch('/api/bankdata/tahun').then(r => r.json()),
+    refetchInterval: POLLING,
   });
 
   const [expanded, setExpanded] = useState({});
@@ -347,13 +351,23 @@ function NilaiTable({ level, ind, conf, tahunList, onSave, onSaveTw, T }) {
   const [twDraft, setTwDraft] = useState({});     // {tahun:twN:key: value}
   const [twSaved, setTwSaved] = useState({});     // {tahun: true}
 
-  const getVal = (tahun, k) => {
-    if (draft[`${tahun}:${k}`] !== undefined) return draft[`${tahun}:${k}`];
+  // Draft sel: { teks, dasar } — dasar = nilai server saat diketik. Selama
+  // dasar == nilai server, draft tampil (apa yang sedang diketik); begitu
+  // server berubah (save sendiri selesai, atau user lain menulis cell ini),
+  // dasar ≠ server → draft gugur dan nilai database yang menang.
+  const srv = (tahun, k) => {
     const row = ind.nilai.find(n => n.tahun === tahun);
     return row && row[k] !== undefined && row[k] !== null ? row[k] : "";
   };
 
-  const setVal = (tahun, k, v) => setDraft(d => ({ ...d, [`${tahun}:${k}`]: v }));
+  const getVal = (tahun, k) => {
+    const s = srv(tahun, k);
+    const d = draft[`${tahun}:${k}`];
+    return d && d.dasar === String(s) ? d.teks : s;
+  };
+
+  const setVal = (tahun, k, v) =>
+    setDraft(d => ({ ...d, [`${tahun}:${k}`]: { teks: v, dasar: String(srv(tahun, k)) } }));
 
   const saveRow = (tahun) => {
     const valA = getVal(tahun, conf.valA.k) === "" ? null : String(getVal(tahun, conf.valA.k));
@@ -364,14 +378,23 @@ function NilaiTable({ level, ind, conf, tahunList, onSave, onSaveTw, T }) {
   };
 
   const getTw = (tahun, twN, k) => {
-    const dk = `${tahun}:${twN}:${k}`;
-    if (twDraft[dk] !== undefined) return twDraft[dk];
-    const row = ind.nilai.find(n => n.tahun === tahun);
-    const cell = row && row.tw && row.tw[twN];
-    return cell && cell[k] !== undefined && cell[k] !== null ? cell[k] : "";
+    const s = (() => {
+      const row = ind.nilai.find(n => n.tahun === tahun);
+      const cell = row && row.tw && row.tw[twN];
+      return cell && cell[k] !== undefined && cell[k] !== null ? cell[k] : "";
+    })();
+    const d = twDraft[`${tahun}:${twN}:${k}`];
+    return d && d.dasar === String(s) ? d.teks : s;
   };
 
-  const setTw = (tahun, twN, k, v) => setTwDraft(d => ({ ...d, [`${tahun}:${twN}:${k}`]: v }));
+  const setTw = (tahun, twN, k, v) => {
+    const s = (() => {
+      const row = ind.nilai.find(n => n.tahun === tahun);
+      const cell = row && row.tw && row.tw[twN];
+      return cell && cell[k] !== undefined && cell[k] !== null ? cell[k] : "";
+    })();
+    setTwDraft(d => ({ ...d, [`${tahun}:${twN}:${k}`]: { teks: v, dasar: String(s) } }));
+  };
 
   const saveTwRow = (tahun) => {
     const tw = {};

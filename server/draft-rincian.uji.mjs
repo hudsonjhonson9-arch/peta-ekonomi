@@ -1,7 +1,7 @@
 // Uji helper draft-rincian. Jalankan: node server/draft-rincian.uji.mjs
 
 import assert from 'node:assert/strict';
-import { validasiItem, jumlahItem } from './draft-rincian.js';
+import { validasiItem, validasiPatch, jumlahItem } from './draft-rincian.js';
 
 let lulus = 0;
 const uji = (nama, fn) => {
@@ -72,6 +72,44 @@ console.log('jumlahItem');
 uji('jumlahItem(2.5, 1500000) = 3750000', () => {
   assert.equal(jumlahItem(2.5, 1500000), 3750000);
   assert.equal(jumlahItem(1, 999.5), 1000, 'pembulatan .5 ke atas');
+});
+
+console.log('validasiPatch (update parsial multi-user)');
+
+// 7. Hanya field yang dikirim masuk patch — field lain tidak disentuh.
+uji('patch hanya berisi field yang dikirim', () => {
+  const r = validasiPatch({ volume: 0, harga_satuan: '15000' });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(Object.keys(r.patch).sort(), ['harga_satuan', 'volume']);
+  assert.equal(r.patch.volume, 0, 'volume 0 lolos');
+  assert.equal(r.patch.harga_satuan, 15000);
+});
+
+// 8. Field yang hadir divalidasi; yang absen tidak divalidasi.
+uji('validasi per field: volume negatif gagal, uraian kosong gagal', () => {
+  assert.equal(validasiPatch({ volume: -1 }).ok, false);
+  assert.equal(validasiPatch({ uraian: '   ' }).ok, false);
+  assert.equal(validasiPatch({ satuan: '' }).ok, false);
+  // Uraian hilang TIDAK divalidasi (patch volume saja sah walau uraian tidak dikirim)
+  assert.equal(validasiPatch({ volume: 3 }).ok, true);
+});
+
+// 9. Body tanpa field apa pun → kosong (route membalas 400).
+uji('patch kosong → {kosong: true}', () => {
+  const r = validasiPatch({});
+  assert.equal(r.ok, false);
+  assert.equal(r.kosong, true);
+  const r2 = validasiPatch(undefined);
+  assert.equal(r2.kosong, true);
+});
+
+// 10. Field opsi dikirim kosong → null (bersihkan); opsi tak dikirim → tidak ada di patch.
+uji('opsi kosong → null; opsi absen tidak muncul', () => {
+  const r = validasiPatch({ catatan: '', spesifikasi: ' X ' });
+  assert.equal(r.ok, true);
+  assert.equal(r.patch.catatan, null, 'kirim "" = bersihkan catatan');
+  assert.equal(r.patch.spesifikasi, 'X');
+  assert.equal('uraian' in r.patch, false);
 });
 
 console.log(`${lulus} uji lulus`);
