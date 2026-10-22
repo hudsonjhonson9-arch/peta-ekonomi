@@ -184,6 +184,7 @@ export default function SbuSshAdmin({ showToast }) {
                       <thead>
                         <tr style={{ background: T.surfaceHover }}>
                           <th style={th}>Uraian</th>
+                          <th style={th}>Kode Barang</th>
                           <th style={th}>Satuan</th>
                           <th style={{ ...th, textAlign: "right" }}>Harga</th>
                           <th style={th}>Rekening</th>
@@ -193,6 +194,7 @@ export default function SbuSshAdmin({ showToast }) {
                         {preview.items.slice(0, 5).map((it, i) => (
                           <tr key={i} style={{ borderTop: `1px solid ${T.border}` }}>
                             <td style={{ padding: "5px 8px", color: T.text }}>{it.uraian_barang}</td>
+                            <td style={{ padding: "5px 8px", whiteSpace: "nowrap", fontFamily: "ui-monospace, monospace", color: T.textMuted }}>{it.kode_barang || it.id_standar_harga || "—"}</td>
                             <td style={{ padding: "5px 8px", color: T.textSecondary, whiteSpace: "nowrap" }}>{it.satuan || "—"}</td>
                             <td style={{ padding: "5px 8px", textAlign: "right", whiteSpace: "nowrap", fontFamily: "ui-monospace, monospace", color: T.text }}>{rupiah(it.harga_satuan)}</td>
                             <td style={{ padding: "5px 8px", whiteSpace: "nowrap", fontFamily: "ui-monospace, monospace", color: T.textMuted }}>{it.kode_rekening || "—"}</td>
@@ -259,6 +261,7 @@ export default function SbuSshAdmin({ showToast }) {
               <thead>
                 <tr style={{ background: T.surfaceHover }}>
                   <th style={th}>Uraian</th>
+                  <th style={th}>Kode Barang</th>
                   <th style={th}>Spesifikasi</th>
                   <th style={th}>Satuan</th>
                   <th style={{ ...th, textAlign: "right" }}>Harga</th>
@@ -269,6 +272,7 @@ export default function SbuSshAdmin({ showToast }) {
                 {daftar.map(it => (
                   <tr key={it.id} style={{ borderTop: `1px solid ${T.border}` }}>
                     <td style={{ padding: "6px 9px", color: T.text, minWidth: 220 }}>{it.uraian_barang}</td>
+                    <td style={{ padding: "6px 9px", whiteSpace: "nowrap", fontFamily: "ui-monospace, monospace", color: T.textMuted }}>{it.kode_barang || it.id_standar_harga || "—"}</td>
                     <td style={{ padding: "6px 9px", color: T.textSecondary, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.spesifikasi || "—"}</td>
                     <td style={{ padding: "6px 9px", color: T.textSecondary, whiteSpace: "nowrap" }}>{it.satuan || "—"}</td>
                     <td style={{ padding: "6px 9px", textAlign: "right", whiteSpace: "nowrap", fontFamily: "ui-monospace, monospace", color: T.text }}>{rupiah(it.harga_satuan)}</td>

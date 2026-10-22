@@ -94,7 +94,7 @@ export function filterDaftar(daftar, { q, rekening } = {}) {
   return (Array.isArray(daftar) ? daftar : []).filter((it) => {
     if (set && ![...set].some(rek => rekCocok(rek, it.kode_rekening))) return false;
     if (!kata) return true;
-    return [it.uraian_barang, it.spesifikasi, it.kode_barang]
+    return [it.uraian_barang, it.spesifikasi, it.kode_barang, it.id_standar_harga]
       .some((v) => String(v ?? '').toLowerCase().includes(kata));
   });
 }

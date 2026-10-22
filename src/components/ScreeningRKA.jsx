@@ -1712,6 +1712,15 @@ function PilihUraian({ T, tahun, sub, form, setForm, sibuk }) {
                   {it.jenis}
                 </span>
                 {it.uraian_barang}
+                {/* Kode barang + rekening kecil: SSH/SBU resmi sering punya
+                    nama sama dengan harga beda (mis. "Semen 50 kg" 84.300 vs
+                    86.200) — kode inilah pembedanya, tampilkan supaya ambigu. */}
+                {it.kode_barang || it.id_standar_harga ? (
+                  <span style={{ color: T.textMuted, fontFamily: "ui-monospace, monospace",
+                    fontSize: 9.5, marginLeft: 5 }}>
+                    [{it.kode_barang || it.id_standar_harga}]
+                  </span>
+                ) : null}
                 {it.kode_rekening ? (
                   <span style={{ color: T.textMuted, fontFamily: "ui-monospace, monospace" }}>
                     {" · "}{it.kode_rekening}
