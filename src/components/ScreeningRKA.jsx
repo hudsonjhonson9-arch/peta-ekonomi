@@ -410,30 +410,43 @@ function Panel({ T, buka, onToggle, ikon, kode, nama, total, isMobile = false, a
   return (
     <div style={{ marginBottom: 8 }}>
       <div onClick={onToggle} style={{
-        display: "flex", alignItems: "center", gap: 8, padding: "10px 13px",
+        display: "flex", alignItems: "center", gap: 8, padding: isMobile ? "10px 12px" : "10px 13px",
         border: `1px solid ${T.border}`, borderRadius: 10, cursor: "pointer",
         background: T.surfaceHover,
-        // Mobile: bila chip total + tombol aksi tidak muat sebaris dengan
-        // nama, baris turun dengan rapi — bukan overflow ke kanan.
+        // Mobile (kartu): 3 baris — (1) ikon+kode+chip total, (2) nama
+        // selebar penuh, (3) tombol aksi rata kanan. Desktop: satu baris.
         flexWrap: "wrap",
       }}>
         <Icon name="chevronRight" size={13} style={{ color: T.textMuted, transform: buka ? "rotate(90deg)" : "", transition: "transform .2s" }} />
         <Icon name={ikon} size={14} style={{ color: T.primary, flexShrink: 0 }} />
         <span style={{ fontSize: 11, fontFamily: "ui-monospace, monospace", color: T.textMuted, flexShrink: 0 }}>{kode}</span>
-        <span style={{ fontSize: 13, fontWeight: 700, color: T.text, flex: 1, minWidth: 0,
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nama}</span>
+        <span style={{
+          fontSize: 13, fontWeight: 700, color: T.text, minWidth: 0,
+          flex: isMobile ? "1 1 100%" : 1,
+          order: isMobile ? 2 : undefined,
+          whiteSpace: isMobile ? "normal" : "nowrap",
+          overflow: isMobile ? "visible" : "hidden",
+          textOverflow: isMobile ? "clip" : "ellipsis",
+        }}>{nama}</span>
         {total !== undefined && (
           <span style={{
             fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 999, flexShrink: 0,
             fontFamily: "ui-monospace, monospace",
             color: T.text, background: T.card, border: `1px solid ${T.border}`,
+            marginLeft: isMobile ? "auto" : undefined,
+            order: isMobile ? 1 : undefined,
           }}>
             {rupiah(total)}
           </span>
         )}
         {aksi && (
           <span onClick={e => e.stopPropagation()}
-            style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
+            style={{
+              display: "flex", gap: 4, alignItems: "center", flexShrink: 0,
+              order: isMobile ? 3 : undefined,
+              width: isMobile ? "100%" : undefined,
+              justifyContent: isMobile ? "flex-end" : undefined,
+            }}>
             {aksi}
           </span>
         )}
@@ -455,23 +468,33 @@ function SubRow({ T, sub, admin, tahun, buka, onToggle, showToast, reload, isMob
       <div onClick={onToggle} style={{
         display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
         border: `1px solid ${T.border}`, borderRadius: 9, cursor: "pointer",
+        // Mobile (kartu): (1) ikon+kode+chip status, (2) nama lebar penuh,
+        // (3) pagu + aksi, (4) indikator — bukan satu baris sempit.
         flexWrap: "wrap",
       }}>
         <Icon name="chevronRight" size={12} style={{ color: T.textMuted, transform: buka ? "rotate(90deg)" : "", transition: "transform .2s" }} />
         <Icon name="file" size={13} style={{ color: T.textSecondary, flexShrink: 0 }} />
         <span style={{ fontSize: 11, fontFamily: "ui-monospace, monospace", color: T.textMuted, flexShrink: 0 }}>{sub.kode}</span>
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: T.text, flex: 1, minWidth: 0,
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub.nama}</span>
+        <span style={{
+          fontSize: 12.5, fontWeight: 600, color: T.text, minWidth: 0,
+          flex: isMobile ? "1 1 100%" : 1,
+          order: isMobile ? 2 : undefined,
+          whiteSpace: isMobile ? "normal" : "nowrap",
+          overflow: isMobile ? "visible" : "hidden",
+          textOverflow: isMobile ? "clip" : "ellipsis",
+        }}>{sub.nama}</span>
 
-        <span style={chipStatus(sub.status_validasi)}>
+        <span style={{
+          ...chipStatus(sub.status_validasi),
+          marginLeft: isMobile ? "auto" : undefined,
+          order: isMobile ? 1 : undefined,
+        }}>
           {(STATUS_UI[sub.status_validasi] || STATUS_UI.draft).label}
         </span>
 
         {sub.indikator && (
           <span style={isMobile
-            // Mobile: indikator+target turun ke baris kedua selebar penuh,
-            // supaya baris pertama tetap muat chip status + pagu + aksi.
-            ? { order: 9, flexBasis: "100%", fontSize: 10.5, color: T.textMuted, marginTop: 2 }
+            ? { order: 5, flexBasis: "100%", fontSize: 10.5, color: T.textMuted, marginTop: 2 }
             : { fontSize: 10.5, color: T.textMuted, maxWidth: 240, overflow: "hidden",
                 textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {sub.indikator}{sub.target ? ` · ${sub.target}` : ""}
@@ -483,13 +506,18 @@ function SubRow({ T, sub, admin, tahun, buka, onToggle, showToast, reload, isMob
           fontFamily: "ui-monospace, monospace",
           color: sub.pagu == null ? T.textMuted : T.text,
           background: T.surfaceHover, border: `1px solid ${T.border}`,
+          order: isMobile ? 3 : undefined,
         }}>
           {rupiah(sub.pagu)}
         </span>
 
         {aksi && (
           <span onClick={e => e.stopPropagation()}
-            style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
+            style={{
+              display: "flex", gap: 4, alignItems: "center", flexShrink: 0,
+              order: isMobile ? 4 : undefined,
+              marginLeft: isMobile ? "auto" : undefined,
+            }}>
             {aksi}
           </span>
         )}
