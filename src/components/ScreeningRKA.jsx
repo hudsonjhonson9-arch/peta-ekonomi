@@ -122,7 +122,20 @@ export default function ScreeningRKA({ user, showToast }) {
 
   const riwayat = perubahan?.riwayat || [];
 
-  const programs = tree?.tree || [];
+  // Total anggaran Program & Kegiatan = jumlah pagu sub kegiatan di bawahnya
+  // (pohon tidak punya pagu sendiri — dihitung dari klien tiap refetch).
+  const programs = (tree?.tree || []).map(p => {
+    const kegiatan = (p.kegiatan || []).map(k => ({
+      ...k,
+      totalPagu: (k.subkegiatan || [])
+        .reduce((s, x) => s + (Number(x.pagu) || 0), 0),
+    }));
+    return {
+      ...p,
+      kegiatan,
+      totalPagu: kegiatan.reduce((s, k) => s + k.totalPagu, 0),
+    };
+  });
 
   return (
     <div>
@@ -244,10 +257,10 @@ export default function ScreeningRKA({ user, showToast }) {
 
       {programs.map(p => (
         <Panel key={`p${p.id}`} T={T} buka={!!buka[`p${p.id}`]} onToggle={() => toggle(`p${p.id}`)}
-          ikon="layers" kode={p.kode} nama={p.nama}>
+          ikon="layers" kode={p.kode} nama={p.nama} total={p.totalPagu}>
           {p.kegiatan.map(k => (
             <Panel key={`k${k.id}`} T={T} buka={!!buka[`k${k.id}`]} onToggle={() => toggle(`k${k.id}`)}
-              ikon="list" kode={k.kode} nama={k.nama}>
+              ikon="list" kode={k.kode} nama={k.nama} total={k.totalPagu}>
               {k.subkegiatan.map(s => (
                 <SubRow key={`s${s.id}`} T={T} sub={s} admin={admin} tahun={tahun}
                   buka={!!buka[`s${s.id}`]} onToggle={() => toggle(`s${s.id}`)}
@@ -262,7 +275,9 @@ export default function ScreeningRKA({ user, showToast }) {
 }
 
 // ── Panel rekursif (program / kegiatan) ──────────────────────────────────
-function Panel({ T, buka, onToggle, ikon, kode, nama, children }) {
+// `total`: total pagu sub kegiatan di bawahnya (lihat ScreeningRKA) — chip di
+// kanan, gaya sama dengan chip pagu di SubRow.
+function Panel({ T, buka, onToggle, ikon, kode, nama, total, children }) {
   return (
     <div style={{ marginBottom: 8 }}>
       <div onClick={onToggle} style={{
@@ -274,6 +289,15 @@ function Panel({ T, buka, onToggle, ikon, kode, nama, children }) {
         <Icon name={ikon} size={14} style={{ color: T.primary, flexShrink: 0 }} />
         <span style={{ fontSize: 11, fontFamily: "ui-monospace, monospace", color: T.textMuted, flexShrink: 0 }}>{kode}</span>
         <span style={{ fontSize: 13, fontWeight: 700, color: T.text, flex: 1, minWidth: 0 }}>{nama}</span>
+        {total !== undefined && (
+          <span style={{
+            fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 999, flexShrink: 0,
+            fontFamily: "ui-monospace, monospace",
+            color: T.text, background: T.card, border: `1px solid ${T.border}`,
+          }}>
+            {rupiah(total)}
+          </span>
+        )}
       </div>
       {buka && (
         <div style={{ margin: "6px 0 0 20px", paddingLeft: 10, borderLeft: `1px solid ${T.border}` }}>
