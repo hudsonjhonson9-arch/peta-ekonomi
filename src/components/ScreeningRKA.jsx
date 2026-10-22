@@ -583,11 +583,22 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave, isMobile = false }
 
       {/* Grid seragam (auto-fit): Pagu | Rencana vs Pagu —
           Perubahan/Realisasi | Validasi. Di layar sempit menumpuk satu kolom;
-          min(min(300px,100%)) supaya kolom tidak pernah overflow di HP 320px. */}
+          min(min(300px,100%)) supaya kolom tidak pernah overflow di HP 320px.
+          Desktop: blok ikut menempel di atas area gulir (top:0 — area gulir
+          di App sudah di bawah topbar) selama menggulir rencana belanja sub
+          ini; lepas otomatis saat masuk sub kegiatan berikutnya karena sticky
+          terbatas pada wadah DetailSub. Mobile tidak sticky — kolomnya
+          menumpuk tinggi dan akan memakan layar. */}
       <div style={{
         display: "grid",
         gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))",
-        gap: 10, marginBottom: 14,
+        gap: 10,
+        marginBottom: isMobile ? 14 : 6,
+        paddingBottom: isMobile ? 0 : 8,
+        background: T.card,
+        position: isMobile ? undefined : "sticky",
+        top: isMobile ? undefined : 0,
+        zIndex: isMobile ? undefined : 5,
       }}>
         {/* Pagu */}
         <div style={kotak(T)}>
