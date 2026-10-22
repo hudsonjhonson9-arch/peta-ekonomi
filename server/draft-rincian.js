@@ -7,7 +7,7 @@
 export const jumlahItem = (volume, harga) => Math.round(volume * harga);
 
 // → {ok: true, item} | {ok: false, error}
-// wajib: uraian (string, trim, maks 500), satuan (trim), volume number > 0,
+// wajib: uraian (string, trim, maks 500), satuan (trim), volume number >= 0,
 // harga_satuan number >= 0; opsional: kelompok_belanja (trim — pengelompokan
 // belanja ala SIPD, jadi header grup di daftar), spesifikasi, kode_rekening
 // (trim), standar_harga_id (integer|null), harga_standar (number|null),
@@ -25,7 +25,7 @@ export function validasiItem(body) {
   if (!satuan) return { ok: false, error: 'satuan wajib' };
 
   const volume = Number(b.volume);
-  if (!Number.isFinite(volume) || volume <= 0) return { ok: false, error: 'volume harus > 0' };
+  if (!Number.isFinite(volume) || volume < 0) return { ok: false, error: 'volume harus >= 0' };
 
   const harga = Number(b.harga_satuan);
   if (!Number.isFinite(harga) || harga < 0) return { ok: false, error: 'harga_satuan harus >= 0' };

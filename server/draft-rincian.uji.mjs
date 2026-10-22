@@ -39,10 +39,10 @@ uji('uraian kosong → error', () => {
   assert.equal(validasiItem({ satuan: 'sak', volume: 1, harga_satuan: 0 }).ok, false);
 });
 
-// 3. volume wajib > 0 (0, negatif, NaN).
-uji('volume <= 0 → error', () => {
+// 3. volume wajib >= 0 (0 boleh; negatif, NaN, hilang → error).
+uji('volume 0 lolos; negatif/NaN → error', () => {
   const base = { uraian: 'X', satuan: 'sak', harga_satuan: 1000 };
-  assert.equal(validasiItem({ ...base, volume: 0 }).ok, false);
+  assert.equal(validasiItem({ ...base, volume: 0 }).ok, true, 'volume 0 valid');
   assert.equal(validasiItem({ ...base, volume: -5 }).ok, false);
   assert.equal(validasiItem({ ...base, volume: 'banyak' }).ok, false);
   assert.equal(validasiItem({ ...base }).ok, false, 'volume hilang → error');

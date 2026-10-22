@@ -432,6 +432,9 @@ jalankanMigration('tahap_2', [
   // Tahap 11: kolom draft_rincian.kelompok_belanja (header grup rencana belanja).
   // Tanpa fallback seperti tahap_10: migration menambah kolom.
   .then(() => jalankanMigration('tahap_11', ['draft_rincian'], true))
+  // Tahap 12: longgarkan CHECK volume draft_rincian (> 0 → >= 0). ALTER-only,
+  // tanpa fallback seperti tahap_11 supaya kegagalan terlihat di log.
+  .then(() => jalankanMigration('tahap_12', ['draft_rincian'], true))
   .then(jalankanSeed);
 
 const queryDB = async (sql, params = []) => {

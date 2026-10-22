@@ -781,8 +781,8 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
   // Simpan volume dari sel tabel (blur / Enter) — hanya bila nilainya berubah.
   const simpanVolume = async (it, teks) => {
     const n = Number(teks);
-    if (teks.trim() === "" || !Number.isFinite(n) || n <= 0) {
-      showToast("Volume harus angka lebih besar dari nol.");
+    if (teks.trim() === "" || !Number.isFinite(n) || n < 0) {
+      showToast("Volume harus angka nol atau lebih.");
       setVolLokal(p => { const q = { ...p }; delete q[it.id]; return q; });
       return;
     }
