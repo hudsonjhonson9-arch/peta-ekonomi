@@ -297,6 +297,19 @@ export default function App() {
     history.pushState({ page: "dokumen", docId: d.id }, "", `#dokumen/${d.id}`);
   };
 
+  // Buka dokumen cukup dengan id — dipakai dari Kertas Kerja (tautan periode).
+  // Kalau id belum ada di daftar yang termuat, lewat jalur pendingDocId/hash:
+  // effect di bawah akan membukanya begitu docs siap.
+  const bukaDokumenId = (id) => {
+    const d = docs.find(x => String(x.id) === String(id));
+    if (d) { openDoc(d); return; }
+    setPage("dokumen");
+    setViewDoc(null);
+    setPendingDocId(String(id));
+    sessionStorage.setItem("page", "dokumen");
+    history.pushState({ page: "dokumen", docId: id }, "", `#dokumen/${id}`);
+  };
+
   const closeDoc = () => {
     setViewDoc(null);
     history.replaceState({ page: "dokumen" }, "", "#dokumen");
@@ -1122,6 +1135,7 @@ if (!user) {
                 sectors={sectors}
                 bidangs={bidangs}
                 onUnggahPeriode={handleUnggahPeriode}
+                onBukaDokumen={bukaDokumenId}
               />
             )}
             {page === "screening" && (

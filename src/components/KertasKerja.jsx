@@ -22,7 +22,7 @@ import { judulDokumenPeriode } from "../../server/tautan-periode.js";
 // onUnggahPeriode dipakai dialog unggah: form-nya UploadForm yang sama dengan
 // halaman Upload Dokumen, jadi GAS + Google Drive tidak punya dua implementasi.
 // kategori/sektor/bidang diteruskan karena select di UploadForm membutuhkannya.
-export default function KertasKerja({ user, showToast, categories = [], sectors = [], bidangs = [], onUnggahPeriode }) {
+export default function KertasKerja({ user, showToast, categories = [], sectors = [], bidangs = [], onUnggahPeriode, onBukaDokumen }) {
   const { T } = useContext(ThemeContext);
   const qc = useQueryClient();
   const [tahun, setTahun]             = useState(null);
@@ -275,6 +275,7 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
                       onEditPeriode={(o, p) => setFormPeriode({ output: o, periode: p, tahun })}
                       onUnggah={d => setUploadPeriode(d)}
                       onLihatRiwayat={docInfo => setRiwayatDoc(docInfo)}
+                      onBukaDokumen={onBukaDokumen}
                       onEditSub={() => bukaEditPks("subkegiatan", s)}
                       onHapusSub={() => hapusPks("subkegiatan", s)}
                       showToast={showToast}
@@ -391,7 +392,8 @@ function Panel({ T, buka, onToggle, force, ikon, kode, nama, aksi = null, childr
 
 // ── Sub kegiatan + daftar output ─────────────────────────────────────────
 function SubKey({ T, sub, tahun, admin, user, buka, onToggle, force, hanyaTerlambat, cari,
-                  onTambahOutput, onEditOutput, onEditPeriode, onUnggah, onLihatRiwayat,
+                 onTambahOutput, onEditOutput, onEditPeriode, onUnggah, onLihatRiwayat,
+                 onBukaDokumen,
                   onEditSub, onHapusSub, showToast, reload, sibuk, setSibuk }) {
   const outputs = sub.outputs.filter(o => {
     if (cari) return true;
@@ -493,6 +495,7 @@ function SubKey({ T, sub, tahun, admin, user, buka, onToggle, force, hanyaTerlam
               onEditPeriode={p => onEditPeriode(o, p)}
               onUnggah={onUnggah}
               onLihatRiwayat={onLihatRiwayat}
+              onBukaDokumen={onBukaDokumen}
               showToast={showToast} reload={reload} sibuk={sibuk} setSibuk={setSibuk} />
           ))}
         </div>
@@ -516,7 +519,7 @@ const pillTambah = T => ({
 });
 
 // ── Satu output + tabel periodenya ───────────────────────────────────────
-function Output({ T, output, admin, user, tahun, onEdit, onEditPeriode, onUnggah, onLihatRiwayat, showToast, reload, sibuk, setSibuk }) {
+function Output({ T, output, admin, user, tahun, onEdit, onEditPeriode, onUnggah, onLihatRiwayat, onBukaDokumen, showToast, reload, sibuk, setSibuk }) {
   const pr = progresOutput(output);
   const [bukaPeriode, setBukaPeriode] = useState(true);
 
@@ -684,6 +687,7 @@ return (
               {output.periods.map(p => <BarisPeriode key={p.id} T={T} p={p} admin={admin} reload={reload}
                 judul={judulDokumenPeriode(output.nama, p.periode_label) || output.nama} tahun={tahun}
                 onEdit={() => onEditPeriode(p)} onUnggah={onUnggah} onLihatRiwayat={onLihatRiwayat}
+                onBukaDokumen={onBukaDokumen}
                 showToast={showToast} />)}
             </tbody>
           </table>
@@ -693,7 +697,7 @@ return (
   );
 }
 
-function BarisPeriode({ T, p, admin, onEdit, onUnggah, onLihatRiwayat, reload, showToast, judul, tahun }) {
+function BarisPeriode({ T, p, admin, onEdit, onUnggah, onLihatRiwayat, onBukaDokumen, reload, showToast, judul, tahun }) {
   const st = statusPeriode(p);
   const meta = STATUS_PERIODE[st];
   const sisa = sisaHari(p.deadline);
@@ -774,13 +778,31 @@ function BarisPeriode({ T, p, admin, onEdit, onUnggah, onLihatRiwayat, reload, s
       </td>
       <td style={{ padding: "5px 7px", borderBottom: `1px solid ${T.border}`, color: T.textSecondary, minWidth: 150 }}>
         {p.doc_id
-          ? <span title={p.doc_judul || ""} style={{ color: T.text }}>{p.doc_judul || `Dokumen #${p.doc_id}`}</span>
+          ? (
+            <button
+              onClick={() => onBukaDokumen && onBukaDokumen(p.doc_id)}
+              title={`Buka "${p.doc_judul || `Dokumen #${p.doc_id}`}"`}
+              style={{
+                background: "none", border: "none", padding: 0, margin: 0,
+                font: "inherit", textAlign: "left", cursor: "pointer",
+                color: T.primary, fontWeight: 500,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.textDecoration = "underline"; }}
+              onMouseLeave={e => { e.currentTarget.style.textDecoration = "none"; }}
+            >
+              {p.doc_judul || `Dokumen #${p.doc_id}`}
+            </button>
+          )
           : <span style={{ color: T.textMuted }}>—</span>}
       </td>
       <td style={{ padding: "5px 7px", borderBottom: `1px solid ${T.border}`, whiteSpace: "nowrap" }}>
         <span style={{ display: "flex", gap: 4 }}>
           {p.doc_id ? (
             <>
+              <button onClick={() => onBukaDokumen && onBukaDokumen(p.doc_id)}
+                title="Buka dokumen" style={iconBtn(T)}>
+                <Icon name="external-link" size={11} />
+              </button>
               <button onClick={() => onLihatRiwayat({ docId: p.doc_id, docJudul: p.doc_judul || `Dokumen #${p.doc_id}`, periodeLabel: p.periode_label })}
                 title="Riwayat unggah dokumen" style={iconBtn(T)}>
                 <Icon name="history" size={11} />
