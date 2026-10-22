@@ -90,6 +90,11 @@ REQ BANK DATA (baru):
 - Layout header Screening RKA ikut dirapikan: select tahun sebelumnya mengambang di tengah baris (space-between dengan 3 anak); kini judul + subtitle "Program → Kegiatan → Sub Kegiatan · pagu & kode rekening" di kiri, label "Tahun" + select (mis. 2027) + tombol "Inisiasi Perubahan" digabung satu grup di kanan.
 - Verifikasi: node --check bersih; 33 uji lulus (draft-rincian/screening/standar-harga/tautan-periode; index.uji.mjs dilewati); npm run build sukses.
 
+## REQ SCREENING RKA — BERSIHKAN KUNCI KODE REKENING (2026-10-22)
+
+- Blok chips "Kode Rekening / Simpan rekening" di DetailSub sudah DIHAPUS dari kode (sebelumnya commit 870797e) — alasan user: chips itu "kunci" yang memfilter dropdown uraian SSH/SBU per sub kegiatan.
+- Data chips `pks_subkegiatan.kode_rekening` lalu DIKOSONGKAN untuk SEMUA sub kegiatan (37 sub tahun 2027, termasuk membuang entri sampah header Excel "Kode Rekening" yang ikut tersimpan). Akibatnya dropdown PilihUraian = semua rekening ("Kosong = semua rekening"), dan opsi "Kode rekening" di FormBaris hanya memakai daftar `useKodeRekening(tahun)`.
+
 ## MENU ADMIN STANDAR HARGA
 
 - Satu menu "Standar Harga" di grup Administrasi (adminOnly) → SbuSshAdmin.jsx, dengan pemilih jenis SSH/SBU di dalam halaman (ganti jenis = reset preview + pencarian).
