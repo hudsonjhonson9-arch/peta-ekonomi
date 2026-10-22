@@ -1102,11 +1102,11 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ background: T.surfaceHover }}>
+                <th style={th}>Rekening</th>
                 <th style={th}>Uraian</th>
                 <th style={th}>Spesifikasi</th>
                 <th style={th}>Volume</th>
                 <th style={{ ...th, textAlign: "right" }}>Harga</th>
-                <th style={th}>Rekening</th>
                 <th style={{ ...th, textAlign: "right" }}>Total</th>
                 <th style={th}></th>
               </tr>
@@ -1147,6 +1147,11 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
                   const banding = sel != null && Math.abs(sel) > AMBANG_SELISIH;
                   return (
                     <tr key={it.id} style={{ borderTop: `1px solid ${T.border}` }}>
+                      <td style={{ padding: "6px 8px", whiteSpace: "nowrap",
+                        fontFamily: "ui-monospace, monospace", color: T.textMuted,
+                        fontSize: 11.5 }}>
+                        {it.kode_rekening || "—"}
+                      </td>
                       <td style={{ padding: "6px 8px", color: T.text, minWidth: 180 }}>
                         {it.uraian}
                       </td>
@@ -1192,10 +1197,6 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
                             {teksSelisih(sel)}
                           </div>
                         )}
-                      </td>
-                      <td style={{ padding: "6px 8px", whiteSpace: "nowrap",
-                        fontFamily: "ui-monospace, monospace", color: T.textMuted }}>
-                        {it.kode_rekening || "—"}
                       </td>
                       <td style={{ padding: "6px 8px", textAlign: "right", whiteSpace: "nowrap",
                         fontFamily: "ui-monospace, monospace", fontWeight: 700, color: T.text }}>
