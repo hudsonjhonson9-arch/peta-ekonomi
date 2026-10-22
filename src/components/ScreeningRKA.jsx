@@ -934,24 +934,27 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
             <tbody>
               {grup.map(g => [
                 g.nama ? (
+                  // Struktur sel mengikuti baris data: nama di kolom 1–5,
+                  // total tepat di kolom "Total" (kolom 6) supaya sejajar
+                  // dengan total per baris & footer — bukan colSpan=7 yang
+                  // melesat ke tepi kanan melewati kolom aksi.
                   <tr key={`${g.nama}__header`} style={{ background: T.surfaceHover }}>
-                    <td colSpan={7} style={{ padding: "6px 8px" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between",
-                        gap: 10, alignItems: "baseline" }}>
-                        <span style={{ fontWeight: 700, fontSize: 12, color: T.text }}>
-                          {g.nama}
-                        </span>
-                        <span style={{ fontFamily: "ui-monospace, monospace",
-                          fontWeight: 700, fontSize: 12, color: T.text }}>
-                          {rupiah(g.total)}
-                        </span>
-                      </div>
+                    <td colSpan={5} style={{ padding: "6px 8px" }}>
+                      <span style={{ fontWeight: 700, fontSize: 12, color: T.text }}>
+                        {g.nama}
+                      </span>
                       {g.kat && (
                         <div style={{ fontSize: 10.5, color: T.textMuted, marginTop: 2 }}>
                           Keterangan: {g.kat}
                         </div>
                       )}
                     </td>
+                    <td style={{ padding: "6px 8px", textAlign: "right", whiteSpace: "nowrap",
+                      fontFamily: "ui-monospace, monospace", fontWeight: 700, fontSize: 12,
+                      color: T.text }}>
+                      {rupiah(g.total)}
+                    </td>
+                    <td />
                   </tr>
                 ) : null,
                 ...g.baris.map(it => {
@@ -1040,10 +1043,12 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast }) {
                     color: T.text, textAlign: "right" }}>
                     Total
                   </td>
-                  <td colSpan={2} style={{ padding: "6px 8px", fontWeight: 700, fontSize: 12,
-                    color: T.text, textAlign: "right", fontFamily: "ui-monospace, monospace" }}>
+                  <td style={{ padding: "6px 8px", fontWeight: 700, fontSize: 12,
+                    color: T.text, textAlign: "right", whiteSpace: "nowrap",
+                    fontFamily: "ui-monospace, monospace" }}>
                     {rupiah(grup.reduce((a, g) => a + g.total, 0))}
                   </td>
+                  <td />
                 </tr>
               )}
             </tbody>
