@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import { susunPatchPeriode } from './patch-periode.js';
 import { idDokumenValid } from './tautan-periode.js';
 import { validasiUpload, filterDaftar } from './standar-harga.js';
+import { imporStandarHargaSipd } from './impor-standar-harga-sipd.js';
 import { validasiItem, validasiPatch, jumlahItem } from './draft-rincian.js';
 import { ajukanDari, validasiStatus, cekSetujui } from './screening.js';
 import {
@@ -438,7 +439,11 @@ jalankanMigration('tahap_2', [
   // Tahap 13: unique index (tahun, jenis, id_standar_harga) — ID STANDAR HARGA
   // SIPD adalah kunci unik baris; dipakai ON CONFLICT saat upload standar harga.
   .then(() => jalankanMigration('tahap_13', ['standar_harga'], true))
-  .then(jalankanSeed);
+  .then(jalankanSeed)
+  // Impor bawaan standar harga SIPD (db/standar_harga_sipd_<jenis>_<tahun>.xlsx).
+  // Setelah tahap_13 karena merge-nya menarget index unik tahap_13. Gagal di
+  // sini hanya dicatat di log — boot tidak dibatalkan, data lama tetap dipakai.
+  .then(() => imporStandarHargaSipd(pool, path.join(__dirname, '..', 'db')));
 
 const queryDB = async (sql, params = []) => {
   const result = await pool.query(sql, params);
