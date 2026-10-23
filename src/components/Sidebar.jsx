@@ -124,16 +124,11 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, mobi
         borderBottom: "1px solid " + T.border,
         display: "flex", alignItems: "center", gap: 10,
       }}>
-        <div style={{
-          width: 36, height: 36, background: T.primary, borderRadius: 10,
-          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-        }}>
-          <Icon name="archive" size={18} style={{ color: "#fff" }} />
-        </div>
+        <img src="/icon.svg" alt="" width={36} height={36} style={{ flexShrink: 0, borderRadius: 10 }} />
         {!collapsed && (
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: -0.2 }}>ARSIP DIGITAL BAPPERIDA</div>
-            <div style={{ fontSize: 10, color: T.textMuted, marginTop: 1 }}>BAPPERIDA Sumba Barat</div>
+            <div style={{ fontSize: 10, color: T.textMuted, marginTop: 1 }}>Bapperida · Kab. Sumba Barat</div>
           </div>
         )}
       </div>

@@ -1,3 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M21 8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="70 161 190 190" role="img" aria-label="Arsip Digital Bapperida">
+  <rect x="70" y="161" width="150" height="170" rx="16" fill="#0F172A"/>
+  <rect x="90" y="171" width="150" height="170" rx="16" fill="#1D4ED8"/>
+  <path d="M126 181 H228 L260 213 V335 A16 16 0 0 1 244 351 H126 A16 16 0 0 1 110 335 V197 A16 16 0 0 1 126 181 Z" fill="#2563EB"/>
+  <path d="M228 181 L260 213 H228 Z" fill="#0F172A"/>
+  <rect x="140" y="248" width="88" height="18" rx="9" fill="#FFFFFF"/>
+  <rect x="140" y="284" width="56" height="18" rx="9" fill="#FFFFFF"/>
 </svg>
