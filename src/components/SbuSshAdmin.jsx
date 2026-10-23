@@ -22,9 +22,9 @@ const inputStyle = T => ({
 // Screening RKA), jadi tidak ada tabel harga ganda.
 //
 // Lazy load: tahun default null → useStandarHarga disabled, nol request
-// sampai user memilih tahun. Upload Excel (baca client-side, preview,
-// replace-all) hanya ada di menu ini — detail sub kegiatan tidak lagi
-// menampilkan tabel standar harga.
+// sampai user memilih tahun. Upload Excel (baca client-side, preview, merge
+// per ID STANDAR HARGA) hanya ada di menu ini — detail sub kegiatan tidak
+// lagi menampilkan tabel standar harga.
 export default function SbuSshAdmin({ showToast }) {
   const { T } = useContext(ThemeContext);
   const qc = useQueryClient();
@@ -73,7 +73,9 @@ export default function SbuSshAdmin({ showToast }) {
   const gantiData = async () => {
     if (!preview || !preview.items.length) return;
     const ok = window.confirm(
-      `Ganti SEMUA standar harga ${preview.jenis} ${preview.tahun} dengan ${preview.items.length} baris dari ${preview.nama}? Data lama dihapus.`
+      `Gabungkan ${preview.items.length} baris dari ${preview.nama} ke standar harga ` +
+      `${preview.jenis} ${preview.tahun}? Baris dengan ID sama akan diperbarui harganya, ` +
+      `ID baru ditambahkan — data lama yang tidak ada di file tetap dipertahankan.`
     );
     if (!ok) return;
     setSibuk(true);
@@ -81,7 +83,7 @@ export default function SbuSshAdmin({ showToast }) {
       const r = await api("/api/standar-harga/upload", "POST", {
         tahun: preview.tahun, jenis: preview.jenis, items: preview.items,
       });
-      showToast(`${r.n} baris ${preview.jenis} ${preview.tahun} berhasil diganti.`);
+      showToast(`${r.n} baris ${preview.jenis} ${preview.tahun} berhasil digabung (merge).`);
       setPreview(null);
       qc.invalidateQueries({ queryKey: ["standar-harga"] });
     } catch (err) {
