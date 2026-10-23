@@ -1079,8 +1079,13 @@ if (!user) {
             </div>
           </div>
 
-          {/* Main */}
-          <div style={{ flex: 1, padding: isMobile ? "10px 14px 14px" : "14px 24px 24px", overflowY: "auto" }}>
+          {/* Main — JANGAN overflowY:auto di sini: kolom ini tidak pernah
+              dibatasi tinggi (root hanya minHeight:100vh), jadi area konten
+              tumbuh setinggi isinya dan yang menggulir adalah window.
+              overflowY:auto hanya membuat scrollport MATI yang menangkap
+              position:sticky anak (mis. kartu DetailSub di ScreeningRKA)
+              sehingga sticky tidak pernah aktif — biarkan window yang scroll. */}
+          <div style={{ flex: 1, padding: isMobile ? "10px 14px 14px" : "14px 24px 24px" }}>
             {page === "dashboard" && !viewDoc && (
               <Dashboard docs={docs} onNav={goPage} onView={openDoc} sectors={sectors} categories={categories} />
             )}
