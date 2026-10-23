@@ -14,8 +14,16 @@ import { jumlahItem } from "../../server/draft-rincian.js";
 // Tingkat diset mulai dari 1 (bukan 0) karena SheetJS mengabaikan
 // `level: 0` pada baris pertama data — sudah diverifikasi di XML mentah
 // (outlineLevel="1"/"2" tertulis, tapi baris ber-level 0 hilang).
-// Cukup `!rows[i].level` saja: `!outline` tidak ikut tertulis oleh writer
-// xlsx, dan tombol lipat [-]/[+] muncul otomatis begitu outlineLevel ada.
+// Cukup `!rows[i].level` saja untuk menulis outlineLevel. Tombol lipat [-]/[+]
+// muncul otomatis begitu outlineLevel ada.
+//
+// `!outline = { above: true }` WAJIB: tanpanya Excel memakai default
+// summaryBelow=1 (baris ringkas DI BAWAH anak), padahal baris Program/
+// Kegiatan/Sub di file ini ada DI ATAS anaknya — akibatnya tombol lipat
+// meleset satu grup ([-] Program jadi melipat blok program sebelumnya).
+// Dengan summaryBelow="0" baris ringkas di atas anak, lipat-expand seperti
+// accordion yang benar. (Key-nya `above`, BUKAN `summaryBelow` — itulah
+// sebelumnya dikira tidak ditulis writer xlsx.)
 
 // Sel numerik asli (bukan string) supaya bisa dijumlah/difilter di Excel;
 // kosong bila null supaya tidak menampilkan 0 palsu.
@@ -178,12 +186,15 @@ export function unduhScreeningExcel({ tahun, programs, rencanaById = {},
   }
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  // INI satu-satunya kunci accordion: `!rows[i].level` ditulis sebagai
-  // atribut outlineLevel="1"/"2"/"3" di XML sheet. Baris tanpa `level`
-  // (kepala kolom) selalu tampil; baris ber-level ikut terlipat saat tombol
-  // [-] di grupnya ditekan. `!outline`/`!freeze` tidak ditulis writer xlsx —
-  // sengaja tidak dipakai.
+  // INI kunci accordion: `!rows[i].level` ditulis sebagai atribut
+  // outlineLevel="1"/"2"/"3"/"4" di XML sheet. Baris tanpa `level` (kepala
+  // kolom) selalu tampil; baris ber-level ikut terlipat saat tombol [-] di
+  // grupnya ditekan.
   ws["!rows"] = rows;
+  // Baris ringkas (Program/Kegiatan/Sub) ada DI ATAS anak → beritahu Excel
+  // dengan summaryBelow=0; tanpa ini default summaryBelow=1 membuat tombol
+  // lipat meleset satu grup (lihat komentar fungsi di atas).
+  ws["!outline"] = { above: true };
   // Kolom: teks nama bisa panjang, biar tidak terpotong.
   ws["!cols"] = [
     { wch: 4 },   // Level
