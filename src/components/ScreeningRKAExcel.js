@@ -21,6 +21,16 @@ import { jumlahItem } from "../../server/draft-rincian.js";
 // sehingga dikira tidak ikut tercetak. Dengan gabung, uraian–volume–harga
 // rincian langsung terlihat di layar pertama.
 //
+// ── WARNA BARIS per tingkat ────────────────────────────────────────────────
+// Program (navy), Kegiatan (biru sedang), Sub Kegiatan (biru muda), header
+// kelompok rincian (abu), baris item putih — hierarki terbaca sekilas.
+// SheetJS community TIDAK menulis cell.s (fill/font) saat write — sudah
+// diverifikasi: fills.xml tetap default. Karena itu warna dipasang dengan
+// patch manual: tulis ulang xl/styles.xml (font+fill+xfs milik kita) dan
+// tambahkan atribut s="n" pada tiap sel di xl/worksheets/sheet1.xml, lalu
+// zip ulang semua entry (semua STORE/tanpa kompresi, jadi aman ditulis
+// ulang tanpa zlib — penting: modul ini juga berjalan di browser).
+//
 // Tingkat diset mulai dari 1 (bukan 0) karena SheetJS mengabaikan
 // `level: 0` pada baris pertama data — sudah diverifikasi di XML mentah
 // (outlineLevel="1"/"2" tertulis, tapi baris ber-level 0 hilang).
@@ -44,6 +54,165 @@ const angka = n => (n == null || n === "" || !Number.isFinite(Number(n))
 const labelStatus = s => ({
   draft: "Draft", menunggu: "Menunggu", disetujui: "Disetujui", ditolak: "Ditolak",
 }[s] || "Draft");
+
+// Indeks xf (cellXfs) di GAYA_XML — dipakai sebagai nilai atribut s="n".
+const ST = { header: 1, program: 2, kegiatan: 3, sub: 4, kelompok: 5 };
+
+// Stylesheet milik kita, MENGGANTIKAN styles.xml bawaan SheetJS (yang hanya
+// berisi default). Posisi fill & font harus selaras dengan ST di atas.
+// Urutan elemen mengikuti CT_Stylesheet: fonts → fills → borders →
+// cellStyleXfs → cellXfs → cellStyles → dxfs → tableStyles.
+const GAYA_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<fonts count="4">
+<font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font>
+<font><b/><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font>
+<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font>
+<font><b/><sz val="11"/><color rgb="FF1F4E79"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font>
+</fonts>
+<fills count="7">
+<fill><patternFill patternType="none"/></fill>
+<fill><patternFill patternType="gray125"/></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FF1F4E79"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FF9DC3E6"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFDEEBF7"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FF44546A"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFF2F2F2"/><bgColor indexed="64"/></patternFill></fill>
+</fills>
+<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="6">
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="2" fillId="5" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+<xf numFmtId="0" fontId="2" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+<xf numFmtId="0" fontId="3" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+<xf numFmtId="0" fontId="0" fillId="4" borderId="0" xfId="0" applyFill="1"/>
+<xf numFmtId="0" fontId="1" fillId="6" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+</cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+<dxfs count="0"/>
+<tableStyles count="0" defaultTableStyle="TableStyleMedium2" defaultPivotStyle="PivotStyleLight16"/>
+</styleSheet>`;
+
+// ── Zip STORE minimal (baca + tulis ulang) ─────────────────────────────────
+// Tanpa dependensi: keduanya dipakai untuk membongkar hasil tulis SheetJS
+// (semua entry method=0) dan menyusunnya kembali dengan patch di dalamnya.
+
+// Tabel CRC32 standar (refleksi 0xEDB88320) — diverifikasi dengan vektor
+// uji resmi crc32("123456789") === 0xCBF43926 pada test ekspor.
+const TABEL_CRC = new Uint32Array(256);
+for (let n = 0; n < 256; n++) {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+  TABEL_CRC[n] = c >>> 0;
+}
+const crc32 = b => {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < b.length; i++) c = TABEL_CRC[(c ^ b[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+};
+
+// Hasil XLSX.write → daftar {nama, data} urut sesuai isi arsip.
+function bacaZip(biner) {
+  const b = biner instanceof Uint8Array ? biner : new Uint8Array(biner);
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  // EOCD: tanda tangan 0x06054b50, dicari dari akhir arsip.
+  let eocd = -1;
+  for (let i = b.length - 22; i >= 0; i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error("Bukan file xlsx (EOCD tidak ditemukan)");
+  const jumlah = dv.getUint16(eocd + 10, true);
+  const cdOffset = dv.getUint32(eocd + 16, true);
+  const hasil = [];
+  let p = cdOffset;
+  for (let i = 0; i < jumlah; i++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) throw new Error("Central directory rusak");
+    const namaLen = dv.getUint16(p + 28, true);
+    const extraLen = dv.getUint16(p + 30, true);
+    const komLen = dv.getUint16(p + 32, true);
+    const lho = dv.getUint32(p + 42, true);
+    const nama = new TextDecoder().decode(b.subarray(p + 46, p + 46 + namaLen));
+    const metode = dv.getUint16(lho + 8, true);
+    const ukuran = dv.getUint32(p + 20, true);
+    const lnl = dv.getUint16(lho + 26, true);
+    const lel = dv.getUint16(lho + 28, true);
+    if (metode !== 0) throw new Error(`Entry ${nama} terkompresi — penulisan ulang tidak didukung`);
+    hasil.push({ nama, data: b.subarray(lho + 30 + lnl + lel, lho + 30 + lnl + lel + ukuran) });
+    p += 46 + namaLen + extraLen + komLen;
+  }
+  return hasil;
+}
+
+// Susun ulang arsip STORE. DOS date tetap 1980-01-01 (0x0021); nama entry
+// semua ASCII, jadi flag UTF-8 tidak diperlukan.
+function tulisZip(entry) {
+  const enc = new TextEncoder();
+  const potongan = [], pusat = [];
+  let offset = 0;
+  for (const { nama, data } of entry) {
+    const nb = enc.encode(nama);
+    const crc = crc32(data);
+    const lh = new Uint8Array(30 + nb.length);
+    const lv = new DataView(lh.buffer);
+    lv.setUint32(0, 0x04034b50, true); lv.setUint16(4, 20, true);
+    lv.setUint16(6, 0, true); lv.setUint16(8, 0, true);
+    lv.setUint16(10, 0, true); lv.setUint16(12, 0x0021, true);
+    lv.setUint32(14, crc, true); lv.setUint32(18, data.length, true);
+    lv.setUint32(22, data.length, true);
+    lv.setUint16(26, nb.length, true); lv.setUint16(28, 0, true);
+    lh.set(nb, 30);
+    potongan.push(lh, data);
+
+    const ch = new Uint8Array(46 + nb.length);
+    const cv = new DataView(ch.buffer);
+    cv.setUint32(0, 0x02014b50, true); cv.setUint16(4, 20, true);
+    cv.setUint16(6, 20, true); cv.setUint16(8, 0, true);
+    cv.setUint16(10, 0, true); cv.setUint16(12, 0, true);
+    cv.setUint16(14, 0x0021, true); cv.setUint32(16, crc, true);
+    cv.setUint32(20, data.length, true); cv.setUint32(24, data.length, true);
+    cv.setUint16(28, nb.length, true);
+    // 30 extraLen, 32 komentarLen, 34 disk, 36 intAttr — nol semua (default 0).
+    cv.setUint32(42, offset, true);
+    ch.set(nb, 46);
+    pusat.push(ch);
+    offset += lh.length + data.length;
+  }
+  const cdSize = pusat.reduce((s, c) => s + c.length, 0);
+  const eocd = new Uint8Array(22);
+  const ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, pusat.length, true); ev.setUint16(10, pusat.length, true);
+  ev.setUint32(12, cdSize, true); ev.setUint32(16, offset, true);
+
+  const semua = [...pusat, eocd];
+  const total = offset + cdSize + 22;
+  const out = new Uint8Array(total);
+  let pos = 0;
+  for (const c of [...potongan, ...semua]) { out.set(c, pos); pos += c.length; }
+  return out;
+}
+
+// Pasang warna: ganti styles.xml + beri atribut s pada tiap sel sesuai
+// warnaBaris (sejajar aoa; 0 = tanpa gaya/kolom data putih).
+function pasangWarna(biner, warnaBaris) {
+  const entri = bacaZip(biner);
+  const lembar = entri.find(e => e.nama === "xl/worksheets/sheet1.xml");
+  if (!lembar) throw new Error("Sheet1 tidak ditemukan di xlsx");
+  const teks = new TextDecoder().decode(lembar.data);
+  // <c r="A2" ...> → <c r="A2" s="n" ...> (atribut XML bebas urutan, aman
+  // disisipkan tepat setelah r="..").
+  lembar.data = new TextEncoder().encode(
+    teks.replace(/<c r="([A-Z]+)(\d+)"/g, (m, _kol, baris) => {
+      const st = warnaBaris[Number(baris) - 1];
+      return st ? `${m} s="${st}"` : m;
+    })
+  );
+  const gaya = entri.find(e => e.nama === "xl/styles.xml");
+  if (!gaya) throw new Error("styles.xml tidak ditemukan di xlsx");
+  gaya.data = new TextEncoder().encode(GAYA_XML);
+  return tulisZip(entri);
+}
 
 // Satu blok 11 kolom untuk SEMUA jenis baris; nama kepala memakai pola
 // "pohon / rincian" supaya jelas isi tiap sisi. Posisi kolom:
@@ -108,18 +277,16 @@ function kelompokRincian(items) {
   return grup;
 }
 
-// programs: array pohon hasil kalkulasi ScreeningRKA (sudah memuat
-// totalPagu di tiap Program & Kegiatan). rencanaById: {subId: number} total
-// rencana belanja per sub kegiatan (dihitung dari endpoint draft-rincian).
-// rincianPerSub: opsional, {subId: [item, ...]} — bila diisi, tiap Sub
-// Kegiatan dkk. rincian belanjanya ikut tercetak di bawahnya (sebagai anak
-// outline tingkat berikutnya), bukan hanya ringkasannya.
-export function unduhScreeningExcel({ tahun, programs, rencanaById = {},
-  rincianPerSub = null, namaFile }) {
+// Susun berkas xlsx utuh (sudah berwarna + ber-outline), tapi TIDAK
+// mengunduhnya — dipakai unduhScreeningExcel() di browser dan test di Node.
+export function siapkanScreeningXlsx({ tahun, programs, rencanaById = {},
+  rincianPerSub = null }) {
   const aoa = [KEPALA];
   // `!rows` berbaris sejajar dengan aoa: indeks 0 = kepala (tanpa level),
   // sisanya ikut tingkat grouping-nya masing-masing.
   const rows = [{}];
+  // `warnaBaris` juga sejajar aoa: indeks xf ST.* sesuai jenis barisnya.
+  const warnaBaris = [ST.header];
   const tekan = n => "\u00A0".repeat(n * 3); // indentasi visual baris ringkas
   // OFFSET +1: SheetJS mengabaikan `level: 0` pada baris pertama (lihat
   // komentar fungsi), jadi tingkat diset mulai dari 1. Ringkasan grup
@@ -144,10 +311,12 @@ export function unduhScreeningExcel({ tahun, programs, rencanaById = {},
     // Baris Program — selalu tampil walau seluruh keturunannya dilipat.
     aoa.push(barisRingkas(tekan(0), p.kode, p.nama, p.totalPagu));
     rows.push({ level: LV_PROGRAM });
+    warnaBaris.push(ST.program);
 
     for (const k of p.kegiatan || []) {
       aoa.push(barisRingkas(tekan(1), k.kode, k.nama, k.totalPagu));
       rows.push({ level: LV_KEGIATAN });
+      warnaBaris.push(ST.kegiatan);
 
       for (const s of k.subkegiatan || []) {
         const rencana = Number(rencanaById[s.id]);
@@ -168,6 +337,7 @@ export function unduhScreeningExcel({ tahun, programs, rencanaById = {},
           angka(selisih),                 // 10 Selisih (angka; bisa negatif)
         ]);
         rows.push({ level: LV_SUB });
+        warnaBaris.push(ST.sub);
 
         // ── Rincian belanja sub kegiatan ini (opsional) ─────────────────────
         if (rincianPerSub) {
@@ -181,6 +351,7 @@ export function unduhScreeningExcel({ tahun, programs, rencanaById = {},
                 [7, angka(g.total)],                // Realisasi/Total kelompok
               ]));
               rows.push({ level: LV_KEPALA_RINCIAN });
+              warnaBaris.push(ST.kelompok);
             }
             for (const it of g.baris) {
               aoa.push(barisRincian(tekan(3), [
@@ -194,6 +365,7 @@ export function unduhScreeningExcel({ tahun, programs, rencanaById = {},
                 [8, it.catatan || ""],              // Status/Keterangan
               ]));
               rows.push({ level: LV_RINCIAN });
+              warnaBaris.push(0);                   // item: putih, tanpa gaya
             }
           }
         }
@@ -229,8 +401,23 @@ export function unduhScreeningExcel({ tahun, programs, rencanaById = {},
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Screening RKA");
+  // Tulis dulu tanpa gaya (SheetJS community membuang cell.s), lalu pasang
+  // warna lewat patch styles.xml + atribut s per sel.
+  const polos = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+  return pasangWarna(polos, warnaBaris);
+}
 
-  // Nama file: Screening-RKA-<tahun>.xlsx
+// Unduh ke file: Screening-RKA-<tahun>.xlsx. Hanya untuk browser (dipanggil
+// dari tombol Ekspor ScreeningRKA); test Node memakai siapkanScreeningXlsx.
+export function unduhScreeningExcel({ tahun, namaFile, ...sisanya }) {
+  const isi = siapkanScreeningXlsx({ tahun, ...sisanya });
   const file = namaFile || `Screening-RKA-${tahun ?? "tahun-ini"}.xlsx`;
-  XLSX.writeFile(wb, file, { bookType: "xlsx", cellStyles: true });
+  const blob = new Blob([isi],
+    { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = file;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
