@@ -203,8 +203,11 @@ export default function ScreeningRKA({ user, showToast }) {
   // Total rencana belanja & seluruh rincian per sub kegiatan diambil terpisah
   // (dua endpoint agregat per tahun) karena tidak ikut ada di pohon; tanpa
   // polling — cukup sekali saat tombol diklik, lalu dipakai menyusun file.
-  const { data: rencanaRes } = useRencanaTotal(tahun);
-  const { data: rincianRes } = useRincianTahun(tahun);
+  // Prefetch saat halaman dibuka — isinya hanya pememanasan cache; proses
+  // ekspor mengambil sendiri (lihat eksporExcel) supaya tidak pernah memakai
+  // data tahun lain yang masih tersimpan di react-query.
+  useRencanaTotal(tahun);
+  useRincianTahun(tahun);
   // Status sibuk tombol ekspor: lokal, karena fetch-nya dilakukan langsung
   // (bukan lewat react-query), jadi tidak ada isLoading yang bisa dipakai.
   const [sibukEkspor, setSibukEkspor] = useState(false);
@@ -217,12 +220,17 @@ export default function ScreeningRKA({ user, showToast }) {
     return body;
   };
 
-  // perSub dari server bisa kosong ({}) kalau tahun belum punya rincian —
-  // itu sah. Yang tidak sah: bukan object sama sekali (respons rusak).
-  const isiRincian = (perSub) => {
+  // perSub dari server bisa kosong ({}) kalau tahun memang belum punya
+  // rincian — itu sah. Yang tidak sah: bukan object sama sekali (respons
+  // rusak), atau tahunnya bukan tahun yang diminta (data tahun lain).
+  const cocokTahun = (body, thn) => {
+    const perSub = body?.perSub;
     if (perSub == null) return {};
     if (typeof perSub !== "object" || Array.isArray(perSub)) {
       throw new Error("Format data rincian tidak dikenali");
+    }
+    if (body.tahun != null && Number(body.tahun) !== Number(thn)) {
+      throw new Error(`Data rincian tahun ${body.tahun}, bukan ${thn}`);
     }
     return perSub;
   };
@@ -234,25 +242,25 @@ export default function ScreeningRKA({ user, showToast }) {
     }
     setSibukEkspor(true);
     try {
-      // refetch() pada query yang masih disabled (enabled: !!tahun) resolve
-      // tanpa data — kalau tahun baru saja berubah, data bisa kosong dan
-      // rincian hilang diam-diam dari file. Jadi pakai fetch() langsung,
-      // dijamin selalu mengembalikan isi respons.
+      // Selalu fetch segar berdasarkan `tahun` aktif, tanpa cache react-query.
+      // Guard lama (rincianRes?.perSub ? pakai cache : fetch) bermasalah saat
+      // tahun berganti: data react-query masih membawa tahun sebelumnya (atau
+      // cache yang belum terisi), sehingga ekspor diam-diam memakai data yang
+      // salah/kosong. fetch() + validasi tahun di bawah menjamin isi file
+      // selalu milik `tahun` yang dipilih.
       const [hasil, rincian] = await Promise.all([
-        rencanaRes?.total ? Promise.resolve(rencanaRes)
-          : fetch(`/api/screening/rencana-total?tahun=${encodeURIComponent(tahun)}`,
-              { credentials: "same-origin" }).then(cekRespons),
-        rincianRes?.perSub ? Promise.resolve(rincianRes)
-          : fetch(`/api/screening/rincian-tahun?tahun=${encodeURIComponent(tahun)}`,
-              { credentials: "same-origin" }).then(cekRespons),
+        fetch(`/api/screening/rencana-total?tahun=${encodeURIComponent(tahun)}`,
+          { credentials: "same-origin" }).then(cekRespons),
+        fetch(`/api/screening/rincian-tahun?tahun=${encodeURIComponent(tahun)}`,
+          { credentials: "same-origin" }).then(cekRespons),
       ]);
+      // perSub harus object berisi milik `tahun` yang sama; respons tahun
+      // lain = data salah, lempar error supaya bukan file kosong diam-diam.
       unduhScreeningExcel({
         tahun,
         programs,
         rencanaById: hasil?.total || {},
-        // rincianPerSub harus object berisi; {} membuat loop kosong tanpa
-        // pesan apa pun, jadi lempar error supaya pengguna tahu.
-        rincianPerSub: isiRincian(rincian?.perSub),
+        rincianPerSub: cocokTahun(rincian, tahun),
       });
       showToast("File Excel Screening RKA diunduh.");
     } catch (e) {
