@@ -5,14 +5,18 @@ import * as XLSX from "xlsx";
 import { jumlahItem } from "../../server/draft-rincian.js";
 
 // ── Ekspor Screening RKA ke Excel ───────────────────────────────────────────
-// Workbook berisi dua jenis sheet:
-//   1. sheet ringkas "Screening RKA" dengan grouping Excel (outline) supaya
+// Workbook berisi empat jenis sheet:
+//   1. sheet "Rekap" — ringkasan pagu per sub kegiatan (SUMIFS dari sheet
+//      Rincian + % terhadap total),  2. sheet "Rekap Rekening" — pivot kode
+//      rekening x sub kegiatan,  3. sheet "Rincian" — baris datar tiap item
+//      (koefisien x harga, PPN = 0) — ketiganya ala RKA_2027_BKAD_Rekap;
+//   4. sheet ringkas "Screening RKA" dengan grouping Excel (outline) supaya
 //      bisa dilipat-expand seperti accordion:
 //        level 1 → baris Program (ringkas, selalu tampil walau anak dilipat)
 //        level 2 → baris Kegiatan
 //        level 3 → baris Sub Kegiatan
 //        level 4 → baris rincian belanja (header kelompok + per item)
-//   2. satu sheet DETAIL per sub kegiatan — tab "<kode> <nama>" (maks 31
+//   5. satu sheet DETAIL per sub kegiatan — tab "<kode> <nama>" (maks 31
 //      karakter) berisi baris sub + seluruh rincian belanjanya, tiap
 //      kelompok bisa dilipat sendiri (kelompok level 2, item level 3);
 //      bisa dibuka/cetak per sub tanpa menggulir sheet panjang.
@@ -79,6 +83,10 @@ const labelStatus = s => ({
 const ST = { header: 1, program: 2, kegiatan: 3, sub: 4, kelompok: 5 };
 const ST_WRAP = { 0: 6, 1: 1, 2: 7, 3: 8, 4: 9, 5: 10 };
 const ST_UANG = { 0: 11, 1: 12, 2: 13, 3: 14, 4: 15, 5: 16 };
+// Varian persen (numFmt 10 = 0.00%): baris polos & baris total saja —
+// kepala kolom tetap memakai gaya basisnya supaya tidak ada sel putih di
+// tengah baris berwarna.
+const ST_PCT = { 0: 17, 5: 18 };
 // Kolom di-wrap (teks panjang): nama+indikator baris pohon, uraian +
 // spesifikasi + keterangan rincian, nama kelompok.
 const KOL_WRAP = {
@@ -129,7 +137,7 @@ const GAYA_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 </fills>
 <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="17">
+<cellXfs count="19">
 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
 <xf numFmtId="0" fontId="2" fillId="5" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
 <xf numFmtId="0" fontId="2" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
@@ -147,6 +155,8 @@ const GAYA_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <xf numFmtId="164" fontId="3" fillId="3" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1"/>
 <xf numFmtId="164" fontId="0" fillId="4" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1"/>
 <xf numFmtId="164" fontId="1" fillId="6" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1"/>
+<xf numFmtId="10" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
+<xf numFmtId="10" fontId="1" fillId="6" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1"/>
 </cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 <dxfs count="0"/>
@@ -261,18 +271,22 @@ const kolNomor = kol => {
 
 // Pasang gaya: ganti styles.xml + beri atribut s pada tiap sel SEMUA sheet
 // (workbook bisa berisi sheet ringkas + sheet detail per sub kegiatan).
-// `daftar` = [{ nama: "xl/worksheets/sheet1.xml", warnaBaris }, …],
-// warnaBaris sejajar aoa sheet bersangkutan (0 = baris item polos).
-// Sel rupiah & teks panjang dinaikkan ke varian uang/wrap sesuai kolomnya —
-// wrap dan uang tidak pernah menempel di sel yang sama (kolom teks vs
+// `daftar` = [{ nama: "xl/worksheets/sheet1.xml", warnaBaris, kolWrap?,
+//               kolUang?, kolPct? }, …] — warnaBaris sejajar aoa sheet
+// bersangkutan (0 = baris item polos); kolWrap/kolUang/kolPct menimpa
+// peta kolom bawaan KOL_WRAP/KOL_UANG untuk sheet yang bentuk kolomnya
+// beda (sheet Rekap/Rincian punya posisi kolom uang & persen sendiri).
+// Sel rupiah, persen & teks panjang dinaikkan ke varian sesuai kolomnya —
+// wrap/uang/pct tidak pernah menempel di sel yang sama (kolom teks vs
 // kolom angka), jadi pemilihannya if/else berurutan sudah cukup.
 function pasangWarna(biner, daftar) {
   const entri = bacaZip(biner);
-  const peta = new Map(daftar.map(d => [d.nama, d.warnaBaris]));
+  const peta = new Map(daftar.map(d => [d.nama, d]));
   let tertempel = 0;
   for (const e of entri) {
-    const warnaBaris = peta.get(e.nama);
-    if (!warnaBaris) continue;
+    const d = peta.get(e.nama);
+    if (!d) continue;
+    const warnaBaris = d.warnaBaris;
     const teks = new TextDecoder().decode(e.data);
     // <c r="A2" ...> → <c r="A2" s="n" ...> (atribut XML bebas urutan, aman
     // disisipkan tepat setelah r=".."). Bagian attr ditangkap apa adanya
@@ -282,8 +296,12 @@ function pasangWarna(biner, daftar) {
         (m, kol, bris, sisa, tutup) => {
           const basis = warnaBaris[Number(bris) - 1] || 0;
           const ci = kolNomor(kol);
-          const st = (KOL_WRAP[basis] || []).includes(ci) ? ST_WRAP[basis]
-            : (KOL_UANG[basis] || []).includes(ci) ? ST_UANG[basis]
+          const wrap = d.kolWrap || KOL_WRAP[basis] || [];
+          const uang = d.kolUang || KOL_UANG[basis] || [];
+          const pct = d.kolPct || [];
+          const st = wrap.includes(ci) ? ST_WRAP[basis]
+            : uang.includes(ci) ? ST_UANG[basis]
+            : pct.includes(ci) && ST_PCT[basis] != null ? ST_PCT[basis]
             : basis;
           return st ? `<c r="${kol}${bris}"${sisa} s="${st}"${tutup}>` : m;
         })
@@ -409,7 +427,9 @@ function namaSheet(unik, kandidat) {
 
 // Rakit satu worksheet: nilai + rumus (dengan nilai cache <v>), outline
 // accordion, lebar kolom. Dipakai sheet ringkas & sheet detail per sub.
-function susunSheet(aoa, rows, rumus) {
+// ops.opsional: { cols } menimpa lebar bawaan (sheet Rekap/Rincian punya
+// jumlah kolom berbeda), { autofilter } menambahkan filter otomatis.
+function susunSheet(aoa, rows, rumus, ops = {}) {
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   // Terapkan rumus: hanya sel angka finit yang diberi <f> — SheetJS ikut
   // menulis nilai cache <v>, jadi pembaca tanpa kalkulasi (pratinjau) tetap
@@ -425,7 +445,8 @@ function susunSheet(aoa, rows, rumus) {
   // Baris ringkas ada DI ATAS anak → summaryBelow=0 (key `above`, lihat
   // komentar fungsi); tanpanya tombol lipat meleset satu grup.
   ws["!outline"] = { above: true };
-  ws["!cols"] = LEBAR_KOL;
+  ws["!cols"] = ops.cols || LEBAR_KOL;
+  if (ops.autofilter) ws["!autofilter"] = ops.autofilter;
   return ws;
 }
 
@@ -516,6 +537,160 @@ function tulisSub(k, s, rencana, o) {
   return rSub;
 }
 
+// ── Tiga sheet ala RKA_2027_BKAD_Rekap ───────────────────────────────────
+// Kepala kolom tiap sheet — POSISI KOLOM dipakai rumus SUMIFS di bawah,
+// jadi ubah barengan dengan bangunTigaRekap().
+const KEPALA_RINCIAN = [
+  "No", "Kode Sub Kegiatan", "Sub Kegiatan", "Kode Rekening", "Sub Rincian",
+  "Uraian", "Spesifikasi", "Koefisien", "Satuan", "Harga Satuan (Rp)",
+  "PPN", "Total (Rp)",
+];
+const KEPALA_REKAP = [
+  "No", "Kode Sub Kegiatan", "Sub Kegiatan", "Kegiatan",
+  "Jumlah (Rp)", "% Terhadap Total",
+];
+const LEBAR_RINCIAN = [
+  { wch: 5 }, { wch: 16 }, { wch: 34 }, { wch: 20 }, { wch: 26 }, { wch: 36 },
+  { wch: 30 }, { wch: 10 }, { wch: 10 }, { wch: 17 }, { wch: 7 }, { wch: 17 },
+];
+const LEBAR_REKAP = [
+  { wch: 5 }, { wch: 16 }, { wch: 44 }, { wch: 46 }, { wch: 18 }, { wch: 12 },
+];
+
+// Susun tiga sheet rekap: "Rekap" (per sub kegiatan, % terhadap total),
+// "Rekap Rekening" (pivot kode rekening x sub kegiatan) dan "Rincian"
+// (baris datar koefisien x harga, PPN = 0 karena tidak ada field PPN di
+// data). `subs` = daftar sub urut { idx, kode, nama, keg, pagu, jmlRincian };
+// `datar` = seluruh baris rincian datar { subIdx, kodeSub, namaSub, it }.
+// Semua sel angka total memakai rumus (SUMIFS/ROUND/SUM) DAN nilai cache
+// yang dihitung ulang di JS — pratinjau tanpa kalkulasi tetap menampilkan
+// angka yang sama dengan Excel. Rumus SUMIFS menyasar sheet Rincian:
+// kolom L = Total, B = Kode Sub Kegiatan, D = Kode Rekening.
+function bangunTigaRekap(tahun, subs, datar) {
+  const akhir = datar.length + 1;          // baris terakhir data di Rincian
+  const rng = kol => `Rincian!$${kol}$2:$${kol}$${akhir}`;
+
+  // ── Sheet "Rincian" (dibangun dulu: jadi sumber SUMIFS kedua sheet) ──
+  const rAoa = [KEPALA_RINCIAN], rRows = [{}], rWarna = [ST.header], rRumus = {};
+  datar.forEach((d, i) => {
+    const { it } = d;
+    const vol = angka(it.volume), hrg = angka(it.harga_satuan);
+    const adaAngka = vol !== "" && hrg !== "";
+    rAoa.push([
+      i + 1, d.kodeSub, d.namaSub, it.kode_rekening || "",
+      it.kelompok_belanja || "", it.uraian ?? "", it.spesifikasi || "",
+      vol, it.satuan ?? "", hrg, 0,
+      adaAngka ? jumlahItem(it.volume, it.harga_satuan) : "",
+    ]);
+    rRows.push({});
+    rWarna.push(0);
+    if (adaAngka) {
+      const r = rAoa.length;
+      rRumus[`L${r}`] = `ROUND(H${r}*J${r}*(1+K${r}),0)`;
+    }
+  });
+
+  // Nilai cache SUMIFS: jumlah per sub & per (sub, kode rekening).
+  const perSub = subs.map(() => 0);
+  const perSel = new Map();
+  for (const d of datar) {
+    const { it } = d;
+    if (angka(it.volume) === "" || angka(it.harga_satuan) === "") continue;
+    const t = jumlahItem(it.volume, it.harga_satuan);
+    perSub[d.subIdx] += t;
+    const kunci = `${d.subIdx}|${it.kode_rekening || ""}`;
+    perSel.set(kunci, (perSel.get(kunci) || 0) + t);
+  }
+  // Sub tanpa rincian tetap menampilkan pagunya; rumus SUMIFS hanya
+  // dipasang bila baris rincian sub itu memang ada.
+  const nilai = subs.map((s, i) => (s.jmlRincian > 0 ? perSub[i] : angka(s.pagu)));
+  const totalNilai = nilai.reduce(
+    (a, v) => a + (Number.isFinite(Number(v)) ? Number(v) : 0), 0);
+
+  // ── Sheet "Rekap" ─────────────────────────────────────────────────────
+  const kAoa = [
+    [`REKAPITULASI RKA BELANJA TAHUN ANGGARAN ${tahun ?? ""}`.trim()],
+    ["Sumber: data Screening RKA aplikasi — Jumlah = SUMIFS sheet Rincian, PPN = 0"],
+    [],
+    KEPALA_REKAP,
+  ];
+  const kRows = [{}, {}, {}, {}];
+  const kWarna = [ST.kelompok, 0, 0, ST.header];
+  const kRumus = {};
+  const rTotal = 4 + subs.length + 1;       // nomor baris Total (1-based)
+  subs.forEach((s, i) => {
+    const r = kAoa.length + 1;
+    const v = nilai[i];
+    const persen = Number.isFinite(Number(v)) && totalNilai
+      ? Number(v) / totalNilai : 0;
+    kAoa.push([i + 1, s.kode, s.nama, s.keg, angka(v), persen]);
+    kRows.push({});
+    kWarna.push(0);
+    if (s.jmlRincian > 0)
+      kRumus[`E${r}`] = `SUMIFS(${rng("L")},${rng("B")},B${r})`;
+    kRumus[`F${r}`] = `IF($E$${rTotal}=0,0,E${r}/$E$${rTotal})`;
+  });
+  kAoa.push(["", "", "", "Total", totalNilai, totalNilai ? 1 : 0]);
+  kRows.push({});
+  kWarna.push(ST.kelompok);
+  if (subs.length) {
+    kRumus[`E${rTotal}`] = `SUM(E5:E${rTotal - 1})`;
+    kRumus[`F${rTotal}`] = `SUM(F5:F${rTotal - 1})`;
+  }
+
+  // ── Sheet "Rekap Rekening" (pivot: baris = kode rekening, kolom = sub) ──
+  const daftarRek = [], seenRek = new Set();
+  for (const d of datar) {
+    const k = d.it.kode_rekening || "";
+    if (k && !seenRek.has(k)) { seenRek.add(k); daftarRek.push(k); }
+  }
+  const oAoa = [
+    ["REKAP BELANJA PER KODE REKENING x SUB KEGIATAN"],
+    ["Setiap sel = SUMIFS dari sheet Rincian"],
+    [],
+    ["Kode Rekening", ...subs.map(s => s.kode)],
+    ["Sub Kegiatan", ...subs.map(s => s.nama)],
+  ];
+  const oRows = [{}, {}, {}, {}, {}];
+  const oWarna = [ST.kelompok, 0, 0, ST.header, ST.sub];
+  const oRumus = {};
+  daftarRek.forEach(kode => {
+    const r = oAoa.length + 1;
+    const baris = [kode];
+    subs.forEach((s, ci) => {
+      const kol = XLSX.utils.encode_col(ci + 1);
+      baris.push(perSel.get(`${s.idx}|${kode}`) || 0);
+      oRumus[`${kol}${r}`] =
+        `SUMIFS(${rng("L")},${rng("D")},$A${r},${rng("B")},${kol}$4)`;
+    });
+    oAoa.push(baris);
+    oRows.push({});
+    oWarna.push(0);
+  });
+  const rTotalO = oAoa.length + 1;
+  oAoa.push(["Total", ...subs.map((s, ci) => daftarRek.reduce(
+    (a, kode) => a + (perSel.get(`${s.idx}|${kode}`) || 0), 0))]);
+  oRows.push({});
+  oWarna.push(ST.kelompok);
+  if (daftarRek.length && subs.length)
+    subs.forEach((s, ci) => {
+      const kol = XLSX.utils.encode_col(ci + 1);
+      oRumus[`${kol}${rTotalO}`] = `SUM(${kol}6:${kol}${rTotalO - 1})`;
+    });
+
+  return [
+    { nama: "Rekap", aoa: kAoa, rows: kRows, warna: kWarna, rumus: kRumus,
+      kolUang: [4], kolPct: [5], ops: { cols: LEBAR_REKAP } },
+    { nama: "Rekap Rekening", aoa: oAoa, rows: oRows, warna: oWarna,
+      rumus: oRumus, kolUang: subs.map((_, i) => i + 1),
+      ops: { cols: [{ wch: 22 }, ...subs.map(() => ({ wch: 15 }))] } },
+    { nama: "Rincian", aoa: rAoa, rows: rRows, warna: rWarna, rumus: rRumus,
+      kolWrap: [2, 5, 6], kolUang: [9, 11],
+      ops: { cols: LEBAR_RINCIAN,
+        autofilter: rAoa.length > 1 ? { ref: `A1:L${rAoa.length}` } : undefined } },
+  ];
+}
+
 // Susun berkas xlsx utuh (sudah berwarna + ber-outline + ber-rumus), tapi
 // TIDAK mengunduhnya — dipakai unduhScreeningExcel() di browser dan test
 // di Node. Struktur workbook:
@@ -533,6 +708,23 @@ export function siapkanScreeningXlsx({ tahun, programs, rencanaById = {},
   // Rincian satu tingkat di bawah Sub Kegiatan supaya ikut terlipat
   // bersama sub kegiatan induknya.
   const LV_KEPALA_RINCIAN = 4, LV_RINCIAN = 4;
+
+  // ── Data datar untuk tiga sheet rekap ───────────────────────────────────
+  const subs = [], datar = [];
+  for (const p of programs || [])
+    for (const keg of p.kegiatan || [])
+      for (const s of keg.subkegiatan || []) {
+        const idx = subs.length;
+        const sub = { idx, id: s.id, kode: s.kode ?? "", nama: s.nama ?? "",
+          keg: `${keg.kode ?? ""} ${keg.nama ?? ""}`.trim(), pagu: s.pagu,
+          jmlRincian: 0 };
+        for (const g of kelompokRincian(rincianPerSub?.[s.id]))
+          for (const it of g.baris) {
+            datar.push({ subIdx: idx, kodeSub: sub.kode, namaSub: sub.nama, it });
+            sub.jmlRincian++;
+          }
+        subs.push(sub);
+      }
 
   // ── Sheet 1: ringkas accordion ──────────────────────────────────────────
   const aoa = [KEPALA];
@@ -580,16 +772,29 @@ export function siapkanScreeningXlsx({ tahun, programs, rencanaById = {},
   }
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, susunSheet(aoa, rows, rumus), "Screening RKA");
-  const daftarWarna = [{ nama: "xl/worksheets/sheet1.xml", warnaBaris }];
+  const daftarWarna = [];
+  let noSheet = 0;
+  // Urutan file sheetN.xml ikut urutan append (workbook.xml berurut).
+  // Hitung otomatis supaya nomor sheet & daftarWarna selalu selaras.
+  const tambahSheet = t => {
+    noSheet++;
+    XLSX.utils.book_append_sheet(
+      wb, susunSheet(t.aoa, t.rows, t.rumus, t.ops || {}), t.nama);
+    daftarWarna.push({ nama: `xl/worksheets/sheet${noSheet}.xml`,
+      warnaBaris: t.warna, kolWrap: t.kolWrap, kolUang: t.kolUang,
+      kolPct: t.kolPct });
+  };
+
+  // ── Tiga sheet rekap ala RKA_2027_BKAD_Rekap, di depan sheet screening ──
+  for (const t of bangunTigaRekap(tahun, subs, datar)) tambahSheet(t);
+
+  tambahSheet({ nama: "Screening RKA", aoa, rows, warna: warnaBaris, rumus });
 
   // ── Sheet detail: satu tab per sub kegiatan ─────────────────────────────
-  const unik = new Set(["Screening RKA"]);
-  let urut = 0;
+  const unik = new Set(["Rekap", "Rekap Rekening", "Rincian", "Screening RKA"]);
   for (const p of programs || [])
     for (const keg of p.kegiatan || [])
       for (const s of keg.subkegiatan || []) {
-        urut++;
         const dAoa = [KEPALA], dRows = [{}], dWarna = [ST.header];
         const dRumus = {};
         tulisSub({ aoa: dAoa, rows: dRows, warnaBaris: dWarna, rumus: dRumus,
@@ -598,12 +803,8 @@ export function siapkanScreeningXlsx({ tahun, programs, rencanaById = {},
             indentasi: tekan(0), indentasiRincian: tekan(1),
             lvSub: 1, lvKepala: 2, lvRincian: 3,
           });
-        daftarWarna.push({
-          nama: `xl/worksheets/sheet${urut + 1}.xml`,
-          warnaBaris: dWarna,
-        });
-        XLSX.utils.book_append_sheet(wb, susunSheet(dAoa, dRows, dRumus),
-          namaSheet(unik, `${s.kode ?? ""} ${s.nama ?? ""}`));
+        tambahSheet({ nama: namaSheet(unik, `${s.kode ?? ""} ${s.nama ?? ""}`),
+          aoa: dAoa, rows: dRows, warna: dWarna, rumus: dRumus });
       }
 
   // Tulis dulu tanpa gaya (SheetJS community membuang cell.s; cell.f TULIS
