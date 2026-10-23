@@ -203,30 +203,62 @@ export default function ScreeningRKA({ user, showToast }) {
   // Total rencana belanja & seluruh rincian per sub kegiatan diambil terpisah
   // (dua endpoint agregat per tahun) karena tidak ikut ada di pohon; tanpa
   // polling — cukup sekali saat tombol diklik, lalu dipakai menyusun file.
-  const { data: rencanaRes, refetch: refetchRencana, isFetching: sibukEkspor } =
-    useRencanaTotal(tahun);
-  const { data: rincianRes, refetch: refetchRincian } = useRincianTahun(tahun);
+  const { data: rencanaRes } = useRencanaTotal(tahun);
+  const { data: rincianRes } = useRincianTahun(tahun);
+  // Status sibuk tombol ekspor: lokal, karena fetch-nya dilakukan langsung
+  // (bukan lewat react-query), jadi tidak ada isLoading yang bisa dipakai.
+  const [sibukEkspor, setSibukEkspor] = useState(false);
+
+  // Ambil JSON dan lempar error berisi pesan server bila gagal — supaya
+  // kegagalan mengambil rincian tidak berujung file kosong tanpa keterangan.
+  const cekRespons = async (r) => {
+    const body = await r.json().catch(() => null);
+    if (!r.ok) throw new Error(body?.error || `Gagal mengambil data (${r.status})`);
+    return body;
+  };
+
+  // perSub dari server bisa kosong ({}) kalau tahun belum punya rincian —
+  // itu sah. Yang tidak sah: bukan object sama sekali (respons rusak).
+  const isiRincian = (perSub) => {
+    if (perSub == null) return {};
+    if (typeof perSub !== "object" || Array.isArray(perSub)) {
+      throw new Error("Format data rincian tidak dikenali");
+    }
+    return perSub;
+  };
 
   const eksporExcel = async () => {
     if (!tahun || !programs.length) {
       showToast("Belum ada data pohon untuk diekspor.");
       return;
     }
+    setSibukEkspor(true);
     try {
-      // Pakai cache bila sudah ada; kalau belum (baru buka halaman), ambil
-      // dulu supaya kolom "Total Rencana" & rincian terisi. refetch()
-      // react-query v5 resolve ke result yang datanya di .data (bukan {data}).
-      const hasil = rencanaRes ?? (await refetchRencana()).data;
-      const rincian = rincianRes ?? (await refetchRincian()).data;
+      // refetch() pada query yang masih disabled (enabled: !!tahun) resolve
+      // tanpa data — kalau tahun baru saja berubah, data bisa kosong dan
+      // rincian hilang diam-diam dari file. Jadi pakai fetch() langsung,
+      // dijamin selalu mengembalikan isi respons.
+      const [hasil, rincian] = await Promise.all([
+        rencanaRes?.total ? Promise.resolve(rencanaRes)
+          : fetch(`/api/screening/rencana-total?tahun=${encodeURIComponent(tahun)}`,
+              { credentials: "same-origin" }).then(cekRespons),
+        rincianRes?.perSub ? Promise.resolve(rincianRes)
+          : fetch(`/api/screening/rincian-tahun?tahun=${encodeURIComponent(tahun)}`,
+              { credentials: "same-origin" }).then(cekRespons),
+      ]);
       unduhScreeningExcel({
         tahun,
         programs,
         rencanaById: hasil?.total || {},
-        rincianPerSub: rincian?.perSub || {},
+        // rincianPerSub harus object berisi; {} membuat loop kosong tanpa
+        // pesan apa pun, jadi lempar error supaya pengguna tahu.
+        rincianPerSub: isiRincian(rincian?.perSub),
       });
       showToast("File Excel Screening RKA diunduh.");
     } catch (e) {
       showToast(`Gagal menyiapkan Excel: ${e.message}`);
+    } finally {
+      setSibukEkspor(false);
     }
   };
 
