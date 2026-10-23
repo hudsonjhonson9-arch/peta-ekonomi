@@ -5,12 +5,22 @@ import * as XLSX from "xlsx";
 import { jumlahItem } from "../../server/draft-rincian.js";
 
 // ── Ekspor Screening RKA ke Excel ───────────────────────────────────────────
-// Satu sheet "Screening RKA", satu baris per Sub Kegiatan, dengan grouping
-// Excel (outline) tiga tingkat supaya sheet bisa dilipat-expand seperti
-// accordion:
+// Satu sheet "Screening RKA" dengan grouping Excel (outline) supaya sheet
+// bisa dilipat-expand seperti accordion:
 //   level 1 → baris Program (ringkas, selalu tampil walau anak dilipat)
 //   level 2 → baris Kegiatan
 //   level 3 → baris Sub Kegiatan
+//   level 4 → baris rincian belanja (header kelompok + per item)
+//
+// ── SATU BLOK KOLOM untuk baris pohon dan baris rincian ────────────────────
+// Baris pohon mengisi kolom 0–10; baris rincian mengisi kolom 1–8 pada blok
+// YANG SAMA (kolom kembar: "Kode / Rekening", "Nama / Uraian", dst.).
+// Desain ini wajib: versi lama menaruh rincian di kolom K–S (jauh ke kanan),
+// padahal blok ringkas A–J selebar ±194 karakter (~1.350 px) — di layar
+// laptop baris rincian tampak KOSONG TOTAL sampai menggulir jauh ke kanan,
+// sehingga dikira tidak ikut tercetak. Dengan gabung, uraian–volume–harga
+// rincian langsung terlihat di layar pertama.
+//
 // Tingkat diset mulai dari 1 (bukan 0) karena SheetJS mengabaikan
 // `level: 0` pada baris pertama data — sudah diverifikasi di XML mentah
 // (outlineLevel="1"/"2" tertulis, tapi baris ber-level 0 hilang).
@@ -35,31 +45,37 @@ const labelStatus = s => ({
   draft: "Draft", menunggu: "Menunggu", disetujui: "Disetujui", ditolak: "Ditolak",
 }[s] || "Draft");
 
+// Satu blok 11 kolom untuk SEMUA jenis baris; nama kepala memakai pola
+// "pohon / rincian" supaya jelas isi tiap sisi. Posisi kolom:
+//   0 Level          indentasi (NBSP) — baris semua jenis
+//   1 Kode/Rekening  kode pohon | kode rekening rincian
+//   2 Nama/Uraian    nama pohon | uraian belanja | nama kelompok (header)
+//   3 Indikator/Spes indikator pohon | spesifikasi rincian
+//   4 Target/Volume  target pohon | volume rincian (angka)
+//   5 Satuan         hanya rincian
+//   6 Pagu/Harga     pagu (rupiah) | harga satuan (rupiah)
+//   7 Realisasi/Total realisasi (rupiah) | total item | total kelompok
+//   8 Status/Ket     status validasi | catatan rincian
+//   9 Total Rencana  total rencana sub (pohon saja)
+//  10 Selisih        rencana − pagu (pohon saja)
+const KEPALA = [
+  "Level", "Kode / Rekening", "Nama / Uraian", "Indikator / Spesifikasi",
+  "Target / Volume", "Satuan", "Pagu / Harga Satuan", "Realisasi / Total",
+  "Status / Keterangan", "Total Rencana", "Selisih Rencana − Pagu",
+];
+
 // Baris Program/Kegiatan diringkas jadi satu baris ringkas: teks kode+nama
 // duduk di kolom Kode & Nama (bukan di kolom Level yang sempit), kolom lain
 // dikosongkan supaya sheet tetap terbaca rapi saat dilipat. Kolom Pagu
-// tetap terisi sebagai ringkasan pagu grup.
+// tetap terisi sebagai ringkasan pagu grup; kolom rincian (1–5, 7–8) kosong
+// karena rincian milik sub kegiatan induknya.
 const barisRingkas = (indentasi, kode, nama, pagu) => [
-  indentasi,               // Level (spasi indentasi saja)
-  kode ?? "",              // Kode
-  nama ?? "",              // Nama
-  "", "",                  // Indikator, Target
-  angka(pagu),             // Pagu (ringkas grup)
-  "", "", "", "",          // Realisasi, Status, Total Rencana, Selisih
-  // Kolom rincian belanja sengaja kosong di baris ringkas — rincian milik
-  // sub kegiatan induknya, dicetak terpisah di barisnya sendiri.
-  "", "", "", "", "", "", "", "", "",
-];
-
-// Kolom ringkasan (kiri) — diisi di baris Program/Kegiatan/Sub Kegiatan.
-// Kolom rincian belanja (kanan) — hanya diisi di baris rincian milik satu
-// Sub Kegiatan, sehingga baris Program/Kegiatan/Sub Kegiatan tetap ringkas.
-const KEPALA = [
-  "Level", "Kode", "Nama", "Indikator", "Target",
-  "Pagu", "Realisasi", "Status", "Total Rencana", "Selisih Rencana − Pagu",
-  // Rincian belanja per sub kegiatan:
-  "Kelompok", "Rekening", "Uraian", "Spesifikasi",
-  "Volume", "Satuan", "Harga Satuan", "Total", "Keterangan",
+  indentasi,               // 0 Level (spasi indentasi saja)
+  kode ?? "",              // 1 Kode
+  nama ?? "",              // 2 Nama
+  "", "", "",              // 3 Indikator, 4 Target, 5 Satuan
+  angka(pagu),             // 6 Pagu (ringkas grup)
+  "", "", "", "",          // 7 Realisasi, 8 Status, 9 Total Rencana, 10 Selisih
 ];
 
 // Kelompok baris rincian ala SIPD: urut kemunculan pertama nama kelompok.
@@ -113,9 +129,10 @@ export function unduhScreeningExcel({ tahun, programs, rencanaById = {},
   // bersama sub kegiatan induknya.
   const LV_KEPALA_RINCIAN = 4, LV_RINCIAN = 4;
 
-  // Baris rincian: kolom ringkasan (0–9) dibiarkan kosong, kolom rincian
-  // (10–18) diisi sesuai posisinya di KEPALA — jangan pakai push, karena
-  // push akan menempel setelah kolom ringkasan dan menggeser semuanya.
+  // Baris rincian menempati blok kolom yang sama dengan baris pohon:
+  // kolom 0 (Level) diisi indentasi, sisanya dari daftar pasang [indeks, nilai]
+  // — jangan pakai push, karena push menempel setelah kolom terisi dan
+  // menggeser semuanya.
   const barisRincian = (indentasi, kolom) => {
     const baris = Array(KEPALA.length).fill("");
     baris[0] = indentasi;                    // Level (indentasi)
@@ -138,44 +155,43 @@ export function unduhScreeningExcel({ tahun, programs, rencanaById = {},
         const selisih = Number.isFinite(rencana) && pagu !== ""
           ? rencana - pagu : "";
         aoa.push([
-          tekan(2),                       // Level (indentasi)
-          s.kode ?? "",                   // Kode
-          s.nama ?? "",                   // Nama
-          s.indikator ?? "",              // Indikator
-          s.target ?? "",                 // Target
-          pagu,                           // Pagu (angka)
-          angka(s.realisasi),             // Realisasi (angka)
-          labelStatus(s.status_validasi), // Status
-          angka(rencana),                 // Total Rencana (angka)
-          angka(selisih),                 // Selisih (angka; bisa negatif)
-          // Kolom rincian kosong — diisi di baris rincian anaknya.
-          "", "", "", "", "", "", "", "", "",
+          tekan(2),                       // 0 Level (indentasi)
+          s.kode ?? "",                   // 1 Kode
+          s.nama ?? "",                   // 2 Nama
+          s.indikator ?? "",              // 3 Indikator
+          s.target ?? "",                 // 4 Target
+          "",                             // 5 Satuan (pohon tidak punya)
+          pagu,                           // 6 Pagu (angka)
+          angka(s.realisasi),             // 7 Realisasi (angka)
+          labelStatus(s.status_validasi), // 8 Status
+          angka(rencana),                 // 9 Total Rencana (angka)
+          angka(selisih),                 // 10 Selisih (angka; bisa negatif)
         ]);
         rows.push({ level: LV_SUB });
 
         // ── Rincian belanja sub kegiatan ini (opsional) ─────────────────────
         if (rincianPerSub) {
           for (const g of kelompokRincian(rincianPerSub[s.id])) {
-            // Header kelompok: nama + totalnya, kolom rincian lain kosong.
-            // Selalu memakai level rincian supaya ikut terlipat bersama
-            // sub kegiatan induknya, bukan berdiri sendiri di luar grup.
+            // Header kelompok: nama di kolom Nama/Uraian, totalnya di kolom
+            // Realisasi/Total. Selalu memakai level rincian supaya ikut
+            // terlipat bersama sub kegiatan induknya, bukan berdiri sendiri.
             if (g.nama) {
               aoa.push(barisRincian(tekan(3), [
-                [10, g.nama],                    // Kelompok
-                [17, angka(g.total)],            // Total kelompok
+                [2, g.nama],                        // Nama/Uraian = kelompok
+                [7, angka(g.total)],                // Realisasi/Total kelompok
               ]));
               rows.push({ level: LV_KEPALA_RINCIAN });
             }
             for (const it of g.baris) {
               aoa.push(barisRincian(tekan(3), [
-                [11, it.kode_rekening || ""],    // Rekening
-                [12, it.uraian ?? ""],           // Uraian
-                [13, it.spesifikasi || ""],      // Spesifikasi
-                [14, angka(it.volume)],          // Volume
-                [15, it.satuan ?? ""],           // Satuan
-                [16, angka(it.harga_satuan)],    // Harga Satuan
-                [17, angka(jumlahItem(it.volume, it.harga_satuan))], // Total
-                [18, it.catatan || ""],          // Keterangan
+                [1, it.kode_rekening || ""],        // Kode/Rekening
+                [2, it.uraian ?? ""],               // Nama/Uraian
+                [3, it.spesifikasi || ""],          // Indikator/Spesifikasi
+                [4, angka(it.volume)],              // Target/Volume
+                [5, it.satuan ?? ""],               // Satuan
+                [6, angka(it.harga_satuan)],        // Pagu/Harga Satuan
+                [7, angka(jumlahItem(it.volume, it.harga_satuan))], // Total
+                [8, it.catatan || ""],              // Status/Keterangan
               ]));
               rows.push({ level: LV_RINCIAN });
             }
@@ -195,27 +211,20 @@ export function unduhScreeningExcel({ tahun, programs, rencanaById = {},
   // dengan summaryBelow=0; tanpa ini default summaryBelow=1 membuat tombol
   // lipat meleset satu grup (lihat komentar fungsi di atas).
   ws["!outline"] = { above: true };
-  // Kolom: teks nama bisa panjang, biar tidak terpotong.
+  // Lebar kolom dijaga ramping supaya seluruh blok rincian (kolom B–I)
+  // muat di layar laptop tanpa gulir ke kanan.
   ws["!cols"] = [
-    { wch: 4 },   // Level
-    { wch: 14 },  // Kode
-    { wch: 46 },  // Nama
-    { wch: 34 },  // Indikator
-    { wch: 16 },  // Target
-    { wch: 16 },  // Pagu
-    { wch: 16 },  // Realisasi
-    { wch: 12 },  // Status
-    { wch: 16 },  // Total Rencana
-    { wch: 20 },  // Selisih
-    { wch: 20 },  // Kelompok
-    { wch: 14 },  // Rekening
-    { wch: 44 },  // Uraian
-    { wch: 24 },  // Spesifikasi
-    { wch: 10 },  // Volume
-    { wch: 10 },  // Satuan
-    { wch: 16 },  // Harga Satuan
-    { wch: 16 },  // Total
-    { wch: 26 },  // Keterangan
+    { wch: 4 },   // 0 Level
+    { wch: 16 },  // 1 Kode / Rekening
+    { wch: 42 },  // 2 Nama / Uraian
+    { wch: 26 },  // 3 Indikator / Spesifikasi
+    { wch: 15 },  // 4 Target / Volume
+    { wch: 9 },   // 5 Satuan
+    { wch: 17 },  // 6 Pagu / Harga Satuan
+    { wch: 17 },  // 7 Realisasi / Total
+    { wch: 22 },  // 8 Status / Keterangan
+    { wch: 16 },  // 9 Total Rencana
+    { wch: 18 },  // 10 Selisih
   ];
 
   const wb = XLSX.utils.book_new();
