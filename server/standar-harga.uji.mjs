@@ -100,6 +100,29 @@ uji('uraian kosong di-skip; semua gugur → ok:false', () => {
   assert.equal(typeof gugur.error, 'string');
 });
 
+// 5b. Jenis di luar ['SSH','SBU'] ditolak sebelum memproses baris.
+// 5c. Kunci merge = ID STANDAR HARGA: nama sama harga beda = item berbeda,
+//     keduanya dipertahankan; ID sama dipadatkan jadi satu (terakhir menang);
+//     baris tanpa ID dapat ID sintetis dari isi baris (tidak pernah menimpa).
+uji('merge per ID: nama kembar tak digabung; ID kembar dipadatkan', () => {
+  const r = validasiUpload(2027, 'SSH', [
+    { 'ID STANDAR HARGA': 'SH-1', 'URAIAN BARANG': 'Semen 50kg', 'HARGA SATUAN': '84300' },
+    { 'ID STANDAR HARGA': 'SH-2', 'URAIAN BARANG': 'Semen 50kg', 'HARGA SATUAN': '86200' },
+    { 'ID STANDAR HARGA': 'SH-1', 'URAIAN BARANG': 'Semen 50kg', 'HARGA SATUAN': '90000' },
+    { 'URAIAN BARANG': 'Paku', 'HARGA SATUAN': '3400' },
+    { 'URAIAN BARANG': 'Paku', 'HARGA SATUAN': '3400' },
+  ]);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const id = r.items.map((x) => x.id_standar_harga);
+  // SH-1 dua kali → satu, harga terakhir (90000) menang; SH-2 tetap ada.
+  assert.equal(id.filter((x) => x === 'SH-1').length, 1);
+  assert.equal(r.items.find((x) => x.id_standar_harga === 'SH-1').harga_satuan, 90000);
+  assert.ok(id.includes('SH-2'), 'item kembar beda ID tidak digabung/dihilangkan');
+  // Dua baris "Paku" identik tanpa ID → ID sintetis sama → dipadatkan jadi satu.
+  const lokal = r.items.filter((x) => String(x.id_standar_harga).startsWith('lokal:'));
+  assert.equal(lokal.length, 1, JSON.stringify(lokal));
+});
+
 // 5. Jenis di luar ['SSH','SBU'] ditolak sebelum memproses baris.
 uji('jenis tak dikenal / tahun kosong → ok:false', () => {
   const r = validasiUpload(2026, 'LAIN', [{ 'URAIAN BARANG': 'X', 'HARGA SATUAN': '1' }]);

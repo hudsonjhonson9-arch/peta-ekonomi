@@ -46,6 +46,18 @@ const KOLOM_TEKS = [
 // nilainya selalu diambil dari body, bukan dari baris.
 const KOLOM_ITEM = new Set([...KOLOM_TEKS, 'uraian_barang', 'harga_satuan']);
 
+// ID sintetis untuk baris tanpa ID STANDAR HARGA (input manual). Dihitung dari
+// isi baris, jadi identik selama isinya identik — dua baris identik memang satu
+// item (aman digabung), sedangkan dua baris beda isi dapat ID berbeda (tidak
+// pernah saling menimpa). Diberi awalan "lokal:" agar jelas bukan ID SIPD.
+import { createHash } from 'node:crypto';
+function idLokal(item) {
+  const isi = ['uraian_barang', 'spesifikasi', 'satuan', 'harga_satuan',
+    'kode_rekening', 'kode_barang', 'kode_kelompok']
+    .map((k) => String(item[k] ?? '')).join('\u0000');
+  return 'lokal:' + createHash('sha1').update(isi).digest('hex').slice(0, 16);
+}
+
 // rows: array baris — key header mentah (hasil parsing sheet) ATAU key berupa
 // nama kolom target (klien sudah memetakan). Keduanya divalidasi sama.
 // Baris tanpa uraian_barang ATAU dengan harga yang gagal dikoerce/<0 → dilewati.
@@ -70,11 +82,21 @@ export function validasiUpload(tahun, jenis, rows) {
     const harga = keHarga(item.harga_satuan);
     if (!Number.isFinite(harga) || harga < 0) continue;
     item.harga_satuan = harga;
-    for (const k of KOLOM_TEKS) if (item[k] == null) item[k] = null; // siap INSERT, kolom opsional → null
+    for (const k of KOLOM_TEKS) if (item[k] == null || item[k] === '') item[k] = null;
     items.push(item);
   }
   if (items.length === 0) return { ok: false, error: 'semua baris gugur' };
-  return { ok: true, items };
+  // Kunci merge = ID STANDAR HARGA. ID SIPD asli dipakai apa adanya; baris
+  // tanpa ID dapat ID sintetis dari isi baris supaya tetap ter-upload tanpa
+  // pernah menimpa baris lain. Duplikat ID dalam satu file: baris terakhir
+  // menang (export SIPD sering mengulang blok; ID sama = item sama) — tanpa
+  // ini ON CONFLICT gagal karena dua baris identik dalam satu batch INSERT.
+  const unik = new Map();
+  for (const it of items) {
+    unik.set(String(it.id_standar_harga ?? idLokal(it)), it);
+  }
+  for (const [id, it] of unik) it.id_standar_harga = id;
+  return { ok: true, items: [...unik.values()] };
 }
 
 // q: substring case-insensitive terhadap uraian_barang/spesifikasi/kode_barang.
