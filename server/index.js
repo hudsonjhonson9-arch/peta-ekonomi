@@ -3597,6 +3597,37 @@ app.get('/api/draft-rincian', async (req, res) => {
   }
 });
 
+// ── Semua rincian belanja satu tahun, dikelompokkan per sub kegiatan ───────
+// Dipakai tombol "Ekspor Excel" di Screening RKA supaya rincian tiap sub
+// kegiatan ikut terbawa tanpa N+1 panggilan /api/draft-rincian per sub.
+// Urutan baris mengikuti urutan, id — sama persis dengan tampilan di
+// DraftRincian, jadi grouping kelompok_belanja di Excel sama seperti di UI.
+app.get('/api/screening/rincian-tahun', async (req, res) => {
+  const tahun = parseInt(req.query.tahun, 10);
+  if (!tahun) return res.status(400).json({ error: 'tahun wajib' });
+  try {
+    const rows = await queryDB(
+      `SELECT r.*
+         FROM draft_rincian r
+         JOIN pks_subkegiatan s ON s.id = r.subkegiatan_id
+        WHERE s.tahun = $1
+        ORDER BY r.subkegiatan_id, r.urutan, r.id`,
+      [tahun]
+    );
+    // Dikelompokkan per sub: {subId: [item, ...]}. Baris tanpa rincian tidak
+    // muncul di kunci sama sekali — klien menganggapnya kosong.
+    const perSub = {};
+    for (const r of rows) {
+      const k = r.subkegiatan_id;
+      (perSub[k] ||= []).push(r);
+    }
+    res.json({ tahun, perSub, jumlah: rows.length });
+  } catch (err) {
+    console.error('Get rincian-tahun error:', err);
+    res.status(500).json({ error: 'Gagal mengambil rincian tahun' });
+  }
+});
+
 // POST → validasiItem; urutan = (max urutan)+1; created_by dari session.
 // Ditulis dalam kunci sub: cek "terkunci" dan INSERT satu transaksi.
 app.post('/api/draft-rincian', async (req, res) => {

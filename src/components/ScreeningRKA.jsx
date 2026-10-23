@@ -2,7 +2,7 @@ import { useState, useContext, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Icon, CariPilih, Modal } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
-import { api, usePksTree, usePksTahun, useStandarHarga, useKodeRekening, useDraftRincian, usePerubahan, useRencanaTotal } from "../hooks.js";
+import { api, usePksTree, usePksTahun, useStandarHarga, useKodeRekening, useDraftRincian, usePerubahan, useRencanaTotal, useRincianTahun } from "../hooks.js";
 import { canManageOutput } from "../data.js";
 import useResponsive from "../useResponsive.js";
 import { unduhScreeningExcel } from "./ScreeningRKAExcel.js";
@@ -200,11 +200,12 @@ export default function ScreeningRKA({ user, showToast }) {
   });
 
   // ── Ekspor Excel (accordion grouping Program/Kegiatan/Sub Kegiatan) ──────
-  // Total rencana belanja diambil terpisah (satu endpoint agregat per tahun)
-  // karena tidak ikut ada di pohon; tanpa polling — cukup sekali saat
-  // tombol diklik, lalu data dipakai untuk menyusun file.
+  // Total rencana belanja & seluruh rincian per sub kegiatan diambil terpisah
+  // (dua endpoint agregat per tahun) karena tidak ikut ada di pohon; tanpa
+  // polling — cukup sekali saat tombol diklik, lalu dipakai menyusun file.
   const { data: rencanaRes, refetch: refetchRencana, isFetching: sibukEkspor } =
     useRencanaTotal(tahun);
+  const { data: rincianRes, refetch: refetchRincian } = useRincianTahun(tahun);
 
   const eksporExcel = async () => {
     if (!tahun || !programs.length) {
@@ -213,10 +214,16 @@ export default function ScreeningRKA({ user, showToast }) {
     }
     try {
       // Pakai cache bila sudah ada; kalau belum (baru buka halaman), ambil
-      // dulu supaya kolom "Total Rencana" terisi. refetch() react-query v5
-      // resolve ke result yang datanya di .data (bukan {data}).
+      // dulu supaya kolom "Total Rencana" & rincian terisi. refetch()
+      // react-query v5 resolve ke result yang datanya di .data (bukan {data}).
       const hasil = rencanaRes ?? (await refetchRencana()).data;
-      unduhScreeningExcel({ tahun, programs, rencanaById: hasil?.total || {} });
+      const rincian = rincianRes ?? (await refetchRincian()).data;
+      unduhScreeningExcel({
+        tahun,
+        programs,
+        rencanaById: hasil?.total || {},
+        rincianPerSub: rincian?.perSub || {},
+      });
       showToast("File Excel Screening RKA diunduh.");
     } catch (e) {
       showToast(`Gagal menyiapkan Excel: ${e.message}`);

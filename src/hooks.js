@@ -227,3 +227,13 @@ export const useRencanaTotal = (tahun) => useQuery({
   enabled: !!tahun,
   staleTime: 30_000,
 });
+
+// ── Semua rincian belanja satu tahun, per sub kegiatan (untuk ekspor) ──────
+// Respons: {tahun, perSub: {subId: [item, ...]}, jumlah}. Tanpa polling —
+// hanya dipakai saat tombol ekspor diklik, jadi cukup sekali ambil.
+export const useRincianTahun = (tahun) => useQuery({
+  queryKey: ['rincian-tahun', tahun],
+  queryFn: () => api(`/api/screening/rincian-tahun?tahun=${encodeURIComponent(tahun)}`),
+  enabled: !!tahun,
+  staleTime: 30_000,
+});
