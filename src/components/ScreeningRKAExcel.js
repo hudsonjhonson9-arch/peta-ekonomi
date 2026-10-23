@@ -5,12 +5,17 @@ import * as XLSX from "xlsx";
 import { jumlahItem } from "../../server/draft-rincian.js";
 
 // ── Ekspor Screening RKA ke Excel ───────────────────────────────────────────
-// Satu sheet "Screening RKA" dengan grouping Excel (outline) supaya sheet
-// bisa dilipat-expand seperti accordion:
-//   level 1 → baris Program (ringkas, selalu tampil walau anak dilipat)
-//   level 2 → baris Kegiatan
-//   level 3 → baris Sub Kegiatan
-//   level 4 → baris rincian belanja (header kelompok + per item)
+// Workbook berisi dua jenis sheet:
+//   1. sheet ringkas "Screening RKA" dengan grouping Excel (outline) supaya
+//      bisa dilipat-expand seperti accordion:
+//        level 1 → baris Program (ringkas, selalu tampil walau anak dilipat)
+//        level 2 → baris Kegiatan
+//        level 3 → baris Sub Kegiatan
+//        level 4 → baris rincian belanja (header kelompok + per item)
+//   2. satu sheet DETAIL per sub kegiatan — tab "<kode> <nama>" (maks 31
+//      karakter) berisi baris sub + seluruh rincian belanjanya, tiap
+//      kelompok bisa dilipat sendiri (kelompok level 2, item level 3);
+//      bisa dibuka/cetak per sub tanpa menggulir sheet panjang.
 //
 // ── SATU BLOK KOLOM untuk baris pohon dan baris rincian ────────────────────
 // Baris pohon mengisi kolom 0–10; baris rincian mengisi kolom 1–8 pada blok
@@ -24,11 +29,22 @@ import { jumlahItem } from "../../server/draft-rincian.js";
 // ── WARNA BARIS per tingkat ────────────────────────────────────────────────
 // Program (navy), Kegiatan (biru sedang), Sub Kegiatan (biru muda), header
 // kelompok rincian (abu), baris item putih — hierarki terbaca sekilas.
+// Ditambah dua polesan pada selnya:
+//   • uang  → format Rp Indonesia numFmt 164 "[$Rp-421]#,##0" (negatif merah)
+//             untuk semua sel rupiah (pagu/harga/realisasi/total/rencana/
+//             selisih);
+//   • wrap  → wrapText + vertical top untuk teks panjang: nama & indikator
+//             baris Program/Kegiatan/Sub, uraian & spesifikasi rincian —
+//             teks panjang turun baris sendiri, baris ikut memanjang (auto
+//             height) sehingga rapi, tidak terpotong.
+// Sel total juga memakai RUMUS Excel (ROUND/SUM/jumlah sel anak) alih-alih
+// angka mati — nilai cache tetap ikut tertulis supaya pratinjau tanpa
+// kalkulasi menampilkan angka yang sama.
 // SheetJS community TIDAK menulis cell.s (fill/font) saat write — sudah
-// diverifikasi: fills.xml tetap default. Karena itu warna dipasang dengan
-// patch manual: tulis ulang xl/styles.xml (font+fill+xfs milik kita) dan
-// tambahkan atribut s="n" pada tiap sel di xl/worksheets/sheet1.xml, lalu
-// zip ulang semua entry (semua STORE/tanpa kompresi, jadi aman ditulis
+// diverifikasi: fills.xml tetap default. Karena itu gaya dipasang dengan
+// patch manual: tulis ulang xl/styles.xml (numFmt+font+fill+xfs milik kita)
+// dan tambahkan atribut s="n" pada tiap sel di xl/worksheets/sheet1.xml,
+// lalu zip ulang semua entry (semua STORE/tanpa kompresi, jadi aman ditulis
 // ulang tanpa zlib — penting: modul ini juga berjalan di browser).
 //
 // Tingkat diset mulai dari 1 (bukan 0) karena SheetJS mengabaikan
@@ -56,14 +72,46 @@ const labelStatus = s => ({
 }[s] || "Draft");
 
 // Indeks xf (cellXfs) di GAYA_XML — dipakai sebagai nilai atribut s="n".
+// Tiap jenis baris (kunci peta di bawah: 0 item, 1 header, 2 program,
+// 3 kegiatan, 4 sub, 5 kelompok) punya varian polos/wrap/uang. Wrap dan uang
+// tidak pernah menempel di sel yang sama (kolom teks vs kolom rupiah),
+// jadi cukup tiga varian per jenis — lihat KOL_WRAP/KOL_UANG.
 const ST = { header: 1, program: 2, kegiatan: 3, sub: 4, kelompok: 5 };
+const ST_WRAP = { 0: 6, 1: 1, 2: 7, 3: 8, 4: 9, 5: 10 };
+const ST_UANG = { 0: 11, 1: 12, 2: 13, 3: 14, 4: 15, 5: 16 };
+// Kolom di-wrap (teks panjang): nama+indikator baris pohon, uraian +
+// spesifikasi + keterangan rincian, nama kelompok.
+const KOL_WRAP = {
+  0: [2, 3, 8],       // item: uraian, spesifikasi, catatan
+  1: [],              // header tabel: tidak
+  2: [2],             // program: nama
+  3: [2],             // kegiatan: nama
+  4: [2, 3, 4, 8],    // sub: nama, indikator, target, status
+  5: [2],             // kelompok: nama
+};
+// Kolom berisi rupiah → format Rp numFmt 164.
+const KOL_UANG = {
+  0: [6, 7],              // item: harga satuan, total
+  1: [],
+  2: [6],                 // program: pagu (baris ringkas hanya pagu)
+  3: [6],                 // kegiatan: pagu
+  4: [6, 7, 9, 10],       // sub: pagu, realisasi, rencana, selisih
+  5: [7],                 // kelompok: total
+};
 
 // Stylesheet milik kita, MENGGANTIKAN styles.xml bawaan SheetJS (yang hanya
 // berisi default). Posisi fill & font harus selaras dengan ST di atas.
-// Urutan elemen mengikuti CT_Stylesheet: fonts → fills → borders →
+// Urutan elemen mengikuti CT_Stylesheet: numFmts → fonts → fills → borders →
 // cellStyleXfs → cellXfs → cellStyles → dxfs → tableStyles.
+// cellXfs (17 entri — urutannya adalah indeks s="n"):
+//   0–5   polos : default, header, program, kegiatan, sub, kelompok
+//   6–10  wrap  : item, program, kegiatan, sub, kelompok (header tak di-wrap)
+//   11–16 uang  : item, header, program, kegiatan, sub, kelompok
+// numFmt 164 = "[$Rp-421]#,##0" (rupiah + pemisah ribuan locale ID;
+// sisi negatif merah untuk kolom Selisih).
 const GAYA_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<numFmts count="1"><numFmt numFmtId="164" formatCode="[$Rp-421]#,##0;[Red]-[$Rp-421]#,##0"/></numFmts>
 <fonts count="4">
 <font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font>
 <font><b/><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font>
@@ -81,13 +129,24 @@ const GAYA_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 </fills>
 <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="6">
+<cellXfs count="17">
 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
 <xf numFmtId="0" fontId="2" fillId="5" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
 <xf numFmtId="0" fontId="2" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
 <xf numFmtId="0" fontId="3" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
 <xf numFmtId="0" fontId="0" fillId="4" borderId="0" xfId="0" applyFill="1"/>
 <xf numFmtId="0" fontId="1" fillId="6" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="2" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="3" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="0" fillId="4" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="1" fillId="6" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
+<xf numFmtId="164" fontId="2" fillId="5" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1"/>
+<xf numFmtId="164" fontId="2" fillId="2" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1"/>
+<xf numFmtId="164" fontId="3" fillId="3" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1"/>
+<xf numFmtId="164" fontId="0" fillId="4" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1"/>
+<xf numFmtId="164" fontId="1" fillId="6" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1"/>
 </cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 <dxfs count="0"/>
@@ -193,21 +252,46 @@ function tulisZip(entry) {
   return out;
 }
 
-// Pasang warna: ganti styles.xml + beri atribut s pada tiap sel sesuai
-// warnaBaris (sejajar aoa; 0 = tanpa gaya/kolom data putih).
-function pasangWarna(biner, warnaBaris) {
+// Indeks kolom huruf A, B, C… → 0, 1, 2… (untuk membaca r="A12").
+const kolNomor = kol => {
+  let n = 0;
+  for (let i = 0; i < kol.length; i++) n = n * 26 + (kol.charCodeAt(i) - 64);
+  return n - 1;
+};
+
+// Pasang gaya: ganti styles.xml + beri atribut s pada tiap sel SEMUA sheet
+// (workbook bisa berisi sheet ringkas + sheet detail per sub kegiatan).
+// `daftar` = [{ nama: "xl/worksheets/sheet1.xml", warnaBaris }, …],
+// warnaBaris sejajar aoa sheet bersangkutan (0 = baris item polos).
+// Sel rupiah & teks panjang dinaikkan ke varian uang/wrap sesuai kolomnya —
+// wrap dan uang tidak pernah menempel di sel yang sama (kolom teks vs
+// kolom angka), jadi pemilihannya if/else berurutan sudah cukup.
+function pasangWarna(biner, daftar) {
   const entri = bacaZip(biner);
-  const lembar = entri.find(e => e.nama === "xl/worksheets/sheet1.xml");
-  if (!lembar) throw new Error("Sheet1 tidak ditemukan di xlsx");
-  const teks = new TextDecoder().decode(lembar.data);
-  // <c r="A2" ...> → <c r="A2" s="n" ...> (atribut XML bebas urutan, aman
-  // disisipkan tepat setelah r="..").
-  lembar.data = new TextEncoder().encode(
-    teks.replace(/<c r="([A-Z]+)(\d+)"/g, (m, _kol, baris) => {
-      const st = warnaBaris[Number(baris) - 1];
-      return st ? `${m} s="${st}"` : m;
-    })
-  );
+  const peta = new Map(daftar.map(d => [d.nama, d.warnaBaris]));
+  let tertempel = 0;
+  for (const e of entri) {
+    const warnaBaris = peta.get(e.nama);
+    if (!warnaBaris) continue;
+    const teks = new TextDecoder().decode(e.data);
+    // <c r="A2" ...> → <c r="A2" s="n" ...> (atribut XML bebas urutan, aman
+    // disisipkan tepat setelah r=".."). Bagian attr ditangkap apa adanya
+    // supaya sel self-closing ("<c .../>") ikut tertambal rapi.
+    e.data = new TextEncoder().encode(
+      teks.replace(/<c r="([A-Z]+)(\d+)"([^>]*?)(\/?)>/g,
+        (m, kol, bris, sisa, tutup) => {
+          const basis = warnaBaris[Number(bris) - 1] || 0;
+          const ci = kolNomor(kol);
+          const st = (KOL_WRAP[basis] || []).includes(ci) ? ST_WRAP[basis]
+            : (KOL_UANG[basis] || []).includes(ci) ? ST_UANG[basis]
+            : basis;
+          return st ? `<c r="${kol}${bris}"${sisa} s="${st}"${tutup}>` : m;
+        })
+    );
+    tertempel++;
+  }
+  if (tertempel !== daftar.length)
+    throw new Error(`Sheet tidak ditemukan di xlsx: ${daftar.length - tertempel}`);
   const gaya = entri.find(e => e.nama === "xl/styles.xml");
   if (!gaya) throw new Error("styles.xml tidak ditemukan di xlsx");
   gaya.data = new TextEncoder().encode(GAYA_XML);
@@ -277,134 +361,256 @@ function kelompokRincian(items) {
   return grup;
 }
 
-// Susun berkas xlsx utuh (sudah berwarna + ber-outline), tapi TIDAK
-// mengunduhnya — dipakai unduhScreeningExcel() di browser dan test di Node.
+// Baris rincian menempati blok kolom yang sama dengan baris pohon:
+// kolom 0 (Level) diisi indentasi, sisanya dari daftar pasang [indeks, nilai]
+// — jangan pakai push, karena push menempel setelah kolom terisi dan
+// menggeser semuanya.
+const barisRincian = (indentasi, kolom) => {
+  const baris = Array(KEPALA.length).fill("");
+  baris[0] = indentasi;                    // Level (indentasi)
+  kolom.forEach(([i, v]) => { baris[i] = v; });
+  return baris;
+};
+
+// Lebar kolom dipakai semua sheet (ringkas & detail): seluruh blok rincian
+// (kolom B–I) muat di layar laptop tanpa gulir ke kanan.
+const LEBAR_KOL = [
+  { wch: 4 },   // 0 Level
+  { wch: 16 },  // 1 Kode / Rekening
+  { wch: 42 },  // 2 Nama / Uraian
+  { wch: 26 },  // 3 Indikator / Spesifikasi
+  { wch: 15 },  // 4 Target / Volume
+  { wch: 9 },   // 5 Satuan
+  { wch: 17 },  // 6 Pagu / Harga Satuan
+  { wch: 17 },  // 7 Realisasi / Total
+  { wch: 22 },  // 8 Status / Keterangan
+  { wch: 16 },  // 9 Total Rencana
+  { wch: 18 },  // 10 Selisih
+];
+
+// Nama tab sheet: "<kode> <nama>", maksimal 31 karakter (batas Excel),
+// karakter terlarang ( [ ] : * ? / \ ) diganti spasi, duplikat diberi
+// akhiran " (2)", " (3)", … supaya book_append_sheet tidak menolak.
+function namaSheet(unik, kandidat) {
+  let dasar = String(kandidat ?? "")
+    .replace(/[[\]:*?/\\]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 31)
+    .trim() || "Sub Kegiatan";
+  let nama = dasar, n = 2;
+  while (unik.has(nama)) {
+    const akhiran = ` (${n++})`;
+    nama = dasar.slice(0, 31 - akhiran.length).trimEnd() + akhiran;
+  }
+  unik.add(nama);
+  return nama;
+}
+
+// Rakit satu worksheet: nilai + rumus (dengan nilai cache <v>), outline
+// accordion, lebar kolom. Dipakai sheet ringkas & sheet detail per sub.
+function susunSheet(aoa, rows, rumus) {
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  // Terapkan rumus: hanya sel angka finit yang diberi <f> — SheetJS ikut
+  // menulis nilai cache <v>, jadi pembaca tanpa kalkulasi (pratinjau) tetap
+  // melihat angka yang sama; Excel menghitung ulang saat sel diedit.
+  for (const [ref, f] of Object.entries(rumus)) {
+    const sel = ws[ref];
+    if (sel && Number.isFinite(sel.v)) ws[ref] = { ...sel, f };
+  }
+  // INI kunci accordion: `!rows[i].level` ditulis sebagai atribut
+  // outlineLevel di XML sheet. Baris tanpa `level` (kepala kolom) selalu
+  // tampil; baris ber-level ikut terlipat saat tombol [-] ditekan.
+  ws["!rows"] = rows;
+  // Baris ringkas ada DI ATAS anak → summaryBelow=0 (key `above`, lihat
+  // komentar fungsi); tanpanya tombol lipat meleset satu grup.
+  ws["!outline"] = { above: true };
+  ws["!cols"] = LEBAR_KOL;
+  return ws;
+}
+
+// Tulis satu blok "baris sub kegiatan + rincian belanjanya" ke struktur
+// sheet (aoa/rows/warnaBaris/rumus pada konteks k). Dipakai dua kali:
+// sheet ringkas (level sub 3, rincian 4) dan sheet detail per sub kegiatan
+// (level sub 1, kelompok 2, item 3 — tiap kelompok bisa dilipat sendiri).
+// Mengembalikan nomor baris sub (Excel, 1-based) untuk rumus agregat induk.
+function tulisSub(k, s, rencana, o) {
+  const { aoa, rows, warnaBaris, rumus, rincianPerSub } = k;
+  const pagu = angka(s.pagu);
+  const selisih = Number.isFinite(rencana) && pagu !== ""
+    ? rencana - pagu : "";
+  aoa.push([
+    o.indentasi,                       // 0 Level (indentasi)
+    s.kode ?? "",                      // 1 Kode
+    s.nama ?? "",                      // 2 Nama
+    s.indikator ?? "",                 // 3 Indikator
+    s.target ?? "",                    // 4 Target
+    "",                                // 5 Satuan (pohon tidak punya)
+    pagu,                              // 6 Pagu (angka)
+    angka(s.realisasi),                // 7 Realisasi (angka)
+    labelStatus(s.status_validasi),    // 8 Status
+    angka(rencana),                    // 9 Total Rencana (angka)
+    angka(selisih),                    // 10 Selisih (angka; bisa negatif)
+  ]);
+  rows.push({ level: o.lvSub });
+  warnaBaris.push(ST.sub);
+  const rSub = aoa.length;
+
+  // ── Rincian belanja sub kegiatan ini (opsional) ─────────────────────────
+  const anak = [];            // sel total anak LANGSUNG sub (untuk rumus J)
+  let jumlahAnak = 0;         // jumlahnya — harus persis = rencana server
+  if (rincianPerSub) {
+    for (const g of kelompokRincian(rincianPerSub[s.id])) {
+      // Header kelompok: nama di kolom Nama/Uraian, totalnya di kolom
+      // Realisasi/Total.
+      if (g.nama) {
+        aoa.push(barisRincian(o.indentasiRincian, [
+          [2, g.nama],                        // Nama/Uraian = kelompok
+          [7, angka(g.total)],                // Realisasi/Total kelompok
+        ]));
+        rows.push({ level: o.lvKepala });
+        warnaBaris.push(ST.kelompok);
+      }
+      for (const it of g.baris) {
+        aoa.push(barisRincian(o.indentasiRincian, [
+          [1, it.kode_rekening || ""],        // Kode/Rekening
+          [2, it.uraian ?? ""],               // Nama/Uraian
+          [3, it.spesifikasi || ""],          // Indikator/Spesifikasi
+          [4, angka(it.volume)],              // Target/Volume
+          [5, it.satuan ?? ""],               // Satuan
+          [6, angka(it.harga_satuan)],        // Pagu/Harga Satuan
+          [7, angka(jumlahItem(it.volume, it.harga_satuan))], // Total
+          [8, it.catatan || ""],              // Status/Keterangan
+        ]));
+        const r = aoa.length;
+        rows.push({ level: o.lvRincian });
+        warnaBaris.push(0);                   // item: putih, tanpa gaya
+        // Rumus item: Total = ROUND(Volume × Harga Satuan, 0) — rumus yang
+        // sama dengan jumlahItem() di server. Volume/harga tidak angka →
+        // biarkan nilai mati seperti biasa.
+        if (angka(it.volume) !== "" && angka(it.harga_satuan) !== "")
+          rumus[`H${r}`] = `ROUND(E${r}*G${r},0)`;
+        // Item tanpa nama kelompok = anak langsung sub.
+        if (!g.nama) {
+          anak.push(`H${r}`);
+          const jml = jumlahItem(it.volume, it.harga_satuan);
+          if (Number.isFinite(jml)) jumlahAnak += jml; else jumlahAnak = NaN;
+        }
+      }
+      if (g.nama) {
+        const rKep = aoa.length - g.baris.length;
+        rumus[`H${rKep}`] = `SUM(H${rKep + 1}:H${aoa.length})`;
+        anak.push(`H${rKep}`);
+        if (Number.isFinite(g.total)) jumlahAnak += g.total;
+        else jumlahAnak = NaN;
+      }
+    }
+  }
+  // Rumus agregat sub — hanya dipasang bila hasilnya persis sama dengan
+  // nilai dari server; kalau beda, nilai server tetap dipakai seperti biasa.
+  if (anak.length && Number.isFinite(jumlahAnak) &&
+      Number.isFinite(rencana) && jumlahAnak === rencana)
+    rumus[`J${rSub}`] = anak.join("+");
+  if (Number.isFinite(rencana) && pagu !== "")
+    rumus[`K${rSub}`] = `J${rSub}-G${rSub}`;
+  return rSub;
+}
+
+// Susun berkas xlsx utuh (sudah berwarna + ber-outline + ber-rumus), tapi
+// TIDAK mengunduhnya — dipakai unduhScreeningExcel() di browser dan test
+// di Node. Struktur workbook:
+//   1. sheet "Screening RKA" — ringkas accordion Program → Kegiatan →
+//      Sub Kegiatan → rincian;
+//   2. satu sheet DETAIL per sub kegiatan (tab: "<kode> <nama>" maks 31
+//      karakter) berisi baris sub + seluruh rincian belanjanya — bisa
+//      dibuka/cetak per sub tanpa menggulir sheet panjang.
 export function siapkanScreeningXlsx({ tahun, programs, rencanaById = {},
   rincianPerSub = null }) {
-  const aoa = [KEPALA];
-  // `!rows` berbaris sejajar dengan aoa: indeks 0 = kepala (tanpa level),
-  // sisanya ikut tingkat grouping-nya masing-masing.
-  const rows = [{}];
-  // `warnaBaris` juga sejajar aoa: indeks xf ST.* sesuai jenis barisnya.
-  const warnaBaris = [ST.header];
   const tekan = n => "\u00A0".repeat(n * 3); // indentasi visual baris ringkas
-  // OFFSET +1: SheetJS mengabaikan `level: 0` pada baris pertama (lihat
-  // komentar fungsi), jadi tingkat diset mulai dari 1. Ringkasan grup
-  // memakai level terkecil (1) supaya selalu tampil walau anak dilipat.
+  // OFFSET +1: SheetJS mengabaikan `level: 0` pada baris pertama data
+  // (lihat komentar fungsi), jadi tingkat diset mulai dari 1.
   const LV_PROGRAM = 1, LV_KEGIATAN = 2, LV_SUB = 3;
-  // Rincian duduk satu tingkat di bawah Sub Kegiatan supaya ikut terlipat
+  // Rincian satu tingkat di bawah Sub Kegiatan supaya ikut terlipat
   // bersama sub kegiatan induknya.
   const LV_KEPALA_RINCIAN = 4, LV_RINCIAN = 4;
 
-  // Baris rincian menempati blok kolom yang sama dengan baris pohon:
-  // kolom 0 (Level) diisi indentasi, sisanya dari daftar pasang [indeks, nilai]
-  // — jangan pakai push, karena push menempel setelah kolom terisi dan
-  // menggeser semuanya.
-  const barisRincian = (indentasi, kolom) => {
-    const baris = Array(KEPALA.length).fill("");
-    baris[0] = indentasi;                    // Level (indentasi)
-    kolom.forEach(([i, v]) => { baris[i] = v; });
-    return baris;
-  };
+  // ── Sheet 1: ringkas accordion ──────────────────────────────────────────
+  const aoa = [KEPALA];
+  // `!rows` & `warnaBaris` berbaris sejajar aoa: indeks 0 = kepala kolom.
+  const rows = [{}];
+  const warnaBaris = [ST.header];
+  const rumus = {};
+  const k = { aoa, rows, warnaBaris, rumus, rincianPerSub };
 
   for (const p of programs || []) {
     // Baris Program — selalu tampil walau seluruh keturunannya dilipat.
     aoa.push(barisRingkas(tekan(0), p.kode, p.nama, p.totalPagu));
     rows.push({ level: LV_PROGRAM });
     warnaBaris.push(ST.program);
+    const rProgram = aoa.length;
+    const barisKeg = [];
 
-    for (const k of p.kegiatan || []) {
-      aoa.push(barisRingkas(tekan(1), k.kode, k.nama, k.totalPagu));
+    for (const keg of p.kegiatan || []) {
+      aoa.push(barisRingkas(tekan(1), keg.kode, keg.nama, keg.totalPagu));
       rows.push({ level: LV_KEGIATAN });
       warnaBaris.push(ST.kegiatan);
+      const rKegiatan = aoa.length;
+      const barisSub = [];
 
-      for (const s of k.subkegiatan || []) {
-        const rencana = Number(rencanaById[s.id]);
-        const pagu = angka(s.pagu);
-        const selisih = Number.isFinite(rencana) && pagu !== ""
-          ? rencana - pagu : "";
-        aoa.push([
-          tekan(2),                       // 0 Level (indentasi)
-          s.kode ?? "",                   // 1 Kode
-          s.nama ?? "",                   // 2 Nama
-          s.indikator ?? "",              // 3 Indikator
-          s.target ?? "",                 // 4 Target
-          "",                             // 5 Satuan (pohon tidak punya)
-          pagu,                           // 6 Pagu (angka)
-          angka(s.realisasi),             // 7 Realisasi (angka)
-          labelStatus(s.status_validasi), // 8 Status
-          angka(rencana),                 // 9 Total Rencana (angka)
-          angka(selisih),                 // 10 Selisih (angka; bisa negatif)
-        ]);
-        rows.push({ level: LV_SUB });
-        warnaBaris.push(ST.sub);
-
-        // ── Rincian belanja sub kegiatan ini (opsional) ─────────────────────
-        if (rincianPerSub) {
-          for (const g of kelompokRincian(rincianPerSub[s.id])) {
-            // Header kelompok: nama di kolom Nama/Uraian, totalnya di kolom
-            // Realisasi/Total. Selalu memakai level rincian supaya ikut
-            // terlipat bersama sub kegiatan induknya, bukan berdiri sendiri.
-            if (g.nama) {
-              aoa.push(barisRincian(tekan(3), [
-                [2, g.nama],                        // Nama/Uraian = kelompok
-                [7, angka(g.total)],                // Realisasi/Total kelompok
-              ]));
-              rows.push({ level: LV_KEPALA_RINCIAN });
-              warnaBaris.push(ST.kelompok);
-            }
-            for (const it of g.baris) {
-              aoa.push(barisRincian(tekan(3), [
-                [1, it.kode_rekening || ""],        // Kode/Rekening
-                [2, it.uraian ?? ""],               // Nama/Uraian
-                [3, it.spesifikasi || ""],          // Indikator/Spesifikasi
-                [4, angka(it.volume)],              // Target/Volume
-                [5, it.satuan ?? ""],               // Satuan
-                [6, angka(it.harga_satuan)],        // Pagu/Harga Satuan
-                [7, angka(jumlahItem(it.volume, it.harga_satuan))], // Total
-                [8, it.catatan || ""],              // Status/Keterangan
-              ]));
-              rows.push({ level: LV_RINCIAN });
-              warnaBaris.push(0);                   // item: putih, tanpa gaya
-            }
-          }
-        }
+      for (const s of keg.subkegiatan || []) {
+        barisSub.push(tulisSub(k, s, Number(rencanaById[s.id]), {
+          indentasi: tekan(2), indentasiRincian: tekan(3),
+          lvSub: LV_SUB, lvKepala: LV_KEPALA_RINCIAN, lvRincian: LV_RINCIAN,
+        }));
       }
+      // Pagu kegiatan = jumlah pagu sub → rumus bila nilainya cocok persis.
+      if (barisSub.length) {
+        const jml = barisSub.reduce((a, r) => a + (Number(aoa[r - 1][6]) || 0), 0);
+        if (Number.isFinite(keg.totalPagu) && keg.totalPagu === jml)
+          rumus[`G${rKegiatan}`] = barisSub.map(r => `G${r}`).join("+");
+      }
+      barisKeg.push(rKegiatan);
+    }
+    // Pagu program = jumlah pagu kegiatan → aturan yang sama.
+    if (barisKeg.length) {
+      const jml = barisKeg.reduce((a, r) => a + (Number(aoa[r - 1][6]) || 0), 0);
+      if (Number.isFinite(p.totalPagu) && p.totalPagu === jml)
+        rumus[`G${rProgram}`] = barisKeg.map(r => `G${r}`).join("+");
     }
   }
 
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  // INI kunci accordion: `!rows[i].level` ditulis sebagai atribut
-  // outlineLevel="1"/"2"/"3"/"4" di XML sheet. Baris tanpa `level` (kepala
-  // kolom) selalu tampil; baris ber-level ikut terlipat saat tombol [-] di
-  // grupnya ditekan.
-  ws["!rows"] = rows;
-  // Baris ringkas (Program/Kegiatan/Sub) ada DI ATAS anak → beritahu Excel
-  // dengan summaryBelow=0; tanpa ini default summaryBelow=1 membuat tombol
-  // lipat meleset satu grup (lihat komentar fungsi di atas).
-  ws["!outline"] = { above: true };
-  // Lebar kolom dijaga ramping supaya seluruh blok rincian (kolom B–I)
-  // muat di layar laptop tanpa gulir ke kanan.
-  ws["!cols"] = [
-    { wch: 4 },   // 0 Level
-    { wch: 16 },  // 1 Kode / Rekening
-    { wch: 42 },  // 2 Nama / Uraian
-    { wch: 26 },  // 3 Indikator / Spesifikasi
-    { wch: 15 },  // 4 Target / Volume
-    { wch: 9 },   // 5 Satuan
-    { wch: 17 },  // 6 Pagu / Harga Satuan
-    { wch: 17 },  // 7 Realisasi / Total
-    { wch: 22 },  // 8 Status / Keterangan
-    { wch: 16 },  // 9 Total Rencana
-    { wch: 18 },  // 10 Selisih
-  ];
-
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Screening RKA");
-  // Tulis dulu tanpa gaya (SheetJS community membuang cell.s), lalu pasang
-  // warna lewat patch styles.xml + atribut s per sel.
+  XLSX.utils.book_append_sheet(wb, susunSheet(aoa, rows, rumus), "Screening RKA");
+  const daftarWarna = [{ nama: "xl/worksheets/sheet1.xml", warnaBaris }];
+
+  // ── Sheet detail: satu tab per sub kegiatan ─────────────────────────────
+  const unik = new Set(["Screening RKA"]);
+  let urut = 0;
+  for (const p of programs || [])
+    for (const keg of p.kegiatan || [])
+      for (const s of keg.subkegiatan || []) {
+        urut++;
+        const dAoa = [KEPALA], dRows = [{}], dWarna = [ST.header];
+        const dRumus = {};
+        tulisSub({ aoa: dAoa, rows: dRows, warnaBaris: dWarna, rumus: dRumus,
+          rincianPerSub },
+          s, Number(rencanaById[s.id]), {
+            indentasi: tekan(0), indentasiRincian: tekan(1),
+            lvSub: 1, lvKepala: 2, lvRincian: 3,
+          });
+        daftarWarna.push({
+          nama: `xl/worksheets/sheet${urut + 1}.xml`,
+          warnaBaris: dWarna,
+        });
+        XLSX.utils.book_append_sheet(wb, susunSheet(dAoa, dRows, dRumus),
+          namaSheet(unik, `${s.kode ?? ""} ${s.nama ?? ""}`));
+      }
+
+  // Tulis dulu tanpa gaya (SheetJS community membuang cell.s; cell.f TULIS
+  // — rumus ikut keluar lengkap dengan nilai cache), lalu pasang gaya via
+  // patch styles.xml + atribut s per sel di setiap sheet.
   const polos = XLSX.write(wb, { type: "array", bookType: "xlsx" });
-  return pasangWarna(polos, warnaBaris);
+  return pasangWarna(polos, daftarWarna);
 }
 
 // Unduh ke file: Screening-RKA-<tahun>.xlsx. Hanya untuk browser (dipanggil
