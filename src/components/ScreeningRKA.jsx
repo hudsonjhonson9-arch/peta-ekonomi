@@ -2,9 +2,10 @@ import { useState, useContext, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Icon, CariPilih, Modal } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
-import { api, usePksTree, usePksTahun, useStandarHarga, useKodeRekening, useDraftRincian, usePerubahan } from "../hooks.js";
+import { api, usePksTree, usePksTahun, useStandarHarga, useKodeRekening, useDraftRincian, usePerubahan, useRencanaTotal } from "../hooks.js";
 import { canManageOutput } from "../data.js";
 import useResponsive from "../useResponsive.js";
+import { unduhScreeningExcel } from "./ScreeningRKAExcel.js";
 import { btn, FormPois, LEVELS, pesanError } from "./PksAdmin.jsx";
 
 // Format rupiah lokal — sengaja tidak dibagi ke data.js: hanya dipakai di sini
@@ -198,6 +199,30 @@ export default function ScreeningRKA({ user, showToast }) {
     };
   });
 
+  // ── Ekspor Excel (accordion grouping Program/Kegiatan/Sub Kegiatan) ──────
+  // Total rencana belanja diambil terpisah (satu endpoint agregat per tahun)
+  // karena tidak ikut ada di pohon; tanpa polling — cukup sekali saat
+  // tombol diklik, lalu data dipakai untuk menyusun file.
+  const { data: rencanaRes, refetch: refetchRencana, isFetching: sibukEkspor } =
+    useRencanaTotal(tahun);
+
+  const eksporExcel = async () => {
+    if (!tahun || !programs.length) {
+      showToast("Belum ada data pohon untuk diekspor.");
+      return;
+    }
+    try {
+      // Pakai cache bila sudah ada; kalau belum (baru buka halaman), ambil
+      // dulu supaya kolom "Total Rencana" terisi. refetch() react-query v5
+      // resolve ke result yang datanya di .data (bukan {data}).
+      const hasil = rencanaRes ?? (await refetchRencana()).data;
+      unduhScreeningExcel({ tahun, programs, rencanaById: hasil?.total || {} });
+      showToast("File Excel Screening RKA diunduh.");
+    } catch (e) {
+      showToast(`Gagal menyiapkan Excel: ${e.message}`);
+    }
+  };
+
   return (
     <div>
       <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12,
@@ -256,6 +281,19 @@ export default function ScreeningRKA({ user, showToast }) {
                   </span>
                 )}
               </div>
+            )}
+
+            {/* Ekspor Excel — terbuka untuk semua role (lihat-saja pun boleh
+                menarik laporan). Tampil hanya bila pohon sudah termuat. */}
+            {tahun != null && programs.length > 0 && (
+              <button
+                onClick={eksporExcel}
+                disabled={sibukEkspor}
+                style={btn(T, T.card, T.textSecondary, sibukEkspor, T.inputBorder)}
+              >
+                <Icon name="download" size={13} />
+                {sibukEkspor ? "Menyiapkan…" : "Ekspor Excel"}
+              </button>
             )}
           </div>
         </div>

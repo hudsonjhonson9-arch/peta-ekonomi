@@ -217,3 +217,13 @@ export function useKertasKerja(subkegiatanId) {
     refetchInterval: subkegiatanId ? POLLING : false,
   });
 }
+
+// ── Total rencana belanja per sub kegiatan (untuk ekspor Excel) ────────────
+// Respons: {tahun, total: {subId: number}}. Tanpa polling: hanya dipakai
+// saat tombol ekspor diklik, jadi cukup sekali ambil lalu pakai.
+export const useRencanaTotal = (tahun) => useQuery({
+  queryKey: ['rencana-total', tahun],
+  queryFn: () => api(`/api/screening/rencana-total?tahun=${encodeURIComponent(tahun)}`),
+  enabled: !!tahun,
+  staleTime: 30_000,
+});

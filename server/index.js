@@ -435,6 +435,9 @@ jalankanMigration('tahap_2', [
   // Tahap 12: longgarkan CHECK volume draft_rincian (> 0 → >= 0). ALTER-only,
   // tanpa fallback seperti tahap_11 supaya kegagalan terlihat di log.
   .then(() => jalankanMigration('tahap_12', ['draft_rincian'], true))
+  // Tahap 13: unique index (tahun, jenis, id_standar_harga) — ID STANDAR HARGA
+  // SIPD adalah kunci unik baris; dipakai ON CONFLICT saat upload standar harga.
+  .then(() => jalankanMigration('tahap_13', ['standar_harga'], true))
   .then(jalankanSeed);
 
 const queryDB = async (sql, params = []) => {
@@ -1777,6 +1780,34 @@ app.get('/api/pks/tree', async (req, res) => {
   } catch (err) {
     console.error('Get pks tree error:', err);
     res.status(500).json({ error: 'Gagal mengambil pohon PKS' });
+  }
+});
+
+// ── Total rencana belanja per sub kegiatan untuk satu tahun ───────────────
+// Dipakai tombol "Ekspor Excel" di Screening RKA: satu panggilan untuk semua
+// sub kegiatan, supaya klien tidak memanggil /api/draft-rincian per sub (N+1).
+// Total dihitung server memakai jumlahItem() yang sama dengan endpoint
+// per-sub, jadi angkanya identik dengan yang tampil di RingkasanPagu.
+app.get('/api/screening/rencana-total', async (req, res) => {
+  const tahun = parseInt(req.query.tahun, 10);
+  if (!tahun) return res.status(400).json({ error: 'tahun wajib' });
+  try {
+    const rows = await queryDB(
+      `SELECT r.subkegiatan_id,
+              SUM(ROUND(r.volume * r.harga_satuan)) AS total
+         FROM draft_rincian r
+         JOIN pks_subkegiatan s ON s.id = r.subkegiatan_id
+        WHERE s.tahun = $1
+        GROUP BY r.subkegiatan_id`,
+      [tahun]
+    );
+    // Objek lookup: {subId: total} — lebih ringkas daripada array untuk klien.
+    const total = {};
+    for (const r of rows) total[r.subkegiatan_id] = Number(r.total) || 0;
+    res.json({ tahun, total });
+  } catch (err) {
+    console.error('Get rencana-total error:', err);
+    res.status(500).json({ error: 'Gagal mengambil total rencana' });
   }
 });
 
@@ -3445,22 +3476,26 @@ app.post('/api/standar-harga/upload', async (req, res) => {
   const v = validasiUpload(tahun, jenis, items);
   if (!v.ok) return res.status(400).json({ error: v.error });
 
-  // Replace per tahun+jenis. Transaksi seperti pola buatOutputDanPeriode:
-  // tanpa itu kegagalan di tengah batch meninggalkan data setelah DELETE
-  // sudah terlanjur ter-commit — separuh data dan tidak bisa diulang sendiri.
+  // Kunci unik baris = ID STANDAR HARGA (SIPD). Upload bersifat MERGE, bukan
+  // replace: baris dengan ID belum ada disisipkan, ID sudah ada diperbarui, dan
+  // baris lama yang tidak ada di file TIDAK dihapus (nama sama dengan harga
+  // berbeda adalah data sah — dibedakan ID-nya, bukan digabung/ditimpa).
   const KOLOM = [
     'tahun', 'jenis', 'kode_kelompok', 'uraian_kelompok', 'id_standar_harga',
     'kode_barang', 'uraian_barang', 'spesifikasi', 'satuan', 'harga_satuan',
     'kode_rekening',
   ];
+  // Kolom diperbarui saat ID sudah ada — tahun/jenis sudah tercakup di klausa
+  // WHERE implisit ON CONFLICT, jadi tidak perlu diset ulang di SET.
+  const UPDATE_KOLOM = KOLOM.slice(2);
+  // ON CONFLICT menerima daftar kolom, atau ON CONSTRAINT <nama>. Nama index
+  // (standar_harga_id_unik) dibuat oleh migrasi tahap_13 di kolom yang sama,
+  // jadi target kolom di sini selalu menemukannya.
+  const KUNCI = ['tahun', 'jenis', 'id_standar_harga'];
   const client = await pool.connect();
+  let n = 0;
   try {
     await client.query('BEGIN');
-    await client.query(
-      'DELETE FROM standar_harga WHERE tahun = $1 AND jenis = $2',
-      [tahun, jenis]
-    );
-    let n = 0;
     for (let i = 0; i < v.items.length; i += 200) {
       const chunk = v.items.slice(i, i + 200);
       const ph = [], vals = [];
@@ -3470,14 +3505,18 @@ app.post('/api/standar-harga/upload', async (req, res) => {
         // tahun/jenis dari body (sudah divalidasi), bukan dari baris.
         vals.push(tahun, jenis, ...KOLOM.slice(2).map((c) => it[c] ?? null));
       });
+      // updated_at disentuh manual: ON CONFLICT tidak memicu DEFAULT.
       await client.query(
-        `INSERT INTO standar_harga (${KOLOM.join(', ')}) VALUES ${ph.join(',')}`,
+        `INSERT INTO standar_harga (${KOLOM.join(', ')}) VALUES ${ph.join(',')}
+         ON CONFLICT (${KUNCI.join(', ')}) DO UPDATE SET
+         ${UPDATE_KOLOM.map((c, k) => `${c} = EXCLUDED.${c}`).join(', ')},
+         updated_at = now()`,
         vals
       );
       n += chunk.length;
     }
     await client.query('COMMIT');
-    res.json({ ok: true, n });
+    res.json({ ok: true, n, mode: 'merge' });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('Upload standar-harga error:', err);
