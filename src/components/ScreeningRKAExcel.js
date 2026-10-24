@@ -5,7 +5,7 @@ import * as XLSX from "xlsx";
 import { jumlahItem } from "../../server/draft-rincian.js";
 
 // ── Ekspor Screening RKA ke Excel ───────────────────────────────────────────
-// Workbook berisi empat jenis sheet:
+// Workbook berisi lima jenis sheet:
 //   1. sheet "Rekap" — ringkasan pagu per sub kegiatan (SUMIFS dari sheet
 //      Rincian + % terhadap total),  2. sheet "Rekap Rekening" — pivot kode
 //      rekening x sub kegiatan,  3. sheet "Rincian" — baris datar tiap item
@@ -16,7 +16,11 @@ import { jumlahItem } from "../../server/draft-rincian.js";
 //        level 2 → baris Kegiatan
 //        level 3 → baris Sub Kegiatan
 //        level 4 → baris rincian belanja (header kelompok + per item)
-//   5. satu sheet DETAIL per sub kegiatan — tab "<kode> <nama>" (maks 31
+//   5. sheet "RKA Gabung" — dokumen cetak gaya SIPD (RKA-BELANJA SKPD):
+//      satu blok per sub kegiatan berurutan (kop surat, blok info, indikator,
+//      tabel akun berjenjang 5 → 5.1 → … → [ # ] kelompok → [ - ] spesifikasi
+//      → uraian+volume+harga, baris Jumlah, footer TAPD) — siap cetak;
+//   6. satu sheet DETAIL per sub kegiatan — tab "<kode> <nama>" (maks 31
 //      karakter) berisi baris sub + seluruh rincian belanjanya, tiap
 //      kelompok bisa dilipat sendiri (kelompok level 2, item level 3);
 //      bisa dibuka/cetak per sub tanpa menggulir sheet panjang.
@@ -81,14 +85,20 @@ const labelStatus = s => ({
 // tidak pernah menempel di sel yang sama (kolom teks vs kolom rupiah),
 // jadi cukup tiga varian per jenis — lihat KOL_WRAP/KOL_UANG.
 const ST = { header: 1, program: 2, kegiatan: 3, sub: 4, kelompok: 5 };
-const ST_WRAP = { 0: 6, 1: 1, 2: 7, 3: 8, 4: 9, 5: 10 };
-const ST_UANG = { 0: 11, 1: 12, 2: 13, 3: 14, 4: 15, 5: 16 };
+const ST_WRAP = { 0: 6, 1: 1, 2: 7, 3: 8, 4: 9, 5: 10, 6: 6, 7: 19 };
+const ST_UANG = { 0: 11, 1: 12, 2: 13, 3: 14, 4: 15, 5: 16, 6: 11, 7: 20 };
 // Varian persen (numFmt 10 = 0.00%): baris polos & baris total saja —
 // kepala kolom tetap memakai gaya basisnya supaya tidak ada sel putih di
 // tengah baris berwarna.
 const ST_PCT = { 0: 17, 5: 18 };
+// Fallback sel yang tidak kena wrap/uang/pct: baris polos sheet rekap
+// memakai basisnya langsung; baris basis 6 (uraian SIPD) & 7 (tebal SIPD)
+// diarahkan ke varian polosnya sendiri — tanpa peta ini, basis 6/7 akan
+// jatuh ke xf yang salah (wrap/uang baris rekap atau pct).
+const ST_PLAIN = { 6: 0, 7: 19 };
 // Kolom di-wrap (teks panjang): nama+indikator baris pohon, uraian +
-// spesifikasi + keterangan rincian, nama kelompok.
+// spesifikasi + keterangan rincian, nama kelompok; basis 6 = uraian
+// & [ - ] sheet RKA Gabung (kolom Uraian).
 const KOL_WRAP = {
   0: [2, 3, 8],       // item: uraian, spesifikasi, catatan
   1: [],              // header tabel: tidak
@@ -96,8 +106,11 @@ const KOL_WRAP = {
   3: [2],             // kegiatan: nama
   4: [2, 3, 4, 8],    // sub: nama, indikator, target, status
   5: [2],             // kelompok: nama
+  6: [2],             // uraian SIPD: Uraian
+  7: [],              // tebal SIPD: tidak (sudah tebal, wrap tidak perlu)
 };
-// Kolom berisi rupiah → format Rp numFmt 164.
+// Kolom berisi rupiah → format Rp numFmt 164; basis 6/7 = Harga & Jumlah
+// di sheet RKA Gabung (koefisien kolom G bukan rupiah — dibiarkan polos).
 const KOL_UANG = {
   0: [6, 7],              // item: harga satuan, total
   1: [],
@@ -105,16 +118,21 @@ const KOL_UANG = {
   3: [6],                 // kegiatan: pagu
   4: [6, 7, 9, 10],       // sub: pagu, realisasi, rencana, selisih
   5: [7],                 // kelompok: total
+  6: [9, 13],             // uraian SIPD: Harga, Jumlah
+  7: [13],                // tebal SIPD: subtotal akun / [ # ] / Jumlah
 };
 
 // Stylesheet milik kita, MENGGANTIKAN styles.xml bawaan SheetJS (yang hanya
 // berisi default). Posisi fill & font harus selaras dengan ST di atas.
 // Urutan elemen mengikuti CT_Stylesheet: numFmts → fonts → fills → borders →
 // cellStyleXfs → cellXfs → cellStyles → dxfs → tableStyles.
-// cellXfs (17 entri — urutannya adalah indeks s="n"):
+// cellXfs (21 entri — urutannya adalah indeks s="n"):
 //   0–5   polos : default, header, program, kegiatan, sub, kelompok
 //   6–10  wrap  : item, program, kegiatan, sub, kelompok (header tak di-wrap)
 //   11–16 uang  : item, header, program, kegiatan, sub, kelompok
+//   17–18 pct   : baris polos & kelompok (numFmt 10 = 0.00%) — sheet rekap
+//   19–20 tebal : polos & uang baris tebal sheet RKA Gabung (kop surat,
+//                 info ": …", akun berjenjang, [ # ] kelompok, Jumlah)
 // numFmt 164 = "[$Rp-421]#,##0" (rupiah + pemisah ribuan locale ID;
 // sisi negatif merah untuk kolom Selisih).
 const GAYA_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -137,7 +155,7 @@ const GAYA_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 </fills>
 <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="19">
+<cellXfs count="21">
 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
 <xf numFmtId="0" fontId="2" fillId="5" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
 <xf numFmtId="0" fontId="2" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
@@ -157,6 +175,8 @@ const GAYA_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <xf numFmtId="164" fontId="1" fillId="6" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1"/>
 <xf numFmtId="10" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
 <xf numFmtId="10" fontId="1" fillId="6" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1"/>
+<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+<xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1"/>
 </cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 <dxfs count="0"/>
@@ -302,7 +322,7 @@ function pasangWarna(biner, daftar) {
           const st = wrap.includes(ci) ? ST_WRAP[basis]
             : uang.includes(ci) ? ST_UANG[basis]
             : pct.includes(ci) && ST_PCT[basis] != null ? ST_PCT[basis]
-            : basis;
+            : (ST_PLAIN[basis] ?? basis);
           return st ? `<c r="${kol}${bris}"${sisa} s="${st}"${tutup}>` : m;
         })
     );
@@ -537,6 +557,240 @@ function tulisSub(k, s, rencana, o) {
   return rSub;
 }
 
+// ── Sheet "RKA Gabung": dokumen cetak gaya SIPD (RKA-BELANJA SKPD) ──────────
+// Satu blok per sub kegiatan berurutan — meniru ekspor resmi SIPD: kop surat,
+// blok info, indikator, tabel akun berjenjang (5 → 5.1 → … → akun → [ # ]
+// kelompok → [ - ] spesifikasi → baris uraian+volume+harga), baris Jumlah,
+// footer TAPD. Posisi kolom meniru file contoh SIPD (A..N); field yang tidak
+// ada di data aplikasi diisi "-" persis seperti praktik ekspor SIPD.
+const LEBAR_SIPD = [
+  { wch: 20 },  // 0 Kode Rekening
+  { wch: 1.5 }, // 1
+  { wch: 40 },  // 2 Uraian
+  { wch: 46 },  // 3 nilai label info (": …")
+  { wch: 1.5 }, // 4
+  { wch: 1.5 }, // 5
+  { wch: 10 },  // 6 Koefisien
+  { wch: 10 },  // 7 Satuan
+  { wch: 1.5 }, // 8
+  { wch: 16 },  // 9 Harga
+  { wch: 1.5 }, // 10
+  { wch: 6 },   // 11 PPN
+  { wch: 1.5 }, // 12
+  { wch: 18 },  // 13 Jumlah
+];
+
+// Nama akun umum (Perka BPK 2016, lazim dipakai di SIPD) — akun yang lebih
+// dalam dibiarkan berkode saja karena namanya mengikuti Perda masing-masing.
+const NAMA_AKUN = {
+  "5": "BELANJA DAERAH",
+  "5.1": "BELANJA OPERASI",
+  "5.2": "BELANJA PEMBIAYAAN",
+  "5.3": "BELANJA TIDAK TERDUGA",
+  "5.1.01": "Belanja Pegawai",
+  "5.1.02": "Belanja Barang dan Jasa",
+  "5.1.03": "Belanja Modal",
+};
+
+// Rakit sheet RKA Gabung utuh (aoa/rows/warnaBaris/rumus) — dipakai
+// siapkanScreeningXlsx() dan test Node.
+function tulisSheetSipd({ tahun, programs, rincianPerSub }) {
+  const aoa = [], rows = [], warnaBaris = [], rumus = {};
+  const kolom = isi => {                     // 14 kolom (A–N)
+    const b = Array(LEBAR_SIPD.length).fill("");
+    isi.forEach(([i, v]) => { b[i] = v; });
+    return b;
+  };
+  const push = (baris, lv, basis) => {
+    aoa.push(baris);
+    rows.push(lv ? { level: lv } : {});
+    warnaBaris.push(basis);
+    return aoa.length;                       // nomor baris Excel (1-based)
+  };
+  const P = 0, W = 6, B = 7;                // basis: polos | uraian SIPD | tebal
+  // Baris info "Label : nilai" (tebal, gaya SIPD); null/undefined → "-".
+  const info = (label, nilai) =>
+    push(kolom([[0, label], [3, nilai == null ? "-" : `: ${nilai}`]]), 0, B);
+
+  // Isi tabel rincian satu sub: hierarki akun dari prefix kode_rekening.
+  const tulisIsi = items => {
+    const urut = [...items].sort((a, b) =>
+      String(a.kode_rekening || "").localeCompare(String(b.kode_rekening || ""), "id"));
+    // Kelompokkan per kode akun — sort stabil menjaga urutan asli di dalam
+    // akun yang sama.
+    const petaAkun = new Map();
+    const daftarAkun = [];
+    for (const it of urut) {
+      const kode = String(it.kode_rekening || "").trim();
+      let a = petaAkun.get(kode);
+      if (!a) { a = { kode, baris: [] }; petaAkun.set(kode, a); daftarAkun.push(a); }
+      a.baris.push(it);
+    }
+    // Baris akun terbuka per kedalaman — prefix sama antar akun berturutan
+    // tidak ditulis ulang; yang keluar hanya akun/prefix yang belum tampil.
+    const tumpukan = [];                     // { pref, ref13, anak: [] }
+    const semuaAkun = [];
+    const akarAnak = [];                     // ref akun tingkat-0 → "Jumlah :"
+    for (const a of daftarAkun) {
+      const seg = a.kode ? a.kode.split(".") : [];
+      if (!seg.length) tumpukan.length = 0;  // kode kosong: buang akun lama
+      for (let d = 0; d < seg.length; d++) {
+        const pref = seg.slice(0, d + 1).join(".");
+        if (tumpukan[d] && tumpukan[d].pref === pref) continue; // sudah keluar
+        tumpukan.length = d;                 // buang tingkat yang lebih dalam
+        const r = push(kolom([[0, pref], [2, NAMA_AKUN[pref] || ""], [13, 0]]), 1, B);
+        const entri = { pref, ref13: `N${r}`, anak: [], nilai: 0 };
+        if (d === 0) akarAnak.push(entri.ref13);
+        else tumpukan[d - 1].anak.push(entri.ref13);
+        tumpukan[d] = entri;
+        semuaAkun.push(entri);
+      }
+      // [ # ] kelompok: satu baris membawahi item kelompok yang berurutan
+      // (persis pola file contoh SIPD) — ditutup saat kelompok berubah /
+      // akun berganti; kolom Jumlah [ # ] = jumlah total item di bawahnya.
+      let namaKepBuka = null, rKepBuka = 0, anakKep = [], totalKep = 0;
+      const tutupKepala = () => {
+        if (rKepBuka) {
+          if (anakKep.length) rumus[`N${rKepBuka}`] = anakKep.join("+");
+          aoa[rKepBuka - 1][13] = angka(totalKep);
+        }
+        namaKepBuka = null; rKepBuka = 0; anakKep = []; totalKep = 0;
+      };
+      for (const it of a.baris) {
+        const v = angka(jumlahItem(it.volume, it.harga_satuan));
+        const kelompok = (it.kelompok_belanja || "").trim();
+        const spesifikasi = (it.spesifikasi || "").trim();
+        if (kelompok !== namaKepBuka) {
+          tutupKepala();
+          if (kelompok) {
+            rKepBuka = push(kolom([[2, `[ # ] ${kelompok}`], [13, ""]]), 2, B);
+            namaKepBuka = kelompok;
+          }
+        }
+        let rMin = 0;
+        if (spesifikasi)
+          rMin = push(kolom([[2, `[ - ] ${spesifikasi}`], [13, v]]), 3, W);
+        const rLeaf = push(kolom([
+          [2, it.uraian ?? ""],
+          [6, angka(it.volume)],
+          [7, it.satuan ?? ""],
+          [9, angka(it.harga_satuan)],
+          [11, 0],                            // PPN selalu 0
+          [13, v],
+        ]), 4, W);
+        // Rumus: leaf = ROUND(Koefisien × Harga, 0) — sama dengan jumlahItem()
+        // di server; [ - ] menunjuk leaf (nilainya memang sama, persis seperti
+        // pola file contoh SIPD).
+        if (angka(it.volume) !== "" && angka(it.harga_satuan) !== "")
+          rumus[`N${rLeaf}`] = `ROUND(G${rLeaf}*J${rLeaf},0)`;
+        if (rMin) rumus[`N${rMin}`] = `N${rLeaf}`;
+        if (rKepBuka) {
+          anakKep.push(`N${rLeaf}`);
+          totalKep = Number.isFinite(v) ? totalKep + v : NaN;
+        }
+        const induk = seg.length ? tumpukan[seg.length - 1] : null;
+        if (induk) induk.anak.push(`N${rLeaf}`);
+        else akarAnak.push(`N${rLeaf}`);      // kode rekening kosong
+        // Nilai leaf menyebar ke seluruh rantai prefix yang sedang terbuka
+        // (semua tingkat di atasnya) — bukan lewat propagasi antar akun,
+        // karena prefix bisa dilewati (skip) oleh akun berikutnya dan nilai
+        // ganda akan terakumulasi dua kali bila diteruskan per akun.
+        for (let d = 0; d < seg.length; d++)
+          tumpukan[d].nilai = Number.isFinite(v)
+            ? tumpukan[d].nilai + v : NaN;
+      }
+      tutupKepala();
+    }
+    // Subtotal tiap baris akun = jumlah sel anaknya. Join eksplisit (bukan
+    // SUM rentang) karena tiap item duduk di 2–3 baris yang kolom Jumlahnya
+    // tidak kontigu (baris [ # ] / [ - ] ikut punya nilai). Nilai statis
+    // ikut dipatch supaya rumus lolos guard finit di susunSheet dan nilai
+    // cache <v> tampil benar tanpa kalkulasi ulang.
+    for (const a of semuaAkun) {
+      if (!a.anak.length) continue;
+      rumus[a.ref13] = a.anak.join("+");
+      aoa[Number(a.ref13.slice(1)) - 1][13] = angka(a.nilai);
+    }
+    let jml = 0;
+    for (const it of items) {
+      const x = jumlahItem(it.volume, it.harga_satuan);
+      jml = Number.isFinite(x) ? jml + x : NaN;
+    }
+    const rJumlah = push(kolom([[0, "Jumlah :"], [13, angka(jml)]]), 0, B);
+    if (akarAnak.length) rumus[`N${rJumlah}`] = akarAnak.join("+");
+  };
+
+  let pertama = true;
+  for (const p of programs || [])
+    for (const keg of p.kegiatan || [])
+      for (const s of keg.subkegiatan || []) {
+        if (!pertama) push(kolom([]), 0, P);  // baris pemisah antar blok
+        pertama = false;
+        // ── Kop surat ──
+        push(kolom([[0, "RENCANA KERJA DAN ANGGARAN SATUAN KERJA PERANGKAT DAERAH"],
+          [10, "Formulir RKA-BELANJA SKPD"]]), 0, B);
+        push(kolom([[0,
+          `Pemerintahan Kab. Sumba Barat Tahun Anggaran ${tahun ?? ""}`.trim()]]), 0, B);
+        push(kolom([]), 0, P);
+        push(kolom([[0, "Rincian Anggaran Belanja Menurut Program, Kegiatan dan Sub Kegiatan"]]), 0, B);
+        // ── Blok info ──
+        info("Urusan Pemerintahan", "-");
+        info("Bidang Urusan", "-");
+        info("Unit Organisasi", "-");
+        info("Sub Unit Organisasi", "-");
+        info("Program", `${p.kode ?? ""} ${p.nama ?? ""}`.trim());
+        info("Kegiatan", `${keg.kode ?? ""} ${keg.nama ?? ""}`.trim());
+        info("Sub Kegiatan", `${s.kode ?? ""} ${s.nama ?? ""}`.trim());
+        info("SPM", "-");
+        info("Jenis Layanan", "-");
+        info("Sumber Pendanaan", "-");
+        info("Lokasi", "-");
+        info("Waktu Pelaksanaan", "-");
+        info("Kelompok Sasaran", "-");
+        push(kolom([[0, "Alokasi 2026"], [3, ":"]]), 0, B);
+        push(kolom([[0, "Alokasi 2027"], [3, ":"], [13, angka(s.pagu)]]), 0, B);
+        push(kolom([[0, "Alokasi 2028"], [3, ":"]]), 0, B);
+        push(kolom([]), 0, P);
+        // ── Indikator & tolok ukur ──
+        push(kolom([[0, "Indikator dan Tolak Ukur Kinerja Kegiatan"]]), 0, B);
+        push(kolom([[0, "Indikator"], [3, "Tolok Ukur Kinerja"], [13, "Target Kinerja"]]), 0, 5);
+        push(kolom([[0, "Capaian Program"], [3, "-"], [13, "-"]]), 0, P);
+        push(kolom([[0, "Masukan"], [3, "Dana yang dibutuhkan"], [13, angka(s.pagu)]]), 0, B);
+        push(kolom([[0, "Keluaran"], [3, s.indikator || "-"], [13, s.target || "-"]]), 0, P);
+        push(kolom([[0, "Hasil"], [3, "-"], [13, "-"]]), 0, P);
+        push(kolom([]), 0, P);
+        // ── Kepala tabel rincian ──
+        push(kolom([[0, "Rincian Anggaran Belanja Kegiatan Satuan Kerja"]]), 0, B);
+        info("Sub Kegiatan", `${s.kode ?? ""} ${s.nama ?? ""}`.trim());
+        info("Sumber Pendanaan", "-");
+        info("Lokasi", "-");
+        info("Keluaran Sub Kegiatan", s.indikator || "-");
+        info("Waktu Pelaksanaan", "-");
+        info("Keterangan", "");
+        push(kolom([[0, "Kode Rekening"], [2, "Uraian"],
+          [6, "Rinci Perhitungan"], [13, "Jumlah"]]), 0, 5);
+        push(kolom([[6, "Koefisien"], [7, "Satuan"], [9, "Harga"], [11, "PPN"]]), 0, 5);
+        // ── Isi rincian berjenjang akun + baris "Jumlah :" ──
+        tulisIsi(rincianPerSub?.[s.id] || []);
+        // ── Footer TAPD ──
+        push(kolom([]), 0, P);
+        push(kolom([[7, "Kab. Sumba Barat,............................."]]), 0, P);
+        push(kolom([]), 0, P);
+        push(kolom([[0, "Pembahasan"], [3, ":"]]), 0, B);
+        push(kolom([[0, "Tanggal"], [3, ":"]]), 0, B);
+        push(kolom([[0, "Catatan"], [3, ":"]]), 0, B);
+        push(kolom([[0, "1"]]), 0, P);
+        push(kolom([[0, "2"]]), 0, P);
+        push(kolom([[0, "Dst"]]), 0, P);
+        push(kolom([]), 0, P);
+        push(kolom([[0, "Tim Anggaran Pemerintahan Daerah"]]), 0, B);
+        push(kolom([[0, "No"], [1, "Nama"], [5, "NIP"],
+          [8, "Jabatan"], [12, "Tanda Tangan"]]), 0, 5);
+        push(kolom([[0, "Data Kosong"]]), 0, P);
+      }
+  return { aoa, rows, warnaBaris, rumus };
+}
+
 // ── Tiga sheet ala RKA_2027_BKAD_Rekap ───────────────────────────────────
 // Kepala kolom tiap sheet — POSISI KOLOM dipakai rumus SUMIFS di bawah,
 // jadi ubah barengan dengan bangunTigaRekap().
@@ -694,9 +948,12 @@ function bangunTigaRekap(tahun, subs, datar) {
 // Susun berkas xlsx utuh (sudah berwarna + ber-outline + ber-rumus), tapi
 // TIDAK mengunduhnya — dipakai unduhScreeningExcel() di browser dan test
 // di Node. Struktur workbook:
-//   1. sheet "Screening RKA" — ringkas accordion Program → Kegiatan →
+//   1–3. sheet "Rekap", "Rekap Rekening", "Rincian" — ala RKA_2027_BKAD_Rekap;
+//   4. sheet "Screening RKA" — ringkas accordion Program → Kegiatan →
 //      Sub Kegiatan → rincian;
-//   2. satu sheet DETAIL per sub kegiatan (tab: "<kode> <nama>" maks 31
+//   5. sheet "RKA Gabung" — dokumen cetak gaya SIPD (RKA-BELANJA SKPD),
+//      semua sub kegiatan berurutan, siap cetak untuk pembahasan;
+//   6. satu sheet DETAIL per sub kegiatan (tab: "<kode> <nama>" maks 31
 //      karakter) berisi baris sub + seluruh rincian belanjanya — bisa
 //      dibuka/cetak per sub tanpa menggulir sheet panjang.
 export function siapkanScreeningXlsx({ tahun, programs, rencanaById = {},
@@ -790,8 +1047,14 @@ export function siapkanScreeningXlsx({ tahun, programs, rencanaById = {},
 
   tambahSheet({ nama: "Screening RKA", aoa, rows, warna: warnaBaris, rumus });
 
+  // ── Sheet 5: RKA Gabung — dokumen cetak gaya SIPD (RKA-BELANJA SKPD) ────
+  const sipd = tulisSheetSipd({ tahun, programs, rincianPerSub });
+  tambahSheet({ nama: "RKA Gabung", aoa: sipd.aoa, rows: sipd.rows,
+    warna: sipd.warnaBaris, rumus: sipd.rumus, ops: { cols: LEBAR_SIPD } });
+
   // ── Sheet detail: satu tab per sub kegiatan ─────────────────────────────
-  const unik = new Set(["Rekap", "Rekap Rekening", "Rincian", "Screening RKA"]);
+  const unik = new Set(["Rekap", "Rekap Rekening", "Rincian",
+    "Screening RKA", "RKA Gabung"]);
   for (const p of programs || [])
     for (const keg of p.kegiatan || [])
       for (const s of keg.subkegiatan || []) {
