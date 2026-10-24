@@ -891,6 +891,13 @@ function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
 
   // Status klien: <90% Aman · pas 100% Pas · 90–<100% Mendekati · >100% Melebihi
   const persenPas = adaPagu && Number(pagu) === Number(totalRencana);
+  // Persen jangan pernah membulat naik ke "100,0%" selama masih ada sisa —
+  // "Terpakai 100,0%" berdampingan dengan "Sisa Rp 5.000" tampak kontradiktif
+  // (99,96% ikut membulat naik lewat toFixed(1)). Di bawah 100 → bulatkan ke
+  // bawah, maksimal 2 desimal; 100 ke atas → 1 desimal seperti biasa.
+  const pctTeks = x => x < 100
+    ? (Math.floor(x * 100) / 100).toFixed(x % 1 === 0 ? 1 : 2)
+    : x.toFixed(1);
   const badge = !adaPagu
     ? { label: "Pagu belum diisi", warna: T.textMuted }
     : persenPas
@@ -987,7 +994,7 @@ function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
           {adaPagu && item("Pagu", rupiah(pagu))}
           {item("Total rencana", rupiah(totalRencana))}
           {adaPagu && item("Sisa", rupiah(sisa))}
-          {adaPagu && item("Terpakai", `${persen.toFixed(1)}%`, badge.warna)}
+          {adaPagu && item("Terpakai", `${pctTeks(persen)}%`, badge.warna)}
         </div>
       </div>
 
