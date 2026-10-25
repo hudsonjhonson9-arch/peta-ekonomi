@@ -1127,9 +1127,6 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false,
   const qc = useQueryClient();
   const { data, isLoading } = useDraftRincian(sub.id);
   const items = (data && data.items) || [];
-  // Rincian seluruh sub pada tahun yang sama — sudah di-prefetch di layar
-  // Screening (untuk ekspor Excel), jadi tidak menambah beban jaringan.
-  const { data: rincianTahun } = useRincianTahun(tahun);
 
   const [editId, setEditId] = useState(null);   // null | id baris yang diedit
   const [form, setForm] = useState(null);       // null | salinan item (kerja)
@@ -1292,14 +1289,10 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false,
     .map(it => (it.kelompok_belanja || "").trim())
     .filter(Boolean))];
 
-  // Saran keterangan (catatan) untuk form baris — kini ikut dipakai ulang:
-  // keterangan sub ini lebih dulu, lalu yang pernah dipakai di sub lain pada
-  // tahun yang sama. Tanpa baris → tetap input teks bebas seperti biasa.
-  const saranKeterangan = [...new Set([
-    ...items.map(it => (it.catatan || "").trim()),
-    ...Object.values(rincianTahun?.perSub || {}).flat()
-      .map(it => (it.catatan || "").trim()),
-  ].filter(Boolean))];
+  // Saran keterangan (catatan) untuk form baris — hanya dari sub kegiatan ini,
+  // urut kemunculan, dedupe. Tanpa baris → input teks bebas seperti biasa.
+  const saranKeterangan = [...new Set(
+    items.map(it => (it.catatan || "").trim()).filter(Boolean))];
 
   // Isi sel/baris volume (input inline + satuan) — dipakai tabel (desktop)
   // dan kartu (mobile) supaya logika draft volume tidak terbelah dua.
@@ -1675,8 +1668,8 @@ function FormBaris({ T, tahun, sub, form, setForm, onSimpan, onBatal, sibuk,
     .map(k => ({ value: k, label: k, sub: uraianTeks(petaRek.get(k) || []) }));
 
   const opsiKelompok = saranKelompok.map(n => ({ value: n, label: n }));
-  // Keterangan: pilih dari yang pernah dipakai (sub ini / sub lain tahun ini)
-  // atau ketik baru — sama fleksibelnya dengan input teks sebelumnya.
+  // Keterangan: pilih dari yang pernah dipakai di sub ini, atau ketik baru —
+  // sama fleksibelnya dengan input teks sebelumnya.
   const opsiKeterangan = saranKeterangan.map(n => ({ value: n, label: n }));
 
   return (
@@ -1705,6 +1698,16 @@ function FormBaris({ T, tahun, sub, form, setForm, onSimpan, onBatal, sibuk,
             kosongDaftar="Belum ada kelompok — ketik baru."
             kosongCari="Tidak ada kelompok cocok. Tekan Enter untuk memakai teks ini." />
         </div>
+        {daftar.map(([label, k, ph, flex]) => (
+          <label key={k} style={kolom(flex)}>
+            <span style={lb}>{label}</span>
+            <input value={form[k] == null ? "" : form[k]} onChange={set(k)}
+              placeholder={ph} inputMode={k === "volume" || k === "harga_satuan" ? "decimal" : undefined}
+              style={field} />
+          </label>
+        ))}
+        {/* Keterangan — sengaja urutan TERAKHIR seperti form awal; dropdown
+            yang bisa dicari (opsi: keterangan yang sudah terpakai di sub ini) */}
         <div style={kolom("2 1 160px")}>
           <span style={lb}>Keterangan</span>
           <CariPilih value={form.catatan || ""}
@@ -1714,14 +1717,6 @@ function FormBaris({ T, tahun, sub, form, setForm, onSimpan, onBatal, sibuk,
             kosongDaftar="Belum ada keterangan — ketik baru."
             kosongCari="Tidak ada keterangan cocok. Tekan Enter untuk memakai teks ini." />
         </div>
-        {daftar.map(([label, k, ph, flex]) => (
-          <label key={k} style={kolom(flex)}>
-            <span style={lb}>{label}</span>
-            <input value={form[k] == null ? "" : form[k]} onChange={set(k)}
-              placeholder={ph} inputMode={k === "volume" || k === "harga_satuan" ? "decimal" : undefined}
-              style={field} />
-          </label>
-        ))}
       </div>
 
       <div style={{ display: "flex", gap: 6, alignItems: "center",
