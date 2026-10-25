@@ -656,6 +656,24 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave, isMobile = false }
   const [paguTeks, setPaguTeks] = useState(() => teksAngka(sub.pagu));
   const [sibuk, setSibuk] = useState(false);
 
+  // Tinggi kartu grid (sticky top:0) → diteruskan ke DraftRincian sebagai
+  // topSticky supaya header "Rencana Belanja" menempel TEPAT DI BAWAH kartu
+  // (z-index di atasnya) — sebelumnya header + tombol "+ Tambah baris"
+  // ketutupan kartu saat digulir ke bawah. Diukur ulang otomatis: tinggi
+  // kartu berubah antar layar (grid auto-fit), admin vs staf, dan blok
+  // inisiasi/validasi yang muncul-hilang.
+  const refKartu = useRef(null);
+  const [tinggiKartu, setTinggiKartu] = useState(0);
+  useEffect(() => {
+    const el = refKartu.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ukur = () => setTinggiKartu(el.getBoundingClientRect().height);
+    ukur();
+    const ro = new ResizeObserver(ukur);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const status = sub.status_validasi || "draft";
   const terkunci = SUB_TERKUNCI.includes(status);
 
@@ -705,8 +723,9 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave, isMobile = false }
           di App sudah di bawah topbar) selama menggulir rencana belanja sub
           ini; lepas otomatis saat masuk sub kegiatan berikutnya karena sticky
           terbatas pada wadah DetailSub. Mobile tidak sticky — kolomnya
-          menumpuk tinggi dan akan memakan layar. */}
-      <div style={{
+          menumpuk tinggi dan akan memakan layar. Tingginya diukur lewat
+          refKartu → topSticky bagi header "Rencana Belanja" di bawah. */}
+      <div ref={refKartu} style={{
         display: "grid",
         gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))",
         gap: 10,
@@ -764,7 +783,7 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave, isMobile = false }
       </div>
 
       <DraftRincian T={T} tahun={tahun} sub={sub} terkunci={terkunci}
-        showToast={showToast} isMobile={isMobile} />
+        showToast={showToast} isMobile={isMobile} topSticky={tinggiKartu} />
     </div>
   );
 }
@@ -1103,7 +1122,8 @@ function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
 // nama grup bila seragam di seluruh baris grup.
 // `terkunci`: sub kegiatan menunggu/disetujui → CRUD diblokir (server juga
 // menolak 409); isi form yang sudah terbuka dibiarkan apa adanya.
-function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false }) {
+function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false,
+  topSticky = 0 }) {
   const qc = useQueryClient();
   const { data, isLoading } = useDraftRincian(sub.id);
   const items = (data && data.items) || [];
@@ -1325,7 +1345,22 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false }) 
 
   return (
     <div style={{ marginTop: 14, borderTop: `1px solid ${T.border}`, paddingTop: 10 }}>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+      {/* Sticky tepat di bawah kartu DetailSub (z-index di atas kartu yang
+          top:0) — judul + tombol "+ Tambah baris" tetap terlihat dan bisa
+          diklik saat menggulir rincian panjang; tanpa topSticky (mobile /
+          tinggi belum terukur) tampil biasa seperti semula. */}
+      <div style={{
+        display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap",
+        marginBottom: 8,
+        position: !isMobile && topSticky ? "sticky" : undefined,
+        top: !isMobile && topSticky ? topSticky : undefined,
+        zIndex: !isMobile && topSticky ? 6 : undefined,
+        background: !isMobile && topSticky ? T.card : undefined,
+        paddingTop: !isMobile && topSticky ? 6 : 0,
+        paddingBottom: !isMobile && topSticky ? 6 : 0,
+        borderBottom: !isMobile && topSticky
+          ? `1px solid ${T.border}` : undefined,
+      }}>
         <span style={{ fontSize: 11.5, fontWeight: 700, color: T.text }}>
           Rencana Belanja
         </span>
