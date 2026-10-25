@@ -61,6 +61,14 @@ const teksSelisih = s => `${s > 0 ? "+" : "−"}${Math.abs(s).toFixed(1).replace
 // App berubah. Mobile tidak sticky (kartu menumpuk tinggi).
 const TOPBAR_TINGGI = 54;
 
+// Lebar viewport minimum supaya seluruh 7 kolom tabel rincian (±1000px
+// minimum: rekening nowrap, input volume/harga, tombol aksi) muat tanpa
+// scroll horizontal setelah dikurangi sidebar + padding halaman. Di bawah
+// ini tabel kembali memakai overflow-x:auto dan thead TIDAK di-sticky
+// (sticky th di dalam scroll container akan tergeser aneh) — jadi layar
+// sempit tetap bisa menggeser tabel seperti biasa.
+const LAYAR_LEBAR_MIN = 1300;
+
 // ── Penanda perubahan 24 jam ───────────────────────────────────────────────
 // Baris rincian / sub kegiatan yang disimpan < 24 jam lalu diberi sorot +
 // badge "Diubah HH.MM" supaya perubahan hari ini langsung terlihat di layar
@@ -710,8 +718,16 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave, isMobile = false }
   // supaya tidak pernah overflow di HP 320px. Mobile tidak sticky — kolomnya
   // menumpuk tinggi dan akan memakan layar.
   const blokKartu = (
-    <div style={{
-      display: "grid",
+    <>
+      {/* Nama sub kegiatan — ikut menempel di area sticky supaya sub yang
+          sedang dibuka tetap terbaca saat menggulir rincian; posisi tampil
+          sama seperti biasa (di atas kartu). */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary,
+        marginBottom: 8 }}>
+        {sub.kode} · {sub.nama}
+      </div>
+      <div style={{
+        display: "grid",
       gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))",
       gap: 10,
       marginBottom: isMobile ? 14 : 6,
@@ -761,15 +777,12 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave, isMobile = false }
         {/* Validasi */}
         <BlokStatus T={T} sub={sub} admin={admin}
           showToast={showToast} onSave={onSave} />
-    </div>
+      </div>
+    </>
   );
 
   return (
     <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: 12, marginBottom: 6 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 10 }}>
-        {sub.kode} · {sub.nama}
-      </div>
-
       <DraftRincian T={T} tahun={tahun} sub={sub} terkunci={terkunci}
         showToast={showToast} isMobile={isMobile} atas={blokKartu} />
     </div>
@@ -1271,6 +1284,39 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false,
     color: T.textSecondary, textAlign: "left", whiteSpace: "nowrap",
   };
 
+  // Ukur tinggi blok sticky (judul sub + kartu + baris "Rencana Belanja")
+  // → offset thead supaya header kolom menempel tepat di bawahnya, dan
+  // kondisi layar lebar → tabel boleh tanpa overflow-x (syarat thead bisa
+  // sticky terhadap window; lihat LAYAR_LEBAR_MIN).
+  const refSticky = useRef(null);
+  const [tinggiSticky, setTinggiSticky] = useState(0);
+  useEffect(() => {
+    const el = refSticky.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ukur = () => setTinggiSticky(el.getBoundingClientRect().height);
+    ukur();
+    const ro = new ResizeObserver(ukur);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const [layarLebar, setLayarLebar] =
+    useState(() => typeof window !== "undefined" && window.innerWidth >= LAYAR_LEBAR_MIN);
+  useEffect(() => {
+    const f = () => setLayarLebar(window.innerWidth >= LAYAR_LEBAR_MIN);
+    window.addEventListener("resize", f);
+    return () => window.removeEventListener("resize", f);
+  }, []);
+
+  // Gaya sticky untuk SEMUA th: menempel di bawah blok sticky (top =
+  // TOPBAR_TINGGI + tingginya), latar solid supaya konten tidak tembus.
+  const thSticky = layarLebar ? {
+    position: "sticky",
+    top: TOPBAR_TINGGI + tinggiSticky,
+    zIndex: 4,
+    background: T.surfaceHover,
+  } : {};
+
   // Saran kelompok untuk form baris: nama yang sudah pernah dipakai di sub
   // kegiatan ini. Pengisian tetap teks bebas ala SIPD — daftar hanya membantu.
   const saranKelompok = [...new Set(items
@@ -1332,7 +1378,7 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false,
           sticky, tanpa perlu mengukur tinggi kartu. z-index 5 < topbar
           (100), > konten tabel. Mobile: tanpa sticky; latar + garis tetap
           berfungsi sebagai pemisah biasa. */}
-      <div style={{
+      <div ref={refSticky} style={{
         position: !isMobile ? "sticky" : undefined,
         top: !isMobile ? TOPBAR_TINGGI : undefined,
         zIndex: !isMobile ? 5 : undefined,
@@ -1486,17 +1532,23 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false,
           )}
         </div>
       ) : (
-        <div style={{ overflowX: "auto", border: `1px solid ${T.border}`, borderRadius: 8 }}>
+        <div style={{
+          border: `1px solid ${T.border}`, borderRadius: 8,
+          // Layar lebar: tanpa scroll horizontal → thead bisa sticky
+          // terhadap window. Layar sempit: scroll-x tabel seperti biasa,
+          // thead statis (thSticky kosong).
+          overflowX: layarLebar ? "visible" : "auto",
+        }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ background: T.surfaceHover }}>
-                <th style={th}>Rekening</th>
-                <th style={th}>Uraian</th>
-                <th style={th}>Spesifikasi</th>
-                <th style={th}>Volume</th>
-                <th style={{ ...th, textAlign: "right" }}>Harga</th>
-                <th style={{ ...th, textAlign: "right" }}>Total</th>
-                <th style={th}></th>
+                <th style={{ ...th, ...thSticky }}>Rekening</th>
+                <th style={{ ...th, ...thSticky }}>Uraian</th>
+                <th style={{ ...th, ...thSticky }}>Spesifikasi</th>
+                <th style={{ ...th, ...thSticky }}>Volume</th>
+                <th style={{ ...th, ...thSticky, textAlign: "right" }}>Harga</th>
+                <th style={{ ...th, ...thSticky, textAlign: "right" }}>Total</th>
+                <th style={{ ...th, ...thSticky }}></th>
               </tr>
             </thead>
             <tbody>
