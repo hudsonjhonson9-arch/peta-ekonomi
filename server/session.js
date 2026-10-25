@@ -15,6 +15,12 @@ import crypto from 'node:crypto';
 export const NAMA_COOKIE = 'arsip_session';
 export const MASA_JAM = 8;
 
+// "Ingat saya" dicentang: sesi jauh lebih panjang supaya tidak perlu login
+// ulang tiap hari kerja. 30 hari. Role tetap dibaca dari database setiap
+// request (bukan dari token), jadi penonaktifan/pencabutan hak tetap
+// berlaku seketika walau token lama masih hidup.
+export const MASA_JAM_INGAT = 30 * 24;
+
 // Panjang minimum yang diterima. Ambil 16, bukan 32, supaya nilai yang
 // sebenarnya wajar tetap jalan; nilai yang lebih pendek ditolak dengan alasan
 // keamanan. Target sebenarnya 32 karakter atau lebih.
@@ -97,7 +103,7 @@ export function periksaKonfigurasiSession() {
       `disarankan ${PANJANG_DIANJURKAN} atau lebih.`
     );
   }
-  console.log(`Session aktif (rahasia ${s.trim().length} karakter, berlaku ${MASA_JAM} jam).`);
+  console.log(`Session aktif (rahasia ${s.trim().length} karakter, ${MASA_JAM} jam tanpa "Ingat saya", ${MASA_JAM_INGAT} jam dengannya).`);
   return true;
 }
 
@@ -116,11 +122,11 @@ function samaKonst(a, b) {
   return crypto.timingSafeEqual(ba, bb);
 }
 
-export function buatToken(nip, secret = rahasia()) {
+export function buatToken(nip, secret = rahasia(), masaJam = MASA_JAM) {
   if (!secret) throw new Error(`SESSION_SECRET belum diatur atau terlalu pendek (minimal ${PANJANG_MINIMUM} karakter)`);
   const isi = b64(JSON.stringify({
     sub: String(nip),
-    exp: Math.floor(Date.now() / 1000) + MASA_JAM * 3600,
+    exp: Math.floor(Date.now() / 1000) + masaJam * 3600,
   }));
   return `${isi}.${tandaTangan(isi, secret)}`;
 }
@@ -178,6 +184,11 @@ export function bacaCookie(req, nama = NAMA_COOKIE) {
   return null;
 }
 
+// `ingat` = centang "Ingat saya" di login:
+//   true  → cookie persistent 30 hari (MASA_JAM_INGAT) — tetap ada setelah
+//           browser ditutup, token juga berlaku 30 hari;
+//   false → cookie session (tanpa maxAge) — hilang saat browser ditutup;
+//           token tetap dibatasi MASA_JAM jam selama browser terbuka.
 // Flag `secure` ikut-protokol, bukan ikut NODE_ENV.
 //
 // Sebelumnya secure ditulis dari NODE_ENV === 'production'. Di produksi yang
@@ -185,15 +196,16 @@ export function bacaCookie(req, nama = NAMA_COOKIE) {
 // meneruskan X-Forwarded-Proto) browser menolak menyimpan cookie secure, jadi
 // login terlihat berhasil lalu semua request berikutnya 401 "Sesi berakhir".
 // Jadi secure mengikuti req.secure yang sudah memperhitungkan reverse proxy.
-export function pasangCookie(res, token, req) {
+export function pasangCookie(res, token, req, ingat = false) {
   const aman = req ? req.secure : process.env.NODE_ENV === 'production';
-  res.cookie(NAMA_COOKIE, token, {
+  const opsi = {
     httpOnly: true,
     sameSite: 'lax',
     secure: aman,
-    maxAge: MASA_JAM * 3600 * 1000,
     path: '/',
-  });
+  };
+  if (ingat) opsi.maxAge = MASA_JAM_INGAT * 3600 * 1000;
+  res.cookie(NAMA_COOKIE, token, opsi);
 }
 
 export function lepasCookie(res) {

@@ -20,7 +20,7 @@ export default function LoginPage({ onLogin }) {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nip, password: pass })
+        body: JSON.stringify({ nip, password: pass, remember })
       });
       const data = await res.json();
       if (!res.ok) setErr(data.error || "Login gagal");

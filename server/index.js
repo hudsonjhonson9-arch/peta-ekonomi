@@ -14,7 +14,7 @@ import { imporStandarHargaSipd } from './impor-standar-harga-sipd.js';
 import { validasiItem, validasiPatch, jumlahItem } from './draft-rincian.js';
 import { ajukanDari, validasiStatus, cekSetujui } from './screening.js';
 import {
-  NAMA_COOKIE, MASA_JAM, R_ADMIN, R_REVIEWER, R_STAF,
+  NAMA_COOKIE, MASA_JAM, MASA_JAM_INGAT, R_ADMIN, R_REVIEWER, R_STAF,
   normalisasiRole, rahasia, buatToken, verifikasiTokenDetail,
   periksaKonfigurasiSession, periksaPemisahanSecret,
   bacaCookie, pasangCookie, lepasCookie, PANJANG_MINIMUM,
@@ -462,9 +462,14 @@ app.get('/api/health', async (_, res) => {
 
 // ── Auth: Login dengan NIP + bcrypt ──────────────────────────────────────
 app.post('/api/auth/login', async (req, res) => {
-  const { nip, password } = req.body;
+  const { nip, password, remember } = req.body;
   if (!nip || !password)
     return res.status(400).json({ error: 'NIP dan Password diperlukan' });
+
+  // "Ingat saya" hanya dihitung bila diminta eksplisit (remember === true):
+  // token & cookie panjang 30 hari; tanpa itu cookie session (ikut hilang
+  // saat browser ditutup) dengan token tetap MASA_JAM jam.
+  const ingat = remember === true;
 
   try {
     // Ambil hash dan role dari user_credentials
@@ -503,12 +508,12 @@ app.post('/api/auth/login', async (req, res) => {
     // akses berlaku seketika tanpa menunggu token lama kedaluwarsa.
     let token;
     try {
-      token = buatToken(nip);
+      token = buatToken(nip, undefined, ingat ? MASA_JAM_INGAT : MASA_JAM);
     } catch (e) {
       console.error('Login: session error:', e.message);
       return res.status(500).json({ error: 'Session belum dikonfigurasi. Hubungi administrator.' });
     }
-    pasangCookie(res, token, req);
+    pasangCookie(res, token, req, ingat);
 
     res.json({
       message: 'Login berhasil',
