@@ -53,6 +53,14 @@ const selisihStandar = (harga, hargaStandar) => {
 // "+12,5%" / "−8,0%" — koma desimal Indonesia.
 const teksSelisih = s => `${s > 0 ? "+" : "−"}${Math.abs(s).toFixed(1).replace(".", ",")}%`;
 
+// ── Sticky di bawah topbar ─────────────────────────────────────────────────
+// Scrollport aplikasi adalah window dan topbar App sticky top:0 (z-index 100,
+// App.jsx) — jadi elemen sticky di sini HARUS mulai di bawah topbar, bukan
+// top:0, atau kontennya (label Pagu dst.) tertutup topbar. Tinggi topbar
+// desktop = padding 11*2 + tombol menu 32 = 54px. Sinkronkan bila topbar
+// App berubah. Mobile tidak sticky (kartu menumpuk tinggi).
+const TOPBAR_TINGGI = 54;
+
 // ── Penanda perubahan 24 jam ───────────────────────────────────────────────
 // Baris rincian / sub kegiatan yang disimpan < 24 jam lalu diberi sorot +
 // badge "Diubah HH.MM" supaya perubahan hari ini langsung terlihat di layar
@@ -656,24 +664,6 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave, isMobile = false }
   const [paguTeks, setPaguTeks] = useState(() => teksAngka(sub.pagu));
   const [sibuk, setSibuk] = useState(false);
 
-  // Tinggi kartu grid (sticky top:0) → diteruskan ke DraftRincian sebagai
-  // topSticky supaya header "Rencana Belanja" menempel TEPAT DI BAWAH kartu
-  // (z-index di atasnya) — sebelumnya header + tombol "+ Tambah baris"
-  // ketutupan kartu saat digulir ke bawah. Diukur ulang otomatis: tinggi
-  // kartu berubah antar layar (grid auto-fit), admin vs staf, dan blok
-  // inisiasi/validasi yang muncul-hilang.
-  const refKartu = useRef(null);
-  const [tinggiKartu, setTinggiKartu] = useState(0);
-  useEffect(() => {
-    const el = refKartu.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ukur = () => setTinggiKartu(el.getBoundingClientRect().height);
-    ukur();
-    const ro = new ResizeObserver(ukur);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
   const status = sub.status_validasi || "draft";
   const terkunci = SUB_TERKUNCI.includes(status);
 
@@ -710,32 +700,23 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave, isMobile = false }
     return simpan({ pagu: n }, "Pagu disimpan.");
   };
 
-  return (
-    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: 12, marginBottom: 6 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 10 }}>
-        {sub.kode} · {sub.nama}
-      </div>
-
-      {/* Grid seragam (auto-fit): Pagu | Rencana vs Pagu —
-          Perubahan/Realisasi | Validasi. Di layar sempit menumpuk satu kolom;
-          min(min(300px,100%)) supaya kolom tidak pernah overflow di HP 320px.
-          Desktop: blok ikut menempel di atas area gulir (top:0 — area gulir
-          di App sudah di bawah topbar) selama menggulir rencana belanja sub
-          ini; lepas otomatis saat masuk sub kegiatan berikutnya karena sticky
-          terbatas pada wadah DetailSub. Mobile tidak sticky — kolomnya
-          menumpuk tinggi dan akan memakan layar. Tingginya diukur lewat
-          refKartu → topSticky bagi header "Rencana Belanja" di bawah. */}
-      <div ref={refKartu} style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))",
-        gap: 10,
-        marginBottom: isMobile ? 14 : 6,
-        paddingBottom: isMobile ? 0 : 8,
-        background: T.card,
-        position: isMobile ? undefined : "sticky",
-        top: isMobile ? undefined : 0,
-        zIndex: isMobile ? undefined : 5,
-      }}>
+  // Blok kartu (Pagu | Rencana vs Pagu | Validasi) diserahkan ke DraftRincian
+  // lewat prop `atas` supaya dibungkus SATU elemen sticky bersama baris
+  // "Rencana Belanja" — dua sticky terpisah menyisakan jeda transparan yang
+  // ditembus teks saat digulir, dan top-nya harus mulai di bawah topbar
+  // (TOPBAR_TINGGI, bukan 0 — topbar App sticky z-100 menutupi top:0).
+  // Grid seragam (auto-fit): Pagu | Rencana vs Pagu — Perubahan/Realisasi |
+  // Validasi; di layar sempit menumpuk satu kolom, min(min(300px,100%))
+  // supaya tidak pernah overflow di HP 320px. Mobile tidak sticky — kolomnya
+  // menumpuk tinggi dan akan memakan layar.
+  const blokKartu = (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))",
+      gap: 10,
+      marginBottom: isMobile ? 14 : 6,
+      paddingBottom: isMobile ? 0 : 8,
+    }}>
         {/* Pagu */}
         <div style={kotak(T)}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8,
@@ -780,10 +761,17 @@ function DetailSub({ T, sub, admin, tahun, showToast, onSave, isMobile = false }
         {/* Validasi */}
         <BlokStatus T={T} sub={sub} admin={admin}
           showToast={showToast} onSave={onSave} />
+    </div>
+  );
+
+  return (
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: 12, marginBottom: 6 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 10 }}>
+        {sub.kode} · {sub.nama}
       </div>
 
       <DraftRincian T={T} tahun={tahun} sub={sub} terkunci={terkunci}
-        showToast={showToast} isMobile={isMobile} topSticky={tinggiKartu} />
+        showToast={showToast} isMobile={isMobile} atas={blokKartu} />
     </div>
   );
 }
@@ -1123,7 +1111,7 @@ function RingkasanPagu({ T, sub, tahun, admin, showToast, onSave }) {
 // `terkunci`: sub kegiatan menunggu/disetujui → CRUD diblokir (server juga
 // menolak 409); isi form yang sudah terbuka dibiarkan apa adanya.
 function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false,
-  topSticky = 0 }) {
+  atas = null }) {
   const qc = useQueryClient();
   const { data, isLoading } = useDraftRincian(sub.id);
   const items = (data && data.items) || [];
@@ -1337,35 +1325,40 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false,
   ));
 
   return (
-    <div style={{ marginTop: 14, borderTop: `1px solid ${T.border}`, paddingTop: 10 }}>
-      {/* Sticky tepat di bawah kartu DetailSub (z-index di atas kartu yang
-          top:0) — judul + tombol "+ Tambah baris" tetap terlihat dan bisa
-          diklik saat menggulir rincian panjang; tanpa topSticky (mobile /
-          tinggi belum terukur) tampil biasa seperti semula. */}
+    <div>
+      {/* SATU elemen sticky: blok kartu DetailSub (prop `atas`) + baris
+          "Rencana Belanja" menempel serempak tepat di bawah topbar
+          (TOPBAR_TINGGI) — satu kotak solid: tanpa jeda transparan antar
+          sticky, tanpa perlu mengukur tinggi kartu. z-index 5 < topbar
+          (100), > konten tabel. Mobile: tanpa sticky; latar + garis tetap
+          berfungsi sebagai pemisah biasa. */}
       <div style={{
-        display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap",
-        marginBottom: 8,
-        position: !isMobile && topSticky ? "sticky" : undefined,
-        top: !isMobile && topSticky ? topSticky : undefined,
-        zIndex: !isMobile && topSticky ? 6 : undefined,
-        background: !isMobile && topSticky ? T.card : undefined,
-        paddingTop: !isMobile && topSticky ? 6 : 0,
-        paddingBottom: !isMobile && topSticky ? 6 : 0,
-        borderBottom: !isMobile && topSticky
-          ? `1px solid ${T.border}` : undefined,
+        position: !isMobile ? "sticky" : undefined,
+        top: !isMobile ? TOPBAR_TINGGI : undefined,
+        zIndex: !isMobile ? 5 : undefined,
+        background: T.card,
+        paddingBottom: !isMobile ? 8 : 0,
+        borderBottom: !isMobile ? `1px solid ${T.border}` : undefined,
       }}>
-        <span style={{ fontSize: 11.5, fontWeight: 700, color: T.text }}>
-          Rencana Belanja
-        </span>
-        <button onClick={tambah} disabled={sibuk || terkunci}
-          style={btn(T, T.primary, "#fff", sibuk || terkunci)}>
-          + Tambah baris
-        </button>
-        {terkunci && (
-          <span style={{ fontSize: 11, color: T.textMuted }}>
-            Terkunci — sub kegiatan sedang divalidasi atau sudah disetujui.
+        {atas}
+        <div style={{
+          display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap",
+          marginTop: 6, paddingTop: 8, paddingBottom: 8,
+          borderTop: `1px solid ${T.border}`,
+        }}>
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: T.text }}>
+            Rencana Belanja
           </span>
-        )}
+          <button onClick={tambah} disabled={sibuk || terkunci}
+            style={btn(T, T.primary, "#fff", sibuk || terkunci)}>
+            + Tambah baris
+          </button>
+          {terkunci && (
+            <span style={{ fontSize: 11, color: T.textMuted }}>
+              Terkunci — sub kegiatan sedang divalidasi atau sudah disetujui.
+            </span>
+          )}
+        </div>
       </div>
 
       {form && (
