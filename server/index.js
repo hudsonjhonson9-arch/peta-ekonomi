@@ -1713,7 +1713,7 @@ app.get('/api/pks/tree', async (req, res) => {
     );
     const sub = await queryDB(
       `SELECT id, kegiatan_id, kode, nama, urutan, indikator, target, pagu, kode_rekening,
-              realisasi, status_validasi, catatan_validasi, status_oleh, status_at
+              realisasi, status_validasi, catatan_validasi, status_oleh, status_at, updated_at
        FROM pks_subkegiatan WHERE tahun = $1 ORDER BY urutan, kode`,
       [tahun]
     );

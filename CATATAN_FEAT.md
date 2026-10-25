@@ -103,3 +103,9 @@ REQ BANK DATA (baru):
 - Lazy load: tahun default null → tanpa request sampai user pilih tahun.
 - Penginputan = upload Excel client-side (parseRows) → POST /api/standar-harga/upload (replace-all per tahun+jenis) — sumber data satu: tabel standar_harga (dipakai pencocokan draft rincian Screening RKA).
 - Daftar data + search debounce 300ms (maks 500 baris).
+
+## REQ SCREENING RKA — KETERANGAN REUSE + PENANDA PERUBAHAN 24 JAM (2026-10-25)
+
+- Field "Keterangan" di FormBaris (tambah/edit baris rencana) kini **CariPilih** seperti "Kelompok belanja": opsi = keterangan pernah dipakai di sub ini lebih dulu, lalu distinct `catatan` seluruh sub tahun sama (dari `useRincianTahun` — sudah di-prefetch untuk ekspor Excel, jadi tanpa request tambahan). Ketik manual tetap diterima (Enter = teks baru). Server tidak berubah: `draft_rincian.catatan` memang sudah tersimpan di POST/PUT.
+- **Penanda perubahan 24 jam (Opsi A)**: baris rincian (tabel desktop & kartu mobile) dan baris sub kegiatan yang `updated_at`-nya < 24 jam lalu diberi latar kuning (`T.warningBg`) + badge "Diubah HH.MM" (tooltip = tanggal-jam lengkap locale id). Sumber: `updated_at` selalu disentuh tiap UPDATE (`PUT /api/draft-rincian`, `PUT /api/pks/:level/:id`); query `/api/pks/tree` kini ikut `SELECT updated_at` untuk sub. Terbatas: hanya menandai *baris mana* yang berubah — nilai lama→baru menyusul dengan Opsi B (tabel riwayat + panel "Perubahan hari ini").
+- Verifikasi: `npm run build` sukses (2026-10-25).

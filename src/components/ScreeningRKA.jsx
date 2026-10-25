@@ -53,6 +53,35 @@ const selisihStandar = (harga, hargaStandar) => {
 // "+12,5%" / "−8,0%" — koma desimal Indonesia.
 const teksSelisih = s => `${s > 0 ? "+" : "−"}${Math.abs(s).toFixed(1).replace(".", ",")}%`;
 
+// ── Penanda perubahan 24 jam ───────────────────────────────────────────────
+// Baris rincian / sub kegiatan yang disimpan < 24 jam lalu diberi sorot +
+// badge "Diubah HH.MM" supaya perubahan hari ini langsung terlihat di layar
+// RKA. Sumber: updated_at (draft_rincian & pks_subkegiatan selalu disentuh
+// tiap UPDATE — kolomnya ikut terbawa SELECT). Nilai lama→baru belum dicatat;
+// riwayat lengkap menyusul (Opsi B).
+const AMBANG_UBAH_MS = 24 * 60 * 60 * 1000;
+const baruDiubah = iso => {
+  const t = iso ? Date.parse(iso) : NaN;
+  return Number.isFinite(t) && Date.now() - t < AMBANG_UBAH_MS;
+};
+// Jam "14.32" (titik ala Indonesia, fallback locale sistem).
+const jamUbah = iso => new Date(iso)
+  .toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+  .replace(":", ".");
+// Badge kuning kecil — null bila di luar jendela 24 jam.
+const TandaUbah = ({ T, iso }) => {
+  if (!baruDiubah(iso)) return null;
+  return (
+    <span title={`Diubah ${new Date(iso).toLocaleString("id-ID")}`}
+      style={{ fontSize: 9.5, fontWeight: 700, color: T.warning,
+        background: T.warningBg, border: `1px solid ${T.warningBorder}`,
+        borderRadius: 999, padding: "1px 6px", whiteSpace: "nowrap",
+        fontFamily: "ui-monospace, monospace" }}>
+      Diubah {jamUbah(iso)}
+    </span>
+  );
+};
+
 const chipStatus = status => {
   const s = STATUS_UI[status] || STATUS_UI.draft;
   return {
@@ -553,6 +582,7 @@ function SubRow({ T, sub, admin, tahun, buka, onToggle, showToast, reload, isMob
       <div onClick={onToggle} style={{
         display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
         border: `1px solid ${T.border}`, borderRadius: 9, cursor: "pointer",
+        background: baruDiubah(sub.updated_at) ? T.warningBg : undefined,
         // Mobile (kartu): (1) ikon+kode+chip status, (2) nama lebar penuh,
         // (3) pagu + aksi, (4) indikator — bukan satu baris sempit.
         flexWrap: "wrap",
@@ -576,6 +606,8 @@ function SubRow({ T, sub, admin, tahun, buka, onToggle, showToast, reload, isMob
         }}>
           {(STATUS_UI[sub.status_validasi] || STATUS_UI.draft).label}
         </span>
+
+        <TandaUbah T={T} iso={sub.updated_at} />
 
         {sub.indikator && (
           <span style={isMobile
@@ -1075,6 +1107,9 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false }) 
   const qc = useQueryClient();
   const { data, isLoading } = useDraftRincian(sub.id);
   const items = (data && data.items) || [];
+  // Rincian seluruh sub pada tahun yang sama — sudah di-prefetch di layar
+  // Screening (untuk ekspor Excel), jadi tidak menambah beban jaringan.
+  const { data: rincianTahun } = useRincianTahun(tahun);
 
   const [editId, setEditId] = useState(null);   // null | id baris yang diedit
   const [form, setForm] = useState(null);       // null | salinan item (kerja)
@@ -1237,6 +1272,15 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false }) 
     .map(it => (it.kelompok_belanja || "").trim())
     .filter(Boolean))];
 
+  // Saran keterangan (catatan) untuk form baris — kini ikut dipakai ulang:
+  // keterangan sub ini lebih dulu, lalu yang pernah dipakai di sub lain pada
+  // tahun yang sama. Tanpa baris → tetap input teks bebas seperti biasa.
+  const saranKeterangan = [...new Set([
+    ...items.map(it => (it.catatan || "").trim()),
+    ...Object.values(rincianTahun?.perSub || {}).flat()
+      .map(it => (it.catatan || "").trim()),
+  ].filter(Boolean))];
+
   // Isi sel/baris volume (input inline + satuan) — dipakai tabel (desktop)
   // dan kartu (mobile) supaya logika draft volume tidak terbelah dua.
   const volumeIsi = it => (terkunci || editId === it.id ? (
@@ -1306,7 +1350,7 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false }) 
         >
           <FormBaris T={T} tahun={tahun} sub={sub} form={form} setForm={setForm}
             onSimpan={simpan} onBatal={tutup} sibuk={sibuk}
-            saranKelompok={saranKelompok} />
+            saranKelompok={saranKelompok} saranKeterangan={saranKeterangan} />
         </Modal>
       )}
 
@@ -1353,8 +1397,10 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false }) 
                 const banding = sel != null && Math.abs(sel) > AMBANG_SELISIH;
                 return (
                   <div key={it.id} style={{
-                    border: `1px solid ${T.border}`, borderRadius: 8,
-                    padding: "8px 10px", background: T.card, marginBottom: 8,
+                    border: `1px solid ${baruDiubah(it.updated_at) ? T.warningBorder : T.border}`,
+                    borderRadius: 8, padding: "8px 10px",
+                    background: baruDiubah(it.updated_at) ? T.warningBg : T.card,
+                    marginBottom: 8,
                   }}>
                     <div style={{ display: "flex", justifyContent: "space-between",
                       gap: 8, alignItems: "baseline" }}>
@@ -1369,6 +1415,9 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false }) 
                     </div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: T.text, marginTop: 2 }}>
                       {it.uraian}
+                      <span style={{ marginLeft: 6, verticalAlign: "middle" }}>
+                        <TandaUbah T={T} iso={it.updated_at} />
+                      </span>
                     </div>
                     {it.spesifikasi && (
                       <div style={{ fontSize: 11.5, color: T.textSecondary, marginTop: 1 }}>
@@ -1464,7 +1513,10 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false }) 
                   const sel = selisihStandar(it.harga_satuan, it.harga_standar);
                   const banding = sel != null && Math.abs(sel) > AMBANG_SELISIH;
                   return (
-                    <tr key={it.id} style={{ borderTop: `1px solid ${T.border}` }}>
+                    <tr key={it.id} style={{
+                      borderTop: `1px solid ${T.border}`,
+                      background: baruDiubah(it.updated_at) ? T.warningBg : undefined,
+                    }}>
                       <td style={{ padding: "6px 8px", whiteSpace: "nowrap",
                         fontFamily: "ui-monospace, monospace", color: T.textMuted,
                         fontSize: 11.5 }}>
@@ -1472,6 +1524,9 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false }) 
                       </td>
                       <td style={{ padding: "6px 8px", color: T.text, minWidth: 180 }}>
                         {it.uraian}
+                        <span style={{ display: "block", marginTop: 2 }}>
+                          <TandaUbah T={T} iso={it.updated_at} />
+                        </span>
                       </td>
                       <td style={{ padding: "6px 8px", color: T.textSecondary, maxWidth: 180,
                         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -1540,7 +1595,7 @@ function DraftRincian({ T, tahun, sub, terkunci, showToast, isMobile = false }) 
 // kandidat uraian. Kelompok belanja tetap teks bebas ala SIPD (header grup),
 // dengan saran dari kelompok yang sudah pernah dipakai.
 function FormBaris({ T, tahun, sub, form, setForm, onSimpan, onBatal, sibuk,
-  saranKelompok = [] }) {
+  saranKelompok = [], saranKeterangan = [] }) {
   const set = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
   const setTeks = k => v => setForm(p => ({ ...p, [k]: v }));
 
@@ -1567,7 +1622,6 @@ function FormBaris({ T, tahun, sub, form, setForm, onSimpan, onBatal, sibuk,
     ["Satuan", "satuan", "sak", "1 1 90px"],
     ["Volume", "volume", "0", "1 1 90px"],
     ["Harga satuan", "harga_satuan", "0", "1 1 130px"],
-    ["Keterangan", "catatan", "", "2 1 160px"],
   ];
 
   // Opsi "Kode rekening": chips sub kegiatan ∪ distinct standar harga tahun
@@ -1586,6 +1640,9 @@ function FormBaris({ T, tahun, sub, form, setForm, onSimpan, onBatal, sibuk,
     .map(k => ({ value: k, label: k, sub: uraianTeks(petaRek.get(k) || []) }));
 
   const opsiKelompok = saranKelompok.map(n => ({ value: n, label: n }));
+  // Keterangan: pilih dari yang pernah dipakai (sub ini / sub lain tahun ini)
+  // atau ketik baru — sama fleksibelnya dengan input teks sebelumnya.
+  const opsiKeterangan = saranKeterangan.map(n => ({ value: n, label: n }));
 
   return (
     <div style={{ border: `1px solid ${T.inputBorder}`, borderRadius: 8,
@@ -1612,6 +1669,15 @@ function FormBaris({ T, tahun, sub, form, setForm, onSimpan, onBatal, sibuk,
             disabled={sibuk}
             kosongDaftar="Belum ada kelompok — ketik baru."
             kosongCari="Tidak ada kelompok cocok. Tekan Enter untuk memakai teks ini." />
+        </div>
+        <div style={kolom("2 1 160px")}>
+          <span style={lb}>Keterangan</span>
+          <CariPilih value={form.catatan || ""}
+            onChange={setTeks("catatan")}
+            opsi={opsiKeterangan} placeholder="opsional — pilih atau ketik"
+            disabled={sibuk}
+            kosongDaftar="Belum ada keterangan — ketik baru."
+            kosongCari="Tidak ada keterangan cocok. Tekan Enter untuk memakai teks ini." />
         </div>
         {daftar.map(([label, k, ph, flex]) => (
           <label key={k} style={kolom(flex)}>
