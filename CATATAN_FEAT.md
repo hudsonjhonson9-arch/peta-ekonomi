@@ -151,3 +151,11 @@ REQ BANK DATA (baru):
 - **Meta**: description, og:title/description/type, theme-color ditambahkan ke `index.html`.
 - **Viewport**: `100vh` → `100dvh` (dgn fallback `100vh`) di root, sidebar, DocPages, PublicShare, UploadForm, LoginPage — anti-loncat di Safari mobile.
 - Verifikasi: `npm run build` sukses; uji lulus (session 5, screening 10).
+
+## SINKRONISASI TOMBOL CIUT/LEBAR DENGAN RESIZE (2026-10-26)
+
+- Masalah: ada **dua state terpisah** — `collapsed` (tombol) dan `lebarSidebar` (drag) — yang tidak saling mengenal, jadi label tombol bohong (mis. sidebar sudah 60px tapi tombol masih bilang "Ciutkan") dan lebar tersimpan terbuang saat toggle.
+- Kini **`lebarSidebar` satu-satunya sumber kebenaran**: tombol dan pegangan seret membaca/menulis nilai yang sama. `collapsed`/`toggleCollapsed` dihapus dari App; `modeIcon` di Sidebar murni `lebar <= LEBAR_ICON` (120) — menutup logika "drag kecil ≠ dilipat".
+- Perilaku tombol: **Ciutkan** = ke 60px (mengingat lebar sebelumnya), **Lebarkan** = kembali ke lebar terakhir (default 220) — label/ikonya (‹/›) selalu mengikuti kondisi terkini, termasuk saat sidebar diseret melewati batas 120px. Pegangan resize kini selalu tampil di desktop (termasuk saat 60px) supaya selalu bisa ditarik balik.
+- Migrasi: `localStorage.sidebarCollapsed = "1"` lama dibaca sekali → `sidebarWidth = 60`, key lama dihapus.
+- Verifikasi: `npm run build` sukses; session 5 + screening 10 uji lulus.

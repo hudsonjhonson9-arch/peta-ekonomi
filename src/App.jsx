@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo, createContext, useContext } from "react";
+import { useState, useEffect, useMemo, useRef, createContext, useContext } from "react";
 import { LIGHT, DARK, getTheme, isDarkTheme } from "./theme.js";
 import { useDocs, useUsers, useLogs, useCategories, useSectors, useBidang, api } from './hooks.js';
 import { queryClient } from './main.jsx';
 import useResponsive    from './useResponsive.js';
 import LoginPage        from "./components/LoginPage.jsx";
-import Sidebar          from "./components/Sidebar.jsx";
+import Sidebar, { LEBAR_ICON } from "./components/Sidebar.jsx";
 import BottomNav        from "./components/BottomNav.jsx";
 import Dashboard        from "./components/Dashboard.jsx";
 import { DocList, DocDetail } from "./components/DocPages.jsx";
@@ -129,23 +129,34 @@ export default function App() {
     const token = sp.get("token"), verify = sp.get("verify");
     return token || verify ? { token, verify } : null;
   });
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem("sidebarCollapsed") === "1");
-  const toggleCollapsed = () => {
-    setCollapsed(c => {
-      const next = !c;
-      localStorage.setItem("sidebarCollapsed", next ? "1" : "0");
-      return next;
-    });
+  // Lebar sidebar adalah SATU sumber kebenaran untuk tombol ciut/lebar dan
+  // pegangan seret: keduanya membaca/menulis `lebarSidebar` yang sama, jadi
+  // label tombol selalu mengikuti kondisi sidebar terkini.
+  // "Ciutkan" = 60px (mode ikon), "Lebarkan" = kembali ke lebar terakhir.
+  const muatLebarSidebar = () => {
+    try {
+      // Migrasi dari toggle lama: sidebarCollapsed="1" pernah berarti dilipat.
+      if (localStorage.getItem("sidebarCollapsed") === "1") {
+        localStorage.removeItem("sidebarCollapsed");
+        localStorage.setItem("sidebarWidth", "60");
+        return 60;
+      }
+      const v = Number(localStorage.getItem("sidebarWidth"));
+      return Number.isFinite(v) && v >= 60 && v <= 460 ? Math.round(v) : 220;
+    } catch {
+      return 220;
+    }
   };
-  // Lebar sidebar bisa digeser user (pegangan di tepi kanannya), dibatasi
-  // 60–460px (60 = muat sisa ikon saja), dan bertahan lewat refresh.
-  const [lebarSidebar, setLebarSidebar] = useState(() => {
-    const v = Number(localStorage.getItem("sidebarWidth"));
-    return Number.isFinite(v) && v >= 60 && v <= 460 ? Math.round(v) : 220;
-  });
+  const [lebarSidebar, setLebarSidebar] = useState(muatLebarSidebar);
   useEffect(() => {
     try { localStorage.setItem("sidebarWidth", String(lebarSidebar)); } catch { /* kuota penuh */ }
   }, [lebarSidebar]);
+  const lebarSebelumCiut = useRef(null);
+  const toggleCiut = () => setLebarSidebar(w => {
+    if (w > LEBAR_ICON) { lebarSebelumCiut.current = w; return 60; }
+    const kembali = lebarSebelumCiut.current;
+    return kembali && kembali > LEBAR_ICON ? kembali : 220;
+  });
   const [toast,     setToast]     = useState("");
   const [theme, setThemeState] = useState(() => localStorage.getItem("theme") || "system");
   const T = useMemo(() => getTheme(theme), [theme]);
@@ -1024,8 +1035,7 @@ if (!user) {
             onNav={(p) => { goPage(p); }}
             user={user}
             onLogout={handleLogout}
-            collapsed={collapsed}
-            onCiutkan={toggleCollapsed}
+            onCiutkan={toggleCiut}
             lebar={lebarSidebar}
             onLebar={setLebarSidebar}
             logs={logs}

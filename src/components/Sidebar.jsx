@@ -10,7 +10,7 @@ const KUNCI_GRUP = "sidebarGrupTerbuka";
 
 // Di bawah lebar ini teks label tidak muat lagi, jadi tampilan berubah jadi
 // mode ikon (sama seperti sidebar dilipat) walau lebarnya bukan 60px persis.
-const LEBAR_ICON = 120;
+export const LEBAR_ICON = 120;
 
 function muatGrupTerbuka() {
   try {
@@ -73,7 +73,7 @@ function RecentActivity({ logs = [] }) {
   );
 }
 
-export default function Sidebar({ active, onNav, user, onLogout, collapsed, onCiutkan, lebar = 220, onLebar, mobileOpen, logs }) {
+export default function Sidebar({ active, onNav, user, onLogout, onCiutkan, lebar = 220, onLebar, mobileOpen, logs }) {
   const { T, theme, setTheme } = useContext(ThemeContext);
   const isMobileOv = mobileOpen !== undefined;
   // Pegangan lebar di tepi kanan: seret untuk mengubah lebar, klik ganda
@@ -84,8 +84,9 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, onCi
   const seretRef = useRef(null);
   useEffect(() => () => { document.body.style.userSelect = ""; }, []);
 
-  // Mode ikon: sidebar dilipat lewat tombol, atau diseret sampai teks tak muat.
-  const modeIcon = collapsed || lebar <= LEBAR_ICON;
+  // Mode ikon: lebar sidebar melewati batas teks (termasuk saat tombol
+  // "Ciutkan" menyetelnya ke 60px) — satu pintu untuk semua tampilan kecil.
+  const modeIcon = lebar <= LEBAR_ICON;
   // useMemo dipakai karena daftar ini jadi dependensi effect di bawah; tanpa
   // itu referensinya baru tiap render dan effect berjalan terus.
   const groups = useMemo(() => navGroupsUntuk(user.role), [user.role]);
@@ -121,7 +122,7 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, onCi
 
   return (
     <div style={{
-      width: isMobileOv ? (mobileOpen ? 260 : 0) : (collapsed ? 60 : lebar),
+      width: isMobileOv ? (mobileOpen ? 260 : 0) : lebar,
       height: "100dvh",
       background: T.sidebarBg,
       color: "#fff",
@@ -161,8 +162,8 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, onCi
         }}>
           <button
             onClick={onCiutkan}
-            title={collapsed ? "Lebarkan sidebar" : "Ciutkan sidebar"}
-            aria-label={collapsed ? "Lebarkan sidebar" : "Ciutkan sidebar"}
+            title={modeIcon ? "Lebarkan sidebar" : "Ciutkan sidebar"}
+            aria-label={modeIcon ? "Lebarkan sidebar" : "Ciutkan sidebar"}
             style={{
               display: "flex", alignItems: "center", gap: 7,
               background: "none", border: `1px solid ${T.border}`,
@@ -172,7 +173,7 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, onCi
               fontFamily: "inherit",
             }}
           >
-            <Icon name="chevronRight" size={14} style={collapsed ? undefined : { transform: "rotate(180deg)" }} />
+            <Icon name="chevronRight" size={14} style={modeIcon ? undefined : { transform: "rotate(180deg)" }} />
             {!modeIcon && "Ciutkan"}
           </button>
         </div>
@@ -313,7 +314,7 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, onCi
       </div>
 
       {/* Pegangan lebar sidebar (hanya desktop, saat tidak dilipat) */}
-      {!isMobileOv && !collapsed && onLebar && (
+      {!isMobileOv && onLebar && (
         <div
           role="separator"
           aria-orientation="vertical"
