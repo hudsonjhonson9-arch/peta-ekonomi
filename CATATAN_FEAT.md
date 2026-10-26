@@ -118,3 +118,11 @@ REQ BANK DATA (baru):
 - Kini: `LoginPage` mengirim `remember` → `POST /api/auth/login`. **Dicentang (default)**: token + cookie persistent **30 hari** (`MASA_JAM_INGAT`, tetap ada setelah browser ditutup). **Tidak dicentang**: cookie session (ikut hilang saat browser ditutup) dengan token maksimal 8 jam (`MASA_JAM`).
 - Perubahan di `server/session.js`: `buatToken(nip, secret, masaJam)` (parameter baru, default 8 jam — pemanggil lama tak berubah) dan `pasangCookie(res, token, req, ingat)` — `maxAge` hanya ditulis bila `ingat` (sebelumnya selalu 8 jam). Role tetap dibaca dari DB tiap request, jadi pencabutan hak tetap seketika walau token 30 hari masih hidup.
 - Uji baru `server/session.uji.mjs` (5 uji: masa berlaku default/ingat, sub NIP, secret salah ditolak, maxAge ada/tidak) — lulus; `draft-rincian.uji.mjs` (10) & `screening.uji.mjs` (10) tetap lulus; `npm run build` sukses.
+
+## SIDEBAR RESIZE + MODAL BISA DIGESER (2026-10-26)
+
+- **Sidebar bisa diubah lebarnya**: pegangan di tepi kanan sidebar (desktop, saat tidak dilipat) — seret untuk lebar 180–460px, klik ganda mengembalikan ke 220px, disimpan di `localStorage.sidebarWidth` (transisi dimatikan saat diseret, kursor `col-resize`, garis highlight saat disentuh). Lipat (60px) tetap lewat tombol yang sudah ada.
+- **Semua modal bisa digeser** lewat komponen baru `Geser` (`src/components/ui.jsx`): kotak modal jadi elemen yang ditransform `translate(x,y)`, tarik dari elemen ber-attribute `data-pegang` (judul dialog; tombol/form/label di dalamnya diabaikan, jadi tombol tetap berfungsi). Offset dikunci agar modal tidak keluar layar (sisi tetap ≥4px di dalam viewport, judul ±72px selalu terlihat) dan otomatis kembali ke tengah tiap modal dibuka ulang.
+- Terpasang di: `Modal` bersama (Screening RKA, Upload, PksAdmin, KertasKerja, dst — desktop saja; di layar sentuh bottom-sheet menempel di tepi bawah jadi tidak digeser), 3 modal Pages (Pengguna/Jenis Dokumen/Sektor), 2 modal DocPages (Edit Dokumen/Unggah Versi), ShareModal. Handle memakai CSS global `[data-pegang]` di index.html (cursor grab, touch-action none).
+- Tidak digeser: GoogleDriveEmbed (penampil fullscreen) dan scrim navigasi.
+- Verifikasi: `npm run build` sukses; 57 uji lulus (session 5, draft-rincian 10, screening 10, standar-harga 8, tautan-periode 11, impor-sipd 7, excel 6).

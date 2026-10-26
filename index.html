@@ -22,6 +22,8 @@
       @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
       @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
       @keyframes slideDown { from { transform: translateY(0); } to { transform: translateY(100%); } }
+      [data-pegang] { touch-action: none; cursor: grab; user-select: none; }
+      [data-seret] [data-pegang] { cursor: grabbing; }
       html[data-theme="dark"] {
         color-scheme: dark;
       }

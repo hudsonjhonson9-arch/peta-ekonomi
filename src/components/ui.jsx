@@ -379,6 +379,74 @@ export function CariPilih({
 // lockClose dipakai saat submit sedang berjalan: menutup dialog saat upload
 // berjalan akan menggagalkan request dan membuat pengguna mengira upload sudah
 // selesai padahal belum.
+// Kotak yang bisa digeser dengan pointer/touch. Tarik dari elemen ber-attribute
+// `data-pegang` (judul dialog) — tombol/form di dalamnya sengaja diabaikan.
+// Offset dibatasi agar kotak tidak keluar layar, dan otomatis kembali ke
+// tengah tiap modal dibuka ulang (state hidup di dalam komponen ini yang
+// ikut unmount bersama modalnya). `aktif={false}` mematikan geser (mis. modal
+// bottom-sheet di layar sentuh yang menempel di tepi bawah).
+export function Geser({ aktif = true, children, innerRef, style, ...rest }) {
+  const kotakRef = useRef(null);
+  const [off, setOff] = useState({ x: 0, y: 0 });
+  const [seret, setSeret] = useState(false);
+  const mulai = useRef(null);
+
+  const pasangRef = node => {
+    kotakRef.current = node;
+    if (innerRef) innerRef.current = node;
+  };
+
+  const onDown = e => {
+    if (!aktif || e.button !== 0 || mulai.current) return;
+    const t = e.target;
+    const pegang = t instanceof Element && t.closest("[data-pegang]");
+    if (!pegang || t.closest("button, a, input, select, textarea, label")) return;
+    const r = kotakRef.current?.getBoundingClientRect();
+    if (!r) return;
+    // Batas dihitung dari posisi awal: sisi kotak tidak boleh melewati tepi
+    // layar, dan judul (±72px teratas) tetap terlihat walau digeser ke bawah.
+    mulai.current = {
+      x: e.clientX, y: e.clientY, o: off,
+      minX: off.x - r.left + 4,
+      maxX: off.x + window.innerWidth - r.right - 4,
+      minY: off.y - r.top + 4,
+      maxY: off.y + window.innerHeight - r.top - 72,
+    };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    setSeret(true);
+  };
+
+  const onMove = e => {
+    const m = mulai.current;
+    if (!m) return;
+    const kunci = (v, a, b) => (a > b ? (a + b) / 2 : Math.min(Math.max(v, a), b));
+    setOff({
+      x: kunci(m.o.x + e.clientX - m.x, m.minX, m.maxX),
+      y: kunci(m.o.y + e.clientY - m.y, m.minY, m.maxY),
+    });
+  };
+
+  const onUp = () => { mulai.current = null; setSeret(false); };
+
+  return (
+    <div
+      ref={pasangRef}
+      data-seret={seret ? "" : undefined}
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={onUp}
+      {...rest}
+      style={{
+        ...(off.x || off.y ? { transform: `translate(${off.x}px, ${off.y}px)` } : null),
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function Modal({
   title,
   subtitle,
@@ -431,8 +499,9 @@ export function Modal({
         zIndex: 1200, padding: isMobile ? 0 : 20,
       }}
     >
-      <div
-        ref={boxRef}
+      <Geser
+        aktif={!isMobile}
+        innerRef={boxRef}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
@@ -447,7 +516,7 @@ export function Modal({
           animation: isMobile ? "slideUp .25s ease" : "fadeIn .15s ease",
         }}
       >
-        <div style={{
+        <div data-pegang style={{
           display: "flex", alignItems: "flex-start", justifyContent: "space-between",
           gap: 12, flexShrink: 0,
           padding: isMobile ? "18px 18px 14px" : "20px 24px 16px",
@@ -499,7 +568,7 @@ export function Modal({
             {footer}
           </div>
         )}
-      </div>
+      </Geser>
     </div>
   );
 }

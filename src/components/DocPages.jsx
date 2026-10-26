@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useContext } from "react";
 import * as pdfjsLib from "pdfjs-dist";
-import { Icon, Badge, GoogleDriveEmbed, isGDriveUrl, formatBytes, extractGDriveFileId, extractGDriveFolderId, gdriveDirectUrl, isImageFile, isOfficeFile, isPdfFile, getUniversalPreviewUrl } from "./ui.jsx";
+import { Icon, Badge, Geser, GoogleDriveEmbed, isGDriveUrl, formatBytes, extractGDriveFileId, extractGDriveFolderId, gdriveDirectUrl, isImageFile, isOfficeFile, isPdfFile, getUniversalPreviewUrl } from "./ui.jsx";
 import { YEARS, STATUS_LIST, STATUS_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
 import { api } from "../hooks.js";
@@ -1563,9 +1563,9 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
       {/* Edit Modal */}
       {editing && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 16 }}
-          onClick={e => { if (e.target === e.currentTarget) setEditing(false); }}>
-          <div style={{ background: T.card, borderRadius: T.radiusLg, border: `1px solid ${T.border}`, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", width: "100%", maxWidth: 440, padding: isMobile ? 20 : 28, fontFamily: T.font }}>
-            <h3 style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: "0 0 20px" }}>Edit Dokumen</h3>
+          onClick={e => { if (e.target === e.currentTarget) { setEditing(false); } }}>
+          <Geser style={{ background: T.card, borderRadius: T.radiusLg, border: `1px solid ${T.border}`, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", width: "100%", maxWidth: 440, padding: isMobile ? 20 : 28, fontFamily: T.font }}>
+            <h3 data-pegang style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: "0 0 20px" }}>Edit Dokumen</h3>
             {[
               { key: "judul", label: "Judul Dokumen", type: "text" },
               { key: "kategori", label: "Sektor", type: "select", opts: sectors.map(s => s.nama || s.name || s) },
@@ -1612,7 +1612,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
                 onMouseEnter={e => e.currentTarget.style.background = T.primaryHover}
                 onMouseLeave={e => e.currentTarget.style.background = T.primary}>Simpan</button>
             </div>
-          </div>
+          </Geser>
         </div>
       )}
 
@@ -1620,8 +1620,8 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
       {showVersionModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 16 }}
           onClick={e => { if (e.target === e.currentTarget) { setShowVersionModal(false); setVersionFile(null); setVersionNote(""); } }}>
-          <div style={{ background: T.card, borderRadius: T.radiusLg, border: `1px solid ${T.border}`, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", width: "100%", maxWidth: 440, padding: isMobile ? 20 : 28, fontFamily: T.font }}>
-            <h3 style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: "0 0 20px" }}>Unggah Versi Baru</h3>
+          <Geser style={{ background: T.card, borderRadius: T.radiusLg, border: `1px solid ${T.border}`, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", width: "100%", maxWidth: 440, padding: isMobile ? 20 : 28, fontFamily: T.font }}>
+            <h3 data-pegang style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: "0 0 20px" }}>Unggah Versi Baru</h3>
             <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 14 }}>
               Versi aktif saat ini: <b>v{doc.versi || 1}</b>. File versi baru akan menggantikan file aktif, versi lama tetap tersimpan di riwayat.
             </div>
@@ -1649,7 +1649,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
                 {versionUploading ? "Mengunggah..." : "Unggah"}
               </button>
             </div>
-          </div>
+          </Geser>
         </div>
       )}
 

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./ui.jsx";
 import { ROLE_COLOR, navGroupsUntuk, grupTerbukaAwal } from "../data.js";
 import { Badge } from "./ui.jsx";
@@ -69,9 +69,16 @@ function RecentActivity({ logs = [] }) {
   );
 }
 
-export default function Sidebar({ active, onNav, user, onLogout, collapsed, mobileOpen, logs }) {
+export default function Sidebar({ active, onNav, user, onLogout, collapsed, lebar = 220, onLebar, mobileOpen, logs }) {
   const { T, theme, setTheme } = useContext(ThemeContext);
   const isMobileOv = mobileOpen !== undefined;
+  // Pegangan lebar di tepi kanan: seret untuk mengubah lebar, klik ganda
+  // untuk mengembalikan ke 220px. `seretRef` menyimpan posisi awal pointer
+  // agar lebar dihitung dari titik mulai seret, bukan dari perubahan tiap event.
+  const [seret, setSeret] = useState(false);
+  const [pegang, setPegang] = useState(false);
+  const seretRef = useRef(null);
+  useEffect(() => () => { document.body.style.userSelect = ""; }, []);
   // useMemo dipakai karena daftar ini jadi dependensi effect di bawah; tanpa
   // itu referensinya baru tiap render dan effect berjalan terus.
   const groups = useMemo(() => navGroupsUntuk(user.role), [user.role]);
@@ -99,15 +106,21 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, mobi
     });
   };
 
+  const akhiriSeret = () => {
+    seretRef.current = null;
+    setSeret(false);
+    document.body.style.userSelect = "";
+  };
+
   return (
     <div style={{
-      width: isMobileOv ? (mobileOpen ? 260 : 0) : (collapsed ? 60 : 220),
+      width: isMobileOv ? (mobileOpen ? 260 : 0) : (collapsed ? 60 : lebar),
       height: "100vh",
       background: T.sidebarBg,
       color: "#fff",
       display: "flex",
       flexDirection: "column",
-      transition: "width 0.2s, transform 0.25s",
+      transition: seret ? "none" : "width 0.2s, transform 0.25s",
       flexShrink: 0,
       overflow: "hidden",
       position: "sticky",
@@ -257,6 +270,39 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, mobi
           {!collapsed && "Keluar"}
         </button>
       </div>
+
+      {/* Pegangan lebar sidebar (hanya desktop, saat tidak dilipat) */}
+      {!isMobileOv && !collapsed && onLebar && (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Geser untuk mengubah lebar sidebar"
+          title="Geser untuk mengubah lebar · klik ganda untuk atur ulang"
+          onPointerDown={e => {
+            if (e.button !== 0) return;
+            e.currentTarget.setPointerCapture?.(e.pointerId);
+            seretRef.current = { x: e.clientX, lebar };
+            setSeret(true);
+            document.body.style.userSelect = "none";
+          }}
+          onPointerMove={e => {
+            const s = seretRef.current;
+            if (!s) return;
+            onLebar(Math.round(Math.min(460, Math.max(180, s.lebar + (e.clientX - s.x)))));
+          }}
+          onPointerUp={akhiriSeret}
+          onPointerCancel={akhiriSeret}
+          onDoubleClick={() => onLebar(220)}
+          onMouseEnter={() => setPegang(true)}
+          onMouseLeave={() => setPegang(false)}
+          style={{
+            position: "absolute", top: 0, bottom: 0, right: 0, width: 8, zIndex: 6,
+            cursor: "col-resize", touchAction: "none",
+            background: (pegang || seret) ? T.primary + "40" : "transparent",
+            transition: "background 0.15s",
+          }}
+        />
+      )}
     </div>
   );
 }

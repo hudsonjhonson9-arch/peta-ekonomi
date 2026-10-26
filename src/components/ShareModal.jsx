@@ -1,6 +1,7 @@
 import { useState, useEffect, useContext } from "react";
 import QRCode from "qrcode";
 import { ThemeContext } from "../App.jsx";
+import { Geser } from "./ui.jsx";
 
 const btnBase = {
   display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer",
@@ -81,11 +82,11 @@ export default function ShareModal({ docId, docTitle, api, onClose }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
       onClick={onClose}>
-      <div style={{ background: T.card, borderRadius: 16, padding: 24, maxWidth: 480, width: "100%", maxHeight: "85vh", overflow: "auto", boxShadow: T.shadow, border: `1px solid ${T.border}` }}
+      <Geser style={{ background: T.card, borderRadius: 16, padding: 24, maxWidth: 480, width: "100%", maxHeight: "85vh", overflow: "auto", boxShadow: T.shadow, border: `1px solid ${T.border}` }}
         onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div data-pegang style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: T.text }}>Bagikan Dokumen</div>
           <button onClick={onClose} style={{ ...btnBase, background: "transparent", color: T.textSecondary, padding: 4 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -164,7 +165,7 @@ export default function ShareModal({ docId, docTitle, api, onClose }) {
             Belum ada tautan aktif
           </div>
         )}
-      </div>
+      </Geser>
     </div>
   );
 }

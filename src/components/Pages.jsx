@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, useMemo, useRef } from "react";
-import { Icon, Badge } from "./ui.jsx";
+import { Icon, Badge, Geser } from "./ui.jsx";
 import { STATUS_COLOR, ROLE_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
 import { ThemeContext } from "../App.jsx";
@@ -574,14 +574,14 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
       {modalOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", zIndex: 50, padding: isMobile ? 0 : 20 }}
           onClick={() => setModalOpen(false)}>
-          <div onClick={e => e.stopPropagation()} style={{
+          <Geser aktif={!isMobile} onClick={e => e.stopPropagation()} style={{
             background: T.card, borderRadius: isMobile ? "16px 16px 0 0" : T.radiusLg,
             padding: isMobile ? "24px 20px 80px" : "28px 32px",
             width: isMobile ? "100%" : 460, maxHeight: isMobile ? "85vh" : "auto", overflowY: "auto",
             boxShadow: T.shadowLg, animation: isMobile ? "slideUp .25s ease" : "fadeIn .15s ease",
           }}>
             {/* Modal Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+            <div data-pegang style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
               <h2 style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: 0 }}>{isEdit ? "Edit Pengguna" : "Tambah Pengguna"}</h2>
               <button onClick={() => setModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textMuted, transition: "all 0.15s" }}
                 onMouseEnter={e => { e.currentTarget.style.background = T.surfaceHover; e.currentTarget.style.color = T.text; }}
@@ -679,7 +679,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
                 {loading ? "Menyimpan..." : "Simpan"}
               </button>
             </div>
-          </div>
+          </Geser>
         </div>
       )}
     </div>
@@ -863,14 +863,14 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
       {modalOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", zIndex: 50, padding: isMobile ? 0 : 20 }}
           onClick={() => setModalOpen(false)}>
-          <div onClick={e => e.stopPropagation()} style={{
+          <Geser aktif={!isMobile} onClick={e => e.stopPropagation()} style={{
             background: T.card, borderRadius: isMobile ? "16px 16px 0 0" : T.radiusLg,
             padding: isMobile ? "24px 20px 80px" : "28px 32px",
             width: isMobile ? "100%" : 420, maxHeight: isMobile ? "85vh" : "auto",
             boxShadow: T.shadowLg, animation: isMobile ? "slideUp .25s ease" : "fadeIn .15s ease",
           }}>
             {/* Modal Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+            <div data-pegang style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
               <h2 style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: 0 }}>{isEdit ? "Edit Jenis Dokumen" : "Tambah Jenis Dokumen"}</h2>
               <button onClick={() => setModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textMuted, transition: "all 0.15s" }}
                 onMouseEnter={e => { e.currentTarget.style.background = T.surfaceHover; e.currentTarget.style.color = T.text; }}
@@ -911,7 +911,7 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
                 {loading ? "Menyimpan..." : "Simpan"}
               </button>
             </div>
-          </div>
+          </Geser>
         </div>
       )}
     </div>
@@ -1137,14 +1137,14 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
       {modalOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", zIndex: 50, padding: isMobile ? 0 : 20 }}
           onClick={() => setModalOpen(false)}>
-          <div onClick={e => e.stopPropagation()} style={{
+          <Geser aktif={!isMobile} onClick={e => e.stopPropagation()} style={{
             background: T.card, borderRadius: isMobile ? "16px 16px 0 0" : T.radiusLg,
             padding: isMobile ? "24px 20px 80px" : "28px 32px",
             width: isMobile ? "100%" : 420, maxHeight: isMobile ? "85vh" : "auto",
             boxShadow: T.shadowLg, animation: isMobile ? "slideUp .25s ease" : "fadeIn .15s ease",
           }}>
             {/* Modal Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+            <div data-pegang style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
               <h2 style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: 0 }}>{isEdit ? "Edit Sektor" : "Tambah Sektor"}</h2>
               <button onClick={() => setModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textMuted, transition: "all 0.15s" }}
                 onMouseEnter={e => { e.currentTarget.style.background = T.surfaceHover; e.currentTarget.style.color = T.text; }}
@@ -1185,7 +1185,7 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
                 {loading ? "Menyimpan..." : "Simpan"}
               </button>
             </div>
-          </div>
+          </Geser>
         </div>
       )}
     </div>
