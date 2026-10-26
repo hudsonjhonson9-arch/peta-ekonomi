@@ -1024,6 +1024,7 @@ if (!user) {
             user={user}
             onLogout={handleLogout}
             collapsed={collapsed}
+            onCiutkan={toggleCollapsed}
             lebar={lebarSidebar}
             onLebar={setLebarSidebar}
             logs={logs}
@@ -1039,15 +1040,6 @@ if (!user) {
             position: "sticky", top: 0, zIndex: 100, minHeight: 48,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              {!isMobile && (
-                <button
-                  onClick={toggleCollapsed}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: T.textSecondary, padding: 6, borderRadius: 6, minWidth: 32, minHeight: 32, display: "flex", alignItems: "center", justifyContent: "center" }}
-                  aria-label="Toggle menu"
-                >
-                  <Icon name="menu" size={20} />
-                </button>
-              )}
               {isMobile && (
                 <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>
                   {page === "dashboard" && "Dashboard"}

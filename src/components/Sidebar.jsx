@@ -73,7 +73,7 @@ function RecentActivity({ logs = [] }) {
   );
 }
 
-export default function Sidebar({ active, onNav, user, onLogout, collapsed, lebar = 220, onLebar, mobileOpen, logs }) {
+export default function Sidebar({ active, onNav, user, onLogout, collapsed, onCiutkan, lebar = 220, onLebar, mobileOpen, logs }) {
   const { T, theme, setTheme } = useContext(ThemeContext);
   const isMobileOv = mobileOpen !== undefined;
   // Pegangan lebar di tepi kanan: seret untuk mengubah lebar, klik ganda
@@ -152,6 +152,31 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, leba
           </div>
         )}
       </div>
+
+      {/* Tombol ciutkan/lebarkan — tepat di bawah logo */}
+      {onCiutkan && (
+        <div style={{
+          padding: "7px 12px", borderBottom: "1px solid " + T.border,
+          display: "flex", justifyContent: modeIcon ? "center" : "flex-end",
+        }}>
+          <button
+            onClick={onCiutkan}
+            title={collapsed ? "Lebarkan sidebar" : "Ciutkan sidebar"}
+            aria-label={collapsed ? "Lebarkan sidebar" : "Ciutkan sidebar"}
+            style={{
+              display: "flex", alignItems: "center", gap: 7,
+              background: "none", border: `1px solid ${T.border}`,
+              borderRadius: 7, color: T.textMuted,
+              cursor: "pointer", fontSize: 12, fontWeight: 600,
+              padding: modeIcon ? "6px 7px" : "6px 10px",
+              fontFamily: "inherit",
+            }}
+          >
+            <Icon name="chevronRight" size={14} style={collapsed ? undefined : { transform: "rotate(180deg)" }} />
+            {!modeIcon && "Ciutkan"}
+          </button>
+        </div>
+      )}
 
       {/* Nav — kelompok yang bisa dilipat */}
       <nav style={{ flex: 1, padding: "10px 0", overflowY: "auto" }}>
@@ -312,12 +337,21 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, leba
           onMouseEnter={() => setPegang(true)}
           onMouseLeave={() => setPegang(false)}
           style={{
-            position: "absolute", top: 0, bottom: 0, right: 0, width: 8, zIndex: 6,
+            position: "absolute", top: 0, bottom: 0, right: 0, width: 10, zIndex: 6,
             cursor: "col-resize", touchAction: "none",
-            background: (pegang || seret) ? T.primary + "40" : "transparent",
+            background: (pegang || seret) ? T.primary + "30" : "transparent",
             transition: "background 0.15s",
           }}
-        />
+        >
+          {/* Pegangan kecil di tengah: penanda bahwa tepinya bisa diseret */}
+          <div style={{
+            position: "absolute", top: "50%", left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: 3, height: 34, borderRadius: 3,
+            background: (pegang || seret) ? T.primary : T.border,
+            transition: "background 0.15s",
+          }} />
+        </div>
       )}
     </div>
   );

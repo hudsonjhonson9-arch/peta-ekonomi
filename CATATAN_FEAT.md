@@ -135,3 +135,9 @@ REQ BANK DATA (baru):
 - Label item dibungkus span ellipsis (`flex:1, minWidth:0`) agar di lebar 121–220px teks terpotong rapi, bukan meluber.
 - Handle resize tetap tampil selama sidebar tidak dilipat (termasuk saat mode ikon) supaya selalu bisa ditarik kembali.
 - Verifikasi: `npm run build` sukses; uji lulus (session 5, draft-rincian 10, screening 10, excel 6).
+
+## SIDEBAR — TOMBOL CIUT/LEBAR PINDAH KE DALAM SIDEBAR + HANDLE LEBIH KELIHATAN (2026-10-26)
+
+- Tombol toggle sidebar (dulu ikon hamburger di topbar) **pindah ke dalam sidebar, tepat di bawah logo**: tombol berbingkai "‹ Ciutkan" (saat terbuka, pojok kanan) / "›" (saat dilipat, center) — memanggil `toggleCollapsed` yang sama lewat prop baru `onCiutkan`. Topbar desktop tidak lagi punya tombol toggle (judul halaman mobile tidak terpengaruh).
+- Pegangan resize dibuat lebih jelas: lebar 8→10px + **grip kecil 3×34px** di tengah tinggi sidebar (abu `T.border`, menyala `T.primary` saat hover/diseret) sehingga tepinya terlihat bisa digeser.
+- Verifikasi: `npm run build` sukses; kode `col-resize` terkonfirmasi ada di bundle hasil build.
