@@ -4,7 +4,7 @@ import useResponsive from "../useResponsive.js";
 import { ThemeContext } from "../App.jsx";
 
 const EXTRA = {
-  font: "'Segoe UI', system-ui, -apple-system, sans-serif",
+  font: "'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif",
   danger: "#DC2626",
   dangerBg: "#FEF2F2",
   dangerBorder: "#FECACA",
@@ -598,7 +598,7 @@ export default function UploadForm({
 
   // ── Mode halaman ──
   return (
-    <div style={{ fontFamily: T.font, background: T.bg, minHeight: "100vh", padding: isMobile ? "12px 16px 16px" : "20px 36px 28px" }}>
+    <div style={{ fontFamily: T.font, background: T.bg, minHeight: "100dvh", padding: isMobile ? "12px 16px 16px" : "20px 36px 28px" }}>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, color: T.text, letterSpacing: "-0.01em" }}>

@@ -5,10 +5,23 @@
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ARSIP DIGITAL BAPPERIDA — BAPPERIDA Sumba Barat</title>
+    <meta name="description" content="Arsip digital Bapperida Kabupaten Sumba Barat — pengelolaan dokumen perencanaan pembangunan daerah, kertas kerja, dan standar harga." />
+    <meta property="og:title" content="ARSIP DIGITAL BAPPERIDA — BAPPERIDA Sumba Barat" />
+    <meta property="og:description" content="Pengelolaan dokumen perencanaan pembangunan daerah, kertas kerja, dan standar harga." />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#0F172A" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+      body {
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-variant-numeric: tabular-nums;
+        -webkit-tap-highlight-color: transparent;
+      }
       #root { display: flex; min-height: 100vh; }
+      #root { min-height: 100dvh; }
       @media (max-width: 767px) {
         body { font-size: 15px; }
         ::-webkit-scrollbar { width: 4px; }
@@ -24,6 +37,21 @@
       @keyframes slideDown { from { transform: translateY(0); } to { transform: translateY(100%); } }
       [data-pegang] { touch-action: none; cursor: grab; user-select: none; }
       [data-seret] [data-pegang] { cursor: grabbing; }
+      /* Focus keyboard selalu terlihat (banyak tombol inline memakai outline:none). */
+      *:focus-visible { outline: 2px solid #2563EB !important; outline-offset: 2px; }
+      html[data-theme="dark"] *:focus-visible { outline: #60A5FA !important; }
+      /* Umpan balik tekan pada semua tombol. */
+      button { transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease, color .15s ease, transform .1s ease; }
+      button:active:not(:disabled) { transform: scale(0.97); }
+      h1, h2, h3 { text-wrap: balance; }
+      /* Tautan "lewati ke konten" — muncul hanya saat difokus keyboard. */
+      .skip-link {
+        position: fixed; top: -64px; left: 16px; z-index: 2000;
+        background: #2563EB; color: #fff; padding: 10px 16px;
+        border-radius: 8px; font-size: 13px; font-weight: 600;
+        text-decoration: none; transition: top .15s ease;
+      }
+      .skip-link:focus { top: 12px; }
       html[data-theme="dark"] {
         color-scheme: dark;
       }

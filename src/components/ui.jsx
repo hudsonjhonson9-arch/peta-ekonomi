@@ -326,14 +326,14 @@ export function CariPilih({
           id={listId}
           role="listbox"
           style={{
-            position: "fixed", zIndex: 60,
+            position: "fixed", zIndex: 150,
             left: rect.left, width: rect.width,
             ...(keAtas
               ? { bottom: window.innerHeight - rect.top + 4 }
               : { top: rect.top + 4 }),
             maxHeight: 220, overflowY: "auto",
             background: T.card, border: `1px solid ${T.border}`, borderRadius: 9,
-            boxShadow: "0 8px 24px rgba(0,0,0,.18)",
+            boxShadow: "0 8px 24px rgba(15,23,42,.18)",
           }}
         >
           {cocok.length === 0 ? (
@@ -587,7 +587,7 @@ export function GoogleDriveEmbed({ url, title, onClose }) {
       style={{
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)",
         backdropFilter: "blur(4px)", display: "flex", alignItems: "center",
-        justifyContent: "center", zIndex: 1000, padding: 20,
+        justifyContent: "center", zIndex: 1200, padding: 20,
       }}
     >
       <div
@@ -595,7 +595,7 @@ export function GoogleDriveEmbed({ url, title, onClose }) {
         style={{
           background: "#fff", borderRadius: 16, width: "90vw", maxWidth: 1100,
           height: "85vh", display: "flex", flexDirection: "column",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.3)", overflow: "hidden",
+          boxShadow: "0 20px 60px rgba(15,23,42,0.3)", overflow: "hidden",
         }}
       >
         {/* Header */}
@@ -676,9 +676,9 @@ export function Toast({ msg, onClose }) {
       position: "fixed", bottom: 24, right: 24,
       background: "#1b5e20", color: "#fff",
       padding: "12px 20px", borderRadius: 10,
-      fontSize: 13, fontWeight: 500, zIndex: 9999,
+      fontSize: 13, fontWeight: 500, zIndex: 1300,
       display: "flex", alignItems: "center", gap: 10,
-      boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+      boxShadow: "0 4px 20px rgba(15,23,42,0.2)",
       animation: "fadeIn .2s ease",
     }}>
       <Icon name="check" size={15} /> {msg}

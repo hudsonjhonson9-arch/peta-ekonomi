@@ -1016,7 +1016,8 @@ if (!user) {
 
   return (
     <ThemeContext.Provider value={{ T, isDark, theme, setTheme }}>
-      <div style={{ display: "flex", width: "100%", minHeight: "100vh", fontFamily: "system-ui, -apple-system, sans-serif", background: T.bg }}>
+      <a href="#konten-utama" className="skip-link">Lewati ke konten utama</a>
+      <div style={{ display: "flex", width: "100%", minHeight: "100dvh", fontFamily: T.font, background: T.bg }}>
         {!isMobile && (
           <Sidebar
             active={viewDoc ? "dokumen" : page}
@@ -1031,7 +1032,7 @@ if (!user) {
           />
         )}
 
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", paddingBottom: isMobile ? 64 : 0 }}>
+        <div id="konten-utama" tabIndex={-1} style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", paddingBottom: isMobile ? 64 : 0, outline: "none" }}>
           {/* Topbar */}
           <div style={{
             background: T.card, borderBottom: `1px solid ${T.border}`,
@@ -1083,7 +1084,7 @@ if (!user) {
           </div>
 
           {/* Main — JANGAN overflowY:auto di sini: kolom ini tidak pernah
-              dibatasi tinggi (root hanya minHeight:100vh), jadi area konten
+              dibatasi tinggi (root hanya minHeight:100dvh), jadi area konten
               tumbuh setinggi isinya dan yang menggulir adalah window.
               overflowY:auto hanya membuat scrollport MATI yang menangkap
               position:sticky anak (mis. kartu DetailSub di ScreeningRKA)
@@ -1183,7 +1184,7 @@ if (!user) {
                 boxShadow: "0 4px 14px rgba(37,99,235,0.4)",
                 fontSize: 28,
                 cursor: "pointer",
-                zIndex: 999,
+                zIndex: 1100,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

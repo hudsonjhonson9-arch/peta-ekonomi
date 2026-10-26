@@ -141,3 +141,13 @@ REQ BANK DATA (baru):
 - Tombol toggle sidebar (dulu ikon hamburger di topbar) **pindah ke dalam sidebar, tepat di bawah logo**: tombol berbingkai "‹ Ciutkan" (saat terbuka, pojok kanan) / "›" (saat dilipat, center) — memanggil `toggleCollapsed` yang sama lewat prop baru `onCiutkan`. Topbar desktop tidak lagi punya tombol toggle (judul halaman mobile tidak terpengaruh).
 - Pegangan resize dibuat lebih jelas: lebar 8→10px + **grip kecil 3×34px** di tengah tinggi sidebar (abu `T.border`, menyala `T.primary` saat hover/diseret) sehingga tepinya terlihat bisa digeser.
 - Verifikasi: `npm run build` sukses; kode `col-resize` terkonfirmasi ada di bundle hasil build.
+
+## REDESAIN UI/UX — TIPOGRAFI, PERMUKAAN, SKALA Z-INDEX, AKSESIBILITAS (2026-10-26)
+
+- **Tipografi**: font `Lexend`/`Source Sans 3` ternyata tidak pernah dimuat (semua jatuh ke system-ui). Diganti **Plus Jakarta Sans** (400–800) via Google Fonts + preconnect; stack diseragamkan di `theme.js`, `index.html` (body), root App, `DocPages` (3 hardcode), `LoginPage`, `UploadForm`. Angka memakai `tabular-nums` (sejajar di tabel pagu/rupiah); `h1–h3` dapat `text-wrap: balance`.
+- **Permukaan**: semua bayangan hitam murni `rgba(0,0,0,…)` (17 baris + 6 token) di-tint ke hue theme — slate `15,23,42` (terang) / navy `2,6,23` (gelap), sesuai latar masing-masing.
+- **Skala z-index** disatukan: topbar 100 · dropdown 150 · nav bawah/scrim 199–210 · FAB 1100 · **semua modal 1200** (Pages dulu z-50 = di bawah topbar z-100, scrim-nya bisa diklik lewat topbar — bug) · toast 1300 · tooltip 1400 · skip-link 2000. CariPilih dropdown naik 60→150 (dulu tertutup topbar).
+- **Aksesibilitas**: focus ring global `*:focus-visible` (dgn `!important` — banyak tombol inline `outline:none`), umpan balik tekan `button:active scale(.97)` + transisi global, tautan **"Lewati ke konten utama"** (skip-link muncul saat focus keyboard) ke `#konten-utama`.
+- **Meta**: description, og:title/description/type, theme-color ditambahkan ke `index.html`.
+- **Viewport**: `100vh` → `100dvh` (dgn fallback `100vh`) di root, sidebar, DocPages, PublicShare, UploadForm, LoginPage — anti-loncat di Safari mobile.
+- Verifikasi: `npm run build` sukses; uji lulus (session 5, screening 10).

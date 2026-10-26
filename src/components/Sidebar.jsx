@@ -122,7 +122,7 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, onCi
   return (
     <div style={{
       width: isMobileOv ? (mobileOpen ? 260 : 0) : (collapsed ? 60 : lebar),
-      height: "100vh",
+      height: "100dvh",
       background: T.sidebarBg,
       color: "#fff",
       display: "flex",

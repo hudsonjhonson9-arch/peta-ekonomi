@@ -13,7 +13,7 @@ import FileDropdown from "./FileDropdown.jsx";
 // ── Shared Design Token Helpers (derived from theme T) ─────────────────────
 function makeBtnBase(T) {
   return {
-    fontFamily: "'Lexend', 'Source Sans 3', system-ui, -apple-system, sans-serif",
+    fontFamily: T.font,
     fontWeight: 600,
     borderRadius: "10px",
     border: "none",
@@ -33,7 +33,7 @@ function makeCardStyle(T) {
 function makeInputStyle(T) {
   return {
     width: "100%", padding: "10px 14px 10px 36px",
-    fontFamily: "'Lexend', 'Source Sans 3', system-ui, -apple-system, sans-serif",
+    fontFamily: T.font,
     border: `1.5px solid ${T.border}`, borderRadius: "10px", fontSize: 14,
     outline: "none", boxSizing: "border-box", transition: "border-color 0.15s, box-shadow 0.15s",
     color: T.text, background: T.inputBg,
@@ -41,7 +41,7 @@ function makeInputStyle(T) {
 }
 function makeSelStyle(T) {
   return {
-    fontFamily: "'Lexend', 'Source Sans 3', system-ui, -apple-system, sans-serif",
+    fontFamily: T.font,
     fontSize: 13, padding: "8px 12px", border: `1.5px solid ${T.border}`, borderRadius: "10px",
     background: T.inputBg, color: T.text, cursor: "pointer", outline: "none",
     transition: "border-color 0.15s", minWidth: 120,
@@ -160,9 +160,9 @@ function DocTooltip({ doc, children }) {
           padding: "10px 14px",
           fontSize: 12,
           lineHeight: 1.5,
-          zIndex: 9999,
+          zIndex: 1400,
           pointerEvents: "none",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+          boxShadow: "0 8px 24px rgba(15,23,42,0.2)",
           maxWidth: 280,
           minWidth: 180,
         }}>
@@ -386,7 +386,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
 
   return (
     <div
-      style={{ fontFamily: T.font, background: dragOver ? "#EFF6FF" : T.bg, minHeight: "100vh", transition: "background 0.2s" }}
+      style={{ fontFamily: T.font, background: dragOver ? "#EFF6FF" : T.bg, minHeight: "100dvh", transition: "background 0.2s" }}
       onDragOver={e => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
       onDrop={handleDrop}
@@ -602,7 +602,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                       background: selectedIds.has(d.id) ? T.primaryLight : T.card,
                     }}
                     onMouseEnter={e => {
-                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(15,23,42,0.08)";
                       e.currentTarget.style.borderColor = T.borderHover;
                       e.currentTarget.style.transform = "translateY(-2px)";
                     }}
@@ -671,7 +671,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                   position: "relative",
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(15,23,42,0.08)";
                   e.currentTarget.style.borderColor = bc.text;
                   e.currentTarget.style.transform = "translateY(-2px)";
                 }}
@@ -749,7 +749,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                     background: selectedIds.has(d.id) ? T.primaryLight : T.card,
                   }}
                   onMouseEnter={e => {
-                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(15,23,42,0.08)";
                     e.currentTarget.style.borderColor = T.borderHover;
                     e.currentTarget.style.transform = "translateY(-2px)";
                   }}
@@ -848,7 +848,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                       background: selectedIds.has(d.id) ? T.primaryLight : T.card,
                     }}
                     onMouseEnter={e => {
-                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(15,23,42,0.08)";
                       e.currentTarget.style.borderColor = T.borderHover;
                       e.currentTarget.style.transform = "translateY(-1px)";
                     }}
@@ -905,7 +905,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                   opacity: 0,
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(15,23,42,0.08)";
                   e.currentTarget.style.borderColor = bc.text;
                 }}
                 onMouseLeave={e => {
@@ -966,7 +966,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                     background: selectedIds.has(d.id) ? T.primaryLight : T.card,
                   }}
                   onMouseEnter={e => {
-                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(15,23,42,0.08)";
                     e.currentTarget.style.borderColor = T.borderHover;
                   }}
                   onMouseLeave={e => {
@@ -1034,7 +1034,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
           // bungkus supaya tidak keluar viewport. bottom 76 = di atas BottomNav.
           width: "max-content", maxWidth: "calc(100vw - 24px)",
           background: T.card, borderRadius: 16, padding: "12px 20px",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.2)", border: `1px solid ${T.border}`,
+          boxShadow: "0 8px 32px rgba(15,23,42,0.2)", border: `1px solid ${T.border}`,
           display: "flex", alignItems: "center", justifyContent: "center",
           flexWrap: "wrap", gap: 12, zIndex: 1000,
         }}>
@@ -1562,9 +1562,9 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
 
       {/* Edit Modal */}
       {editing && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 16 }}
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1200, padding: 16 }}
           onClick={e => { if (e.target === e.currentTarget) { setEditing(false); } }}>
-          <Geser style={{ background: T.card, borderRadius: T.radiusLg, border: `1px solid ${T.border}`, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", width: "100%", maxWidth: 440, padding: isMobile ? 20 : 28, fontFamily: T.font }}>
+          <Geser style={{ background: T.card, borderRadius: T.radiusLg, border: `1px solid ${T.border}`, boxShadow: "0 20px 60px rgba(15,23,42,0.2)", width: "100%", maxWidth: 440, padding: isMobile ? 20 : 28, fontFamily: T.font }}>
             <h3 data-pegang style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: "0 0 20px" }}>Edit Dokumen</h3>
             {[
               { key: "judul", label: "Judul Dokumen", type: "text" },
@@ -1618,9 +1618,9 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
 
       {/* Version Upload Modal */}
       {showVersionModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 16 }}
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1200, padding: 16 }}
           onClick={e => { if (e.target === e.currentTarget) { setShowVersionModal(false); setVersionFile(null); setVersionNote(""); } }}>
-          <Geser style={{ background: T.card, borderRadius: T.radiusLg, border: `1px solid ${T.border}`, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", width: "100%", maxWidth: 440, padding: isMobile ? 20 : 28, fontFamily: T.font }}>
+          <Geser style={{ background: T.card, borderRadius: T.radiusLg, border: `1px solid ${T.border}`, boxShadow: "0 20px 60px rgba(15,23,42,0.2)", width: "100%", maxWidth: 440, padding: isMobile ? 20 : 28, fontFamily: T.font }}>
             <h3 data-pegang style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: "0 0 20px" }}>Unggah Versi Baru</h3>
             <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 14 }}>
               Versi aktif saat ini: <b>v{doc.versi || 1}</b>. File versi baru akan menggantikan file aktif, versi lama tetap tersimpan di riwayat.

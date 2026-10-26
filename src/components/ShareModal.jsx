@@ -80,7 +80,7 @@ export default function ShareModal({ docId, docTitle, api, onClose }) {
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
       onClick={onClose}>
       <Geser style={{ background: T.card, borderRadius: 16, padding: 24, maxWidth: 480, width: "100%", maxHeight: "85vh", overflow: "auto", boxShadow: T.shadow, border: `1px solid ${T.border}` }}
         onClick={e => e.stopPropagation()}>

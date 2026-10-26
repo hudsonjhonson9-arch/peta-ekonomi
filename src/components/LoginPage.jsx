@@ -44,7 +44,7 @@ export default function LoginPage({ onLogin }) {
   return (
     <>
       <style>{`
-        .ad-login { min-height: 100vh; width: 100%; display: flex; background: #F8FAFC; font-family: system-ui, sans-serif; }
+        .ad-login { min-height: 100vh; min-height: 100dvh; width: 100%; display: flex; background: #F8FAFC; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
         .ad-login .kiri { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; }
         .ad-login .card {
           width: 100%; max-width: 360px; background: #fff; border-radius: 20px;
@@ -204,7 +204,7 @@ export default function LoginPage({ onLogin }) {
         {/* Kanan — panel brand (hidden < 1024px) */}
         <div className="kanan">
           <div style={{ maxWidth: 440 }}>
-            <img src="/icon.svg" alt="" width={64} height={64} style={{ marginBottom: 28, borderRadius: 16, boxShadow: "0 8px 24px rgba(0,0,0,0.2)" }} />
+            <img src="/icon.svg" alt="" width={64} height={64} style={{ marginBottom: 28, borderRadius: 16, boxShadow: "0 8px 24px rgba(15,23,42,0.2)" }} />
             <h1 style={{ fontSize: 40, fontWeight: 800, lineHeight: 1.15, letterSpacing: -1, margin: "0 0 16px" }}>
               Satu pintu untuk arsip perencanaan pembangunan daerah.
             </h1>

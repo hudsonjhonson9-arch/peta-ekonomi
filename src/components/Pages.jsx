@@ -572,7 +572,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
 
       {/* Modal */}
       {modalOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", zIndex: 50, padding: isMobile ? 0 : 20 }}
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", zIndex: 1200, padding: isMobile ? 0 : 20 }}
           onClick={() => setModalOpen(false)}>
           <Geser aktif={!isMobile} onClick={e => e.stopPropagation()} style={{
             background: T.card, borderRadius: isMobile ? "16px 16px 0 0" : T.radiusLg,
@@ -861,7 +861,7 @@ export function ManajemenKategoriDokumen({ categories, onReload, showToast }) {
 
       {/* Modal */}
       {modalOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", zIndex: 50, padding: isMobile ? 0 : 20 }}
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", zIndex: 1200, padding: isMobile ? 0 : 20 }}
           onClick={() => setModalOpen(false)}>
           <Geser aktif={!isMobile} onClick={e => e.stopPropagation()} style={{
             background: T.card, borderRadius: isMobile ? "16px 16px 0 0" : T.radiusLg,
@@ -1135,7 +1135,7 @@ export function ManajemenSektor({ sectors, onReload, showToast }) {
 
       {/* Modal */}
       {modalOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", zIndex: 50, padding: isMobile ? 0 : 20 }}
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", zIndex: 1200, padding: isMobile ? 0 : 20 }}
           onClick={() => setModalOpen(false)}>
           <Geser aktif={!isMobile} onClick={e => e.stopPropagation()} style={{
             background: T.card, borderRadius: isMobile ? "16px 16px 0 0" : T.radiusLg,
