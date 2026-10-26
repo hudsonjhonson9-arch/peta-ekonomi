@@ -126,3 +126,12 @@ REQ BANK DATA (baru):
 - Terpasang di: `Modal` bersama (Screening RKA, Upload, PksAdmin, KertasKerja, dst — desktop saja; di layar sentuh bottom-sheet menempel di tepi bawah jadi tidak digeser), 3 modal Pages (Pengguna/Jenis Dokumen/Sektor), 2 modal DocPages (Edit Dokumen/Unggah Versi), ShareModal. Handle memakai CSS global `[data-pegang]` di index.html (cursor grab, touch-action none).
 - Tidak digeser: GoogleDriveEmbed (penampil fullscreen) dan scrim navigasi.
 - Verifikasi: `npm run build` sukses; 57 uji lulus (session 5, draft-rincian 10, screening 10, standar-harga 8, tautan-periode 11, impor-sipd 7, excel 6).
+
+## SIDEBAR — RESIZE SAMPAI MODE IKON + PEMISAH PER GRUP (2026-10-26)
+
+- Rentang resize diperluas: **60–460px** (sebelumnya min 180) — bisa diseret sampai sisa ikon saja. Klik ganda pada pegangan tetap mengembalikan 220px; lebar tersimpan di localStorage (rentang baca disesuaikan).
+- **Mode ikon adaptif**: konstanta `LEBAR_ICON = 120` di Sidebar — saat `collapsed` ATAU lebar ≤ 120px, tampilan berubah penuh ke mode ikon (judul logo/grup disembunyikan, label item hilang, RecentActivity & info user disembunyikan, tombol footer jadi ikon-centered). Tooltip `title` pada tiap item nav kini selalu aktif (label terkecil tetap bisa diketahui hover).
+- **Batas per grup di mode ikon**: karena judul kelompok disembunyikan, tiap grup (kecuali pertama) diberi garis pemisah `borderTop` + jarak — batas antar grup tetap terlihat walau hanya ikon.
+- Label item dibungkus span ellipsis (`flex:1, minWidth:0`) agar di lebar 121–220px teks terpotong rapi, bukan meluber.
+- Handle resize tetap tampil selama sidebar tidak dilipat (termasuk saat mode ikon) supaya selalu bisa ditarik kembali.
+- Verifikasi: `npm run build` sukses; uji lulus (session 5, draft-rincian 10, screening 10, excel 6).

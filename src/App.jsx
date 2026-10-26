@@ -138,10 +138,10 @@ export default function App() {
     });
   };
   // Lebar sidebar bisa digeser user (pegangan di tepi kanannya), dibatasi
-  // 180–460px, dan bertahan lewat refresh.
+  // 60–460px (60 = muat sisa ikon saja), dan bertahan lewat refresh.
   const [lebarSidebar, setLebarSidebar] = useState(() => {
     const v = Number(localStorage.getItem("sidebarWidth"));
-    return Number.isFinite(v) && v >= 180 && v <= 460 ? Math.round(v) : 220;
+    return Number.isFinite(v) && v >= 60 && v <= 460 ? Math.round(v) : 220;
   });
   useEffect(() => {
     try { localStorage.setItem("sidebarWidth", String(lebarSidebar)); } catch { /* kuota penuh */ }

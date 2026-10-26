@@ -8,6 +8,10 @@ import { ThemeContext } from "../App.jsx";
 // refresh. Yang tersimpan hanya kelompok yang benar-benar diubah user.
 const KUNCI_GRUP = "sidebarGrupTerbuka";
 
+// Di bawah lebar ini teks label tidak muat lagi, jadi tampilan berubah jadi
+// mode ikon (sama seperti sidebar dilipat) walau lebarnya bukan 60px persis.
+const LEBAR_ICON = 120;
+
 function muatGrupTerbuka() {
   try {
     const v = JSON.parse(localStorage.getItem(KUNCI_GRUP) || "null");
@@ -79,6 +83,9 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, leba
   const [pegang, setPegang] = useState(false);
   const seretRef = useRef(null);
   useEffect(() => () => { document.body.style.userSelect = ""; }, []);
+
+  // Mode ikon: sidebar dilipat lewat tombol, atau diseret sampai teks tak muat.
+  const modeIcon = collapsed || lebar <= LEBAR_ICON;
   // useMemo dipakai karena daftar ini jadi dependensi effect di bawah; tanpa
   // itu referensinya baru tiap render dan effect berjalan terus.
   const groups = useMemo(() => navGroupsUntuk(user.role), [user.role]);
@@ -133,12 +140,12 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, leba
     }}>
       {/* Logo */}
       <div style={{
-        padding: collapsed ? "18px 12px" : "18px 16px",
+        padding: modeIcon ? "18px 12px" : "18px 16px",
         borderBottom: "1px solid " + T.border,
         display: "flex", alignItems: "center", gap: 10,
       }}>
         <img src="/icon.svg" alt="" width={36} height={36} style={{ flexShrink: 0, borderRadius: 10 }} />
-        {!collapsed && (
+        {!modeIcon && (
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: -0.2 }}>ARSIP DIGITAL BAPPERIDA</div>
             <div style={{ fontSize: 10, color: T.textMuted, marginTop: 1 }}>Bapperida · Kab. Sumba Barat</div>
@@ -148,13 +155,18 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, leba
 
       {/* Nav — kelompok yang bisa dilipat */}
       <nav style={{ flex: 1, padding: "10px 0", overflowY: "auto" }}>
-        {groups.map(g => {
+        {groups.map((g, i) => {
           // Saat sidebar dikecilkan hanya ikon yang muat, jadi semua kelompok
           // dibuka tanpa perlu menampilkan judulnya.
-          const buka = collapsed || !!grupBuka[g.key];
+          const buka = modeIcon || !!grupBuka[g.key];
           return (
-            <div key={g.key} style={{ marginBottom: 2 }}>
-              {!collapsed && (
+            <div key={g.key} style={{
+              marginBottom: 2,
+              // Mode ikon: judul kelompok disembunyikan, jadi tiap kelompok
+              // dipisah garis tipis agar batasnya tetap terlihat.
+              ...(modeIcon && i > 0 ? { borderTop: `1px solid ${T.border}`, marginTop: 8, paddingTop: 4 } : {}),
+            }}>
+              {!modeIcon && (
                 <button
                   onClick={() => lipat(g)}
                   aria-expanded={buka}
@@ -184,14 +196,14 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, leba
                   <button
                     key={n.key}
                     onClick={() => onNav(n.key)}
-                    title={collapsed ? n.label : undefined}
+                    title={n.label}
                     style={{
                       width: "100%",
                       display: "flex",
                       alignItems: "center",
                       gap: 10,
-                      padding: collapsed ? "11px 0" : "10px 16px",
-                      justifyContent: collapsed ? "center" : "flex-start",
+                      padding: modeIcon ? "11px 0" : "10px 16px",
+                      justifyContent: modeIcon ? "center" : "flex-start",
                       background: isActive ? T.sidebarHover : "none",
                       border: "none",
                       borderLeft: isActive ? "3px solid " + T.primary : "3px solid transparent",
@@ -202,8 +214,12 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, leba
                       transition: "all 0.15s",
                     }}
                   >
-                    <Icon name={n.icon} size={17} />
-                    {!collapsed && n.label}
+                    <Icon name={n.icon} size={17} style={{ flexShrink: 0 }} />
+                    {!modeIcon && (
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>
+                        {n.label}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -213,32 +229,32 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, leba
       </nav>
 
       {/* Recent activity */}
-      {!collapsed && <RecentActivity logs={logs} />}
+      {!modeIcon && <RecentActivity logs={logs} />}
 
       {/* Theme toggle */}
-      <div style={{ padding: collapsed ? "4px 0" : "4px 16px", borderTop: "1px solid " + T.border }}>
+      <div style={{ padding: modeIcon ? "4px 0" : "4px 16px", borderTop: "1px solid " + T.border }}>
         <button
           onClick={() => setTheme(theme === "light" ? "dark" : theme === "dark" ? "system" : "light")}
-          title={collapsed ? (theme === "dark" ? "Gelap" : theme === "light" ? "Terang" : "Sistem") : undefined}
+          title={modeIcon ? (theme === "dark" ? "Gelap" : theme === "light" ? "Terang" : "Sistem") : undefined}
           style={{
             display: "flex", alignItems: "center", gap: 8,
             background: "none", border: "none",
             color: T.textMuted, cursor: "pointer", fontSize: 13,
             padding: "8px 0", width: "100%",
-            justifyContent: collapsed ? "center" : "flex-start",
+            justifyContent: modeIcon ? "center" : "flex-start",
           }}
         >
           <Icon name={theme === "dark" ? "moon" : theme === "light" ? "sun" : "monitor"} size={16} />
-          {!collapsed && (theme === "dark" ? "Gelap" : theme === "light" ? "Terang" : "Sistem")}
+          {!modeIcon && (theme === "dark" ? "Gelap" : theme === "light" ? "Terang" : "Sistem")}
         </button>
       </div>
 
       {/* User info + logout */}
       <div style={{
-        padding: collapsed ? "12px 0" : "12px 16px",
+        padding: modeIcon ? "12px 0" : "12px 16px",
         borderTop: "1px solid " + T.border,
       }}>
-        {!collapsed && (
+        {!modeIcon && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
             <div style={{
               width: 32, height: 32, background: T.primary,
@@ -255,19 +271,19 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, leba
         )}
         <button
           onClick={onLogout}
-          title={collapsed ? "Keluar" : undefined}
+          title={modeIcon ? "Keluar" : undefined}
           style={{
             display: "flex", alignItems: "center", gap: 8,
             background: "none", border: "none",
             color: T.textMuted,
             cursor: "pointer", fontSize: 12,
-            padding: collapsed ? "4px 0" : "4px 0",
+            padding: "4px 0",
             width: "100%",
-            justifyContent: collapsed ? "center" : "flex-start",
+            justifyContent: modeIcon ? "center" : "flex-start",
           }}
         >
           <Icon name="logout" size={15} />
-          {!collapsed && "Keluar"}
+          {!modeIcon && "Keluar"}
         </button>
       </div>
 
@@ -288,7 +304,7 @@ export default function Sidebar({ active, onNav, user, onLogout, collapsed, leba
           onPointerMove={e => {
             const s = seretRef.current;
             if (!s) return;
-            onLebar(Math.round(Math.min(460, Math.max(180, s.lebar + (e.clientX - s.x)))));
+            onLebar(Math.round(Math.min(460, Math.max(60, s.lebar + (e.clientX - s.x)))));
           }}
           onPointerUp={akhiriSeret}
           onPointerCancel={akhiriSeret}
