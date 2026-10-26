@@ -77,7 +77,7 @@ export default function FileDropdown({ files, active, onSelect }) {
         <div style={{
           position: "absolute", top: "calc(100% + 6px)", left: 48, right: 48,
           background: T.card, border: `1.5px solid ${T.border}`, borderRadius: 12,
-          boxShadow: "0 12px 32px rgba(0,0,0,0.3)", overflow: "hidden",
+          boxShadow: "0 12px 32px rgba(15,23,42,0.3)", overflow: "hidden",
         }}>
           {files.length > 6 && (
             <div style={{ padding: 8, borderBottom: `1px solid ${T.border}`, position: "relative" }}>

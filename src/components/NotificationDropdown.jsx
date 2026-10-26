@@ -89,7 +89,7 @@ export default function NotificationDropdown({ userId, onBukaKertasKerja }) {
             ? { position: "fixed", top: 54, left: 14, right: 14, width: "auto" }
             : { position: "absolute", top: "calc(100% + 8px)", right: 0, width: 340 }),
           maxHeight: 400, background: T.card, borderRadius: 12,
-          boxShadow: "0 10px 40px rgba(0,0,0,0.15)", border: `1px solid ${T.border}`,
+          boxShadow: "0 10px 40px rgba(15,23,42,0.15)", border: `1px solid ${T.border}`,
           overflow: "hidden", zIndex: 999,
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${T.border}` }}>

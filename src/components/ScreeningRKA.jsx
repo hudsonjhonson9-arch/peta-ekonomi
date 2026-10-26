@@ -1918,7 +1918,7 @@ function PilihUraian({ T, tahun, sub, form, setForm, sibuk }) {
           left: rect.left, width: rect.width,
           zIndex: 1300, background: T.card,
           border: `1px solid ${T.inputBorder}`, borderRadius: 8,
-          boxShadow: "0 8px 24px rgba(0,0,0,.14)", padding: 6,
+          boxShadow: "0 8px 24px rgba(15,23,42,.14)", padding: 6,
           maxHeight: 380, overflowY: "auto" }}>
           {memuat ? (
             <div style={{ fontSize: 11.5, color: T.textMuted, padding: "4px 4px" }}>
