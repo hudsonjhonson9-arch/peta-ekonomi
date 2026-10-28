@@ -1084,6 +1084,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ judul: "", kategori: "", tipe: "", bidang: "", desc: "", tags: "", nomor: "", tanggal: "", fileType: "" });
   const [activeFile, setActiveFile] = useState(null);
+  const [imgBroken, setImgBroken] = useState(false);
   const [showAllFiles, setShowAllFiles] = useState(false);
   const [history, setHistory] = useState([]);
   const [versions, setVersions] = useState([]);
@@ -1237,6 +1238,11 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
   // public URL route through Google Docs Viewer as a fallback.
   const previewUrl = getUniversalPreviewUrl(pUrl);
   const canPreviewInline = !!previewUrl;
+  const gDriveId = extractGDriveFileId(pUrl);
+  const imageSrc = gDriveId ? `https://lh3.googleusercontent.com/d/${gDriveId}` : pUrl;
+  const showImageInline = isImage && pUrl && !imgBroken;
+
+  useEffect(() => { setImgBroken(false); }, [pUrl, pTitle]);
 
   return (
     <div style={{ padding: isMobile ? 16 : "28px 36px", fontFamily: T.font, background: T.bg, minHeight: "100%" }}>
@@ -1374,17 +1380,18 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
             <FileDropdown files={files} active={active} onSelect={setActiveFile} />
           )}
 
-          {isImage && pUrl && (
+          {showImageInline && (
             <div style={{ ...cardStyle, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, minHeight: 400 }}>
               <img
-                src={pUrl}
+                src={imageSrc}
                 alt={pTitle}
+                onError={() => setImgBroken(true)}
                 style={{ maxWidth: "100%", maxHeight: 500, borderRadius: T.radius, objectFit: "contain" }}
               />
             </div>
           )}
 
-          {!isImage && canPreviewInline && (
+          {!showImageInline && canPreviewInline && (
             <div style={{ ...cardStyle, overflow: "hidden", display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
               <iframe
                 key={active.url || doc.url}
@@ -1401,7 +1408,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
             </div>
           )}
 
-          {!isImage && !canPreviewInline && (
+          {!showImageInline && !canPreviewInline && (
             <div style={{ ...cardStyle, padding: 40, textAlign: "center" }}>
               <Icon name="file" size={32} style={{ color: T.textMuted }} />
               <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 12 }}>
