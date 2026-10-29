@@ -47,6 +47,96 @@ function apiKey() {
   return String(API_KEY || '').trim();
 }
 
+// ── Validasi isi file (magic bytes) ─────────────────────────────────────────
+// File melewati GAS ini, bukan server Express, jadi pencocokan isi dengan nama
+// file harus di sini: mencegah berkas berbahaya (HTML/JS/eksekutor) yang
+// menyamar lewat ekstensi gambar/dokumen. Isi harus benar-benar cocok dengan
+// ekstensi yang diklaim — nama .jpg dengan isi PDF (atau sebaliknya) ditolak.
+var EKSTENSI_AMAN = {
+  pdf: 1, doc: 1, docx: 1, xls: 1, xlsx: 1, ppt: 1, pptx: 1,
+  jpg: 1, jpeg: 1, png: 1, gif: 1, webp: 1, bmp: 1,
+  csv: 1, txt: 1, rtf: 1, zip: 1, odt: 1, ods: 1, odp: 1
+};
+
+function ekstensiNama(nama) {
+  var m = String(nama || '').trim().match(/\.([A-Za-z0-9]+)$/);
+  return m ? m[1].toLowerCase() : null;
+}
+
+function mulaiDengan(bytes, offset, pola) {
+  if (!bytes || bytes.length < offset + pola.length) return false;
+  for (var i = 0; i < pola.length; i++) {
+    if (bytes[offset + i] !== pola[i]) return false;
+  }
+  return true;
+}
+
+// Mengembalikan null kalau isi cocok, atau pesan penolakan.
+function isiCocokEkstensi(ekstensi, bytes) {
+  if (!bytes || !bytes.length) return 'file kosong';
+  switch (ekstensi) {
+    case 'pdf':
+      return mulaiDengan(bytes, 0, [0x25, 0x50, 0x44, 0x46]) ? null : 'isi file bukan PDF';
+    case 'jpg':
+    case 'jpeg':
+      return mulaiDengan(bytes, 0, [0xFF, 0xD8, 0xFF]) ? null : 'isi file bukan JPEG';
+    case 'png':
+      return mulaiDengan(bytes, 0, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) ? null : 'isi file bukan PNG';
+    case 'gif':
+      return mulaiDengan(bytes, 0, [0x47, 0x49, 0x46, 0x38]) ? null : 'isi file bukan GIF';
+    case 'webp':
+      return (mulaiDengan(bytes, 0, [0x52, 0x49, 0x46, 0x46]) && mulaiDengan(bytes, 8, [0x57, 0x45, 0x42, 0x50]))
+        ? null : 'isi file bukan WebP';
+    case 'bmp':
+      return mulaiDengan(bytes, 0, [0x42, 0x4D]) ? null : 'isi file bukan BMP';
+    case 'doc':
+    case 'xls':
+    case 'ppt':
+      return mulaiDengan(bytes, 0, [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1])
+        ? null : 'isi file bukan dokumen Office lama (OLE2)';
+    case 'docx':
+    case 'xlsx':
+    case 'pptx':
+    case 'odt':
+    case 'ods':
+    case 'odp':
+    case 'zip':
+      return mulaiDengan(bytes, 0, [0x50, 0x4B]) ? null : 'isi file bukan arsip ZIP/Office';
+    case 'rtf':
+      return mulaiDengan(bytes, 0, [0x7B, 0x5C, 0x72, 0x74, 0x66]) ? null : 'isi file bukan RTF';
+    case 'csv':
+    case 'txt': {
+      if (mulaiDengan(bytes, 0, [0xFF, 0xFE]) || mulaiDengan(bytes, 0, [0xFE, 0xFF])) return null;
+      var n = Math.min(bytes.length, 512);
+      for (var i = 0; i < n; i++) {
+        if (bytes[i] === 0) return 'isi file bukan teks (ada byte NUL)';
+      }
+      return null;
+    }
+    default:
+      return 'ekstensi .' + ekstensi + ' tidak diizinkan';
+  }
+}
+
+// Mengembalikan null kalau lolos, atau pesan penolakan (nama file saja,
+// tanpa isi — dipakai di tahap initiate yang belum punya byte).
+function validasiEkstensi(namaFile) {
+  var ext = ekstensiNama(namaFile);
+  if (!ext || !EKSTENSI_AMAN[ext])
+    return 'Tipe file "' + String(namaFile || '').slice(0, 100) +
+      '" tidak diizinkan (ekstensi harus salah satu: ' + Object.keys(EKSTENSI_AMAN).join(', ') + ')';
+  return null;
+}
+
+// Mengembalikan null kalau lolos, atau pesan penolakan.
+function validasiBerkas(namaFile, bytes) {
+  var salah = validasiEkstensi(namaFile);
+  if (salah) return salah;
+  var salahIsi = isiCocokEkstensi(ekstensiNama(namaFile), bytes);
+  if (salahIsi) return 'File "' + String(namaFile).slice(0, 100) + '" ditolak: ' + salahIsi;
+  return null;
+}
+
 function doPost(e) {
   var res = function (code, body) {
     return ContentService
@@ -68,6 +158,10 @@ function doPost(e) {
       if (!params.filename || !params.mimeType) {
         return res(400, { error: 'filename dan mimeType wajib diisi untuk inisiasi session' });
       }
+      // Tahap ini belum menerima byte, tapi ekstensi sudah bisa diperiksa
+      // supaya berkas terlarang tidak sempat di-upload sama sekali.
+      var salahAwal = validasiEkstensi(params.filename);
+      if (salahAwal) return res(400, { error: salahAwal });
 
       var driveApiUrl = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable';
       var metadata = {
@@ -114,6 +208,18 @@ function doPost(e) {
       }
 
       var chunkBytes = Utilities.base64Decode(params.chunkBase64);
+
+      // Chunk pertama memuat header (magic bytes) file — cocokkan dengan
+      // filename sebelum diteruskan ke Drive. File kecil selalu lewat direct,
+      // jadi chunk pertama pasti sudah mengandung signature lengkap.
+      if (Number(params.start) === 0) {
+        if (!params.filename) {
+          return res(400, { error: 'filename wajib dikirim pada chunk pertama' });
+        }
+        var salahChunk = validasiBerkas(params.filename, chunkBytes);
+        if (salahChunk) return res(400, { error: salahChunk });
+      }
+
       var chunkOpts = {
         method: 'put',
         contentType: params.mimeType || 'application/octet-stream',
@@ -334,6 +440,8 @@ function doPost(e) {
     }
 
     var decoded  = Utilities.base64Decode(params.file);
+    var salahDirect = validasiBerkas(params.filename, decoded);
+    if (salahDirect) return res(400, { error: salahDirect });
     var blob     = Utilities.newBlob(decoded, params.mimeType || 'application/octet-stream', params.filename);
     var folder   = params.folderId ? DriveApp.getFolderById(params.folderId) : DriveApp.getFolderById(DRIVE_FOLDER_ID);
     var file     = folder.createFile(blob);

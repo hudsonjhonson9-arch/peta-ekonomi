@@ -774,6 +774,7 @@ export default function App() {
                   start:       start,
                   end:         end,
                   totalSize:   total,
+                  filename:    fobj.name,
                   mimeType:    fobj.type || "application/octet-stream",
                 });
               } catch (_) {

@@ -9,6 +9,7 @@ import fs      from 'fs';
 import { fileURLToPath } from 'url';
 import { susunPatchPeriode } from './patch-periode.js';
 import { idDokumenValid } from './tautan-periode.js';
+import { validasiMetadataDokumen, urlDriveValid, validasiLabelFileTipe } from './validasi-file.js';
 import { validasiUpload, filterDaftar } from './standar-harga.js';
 import { imporStandarHargaSipd } from './impor-standar-harga-sipd.js';
 import { validasiItem, validasiPatch, jumlahItem } from './draft-rincian.js';
@@ -609,6 +610,10 @@ app.post('/api/docs', async (req, res) => {
           desc, tags, uploader_id, nomor_dokumen, tanggal_dokumen, tahun,
           fileType, kertas_kerja_periode_id } = req.body;
 
+  const salahTipe = validasiMetadataDokumen({ url, files, fileType });
+  if (salahTipe)
+    return res.status(400).json({ error: salahTipe });
+
   // Bukti dukung Kertas Kerja harus lahir sudah terhubung ke periodenya.
   //
   // Sebelumnya tautan dibuat oleh permintaan terpisah dari browser setelah
@@ -854,6 +859,9 @@ app.patch('/api/docs/:id/status', async (req, res) => {
 app.put('/api/docs/:id', async (req, res) => {
   const { id } = req.params;
   const { judul, kategori, tipe, bidang, desc, tags, nomor, tanggal, tahun, fileType } = req.body;
+  const salahLabel = validasiLabelFileTipe(fileType);
+  if (salahLabel)
+    return res.status(400).json({ error: salahLabel });
   try {
     const result = await pool.query(
       `UPDATE bapperida_dokumen
@@ -1088,6 +1096,8 @@ app.post('/api/docs/:id/versions', async (req, res) => {
   const { id } = req.params;
   const { url, ukuran, pages, note } = req.body;
   if (!url) return res.status(400).json({ error: 'url wajib diisi' });
+  if (!urlDriveValid(url))
+    return res.status(400).json({ error: 'url versi harus berupa tautan Google Drive yang valid' });
 
   // Identitas pengunggah versi diambil dari session, bukan dari body.
   const pelamar = siapa(req);
