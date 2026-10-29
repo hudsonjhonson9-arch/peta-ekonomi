@@ -1381,12 +1381,12 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
           )}
 
           {showImageInline && (
-            <div style={{ ...cardStyle, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, minHeight: 400 }}>
+            <div style={{ ...cardStyle, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, flex: 1, minHeight: 0 }}>
               <img
                 src={imageSrc}
                 alt={pTitle}
                 onError={() => setImgBroken(true)}
-                style={{ maxWidth: "100%", maxHeight: 500, borderRadius: T.radius, objectFit: "contain" }}
+                style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: T.radius, objectFit: "contain" }}
               />
             </div>
           )}
