@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useContext } from "react";
 import * as pdfjsLib from "pdfjs-dist";
-import { Icon, Badge, Geser, GoogleDriveEmbed, isGDriveUrl, formatBytes, extractGDriveFileId, extractGDriveFolderId, gdriveDirectUrl, isImageFile, isOfficeFile, isPdfFile, getUniversalPreviewUrl } from "./ui.jsx";
+import { Icon, Badge, Geser, GoogleDriveEmbed, isGDriveUrl, formatBytes, extractGDriveFileId, extractGDriveFolderId, gdriveDirectUrl, isImageFile, isOfficeFile, isPdfFile, getUniversalPreviewUrl, Select } from "./ui.jsx";
 import { YEARS, STATUS_LIST, STATUS_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
 import { api } from "../hooks.js";
@@ -9,6 +9,8 @@ import { queryClient } from "../main.jsx";
 import HighlightText from "./HighlightText.jsx";
 import ShareModal from "./ShareModal";
 import FileDropdown from "./FileDropdown.jsx";
+import { getDocFileInfo, getBidangColor, setDark } from "./docMeta.js";
+import { ViewList, ViewColumns, ViewGallery, PreviewPane } from "./PustakaBerkas.jsx";
 
 // ── Shared Design Token Helpers (derived from theme T) ─────────────────────
 function makeBtnBase(T) {
@@ -39,94 +41,6 @@ function makeInputStyle(T) {
     color: T.text, background: T.inputBg,
   };
 }
-function makeSelStyle(T) {
-  return {
-    fontFamily: T.font,
-    fontSize: 13, padding: "8px 12px", border: `1.5px solid ${T.border}`, borderRadius: "10px",
-    background: T.inputBg, color: T.text, cursor: "pointer", outline: "none",
-    transition: "border-color 0.15s", minWidth: 120,
-  };
-}
-
-// ponytail: dark-mode flag set by DocList each render; adapt() derives dark tints
-// from the accent color so every color map below works in both themes.
-let _dark = false;
-function adapt(c) {
-  if (!_dark) return c;
-  const fg = c.color || c.text;
-  const bg = `color-mix(in srgb, ${fg} 22%, transparent)`;
-  const nf = `color-mix(in srgb, ${fg} 60%, white)`;
-  return c.color ? { ...c, bg, color: nf } : { ...c, bg, text: nf };
-}
-
-const FILE_TYPE_COLORS = {
-  "Laporan": { bg: "#EFF6FF", text: "#2563EB" },
-  "Peraturan": { bg: "#FEF3C7", text: "#D97706" },
-  "Keputusan": { bg: "#F3E8FF", text: "#9333EA" },
-  "Notulis": { bg: "#ECFDF5", text: "#059669" },
-  "Data": { bg: "#FFF1F2", text: "#E11D48" },
-};
-
-function getFileTypeColor(type) {
-  return adapt(FILE_TYPE_COLORS[type] || { bg: "#F1F5F9", text: "#64748B" });
-}
-
-const BIDANG_COLORS = {
-  "Sekretariat":                                    { bg: "#F1F5F9", text: "#475569" },
-  "Bidang Perencanaan":                             { bg: "#EFF6FF", text: "#2563EB" },
-  "Bidang Ekonomi dan SDA":                         { bg: "#ECFDF5", text: "#059669" },
-  "Bidang Pemerintahan dan Pembangunan Manusia":    { bg: "#FEF3C7", text: "#D97706" },
-  "Bidang Infrastruktur dan Kewilayahan":           { bg: "#F3E8FF", text: "#9333EA" },
-  "Bidang Riset dan Inovasi Daerah":                { bg: "#FFF1F2", text: "#E11D48" },
-};
-function getBidangColor(bidang) { return adapt(BIDANG_COLORS[bidang] || { bg: "#F1F5F9", text: "#64748B" }); }
-
-// ── File Type Icon & Color ──────────────────────────────────────────────────
-const EXT_MAP = {
-  pdf:  { icon: "file",     bg: "#FEF2F2", color: "#DC2626", label: "PDF" },
-  doc:  { icon: "file",     bg: "#EFF6FF", color: "#2563EB", label: "Word" },
-  docx: { icon: "file",     bg: "#EFF6FF", color: "#2563EB", label: "Word" },
-  xls:  { icon: "file",     bg: "#ECFDF5", color: "#059669", label: "Excel" },
-  xlsx: { icon: "file",     bg: "#ECFDF5", color: "#059669", label: "Excel" },
-  ppt:  { icon: "file",     bg: "#FEF3C7", color: "#D97706", label: "PPT" },
-  pptx: { icon: "file",     bg: "#FEF3C7", color: "#D97706", label: "PPT" },
-  jpg:  { icon: "file",     bg: "#F5F3FF", color: "#7C3AED", label: "Gambar" },
-  jpeg: { icon: "file",     bg: "#F5F3FF", color: "#7C3AED", label: "Gambar" },
-  png:  { icon: "file",     bg: "#F5F3FF", color: "#7C3AED", label: "Gambar" },
-  gif:  { icon: "file",     bg: "#F5F3FF", color: "#7C3AED", label: "Gambar" },
-  csv:  { icon: "file",     bg: "#ECFDF5", color: "#059669", label: "CSV" },
-  zip:  { icon: "file",     bg: "#F1F5F9", color: "#64748B", label: "ZIP" },
-};
-// ponytail: map kategori dokumen → warna (fallback when no file ext)
-const TYPE_COLORS = {
-  "Perencanaan":             { bg: "#ECFDF5", color: "#059669" },
-  "Perencanaan Tahunan (RKPD)": { bg: "#ECFDF5", color: "#059669" },
-  "RKPD":                    { bg: "#ECFDF5", color: "#059669" },
-  "Renstra":                 { bg: "#ECFDF5", color: "#059669" },
-  "Renja":                   { bg: "#FEF3C7", color: "#D97706" },
-  "RKA":                     { bg: "#FEF3C7", color: "#D97706" },
-  "Laporan Evaluasi":        { bg: "#EFF6FF", color: "#2563EB" },
-  "Evaluasi & Pelaporan":    { bg: "#EFF6FF", color: "#2563EB" },
-  "Kajian Ekonomi":          { bg: "#F5F3FF", color: "#7C3AED" },
-  "Forum Perencanaan":       { bg: "#FDF2F8", color: "#DB2777" },
-  "Administrasi Umum":       { bg: "#F1F5F9", color: "#475569" },
-  "Administrasi":            { bg: "#F1F5F9", color: "#475569" },
-};
-const DEFAULT_TYPE_COLOR = { bg: "#F1F5F9", color: "#64748B" };
-function getFileExtInfo(name) {
-  if (!name) return adapt({ icon: "file", bg: "#F1F5F9", color: "#64748B", label: "File" });
-  const ext = name.split(".").pop().toLowerCase();
-  return adapt(EXT_MAP[ext] || { icon: "file", bg: "#F1F5F9", color: "#64748B", label: ext.toUpperCase() });
-}
-// ponytail: guess file type from title if no files array
-function getDocFileInfo(d) {
-  if (Array.isArray(d.files) && d.files.length > 0) {
-    return getFileExtInfo(d.files[0].name || d.files[0]);
-  }
-  // fallback: use kategori dokumen color
-  return { icon: "file", ...adapt(TYPE_COLORS[d.type] || DEFAULT_TYPE_COLOR), label: d.type || "File" };
-}
-
 // ── Hover Tooltip ──────────────────────────────────────────────────────────
 function DocTooltip({ doc, children }) {
   const [show, setShow] = useState(false);
@@ -237,14 +151,17 @@ function SkeletonList({ count = 8 }) {
 
 export function DocList({ docs, onView, onNav, categories = [], sectors = [], bidangs = [], loading = false, onBulkAction }) {
   const { T, isDark } = useContext(ThemeContext);
-  _dark = !!isDark;
-  const { isMobile } = useResponsive();
+  setDark(!!isDark);
+  const { isMobile, width } = useResponsive();
   const cardStyle = useMemo(() => makeCardStyle(T), [T]);
   const inputStyle = useMemo(() => makeInputStyle(T), [T]);
-  const selStyle = useMemo(() => makeSelStyle(T), [T]);
   const btnBase = useMemo(() => makeBtnBase(T), [T]);
   const [showFilter, setShowFilter] = useState(!isMobile);
-  const [viewMode, setViewMode] = useState(() => localStorage.getItem("doc_viewMode") || "grid");
+  const [viewMode, setViewMode] = useState(() => {
+    const v = localStorage.getItem("doc_viewMode");
+    return ["grid", "list", "columns", "gallery"].includes(v) ? v : "list";
+  });
+  const [peekId, setPeekId] = useState(null);
   const [gridSize, setGridSize] = useState(() => Number(localStorage.getItem("doc_gridSize")) || 240);
   const [dragOver, setDragOver] = useState(false);
 
@@ -269,13 +186,26 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
   const [filterBidang, setFilterBidang] = useState("Semua Bidang");
   const [filterYear,   setFilterYear]   = useState("Semua Tahun");
   const [filterStatus, setFilterStatus] = useState("Semua Status");
+
+  // ponytail: satu tempat untuk tahu ada filter aktif + resetnya.
+  const adaFilter = filterType !== "Semua Jenis" || filterSector !== "Semua Sektor"
+    || filterBidang !== "Semua Bidang" || filterYear !== "Semua Tahun"
+    || filterStatus !== "Semua Status" || !!search;
+  const resetFilter = () => {
+    setFilterType("Semua Jenis");
+    setFilterSector("Semua Sektor");
+    setFilterBidang("Semua Bidang");
+    setFilterYear("Semua Tahun");
+    setFilterStatus("Semua Status");
+    setSearch("");
+  };
   const [sortOpt, setSortOpt] = useState("date-desc");
   const [selectedBidang, setSelectedBidang] = useState(null); // null = show folders
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
 
   const toggleSelect = (e, id) => {
-    e.stopPropagation();
+    e?.stopPropagation?.();
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -340,15 +270,26 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
   }, []);
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
+    const q = search.toLowerCase().trim();
+    const tags = d => (Array.isArray(d.tags) ? d.tags : String(d.tags || "").split(",")).map(t => String(t).toLowerCase());
+    // Tahun filter mengikuti tahun DOKUMEN, bukan tahun upload ("tanggal").
+    // banyak baris lama tanpa tanggal_dokumen → jatuh ke tahun upload.
+    const docYear = d => {
+      const m = String(d.tanggalDokumen || "").match(/(\d{4})/);
+      return m ? m[1] : String(d.year || "");
+    };
     return docs.filter(d => {
-      const matchQ = !q || d.title.toLowerCase().includes(q) || d.type.toLowerCase().includes(q) || d.tags.some(t => t.includes(q));
+      const matchQ = !q
+        || String(d.title || "").toLowerCase().includes(q)
+        || String(d.type || "").toLowerCase().includes(q)
+        || tags(d).some(t => t.includes(q));
       return (
         matchQ &&
         (filterType   === "Semua Jenis"   || d.type   === filterType)   &&
         (filterSector === "Semua Sektor"  || d.sector === filterSector) &&
-        (filterBidang === "Semua Bidang"  || d.bidang === filterBidang) &&
-        (filterYear   === "Semua Tahun"   || d.year   === filterYear)   &&
+        (filterBidang === "Semua Bidang"  || (d.bidang || "Umum") === filterBidang) &&
+        // year dari API berupa string tahun upload; bandingkan dengan tahun dokumen
+        (filterYear   === "Semua Tahun"   || docYear(d) === filterYear) &&
         (filterStatus === "Semua Status"  || d.status === filterStatus)
       );
     });
@@ -356,13 +297,24 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
+    // Ukuran tersimpan sebagai teks ("5.6 MB") di beberapa jalur; pakai byte bila ada.
+    const bytes = d => {
+      if (typeof d.size === "number" && d.size > 0) return d.size;
+      const m = String(d.ukuran || "").match(/([\d.,]+)\s*(KB|MB|GB)?/i);
+      if (!m) return 0;
+      const n = Number(m[1].replace(/\.(?=\d{3}\b)/g, "").replace(",", ".")) || 0;
+      const unit = (m[2] || "B").toUpperCase();
+      return n * ({ B: 1, KB: 1e3, MB: 1e6, GB: 1e9 }[unit] || 1);
+    };
     switch (sortOpt) {
       case "date-desc": return arr.sort((a, b) => b.id - a.id);
       case "date-asc": return arr.sort((a, b) => a.id - b.id);
       case "title-asc": return arr.sort((a, b) => a.title.localeCompare(b.title));
       case "title-desc": return arr.sort((a, b) => b.title.localeCompare(a.title));
-      case "size-desc": return arr.sort((a, b) => (b.ukuran || 0) - (a.ukuran || 0));
-      case "size-asc": return arr.sort((a, b) => (a.ukuran || 0) - (b.ukuran || 0));
+      case "size-desc": return arr.sort((a, b) => bytes(b) - bytes(a));
+      case "size-asc": return arr.sort((a, b) => bytes(a) - bytes(b));
+      case "bidang-asc": return arr.sort((a, b) => (a.bidang || "").localeCompare(b.bidang || ""));
+      case "bidang-desc": return arr.sort((a, b) => (b.bidang || "").localeCompare(a.bidang || ""));
       default: return arr;
     }
   }, [filtered, sortOpt]);
@@ -373,16 +325,24 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
 
   const bidangFolders = useMemo(() => {
     const map = {};
-    docs.forEach(d => {
+    filtered.forEach(d => {
       if (d.bidang && d.bidang !== "Umum") map[d.bidang] = (map[d.bidang] || 0) + 1;
     });
     return Object.entries(map).sort((a, b) => b[1] - a[1]);
-  }, [docs]);
+  }, [filtered]);
 
   const folderDocs = useMemo(() => {
     if (!selectedBidang) return [];
     return sorted.filter(d => d.bidang === selectedBidang);
   }, [sorted, selectedBidang]);
+
+  // ponytail: pane pratinjau hanya untuk list/columns di desktop; gallery punya sidebar sendiri.
+  const tampil = isMobile && viewMode === "columns" ? "list" : viewMode;
+  const paneAktif = (tampil === "list" || tampil === "columns") && width >= 1200;
+  // Kolom sekunder disembunyikan saat ruang menyempit (pane 320px + sidebar 220px).
+  const showDateCol = paneAktif ? width >= 1240 : width >= 1000;
+  const showBidangCol = paneAktif ? width >= 1520 : width >= 1240;
+  const peeked = useMemo(() => docs.find(d => d.id === peekId) || null, [docs, peekId]);
 
   return (
     <div
@@ -412,7 +372,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
               {selectedBidang || "Dokumen"}
             </div>
             <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>
-              {selectedBidang ? `${folderDocs.length} dokumen` : `${bidangFolders.length} bidang · ${docs.length} dokumen`}
+              {adaFilter ? `${sorted.length} dokumen cocok` : selectedBidang ? `${folderDocs.length} dokumen` : `${bidangFolders.length} bidang · ${docs.length} dokumen`}
             </div>
           </div>
         </div>
@@ -464,10 +424,42 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
                 background: viewMode === "list" ? T.primary : "transparent",
                 color: viewMode === "list" ? "#fff" : T.textSecondary,
                 borderRadius: 0,
+                borderRight: `1px solid ${T.border}`,
               }}
               title="List View"
             >
               <Icon name="list" size={14} />
+            </button>
+            {!isMobile && (
+            <button
+              onClick={() => setViewModePersist("columns")}
+              style={{
+                ...btnBase,
+                padding: "8px 12px",
+                fontSize: 12,
+                background: viewMode === "columns" ? T.primary : "transparent",
+                color: viewMode === "columns" ? "#fff" : T.textSecondary,
+                borderRadius: 0,
+                borderRight: `1px solid ${T.border}`,
+              }}
+              title="Columns View"
+            >
+              <Icon name="columns" size={14} />
+            </button>
+            )}
+            <button
+              onClick={() => setViewModePersist("gallery")}
+              style={{
+                ...btnBase,
+                padding: "8px 12px",
+                fontSize: 12,
+                background: viewMode === "gallery" ? T.primary : "transparent",
+                color: viewMode === "gallery" ? "#fff" : T.textSecondary,
+                borderRadius: 0,
+              }}
+              title="Gallery View"
+            >
+              <Icon name="gallery" size={14} />
             </button>
           </div>
         </div>
@@ -520,37 +512,68 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
           </div>
           {(!isMobile || showFilter) && (
             <>
-              <select value={filterType}   onChange={e => setFilterType(e.target.value)}   style={selStyle}>
-                <option value="Semua Jenis">Semua Jenis</option>
-                {categories.map(c => <option key={c.id} value={c.nama}>{c.nama}</option>)}
-              </select>
-              <select value={filterSector} onChange={e => setFilterSector(e.target.value)} style={selStyle}>
-                <option value="Semua Sektor">Semua Sektor</option>
-                {sectors.map(s => <option key={s.id} value={s.nama}>{s.nama}</option>)}
-              </select>
-              <select value={filterBidang} onChange={e => setFilterBidang(e.target.value)} style={selStyle}>
-                <option value="Semua Bidang">Semua Bidang</option>
-                <option value="Umum">Umum</option>
-                {bidangs.map(b => <option key={b.id} value={b.nama}>{b.nama}</option>)}
-              </select>
-              <select value={filterYear}   onChange={e => setFilterYear(e.target.value)}   style={selStyle}>
-                {YEARS.map(y => <option key={y}>{y}</option>)}
-              </select>
-              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={selStyle}>
-                {STATUS_LIST.map(s => <option key={s}>{s}</option>)}
-              </select>
-              <select value={sortOpt} onChange={e => setSortOpt(e.target.value)} style={{ ...selStyle, minWidth: 130 }}>
-                <option value="date-desc">Terbaru ↓</option>
-                <option value="date-asc">Terlama ↑</option>
-                <option value="title-asc">Judul A-Z</option>
-                <option value="title-desc">Judul Z-A</option>
-                <option value="size-desc">Ukuran ↓</option>
-                <option value="size-asc">Ukuran ↑</option>
-              </select>
+              <Select
+                label="Jenis dokumen"
+                value={filterType}
+                onChange={setFilterType}
+                options={[{ value: "Semua Jenis", label: "Semua Jenis" }, ...categories.map(c => ({ value: c.nama, label: c.nama }))]}
+              />
+              <Select
+                label="Sektor"
+                value={filterSector}
+                onChange={setFilterSector}
+                options={[{ value: "Semua Sektor", label: "Semua Sektor" }, ...sectors.map(s => ({ value: s.nama, label: s.nama }))]}
+              />
+              <Select
+                label="Bidang"
+                value={filterBidang}
+                onChange={setFilterBidang}
+                options={[{ value: "Semua Bidang", label: "Semua Bidang" }, { value: "Umum", label: "Umum" }, ...bidangs.map(b => ({ value: b.nama, label: b.nama }))]}
+              />
+              <Select
+                label="Tahun"
+                value={filterYear}
+                onChange={setFilterYear}
+                options={YEARS.map(y => ({ value: y, label: y }))}
+              />
+              <Select
+                label="Status"
+                value={filterStatus}
+                onChange={setFilterStatus}
+                options={STATUS_LIST.map(s => ({ value: s, label: s }))}
+              />
+              <Select
+                label="Urutkan"
+                value={sortOpt}
+                onChange={setSortOpt}
+                options={[
+                  { value: "date-desc", label: "Terbaru ↓" },
+                  { value: "date-asc", label: "Terlama ↑" },
+                  { value: "title-asc", label: "Judul A-Z" },
+                  { value: "title-desc", label: "Judul Z-A" },
+                  { value: "size-desc", label: "Ukuran ↓" },
+                  { value: "size-asc", label: "Ukuran ↑" },
+                  { value: "bidang-asc", label: "Bidang A-Z" },
+                  { value: "bidang-desc", label: "Bidang Z-A" },
+                ]}
+              />
+              {adaFilter && (
+                <button onClick={resetFilter} style={{ ...btnBase, background: "transparent", border: `1.5px solid ${T.border}`, color: T.textSecondary, padding: "8px 12px", fontSize: 13 }}>
+                  <Icon name="x" size={13} /> Reset
+                </button>
+              )}
             </>
           )}
         </div>
       </div>
+
+      {/* Konten + preview pane */}
+      <div style={{
+        display: paneAktif ? "grid" : "block",
+        gridTemplateColumns: paneAktif ? "minmax(0, 1fr) 320px" : undefined,
+        gap: 16, alignItems: "start",
+      }}>
+      <div style={{ minWidth: 0 }}>
 
       {/* Skeleton Loading */}
       {loading && (
@@ -570,8 +593,99 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
         </div>
       )}
 
+      {/* ── GRID: Dokumen langsung saat filter aktif ── */}
+      {viewMode === "grid" && !selectedBidang && adaFilter && sorted.length > 0 && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : `repeat(auto-fill, minmax(${gridSize}px, 1fr))`,
+          gap: 10,
+        }}>
+          {sorted.map((d, i) => {
+            const isFolder = Array.isArray(d.files) && d.files.length > 0;
+            const fi = isFolder ? { bg: getBidangColor(d.bidang).bg, color: getBidangColor(d.bidang).text, label: "Folder" } : getDocFileInfo(d);
+            return (
+              <DocTooltip key={d.id} doc={d}>
+                <div
+                  onClick={() => { if (!selectionMode) onView(d); }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!selectionMode) onView(d); }}}
+                  style={{
+                    ...cardStyle,
+                    padding: isMobile ? 12 : 14,
+                    cursor: selectionMode ? "default" : "pointer",
+                    transition: "all 0.2s ease",
+                    animation: "fadeIn 0.3s ease forwards",
+                    animationDelay: `${i * 30}ms`,
+                    opacity: 0,
+                    position: "relative",
+                    background: selectedIds.has(d.id) ? T.primaryLight : T.card,
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(15,23,42,0.08)";
+                    e.currentTarget.style.borderColor = T.borderHover;
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.boxShadow = T.shadowSm;
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.transform = "translateY(0)";
+                  }}
+                  onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
+                  onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
+                >
+                  {selectionMode && (
+                    <div style={{ position: "absolute", top: 8, right: 8, zIndex: 2 }}>
+                      <Checkbox id={d.id} />
+                    </div>
+                  )}
+                  {/* File Icon */}
+                  <div style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 8,
+                    background: fi.bg,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 10,
+                  }}>
+                    <Icon name={isFolder ? "folder" : "file"} size={16} style={{ color: fi.color }} />
+                  </div>
+                  {/* Title */}
+                  <div style={{
+                    fontSize: isMobile ? 12 : 13,
+                    fontWeight: 700,
+                    color: T.text,
+                    marginBottom: 6,
+                    lineHeight: 1.3,
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                    minHeight: 34,
+                  }}>
+                    <HighlightText text={d.title} query={search} />
+                  </div>
+                  {/* Meta */}
+                  <div style={{ fontSize: 11, color: T.textSecondary, marginBottom: 8 }}>
+                    {isFolder ? `${d.files.length} file · ${d.bidang || d.sector} · ${d.year}` : `${d.bidang ? d.bidang + " · " : ""}${d.sector} · ${d.year}`}
+                  </div>
+                  {/* Footer */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTop: `1px solid ${T.border}` }}>
+                    {d.versi > 1 && <span style={{ fontSize: 10, fontWeight: 700, color: T.primary, background: T.primaryLight, border: `1px solid ${T.primaryRing}`, borderRadius: 4, padding: "1px 5px" }}>v{d.versi}</span>}
+                    <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
+                    <span style={{ fontSize: 10, color: T.textMuted }}>{d.size}</span>
+                  </div>
+                </div>
+              </DocTooltip>
+            );
+          })}
+        </div>
+      )}
+
       {/* ── GRID: Tanpa Bidang (direct docs) ── */}
-      {viewMode === "grid" && !selectedBidang && tanpaBidangDocs.length > 0 && (
+      {viewMode === "grid" && !selectedBidang && !adaFilter && tanpaBidangDocs.length > 0 && (
         <>
           <div style={{ fontSize: 14, fontWeight: 600, color: T.textSecondary, marginBottom: 10, marginTop: 8 }}>Tanpa Bidang</div>
           <div style={{
@@ -641,7 +755,7 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
       )}
 
       {/* ── GRID: Folder Level ── */}
-      {viewMode === "grid" && !selectedBidang && bidangFolders.length > 0 && (
+      {viewMode === "grid" && !selectedBidang && !adaFilter && bidangFolders.length > 0 && (
         <div style={{
           display: "grid",
           gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : `repeat(auto-fill, minmax(${gridSize}px, 1fr))`,
@@ -820,211 +934,64 @@ export function DocList({ docs, onView, onNav, categories = [], sectors = [], bi
         </div>
       )}
 
-      {/* ── LIST: Tanpa Bidang (direct docs) ── */}
-      {viewMode === "list" && !selectedBidang && tanpaBidangDocs.length > 0 && (
-        <>
-          <div style={{ fontSize: 14, fontWeight: 600, color: T.textSecondary, marginBottom: 6, marginTop: 8 }}>Tanpa Bidang</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
-            {tanpaBidangDocs.map((d, i) => {
-              const fi = getDocFileInfo(d);
-              return (
-                <DocTooltip key={d.id} doc={d}>
-                  <div
-                    onClick={() => { if (!selectionMode) onView(d); }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!selectionMode) onView(d); }}}
-                    style={{
-                      ...cardStyle,
-                      padding: isMobile ? "12px 14px" : "14px 18px",
-                      cursor: selectionMode ? "default" : "pointer",
-                      transition: "all 0.2s ease",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 14,
-                      animation: "fadeIn 0.3s ease forwards",
-                      animationDelay: `${i * 30}ms`,
-                      opacity: 0,
-                      background: selectedIds.has(d.id) ? T.primaryLight : T.card,
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(15,23,42,0.08)";
-                      e.currentTarget.style.borderColor = T.borderHover;
-                      e.currentTarget.style.transform = "translateY(-1px)";
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.boxShadow = T.shadowSm;
-                      e.currentTarget.style.borderColor = T.border;
-                      e.currentTarget.style.transform = "translateY(0)";
-                    }}
-                    onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
-                    onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
-                  >
-                    {selectionMode && <Checkbox id={d.id} />}
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: fi.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <Icon name="file" size={18} style={{ color: fi.color }} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}><HighlightText text={d.title} query={search} /></div>
-                      <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 2 }}>{d.type} · {d.sector}</div>
-                    </div>
-                    <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}>
-                      {d.versi > 1 && <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, background: T.primaryLight, border: `1px solid ${T.primaryRing}`, borderRadius: 4, padding: "2px 6px" }}>v{d.versi}</span>}
-                      <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
-                    </div>
-                  </div>
-                </DocTooltip>
-              );
-            })}
-          </div>
-        </>
+      {/* ── LIST / COLUMNS / GALLERY ── */}
+      {tampil === "list" && (
+        <ViewList
+          items={adaFilter ? sorted : (selectedBidang ? folderDocs : tanpaBidangDocs)}
+          folders={adaFilter || selectedBidang ? [] : bidangFolders}
+          selectedBidang={selectedBidang}
+          onSelectBidang={nama => (nama ? selectBidang(nama) : clearBidang())}
+          T={T}
+          search={search}
+          sortOpt={sortOpt}
+          onSort={setSortOpt}
+          selectionMode={selectionMode}
+          selectedIds={selectedIds}
+          onToggleSelect={id => toggleSelect(null, id)}
+          onOpen={onView}
+          onPeek={d => setPeekId(d.id)}
+          peekedId={peekId}
+          isMobile={isMobile}
+          showDate={showDateCol}
+          showBidangCol={adaFilter || showBidangCol}
+        />
       )}
 
-      {/* ── LIST: Folder Level ── */}
-      {viewMode === "list" && !selectedBidang && bidangFolders.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {bidangFolders.map(([nama, count], i) => {
-            const bc = getBidangColor(nama);
-            return (
-              <div
-                key={nama}
-                onClick={() => selectBidang(nama)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectBidang(nama); }}}
-                style={{
-                  ...cardStyle,
-                  padding: isMobile ? "12px 14px" : "14px 18px",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 14,
-                  animation: "fadeIn 0.3s ease forwards",
-                  animationDelay: `${i * 30}ms`,
-                  opacity: 0,
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(15,23,42,0.08)";
-                  e.currentTarget.style.borderColor = bc.text;
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.boxShadow = T.shadowSm;
-                  e.currentTarget.style.borderColor = T.border;
-                }}
-                onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
-                onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
-              >
-                {/* Folder Icon */}
-                <div style={{
-                  width: isMobile ? 40 : 44,
-                  height: isMobile ? 40 : 44,
-                  borderRadius: 10,
-                  background: bc.bg,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}>
-                  <Icon name="folder" size={isMobile ? 18 : 20} style={{ color: bc.text }} />
-                </div>
-                {/* Info */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 600, color: T.text }}>{nama}</div>
-                  <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 2 }}>{count} dokumen</div>
-                </div>
-                <Icon name="chevronRight" size={16} style={{ color: T.textMuted, flexShrink: 0 }} />
-              </div>
-            );
-          })}
-        </div>
+      {tampil === "columns" && (
+        <ViewColumns
+          folders={bidangFolders}
+          docs={folderDocs}
+          allDocs={sorted}
+          selectedBidang={selectedBidang}
+          onSelectBidang={nama => (nama ? selectBidang(nama) : clearBidang())}
+          T={T}
+          search={search}
+          selectionMode={selectionMode}
+          selectedIds={selectedIds}
+          onToggleSelect={id => toggleSelect(null, id)}
+          onOpen={onView}
+          onPeek={d => setPeekId(d.id)}
+          peekedId={peekId}
+          isMobile={isMobile}
+          showDate={showDateCol}
+          showBidangCol={showBidangCol}
+        />
       )}
 
-      {/* ── LIST: Document Level (inside folder) ── */}
-      {viewMode === "list" && selectedBidang && folderDocs.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {folderDocs.map((d, i) => {
-            const fi = getDocFileInfo(d);
-            return (
-              <DocTooltip key={d.id} doc={d}>
-                <div
-                  onClick={() => { if (!selectionMode) onView(d); }}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!selectionMode) onView(d); }}}
-                  style={{
-                    ...cardStyle,
-                    padding: isMobile ? "10px 12px" : "12px 16px",
-                    cursor: selectionMode ? "default" : "pointer",
-                    transition: "all 0.2s ease",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    animation: "fadeIn 0.3s ease forwards",
-                    animationDelay: `${i * 20}ms`,
-                    opacity: 0,
-                    background: selectedIds.has(d.id) ? T.primaryLight : T.card,
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(15,23,42,0.08)";
-                    e.currentTarget.style.borderColor = T.borderHover;
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.boxShadow = T.shadowSm;
-                    e.currentTarget.style.borderColor = T.border;
-                  }}
-                  onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${T.primaryRing}`; }}
-                  onBlur={e => { e.currentTarget.style.boxShadow = T.shadowSm; }}
-                >
-                  {selectionMode && <Checkbox id={d.id} />}
-                  {/* File Icon */}
-                  <div style={{
-                    width: isMobile ? 36 : 40,
-                    height: isMobile ? 36 : 40,
-                    borderRadius: 10,
-                    background: fi.bg,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}>
-                    <Icon name="file" size={isMobile ? 16 : 18} style={{ color: fi.color }} />
-                  </div>
-                  {/* Info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
-                      <span style={{ fontSize: isMobile ? 13 : 14, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><HighlightText text={d.title} query={search} /></span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: isMobile ? 11 : 12, color: T.textSecondary }}>
-                      <span>{d.type}</span>
-                      <span>·</span>
-                      <span>{d.sector}</span>
-                      <span>·</span>
-                      <span>{d.year}</span>
-                      <span>·</span>
-                      <span>{d.size}</span>
-                    </div>
-                  </div>
-                  {/* Status + Arrow */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                    <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
-                    <Icon name="chevronRight" size={14} style={{ color: T.textMuted }} />
-                  </div>
-                </div>
-              </DocTooltip>
-            );
-          })}
-        </div>
+      {tampil === "gallery" && (
+        <ViewGallery
+          items={selectedBidang ? folderDocs : sorted}
+          activeId={peekId}
+          onPeek={d => setPeekId(d.id)}
+          onOpen={onView}
+          T={T}
+          isMobile={isMobile}
+        />
       )}
 
-      {/* ── LIST: Empty inside folder ── */}
-      {viewMode === "list" && selectedBidang && folderDocs.length === 0 && (
-        <div style={{ ...cardStyle, textAlign: "center", padding: 48 }}>
-          <Icon name="search" size={28} style={{ color: T.primary }} />
-          <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginTop: 12, marginBottom: 4 }}>Tidak ada dokumen</div>
-          <div style={{ fontSize: 13, color: T.textSecondary }}>di bidang ini</div>
-        </div>
-      )}
+      </div>
+      {paneAktif && <PreviewPane doc={peeked} T={T} onOpen={onView} onClose={() => setPeekId(null)} />}
+      </div>
 
       {/* ── Floating Action Bar (Bulk Selection) ── */}
       {selectionMode && selectedIds.size > 0 && (

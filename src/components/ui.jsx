@@ -67,6 +67,8 @@ const PATHS = {
   folder:  "M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z",
   grid:   "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z",
   list:   "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",
+  columns: "M3 3h7v18H3zM14 3h7v18h-7z",
+  gallery: "M3 3h18v14H3zM3 21h18 M8 12l3-3 3 3 2-2 3 3",
   building: "M3 21h18M9 8h1M9 12h1M9 16h1M14 8h1M14 12h1M14 16h1M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16",
   trash:     "M3 6h18 M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2",
   calendar: "M19 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2zM16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01",
@@ -119,6 +121,13 @@ export function isGDriveUrl(url) {
 // ponytail: build a direct-download URL for Google Docs viewer
 export function gdriveDirectUrl(fileId) {
   return `https://drive.google.com/uc?export=download&id=${fileId}`;
+}
+
+// Thumbnail halaman pertama yang dirender Drive. Butuh file yang dibagikan
+// publik (GAS kita menyetel ANYONE_WITH_LINK/VIEW). Null kalau bukan Drive.
+export function driveThumbUrl(url, size = 400) {
+  const id = extractGDriveFileId(url);
+  return id ? `https://drive.google.com/thumbnail?id=${id}&sz=w${size}` : null;
 }
 
 // ── File-type + universal preview helpers ──────────────────────────────────
@@ -379,6 +388,84 @@ export function CariPilih({
 // lockClose dipakai saat submit sedang berjalan: menutup dialog saat upload
 // berjalan akan menggagalkan request dan membuat pengguna mengira upload sudah
 // selesai padahal belum.
+// Dropdown bertema (pengganti <select> bawaan yang tak bisa diatur gayanya).
+// options: [{ value, label }]. Panel absolute; cukup untuk toolbar filter yang
+// tidak berada di dalam kontainer bergulir.
+export function Select({ value, onChange, options = [], style, minWidth = 150, label }) {
+  const { T } = useContext(ThemeContext);
+  const [buka, setBuka] = useState(false);
+  const boxRef = useRef(null);
+
+  useEffect(() => {
+    if (!buka) return;
+    const tutup = e => { if (!boxRef.current?.contains(e.target)) setBuka(false); };
+    const esc = e => { if (e.key === "Escape") setBuka(false); };
+    document.addEventListener("mousedown", tutup);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", tutup);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [buka]);
+
+  const aktif = options.find(o => o.value === value);
+  return (
+    <div ref={boxRef} style={{ position: "relative", minWidth, flex: "1 1 150px", maxWidth: 260, ...style }}>
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={buka}
+        aria-label={label || (aktif?.label ?? value)}
+        onClick={() => setBuka(v => !v)}
+        onFocus={e => { e.currentTarget.style.borderColor = T.primary; e.currentTarget.style.boxShadow = T.focusRing; }}
+        onBlur={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+          fontFamily: T.font, fontSize: 13, padding: "8px 12px", border: `1.5px solid ${T.border}`,
+          borderRadius: 10, background: T.inputBg, color: T.text, cursor: "pointer", textAlign: "left",
+        }}
+      >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{aktif?.label ?? value}</span>
+        <Icon name="chevronDown" size={12} style={{ flexShrink: 0, color: T.textMuted, transform: buka ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+      </button>
+      {buka && (
+        <div
+          role="listbox"
+          style={{
+            position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 60,
+            background: T.card, border: `1px solid ${T.border}`, borderRadius: 10,
+            boxShadow: T.shadowLg, padding: 4, maxHeight: 300, overflowY: "auto",
+          }}
+        >
+          {options.map(o => {
+            const on = o.value === value;
+            return (
+              <button
+                key={o.value}
+                type="button"
+                role="option"
+                aria-selected={on}
+                onClick={() => { onChange(o.value); setBuka(false); }}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                  fontFamily: T.font, fontSize: 13, padding: "8px 10px", border: "none", borderRadius: 7,
+                  background: on ? T.primaryLight : "transparent", color: on ? T.primary : T.text,
+                  fontWeight: on ? 600 : 400, cursor: "pointer", textAlign: "left",
+                }}
+                onMouseEnter={e => { if (!on) e.currentTarget.style.background = T.primaryLight; }}
+                onMouseLeave={e => { if (!on) e.currentTarget.style.background = "transparent"; }}
+              >
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.label}</span>
+                {on && <Icon name="check" size={13} style={{ flexShrink: 0, color: T.primary }} />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Kotak yang bisa digeser dengan pointer/touch. Tarik dari elemen ber-attribute
 // `data-pegang` (judul dialog) — tombol/form di dalamnya sengaja diabaikan.
 // Offset dibatasi agar kotak tidak keluar layar, dan otomatis kembali ke

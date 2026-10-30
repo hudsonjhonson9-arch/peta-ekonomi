@@ -13,3 +13,9 @@ server/index.uji.mjs
 
 # Backup file lokal
 *.bak
+
+# Log files
+*.log
+
+# Tool runtime & review artifacts
+.superpowers/
