@@ -1,4 +1,4 @@
-import { useState, useContext, useMemo, useRef } from "react";
+import { useState, useContext, useMemo, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import {
@@ -6,8 +6,17 @@ import {
 } from "recharts";
 import { ThemeContext } from "../App.jsx";
 import useResponsive from "../useResponsive.js";
-import { Icon, Select, Button, Badge } from "./ui.jsx";
+import { Icon, Select, Button, Badge, Geser, GoogleDriveEmbed } from "./ui.jsx";
 import SumbaBaratMap, { resolveKecamatanKode } from "./SumbaBaratMap.jsx";
+
+export const KECAMATAN_SUMBA_BARAT = [
+  { kode: "53.12.15", nama: "Kota Waikabubak" },
+  { kode: "53.12.10", nama: "Loli" },
+  { kode: "53.12.11", nama: "Wanokaka" },
+  { kode: "53.12.12", nama: "Lamboya" },
+  { kode: "53.12.18", nama: "Laboya Barat" },
+  { kode: "53.12.04", nama: "Tana Righu" },
+];
 
 function statusCapaianSpm(persen) {
   const n = Number(persen) || 0;
@@ -26,6 +35,9 @@ export default function SpmPage({ user, showToast, readOnly = false }) {
 
   const [tab, setTabState] = useState(() => {
     try {
+      const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
+      const t = hp.get("tab");
+      if (t && ["dashboard", "capaian", "referensi", "dokumen"].includes(t)) return t;
       return localStorage.getItem("spm_tab") || "dashboard";
     } catch {
       return "dashboard";
@@ -35,8 +47,29 @@ export default function SpmPage({ user, showToast, readOnly = false }) {
     setTabState(t);
     try {
       localStorage.setItem("spm_tab", t);
+      const base = (window.location.hash || "#spm").split("?")[0] || "#spm";
+      history.replaceState(null, "", `${base}?tab=${t}`);
     } catch (_) {}
   };
+
+  useEffect(() => {
+    const onHash = () => {
+      try {
+        const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
+        const t = hp.get("tab");
+        if (t && ["dashboard", "capaian", "referensi", "dokumen"].includes(t)) {
+          setTabState(t);
+        }
+      } catch (_) {}
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  const [previewDoc, setPreviewDoc] = useState(null);
+  const [arsipPilihan, setArsipPilihan] = useState([]);
+  const [modeArsip, setModeArsip] = useState(true);
+  const [arsipCari, setArsipCari] = useState("");
   const [filterTahun, setFilterTahun] = useState("2025");
   const [filterUrusan, setFilterUrusan] = useState("SEMUA");
   const [filterWilayah, setFilterWilayah] = useState("SEMUA");
@@ -50,7 +83,11 @@ export default function SpmPage({ user, showToast, readOnly = false }) {
     queryFn: () => fetch(endpoint, { credentials: "same-origin" }).then(r => (r.ok ? r.json() : {})),
   });
 
-  const reload = () => queryClient.invalidateQueries({ queryKey: ["spm-data"] });
+  const reload = () => {
+    queryClient.invalidateQueries({ queryKey: ["spm-data"] });
+    queryClient.invalidateQueries({ queryKey: ["satudata-spm"] });
+    queryClient.invalidateQueries({ queryKey: ["portal-ringkasan"] });
+  };
 
   const urusans = data?.urusan || [];
   const layanans = data?.layanan || [];
@@ -81,13 +118,13 @@ export default function SpmPage({ user, showToast, readOnly = false }) {
     });
   }, [urusans, layanans, capaians, filterTahun]);
 
-  // Rata-rata per Kecamatan (Peta Choropleth Kecamatan Sumba Barat)
+  // Rata-rata per Kecamatan (Peta Choropleth 6 Kecamatan Resmi Kab. Sumba Barat)
   const ringkasanKecamatan = useMemo(() => {
-    const kecs = wilayahs.filter(w => w.tingkat === "Kecamatan");
-    return kecs.map(k => {
+    return KECAMATAN_SUMBA_BARAT.map(k => {
+      const infoWil = wilayahs.find(w => resolveKecamatanKode(w.kode_wilayah, w.nama_wilayah) === k.kode);
       const rows = capaians.filter(
         c =>
-          resolveKecamatanKode(c.wilayah_kode, c.nama_wilayah) === resolveKecamatanKode(k.kode_wilayah, k.nama_wilayah) &&
+          resolveKecamatanKode(c.wilayah_kode, c.nama_wilayah) === k.kode &&
           (filterTahun === "SEMUA" || String(c.tahun) === String(filterTahun)) &&
           (filterUrusan === "SEMUA" || String(c.spm_urusan_id) === String(filterUrusan))
       );
@@ -96,10 +133,11 @@ export default function SpmPage({ user, showToast, readOnly = false }) {
         : 0;
       const totalPenerima = rows.reduce((s, r) => s + Number(r.penerima_layanan || 0), 0);
       return {
-        kode_wilayah: k.kode_wilayah,
-        nama_wilayah: k.nama_wilayah.replace(/^Kecamatan\s+/i, ""),
-        nama_lengkap: k.nama_wilayah,
-        penduduk: k.jumlah_penduduk,
+        kode_wilayah: k.kode,
+        nama_wilayah: k.nama,
+        nama_lengkap: `Kecamatan ${k.nama}`,
+        penduduk: infoWil?.jumlah_penduduk || null,
+        luas_km2: infoWil?.luas_km2 || null,
         avg,
         totalPenerima,
         jmlIndikator: rows.length,
@@ -145,13 +183,49 @@ export default function SpmPage({ user, showToast, readOnly = false }) {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(ws);
-      if (!json.length) throw new Error("Berkas Excel kosong");
+      const rawJson = XLSX.utils.sheet_to_json(ws);
+      if (!rawJson.length) throw new Error("Berkas Excel kosong");
+
+      const normalized = rawJson.map((row) => {
+        const item = {};
+        for (const [k, v] of Object.entries(row)) {
+          const key = k.toLowerCase().replace(/[^a-z0-9]/g, "");
+          if (key === "layananid" || key === "idlayanan") item.layanan_id = v;
+          else if (key === "namalayanan" || key === "layanan") item.nama_layanan = v;
+          else if (key === "tahun") item.tahun = Number(v);
+          else if (key === "wilayahkode" || key === "kodewilayah") item.wilayah_kode = v;
+          else if (key === "namawilayah" || key === "wilayah") item.nama_wilayah = v;
+          else if (key === "target") item.target = Number(v);
+          else if (key === "realisasi" || key === "capaian") item.realisasi = Number(v);
+          else if (key === "capaianpersen" || key === "persen") item.capaian_persen = Number(v);
+          else if (key === "penerimalayanan" || key === "penerima") item.penerima_layanan = Number(v);
+          else if (key === "anggaran") item.anggaran = Number(v);
+          else if (key === "keterangan" || key === "catatan") item.keterangan = v;
+        }
+
+        if (!item.layanan_id && item.nama_layanan) {
+          const match = layanans.find((l) =>
+            l.nama_layanan.toLowerCase().trim() === String(item.nama_layanan).toLowerCase().trim()
+          );
+          if (match) item.layanan_id = match.id;
+        }
+
+        if (!item.tahun) item.tahun = Number(filterTahun) || 2025;
+        if (!item.wilayah_kode) item.wilayah_kode = "53.12";
+        if (!item.nama_wilayah) item.nama_wilayah = "Kabupaten Sumba Barat";
+
+        return item;
+      }).filter((it) => it.layanan_id);
+
+      if (!normalized.length) {
+        throw new Error("Tidak ada baris layanan yang valid. Pastikan kolom layanan_id atau nama_layanan cocok dengan master layanan SPM.");
+      }
+
       const res = await fetch("/api/spm/capaian", {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: json }),
+        body: JSON.stringify({ items: normalized }),
       });
       const out = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(out.error || "Gagal mengimpor Excel SPM");
@@ -639,6 +713,34 @@ export default function SpmPage({ user, showToast, readOnly = false }) {
           {/* TAB 4: DOKUMEN SPM */}
           {tab === "dokumen" && (
             <div style={{ background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+              <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>
+                    Dokumen & Laporan Standar Pelayanan Minimal
+                  </div>
+                  <div style={{ fontSize: 12, color: T.textSecondary }}>
+                    Terintegrasi langsung dengan Arsip Digital BAPPERIDA & Google Drive Storage
+                  </div>
+                </div>
+                {isAdmin && (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    icon="plus"
+                    onClick={async () => {
+                      setModal({ type: "dokumen" });
+                      setForm({ tahun: Number(filterTahun) || 2025, kategori: "Laporan SPM" });
+                      setModeArsip(true);
+                      try {
+                        const r = await fetch("/api/spm/arsip-pilihan", { credentials: "same-origin" });
+                        if (r.ok) setArsipPilihan(await r.json());
+                      } catch (_) {}
+                    }}
+                  >
+                    + Tambah Dokumen SPM
+                  </Button>
+                )}
+              </div>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
@@ -647,36 +749,96 @@ export default function SpmPage({ user, showToast, readOnly = false }) {
                       <th style={thStyle}>Kategori</th>
                       <th style={thStyle}>Judul Dokumen SPM</th>
                       <th style={thStyle}>Nomor Dokumen</th>
+                      <th style={thStyle}>Status Arsip & Drive</th>
                       <th style={thStyle}>Deskripsi</th>
                       <th style={{ ...thStyle, textAlign: "right" }}>Tautan / Aksi</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {dokumens.map(d => (
-                      <tr key={d.id}>
-                        <td style={{ ...tdStyle, fontWeight: 700 }}>{d.tahun}</td>
-                        <td style={tdStyle}><Badge label={d.kategori} colors={{ bg: "#EFF6FF", text: "#2563EB" }} /></td>
-                        <td style={{ ...tdStyle, fontWeight: 700 }}>{d.judul}</td>
-                        <td style={tdStyle}>{d.nomor_dokumen || "—"}</td>
-                        <td style={{ ...tdStyle, color: T.textSecondary }}>{d.deskripsi || "—"}</td>
-                        <td style={{ ...tdStyle, textAlign: "right", whiteSpace: "nowrap" }}>
-                          {d.file_url && (
-                            <a href={d.file_url} target="_blank" rel="noreferrer" style={{ color: T.primary, fontWeight: 700, fontSize: 12, marginRight: 10 }}>
-                              Buka Berkas
-                            </a>
-                          )}
-                          {isAdmin && (
-                            <Button
-                              size="xs"
-                              variant="ghost"
-                              icon="trash"
-                              onClick={() => hapusItem(`/api/spm/dokumen/${d.id}`, d.judul)}
-                              style={{ color: T.danger }}
-                            />
-                          )}
+                    {dokumens.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} style={{ ...tdStyle, textAlign: "center", padding: 32, color: T.textSecondary }}>
+                          Belum ada dokumen SPM yang tersimpan. Klik "+ Tambah Dokumen SPM" untuk menautkan arsip.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      dokumens.map(d => (
+                        <tr key={d.id}>
+                          <td style={{ ...tdStyle, fontWeight: 700 }}>{d.tahun}</td>
+                          <td style={tdStyle}><Badge label={d.kategori} colors={{ bg: "#EFF6FF", text: "#2563EB" }} /></td>
+                          <td style={{ ...tdStyle, fontWeight: 700 }}>
+                            <div>{d.judul}</div>
+                            {d.arsip_judul && d.arsip_judul !== d.judul && (
+                              <div style={{ fontSize: 11, color: T.textSecondary, fontWeight: 500, marginTop: 2 }}>
+                                Arsip: {d.arsip_judul}
+                              </div>
+                            )}
+                          </td>
+                          <td style={tdStyle}>{d.nomor_dokumen || d.arsip_nomor || "—"}</td>
+                          <td style={tdStyle}>
+                            {d.file_url ? (
+                              <span style={{
+                                display: "inline-flex", alignItems: "center", gap: 5,
+                                fontSize: 11, fontWeight: 600, color: "#0F766E",
+                                background: "#F0FDFA", border: "1px solid #CCFBF1",
+                                padding: "2px 8px", borderRadius: 6,
+                              }}>
+                                <Icon name="checkCircle" size={12} style={{ color: "#0D9488" }} />
+                                {d.arsip_id ? "Terikat Arsip Digital" : "Google Drive"}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: 11, color: T.textMuted }}>Belum bertaut</span>
+                            )}
+                          </td>
+                          <td style={{ ...tdStyle, color: T.textSecondary }}>{d.deskripsi || "—"}</td>
+                          <td style={{ ...tdStyle, textAlign: "right", whiteSpace: "nowrap" }}>
+                            {d.file_url && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewDoc(d)}
+                                  title="Lihat dokumen langsung di aplikasi"
+                                  style={{
+                                    display: "inline-flex", alignItems: "center", gap: 5,
+                                    padding: "5px 10px", borderRadius: 6,
+                                    background: T.primaryLight, color: T.primary,
+                                    border: "none", fontSize: 12, fontWeight: 700,
+                                    cursor: "pointer", marginRight: 8,
+                                  }}
+                                >
+                                  <Icon name="eye" size={13} />
+                                  <span>Lihat</span>
+                                </button>
+                                <a
+                                  href={d.file_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title="Buka Google Drive di tab baru"
+                                  style={{
+                                    display: "inline-flex", alignItems: "center", gap: 4,
+                                    padding: "5px 8px", borderRadius: 6,
+                                    background: T.bg, color: T.textSecondary,
+                                    border: `1px solid ${T.border}`, fontSize: 12,
+                                    fontWeight: 600, textDecoration: "none", marginRight: 8,
+                                  }}
+                                >
+                                  <Icon name="externalLink" size={12} />
+                                </a>
+                              </>
+                            )}
+                            {isAdmin && (
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                icon="trash"
+                                onClick={() => hapusItem(`/api/spm/dokumen/${d.id}`, d.judul)}
+                                style={{ color: T.danger }}
+                              />
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -685,31 +847,64 @@ export default function SpmPage({ user, showToast, readOnly = false }) {
         </>
       )}
 
-      {/* Modal Input Capaian / Layanan / Dokumen SPM */}
+      {/* In-App Document Viewer (Google Drive Embed) */}
+      {previewDoc && (
+        <GoogleDriveEmbed
+          url={previewDoc.file_url}
+          title={previewDoc.judul}
+          onClose={() => setPreviewDoc(null)}
+        />
+      )}
+
+      {/* Modal Input Capaian / Layanan / Dokumen SPM (Semua Modal Bisa Digerakkan / Draggable) */}
       {modal && (
         <div
           onClick={() => !busy && setModal(null)}
           style={{
             position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)",
+            backdropFilter: "blur(4px)",
             zIndex: 1300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
           }}
         >
-          <div
+          <Geser
             onClick={e => e.stopPropagation()}
             style={{
               background: T.card, color: T.text, borderRadius: 14,
               border: `1px solid ${T.border}`, boxShadow: T.shadowLg,
-              width: "100%", maxWidth: 520, padding: 22,
+              width: "100%", maxWidth: modal.type === "dokumen" ? 640 : 520,
+              maxHeight: "90vh", display: "flex", flexDirection: "column",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
-                {modal.type === "capaian" ? "Input / Edit Capaian SPM" : modal.type === "layanan" ? "Tambah Jenis Layanan SPM" : "Tambah Dokumen SPM"}
-              </h3>
-              <button onClick={() => setModal(null)} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted }}>
+            {/* Header Modal Draggable */}
+            <div
+              data-pegang
+              style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "16px 20px", borderBottom: `1px solid ${T.border}`,
+                cursor: "grab", userSelect: "none", flexShrink: 0,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div title="Seret untuk memindahkan posisi modal" style={{ display: "flex", alignItems: "center", color: T.textMuted, opacity: 0.6 }}>
+                  <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor">
+                    <circle cx="2.5" cy="3" r="1.5" />
+                    <circle cx="7.5" cy="3" r="1.5" />
+                    <circle cx="2.5" cy="8" r="1.5" />
+                    <circle cx="7.5" cy="8" r="1.5" />
+                    <circle cx="2.5" cy="13" r="1.5" />
+                    <circle cx="7.5" cy="13" r="1.5" />
+                  </svg>
+                </div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
+                  {modal.type === "capaian" ? "Input / Edit Capaian SPM" : modal.type === "layanan" ? "Tambah Jenis Layanan SPM" : "Tambah Dokumen SPM & Tautkan Arsip"}
+                </h3>
+              </div>
+              <button onClick={() => setModal(null)} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, padding: 4 }}>
                 <Icon name="x" size={18} />
               </button>
             </div>
+
+            <div style={{ padding: "18px 20px", overflowY: "auto", flex: 1 }}>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {modal.type === "capaian" && (
@@ -792,9 +987,90 @@ export default function SpmPage({ user, showToast, readOnly = false }) {
 
               {modal.type === "dokumen" && (
                 <>
+                  {/* Segmented Mode: Pilih dari Arsip Digital vs Input Manual */}
+                  <div style={{
+                    display: "flex", background: T.bg, padding: 3, borderRadius: 8,
+                    border: `1px solid ${T.border}`, marginBottom: 6,
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => setModeArsip(true)}
+                      style={{
+                        flex: 1, padding: "7px 12px", border: "none", borderRadius: 6,
+                        background: modeArsip ? T.primary : "transparent",
+                        color: modeArsip ? "#fff" : T.textSecondary,
+                        fontSize: 12, fontWeight: 700, cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                      }}
+                    >
+                      <Icon name="archive" size={14} />
+                      <span>Pilih dari Arsip Digital (Google Drive)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModeArsip(false)}
+                      style={{
+                        flex: 1, padding: "7px 12px", border: "none", borderRadius: 6,
+                        background: !modeArsip ? T.primary : "transparent",
+                        color: !modeArsip ? "#fff" : T.textSecondary,
+                        fontSize: 12, fontWeight: 700, cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                      }}
+                    >
+                      <Icon name="link" size={14} />
+                      <span>Input URL / Manual</span>
+                    </button>
+                  </div>
+
+                  {modeArsip && (
+                    <div style={{ background: T.bg, borderRadius: 10, border: `1px solid ${T.border}`, padding: 12 }}>
+                      <label style={lblStyle}>Pilih Dokumen dari Arsip Digital BAPPERIDA *</label>
+                      <Select
+                        fullWidth
+                        searchable
+                        value={form.dokumen_arsip_id ? String(form.dokumen_arsip_id) : ""}
+                        placeholder="— Cari dan pilih berkas di Arsip Digital —"
+                        onChange={v => {
+                          const doc = arsipPilihan.find(a => String(a.id) === String(v));
+                          if (doc) {
+                            setForm(f => ({
+                              ...f,
+                              dokumen_arsip_id: doc.id,
+                              judul: doc.judul,
+                              nomor_dokumen: doc.nomor_dokumen || f.nomor_dokumen || "",
+                              file_url: doc.url || f.file_url || "",
+                              tahun: doc.tanggal_dokumen ? new Date(doc.tanggal_dokumen).getFullYear() : f.tahun,
+                              deskripsi: f.deskripsi || `Dokumen ditautkan dari Arsip Digital (${doc.kategori || "BAPPERIDA"})`,
+                            }));
+                          } else {
+                            setForm(f => ({ ...f, dokumen_arsip_id: null }));
+                          }
+                        }}
+                        options={[
+                          { value: "", label: "— Pilih Dokumen dari Arsip Digital —" },
+                          ...arsipPilihan.map(a => ({
+                            value: String(a.id),
+                            label: `#${a.id} - ${a.judul} (${a.kategori || "Umum"})`,
+                          })),
+                        ]}
+                      />
+                      {form.file_url && (
+                        <div style={{ marginTop: 8, display: "flex", alignItems: "center", justifyContent: "space-between", background: "#F0FDFA", border: "1px solid #CCFBF1", borderRadius: 8, padding: "8px 12px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#0F766E", fontWeight: 600 }}>
+                            <Icon name="checkCircle" size={14} style={{ color: "#0D9488" }} />
+                            <span>Tautan Google Drive tersambung</span>
+                          </div>
+                          <a href={form.file_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, fontWeight: 700, color: "#0D9488" }}>
+                            Buka Drive ↗
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div>
                     <label style={lblStyle}>Judul Dokumen SPM *</label>
-                    <input value={form.judul || ""} onChange={e => setForm(f => ({ ...f, judul: e.target.value }))} style={inpStyle} />
+                    <input value={form.judul || ""} onChange={e => setForm(f => ({ ...f, judul: e.target.value }))} placeholder="Contoh: Laporan Penyelenggaraan SPM 2025" style={inpStyle} />
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                     <div>
@@ -818,25 +1094,28 @@ export default function SpmPage({ user, showToast, readOnly = false }) {
                   </div>
                   <div>
                     <label style={lblStyle}>Nomor Dokumen</label>
-                    <input value={form.nomor_dokumen || ""} onChange={e => setForm(f => ({ ...f, nomor_dokumen: e.target.value }))} style={inpStyle} />
+                    <input value={form.nomor_dokumen || ""} onChange={e => setForm(f => ({ ...f, nomor_dokumen: e.target.value }))} placeholder="Contoh: LAP-SPM/01/2025" style={inpStyle} />
                   </div>
                   <div>
-                    <label style={lblStyle}>URL Berkas (Opsional)</label>
-                    <input value={form.file_url || ""} onChange={e => setForm(f => ({ ...f, file_url: e.target.value }))} placeholder="https://..." style={inpStyle} />
+                    <label style={lblStyle}>Tautan Google Drive / URL Berkas</label>
+                    <input value={form.file_url || ""} onChange={e => setForm(f => ({ ...f, file_url: e.target.value }))} placeholder="https://drive.google.com/file/d/..." style={inpStyle} />
                   </div>
                   <div>
-                    <label style={lblStyle}>Deskripsi</label>
-                    <textarea rows={2} value={form.deskripsi || ""} onChange={e => setForm(f => ({ ...f, deskripsi: e.target.value }))} style={inpStyle} />
+                    <label style={lblStyle}>Deskripsi / Catatan Dokumen</label>
+                    <textarea rows={2} value={form.deskripsi || ""} onChange={e => setForm(f => ({ ...f, deskripsi: e.target.value }))} placeholder="Ringkasan dokumen atau cakupan SPM..." style={inpStyle} />
                   </div>
                 </>
               )}
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+            </div>
+
+            {/* Footer Modal Draggable */}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "14px 20px", borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
               <Button variant="ghost" onClick={() => setModal(null)}>Batal</Button>
               <Button variant="primary" loading={busy} onClick={simpanModal}>Simpan</Button>
             </div>
-          </div>
+          </Geser>
         </div>
       )}
     </div>

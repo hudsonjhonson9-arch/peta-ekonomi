@@ -20,11 +20,27 @@
         font-variant-numeric: tabular-nums;
         -webkit-tap-highlight-color: transparent;
       }
-      #root { display: flex; min-height: 100vh; }
-      #root { min-height: 100dvh; }
+      #root { display: flex; flex-direction: column; width: 100%; min-height: 100vh; min-height: 100dvh; }
       @media (max-width: 767px) {
         body { font-size: 15px; }
-        ::-webkit-scrollbar { width: 4px; }
+      }
+      /* Scrollbar modern dan ramping untuk seluruh aplikasi */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.35); border-radius: 99px; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.6); }
+      html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); }
+      html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.35); }
+
+      /* Sembunyikan scrollbar sepenuhnya pada sidebar navigasi sesuai permintaan */
+      .sidebar-nav, .no-scrollbar {
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+      }
+      .sidebar-nav::-webkit-scrollbar, .no-scrollbar::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
       }
       @media (min-width: 768px) {
         .mobile-only { display: none !important; }

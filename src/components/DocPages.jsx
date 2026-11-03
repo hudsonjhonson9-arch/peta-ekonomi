@@ -1539,7 +1539,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1200, padding: 16 }}
           onClick={e => { if (e.target === e.currentTarget) { setEditing(false); } }}>
           <Geser style={{ background: T.card, borderRadius: T.radiusLg, border: `1px solid ${T.border}`, boxShadow: "0 20px 60px rgba(15,23,42,0.2)", width: "100%", maxWidth: 440, padding: isMobile ? 20 : 28, fontFamily: T.font }}>
-            <h3 data-pegang style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: "0 0 20px" }}>Edit Dokumen</h3>
+            <h3 data-pegang style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: "0 0 20px", cursor: "grab", userSelect: "none" }}>Edit Dokumen</h3>
             {[
               { key: "judul", label: "Judul Dokumen", type: "text" },
               { key: "kategori", label: "Sektor", type: "select", opts: sectors.map(s => s.nama || s.name || s) },

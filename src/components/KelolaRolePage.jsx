@@ -2,7 +2,7 @@ import { useState, useContext, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ThemeContext } from "../App.jsx";
 import useResponsive from "../useResponsive.js";
-import { Icon, Select, Button, Badge } from "./ui.jsx";
+import { Icon, Select, Button, Badge, Geser } from "./ui.jsx";
 
 const PRESET_WARNA = [
   { label: "Ungu",   bg: "#EDE9FE", text: "#7C3AED" },
@@ -450,17 +450,17 @@ export default function KelolaRolePage({ showToast }) {
         </div>
       </div>
 
-      {/* Modal Form Edit / Tambah Role */}
+      {/* Modal Form Edit / Tambah Role (Draggable) */}
       {modalRole && (
         <div
           onClick={() => !busy && setModalRole(null)}
           style={{
             position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)",
-            backdropFilter: "blur(2px)", zIndex: 1000,
+            backdropFilter: "blur(4px)", zIndex: 1000,
             display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
           }}
         >
-          <div
+          <Geser
             onClick={e => e.stopPropagation()}
             style={{
               background: T.card, borderRadius: 16, border: `1px solid ${T.border}`,
@@ -469,7 +469,7 @@ export default function KelolaRolePage({ showToast }) {
             }}
           >
             {/* Modal Header */}
-            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div data-pegang style={{ padding: "16px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "grab", userSelect: "none" }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: T.text }}>
                   {modalRole.mode === "add" ? "Tambah Role Pengguna Baru" : `Atur Role & Wewenang: ${modalRole.data.nama}`}
@@ -780,21 +780,21 @@ export default function KelolaRolePage({ showToast }) {
                 Simpan Konfigurasi Role
               </Button>
             </div>
-          </div>
+          </Geser>
         </div>
       )}
 
-      {/* Modal Daftar Pengguna pada Role Ini */}
+      {/* Modal Daftar Pengguna pada Role Ini (Draggable) */}
       {modalUsers && (
         <div
           onClick={() => setModalUsers(null)}
           style={{
             position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)",
-            backdropFilter: "blur(2px)", zIndex: 1000,
+            backdropFilter: "blur(4px)", zIndex: 1000,
             display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
           }}
         >
-          <div
+          <Geser
             onClick={e => e.stopPropagation()}
             style={{
               background: T.card, borderRadius: 16, border: `1px solid ${T.border}`,
@@ -802,7 +802,7 @@ export default function KelolaRolePage({ showToast }) {
               display: "flex", flexDirection: "column", boxShadow: T.shadowLg,
             }}
           >
-            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div data-pegang style={{ padding: "16px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "grab", userSelect: "none" }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: T.text }}>
                   Pengguna dengan Peran: {modalUsers.nama}
@@ -871,7 +871,7 @@ export default function KelolaRolePage({ showToast }) {
                 </table>
               )}
             </div>
-          </div>
+          </Geser>
         </div>
       )}
     </div>

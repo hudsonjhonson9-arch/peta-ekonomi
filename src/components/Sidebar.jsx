@@ -203,7 +203,7 @@ export default function Sidebar({ active, onNav, user, onLogout, onCiutkan, leba
       )}
 
       {/* Nav — kelompok yang bisa dilipat */}
-      <nav style={{ flex: 1, padding: "10px 0", overflowY: "auto" }}>
+      <nav className="sidebar-nav" style={{ flex: 1, padding: "6px 0 14px", overflowY: "auto", overflowX: "hidden", scrollbarWidth: "none", msOverflowStyle: "none" }}>
         {groups.map((g, i) => {
           // Saat sidebar dikecilkan hanya ikon yang muat, jadi semua kelompok
           // dibuka tanpa perlu menampilkan judulnya.
@@ -223,7 +223,7 @@ export default function Sidebar({ active, onNav, user, onLogout, onCiutkan, leba
                   style={{
                     width: "100%",
                     display: "flex", alignItems: "center", gap: 8,
-                    padding: "9px 16px 5px",
+                    padding: "7px 16px 4px",
                     background: "none", border: "none",
                     borderLeft: "3px solid transparent",
                     cursor: "pointer",
@@ -251,14 +251,14 @@ export default function Sidebar({ active, onNav, user, onLogout, onCiutkan, leba
                       display: "flex",
                       alignItems: "center",
                       gap: 10,
-                      padding: modeIcon ? "11px 0" : "10px 16px",
+                      padding: modeIcon ? "9px 0" : "8px 16px",
                       justifyContent: modeIcon ? "center" : "flex-start",
                       background: isActive ? T.sidebarHover : "none",
                       border: "none",
                       borderLeft: isActive ? "3px solid " + T.primary : "3px solid transparent",
                       color: isActive ? T.sidebarTextActive : T.sidebarText,
                       cursor: "pointer",
-                      fontSize: 13,
+                      fontSize: 12.8,
                       fontWeight: isActive ? 600 : 400,
                       transition: "all 0.15s",
                     }}

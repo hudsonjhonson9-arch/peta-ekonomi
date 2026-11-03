@@ -1,9 +1,9 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { ThemeContext } from "../App.jsx";
 import useResponsive from "../useResponsive.js";
-import { Icon, Select, DatePicker, Button, Badge } from "./ui.jsx";
+import { Icon, Select, DatePicker, Button, Badge, Geser } from "./ui.jsx";
 
 export default function MonitoringPage({ showToast }) {
   const { T } = useContext(ThemeContext);
@@ -12,6 +12,9 @@ export default function MonitoringPage({ showToast }) {
 
   const [tab, setTabState] = useState(() => {
     try {
+      const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
+      const urlTab = hp.get("tab");
+      if (urlTab && ["api_token", "qna", "visitor", "query_builder", "activity", "page_visits", "health"].includes(urlTab)) return urlTab;
       return localStorage.getItem("monitoring_tab") || "api_token";
     } catch {
       return "api_token";
@@ -21,8 +24,24 @@ export default function MonitoringPage({ showToast }) {
     setTabState(t);
     try {
       localStorage.setItem("monitoring_tab", t);
+      const base = (window.location.hash || "#monitoring").split("?")[0] || "#monitoring";
+      history.replaceState(null, "", `${base}?tab=${t}`);
     } catch (_) {}
   };
+
+  useEffect(() => {
+    const onHash = () => {
+      try {
+        const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
+        const urlTab = hp.get("tab");
+        if (urlTab && ["api_token", "qna", "visitor", "query_builder", "activity", "page_visits", "health"].includes(urlTab)) {
+          setTabState(urlTab);
+        }
+      } catch (_) {}
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
@@ -58,7 +77,15 @@ export default function MonitoringPage({ showToast }) {
     queryFn: () => fetch("/api/bankdata/opd", { credentials: "same-origin" }).then(r => (r.ok ? r.json() : [])),
   });
 
-  const reload = () => queryClient.invalidateQueries({ queryKey: ["satudata-monitoring"] });
+  const { data: pageVisitsData, isLoading: loadingVisits } = useQuery({
+    queryKey: ["satudata-page-visits"],
+    queryFn: () => fetch("/api/monitoring/page-visits", { credentials: "same-origin" }).then(r => (r.ok ? r.json() : { top_halaman: [], log_terbaru: [] })),
+  });
+
+  const reload = () => {
+    queryClient.invalidateQueries({ queryKey: ["satudata-monitoring"] });
+    queryClient.invalidateQueries({ queryKey: ["satudata-page-visits"] });
+  };
 
   const qnas = data?.qna || [];
   const faqs = data?.faq || [];
@@ -291,6 +318,7 @@ export default function MonitoringPage({ showToast }) {
           { key: "visitor",       label: `Data Pengunjung (${visitors.length})`, icon: "users" },
           { key: "query_builder", label: "Query Builder & Ekspor",        icon: "filter" },
           { key: "activity",      label: "Activity Log & Metrik",         icon: "history" },
+          { key: "page_visits",   label: "Kunjungan Halaman (Page Visits)", icon: "world" },
           { key: "health",        label: "Kesehatan Server",              icon: "server" },
         ].map(t => {
           const active = tab === t.key;
@@ -1134,7 +1162,86 @@ else:
           )}
 
           {/* TAB 6: KESEHATAN SISTEM */}
-          {tab === "health" && (
+          {/* TAB PAGE VISITS (KUNJUNGAN HALAMAN) */}
+      {tab === "page_visits" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {loadingVisits ? (
+            <div style={{ textAlign: "center", padding: "40px 0", color: T.textMuted }}>Memuat statistik kunjungan...</div>
+          ) : (
+            <>
+              {/* Summary Cards */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
+                <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 18 }}>
+                  <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>TOTAL KUNJUNGAN DICATAT</div>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: T.primary, marginTop: 4 }}>
+                    {(pageVisitsData?.top_halaman || []).reduce((a, b) => a + (b.visits || 0), 0)}
+                  </div>
+                </div>
+                <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 18 }}>
+                  <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>HALAMAN TERPOPULER</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: T.text, marginTop: 6, wordBreak: "break-all" }}>
+                    {pageVisitsData?.top_halaman?.[0]?.path || "/portal"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabel Top 15 Halaman */}
+              <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 18 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, margin: "0 0 12px" }}>Top 15 Halaman Paling Sering Dikunjungi</h3>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                    <thead>
+                      <tr style={{ background: T.bg, borderBottom: `2px solid ${T.border}`, textAlign: "left" }}>
+                        <th style={{ padding: "8px 10px" }}>Path URL</th>
+                        <th style={{ padding: "8px 10px" }}>Total Kunjungan</th>
+                        <th style={{ padding: "8px 10px" }}>Pengunjung Unik (IP)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(pageVisitsData?.top_halaman || []).map((h, i) => (
+                        <tr key={i} style={{ borderBottom: `1px solid ${T.border}` }}>
+                          <td style={{ padding: "8px 10px", fontWeight: 600, color: T.text }}>{h.path}</td>
+                          <td style={{ padding: "8px 10px", color: T.primary, fontWeight: 700 }}>{h.visits} kali</td>
+                          <td style={{ padding: "8px 10px", color: T.textMuted }}>{h.unique_ips} IP</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Tabel Log Kunjungan Terbaru */}
+              <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 18 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, margin: "0 0 12px" }}>50 Log Kunjungan Terbaru</h3>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: T.bg, borderBottom: `2px solid ${T.border}`, textAlign: "left" }}>
+                        <th style={{ padding: "8px 10px" }}>Waktu</th>
+                        <th style={{ padding: "8px 10px" }}>Path URL</th>
+                        <th style={{ padding: "8px 10px" }}>IP Address</th>
+                        <th style={{ padding: "8px 10px" }}>Referrer</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(pageVisitsData?.log_terbaru || []).map((l) => (
+                        <tr key={l.id} style={{ borderBottom: `1px solid ${T.border}` }}>
+                          <td style={{ padding: "7px 10px", color: T.textMuted }}>{new Date(l.created_at).toLocaleString("id-ID")}</td>
+                          <td style={{ padding: "7px 10px", fontWeight: 600, color: T.text }}>{l.path}</td>
+                          <td style={{ padding: "7px 10px", color: T.textMuted }}>{l.ip_address || "—"}</td>
+                          <td style={{ padding: "7px 10px", color: T.textMuted }}>{l.referrer || "Direct"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === "health" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
               {/* Kartu Pemeriksaan Kesehatan Sistem */}
               <div style={{ background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, padding: 18 }}>
@@ -1180,25 +1287,45 @@ else:
         </>
       )}
 
-      {/* Modal Form */}
+      {/* Modal Form (Draggable) */}
       {modal && (
         <div
           onClick={() => !busy && setModal(null)}
           style={{
             position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)",
+            backdropFilter: "blur(4px)",
             zIndex: 1300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
           }}
         >
-          <div
+          <Geser
             onClick={e => e.stopPropagation()}
             style={{
               background: T.card, color: T.text, borderRadius: 14,
               border: `1px solid ${T.border}`, boxShadow: T.shadowLg,
-              width: "100%", maxWidth: 500, padding: 22,
+              width: "100%", maxWidth: 500, maxHeight: "90vh",
+              display: "flex", flexDirection: "column", overflow: "hidden",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
+            <div
+              data-pegang
+              style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "16px 20px", borderBottom: `1px solid ${T.border}`,
+                cursor: "grab", userSelect: "none", flexShrink: 0,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div title="Seret untuk memindahkan posisi modal" style={{ display: "flex", alignItems: "center", color: T.textMuted, opacity: 0.6 }}>
+                  <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor">
+                    <circle cx="2.5" cy="3" r="1.5" />
+                    <circle cx="7.5" cy="3" r="1.5" />
+                    <circle cx="2.5" cy="8" r="1.5" />
+                    <circle cx="7.5" cy="8" r="1.5" />
+                    <circle cx="2.5" cy="13" r="1.5" />
+                    <circle cx="7.5" cy="13" r="1.5" />
+                  </svg>
+                </div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
                 {modal.type === "qna_answer"
                   ? "Jawab Pertanyaan Masyarakat"
                   : modal.type === "faq"
@@ -1400,11 +1527,12 @@ else:
               )}
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "14px 20px", borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
               <Button variant="ghost" onClick={() => setModal(null)}>Batal</Button>
               <Button variant="primary" loading={busy} onClick={simpanModal}>Simpan</Button>
             </div>
-          </div>
+          </Geser>
         </div>
       )}
     </div>

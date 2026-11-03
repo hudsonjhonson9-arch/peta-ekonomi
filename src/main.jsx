@@ -7,9 +7,10 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      staleTime: 120_000,
-      gcTime: 600_000,
-      refetchOnWindowFocus: false,
+      staleTime: 0, // Selalu anggap data perlu disinkronkan langsung dari database
+      gcTime: 300_000,
+      refetchOnWindowFocus: true, // Saat pengguna kembali ke tab, otomatis tarik data terbaru dari DB
+      refetchOnReconnect: true,
     },
   },
 });

@@ -109,6 +109,7 @@ const ATURAN = [
   semua(ADMIN, '/api/satudata/master(/[^/]+)*'),
 
   t('GET',    LOGIN,    '/api/spm'),
+  t('GET',    LOGIN,    '/api/spm/arsip-pilihan'),
   semua(ADMIN, '/api/spm(/[^/]+)*'),
 
   t('GET',    LOGIN,    '/api/konten'),
@@ -150,11 +151,28 @@ const ATURAN = [
   ]),
 ];
 
+// ── Aturan tambahan dari modul ─────────────────────────────────────────────
+// Modul rute baru (akun, portal, dataset lanjutan, dst.) mendaftarkan aturannya
+// sendiri lewat tambahAturan([...]) saat file modul di-import. Aturan modul
+// diperiksa LEBIH DULU daripada ATURAN bawaan supaya pola spesifik modul tidak
+// tertelan aturan umum seperti semua(ADMIN, '/api/monitoring(/[^/]+)*').
+// Helper `aturan` dan `aturanSemua` sama dengan t() dan semua() di atas.
+const ATURAN_MODUL = [];
+export const aturan = t;
+export const aturanSemua = semua;
+export function tambahAturan(daftar = []) {
+  ATURAN_MODUL.push(...daftar);
+}
+
 export function kebutuhan(method, path) {
   // Express memakai non-strict routing secara bawaan, jadi /api/users/ dan
   // /api/users ditangani handler yang sama. Pola di tabel harus meniru itu,
   // kalau tidak garis miring akhir menjadi celah melewati aturan admin.
   const p = path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+  for (const a of ATURAN_MODUL) {
+    if (a.m && a.m !== method) continue;
+    if (a.pola.test(p)) return a.lvl;
+  }
   for (const a of ATURAN) {
     if (a.m && a.m !== method) continue;
     if (a.pola.test(p)) return a.lvl;
@@ -165,6 +183,8 @@ export function kebutuhan(method, path) {
 export function jalurOperatorDiizinkan(path) {
   const p = path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
   if (p === '/api/health' || p.startsWith('/api/auth/')) return true;
+  // Akun sendiri (profil, ganti password) dan portal publik selalu boleh.
+  if (p.startsWith('/api/akun/') || p === '/api/akun' || p.startsWith('/api/portal/')) return true;
   if (p === '/api/notifications' || p.startsWith('/api/notifications/')) return true;
   if (p === '/api/bankdata' || p.startsWith('/api/bankdata/')) return true;
   if (p === '/api/satudata/master/ringkasan' || p === '/api/satudata/reopen') return true;

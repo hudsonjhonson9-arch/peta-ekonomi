@@ -1,10 +1,10 @@
-import { useState, useContext, useMemo } from "react";
+import { useState, useContext, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { ThemeContext } from "../App.jsx";
 import useResponsive from "../useResponsive.js";
 import { POLLING } from "../hooks.js";
-import { Icon, Select, DatePicker, Button, Badge } from "./ui.jsx";
+import { Icon, Select, DatePicker, Button, Badge, Geser } from "./ui.jsx";
 import BankData from "./BankData.jsx";
 import BankDataDashboard from "./BankDataDashboard.jsx";
 import GrafikDataset from "./GrafikDataset.jsx";
@@ -83,6 +83,9 @@ export default function BankDataPage({ user, showToast }) {
 
   const [tab, setTabState] = useState(() => {
     try {
+      const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
+      const t = hp.get("tab");
+      if (t && ["dataset", "verifikasi", "pemutakhiran", "template", "kinerja"].includes(t)) return t;
       return localStorage.getItem("bankdata_tab") || "dataset";
     } catch {
       return "dataset";
@@ -92,8 +95,24 @@ export default function BankDataPage({ user, showToast }) {
     setTabState(t);
     try {
       localStorage.setItem("bankdata_tab", t);
+      const base = (window.location.hash || "#bankdata").split("?")[0] || "#bankdata";
+      history.replaceState(null, "", `${base}?tab=${t}`);
     } catch (_) {}
   };
+
+  useEffect(() => {
+    const onHash = () => {
+      try {
+        const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
+        const t = hp.get("tab");
+        if (t && ["dataset", "verifikasi", "pemutakhiran", "template", "kinerja"].includes(t)) {
+          setTabState(t);
+        }
+      } catch (_) {}
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const [selectedId, setSelectedIdState] = useState(() => {
     try {
       const s = sessionStorage.getItem("bankdata_selected_dataset_id");
@@ -153,6 +172,13 @@ export default function BankDataPage({ user, showToast }) {
   const reloadDatasets = () => {
     queryClient.invalidateQueries({ queryKey: ["bankdata-dataset"] });
     queryClient.invalidateQueries({ queryKey: ["bankdata-dataset-verifikasi"] });
+    queryClient.invalidateQueries({ queryKey: ["bankdata"] });
+    queryClient.invalidateQueries({ queryKey: ["bankdata-dashboard"] });
+    queryClient.invalidateQueries({ queryKey: ["bankdata-opd"] });
+    queryClient.invalidateQueries({ queryKey: ["bankdata-tahun"] });
+    queryClient.invalidateQueries({ queryKey: ["satudata-master-ringkasan"] });
+    queryClient.invalidateQueries({ queryKey: ["portal-ringkasan"] });
+    queryClient.invalidateQueries({ queryKey: ["portal-dataset"] });
     if (selectedId) {
       queryClient.invalidateQueries({ queryKey: ["bankdata-dataset-detail", selectedId] });
     }
@@ -250,6 +276,26 @@ export default function BankDataPage({ user, showToast }) {
             </button>
           );
         })}
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center" }}>
+          <button
+            onClick={() => {
+              reloadDatasets();
+              showToast?.("Data disinkronkan langsung dari database");
+            }}
+            title="Ambil data terbaru langsung dari database"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "8px 14px", borderRadius: 8,
+              border: `1px solid ${T.border}`,
+              background: T.card,
+              color: T.textSecondary,
+              fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+            }}
+          >
+            <Icon name="refresh" size={13} />
+            <span>Sinkron Database</span>
+          </button>
+        </div>
       </div>
 
       {tab === "kinerja" ? (
@@ -476,6 +522,8 @@ function ModalBuatDataset({ opdList, user, isOperator, onClose, onCreated, showT
   const satuanList = masterData?.satuan || [];
   const templatePresets = masterData?.template_field || [];
 
+  const [step, setStep] = useState(1); // 1: Klasifikasi, 2: Metadata SDI, 3: Jadwal & Kolom
+
   const [form, setForm] = useState({
     opd_id: defaultOpd,
     urusan_id: "",
@@ -518,20 +566,18 @@ function ModalBuatDataset({ opdList, user, isOperator, onClose, onCreated, showT
     return subTopikList.filter(s => String(s.topik_id) === String(form.topik_id));
   }, [form.topik_id, subTopikList]);
 
-  const addTag = (val) => {
-    const trimmed = (val || "").replace(/,/g, "").trim();
-    if (!trimmed) return;
-    if (!keywords.includes(trimmed)) {
-      setKeywords(prev => [...prev, trimmed]);
-    }
+  const addTag = val => {
+    const t = val.trim().replace(/^,+|,+$/g, "");
+    if (!t) return;
+    if (!keywords.includes(t)) setKeywords(prev => [...prev, t]);
     setKeywordInput("");
   };
 
-  const removeTag = (idx) => {
+  const removeTag = idx => {
     setKeywords(prev => prev.filter((_, i) => i !== idx));
   };
 
-  const handleKeywordKeyDown = (e) => {
+  const handleKeywordKeyDown = e => {
     if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
       addTag(keywordInput);
@@ -541,7 +587,7 @@ function ModalBuatDataset({ opdList, user, isOperator, onClose, onCreated, showT
   };
 
   const addField = () => {
-    setFields(prev => [...prev, { label: "", tipe_data: "angka", wajib: false, tampil_grafik: true, pilihan: "" }]);
+    setFields(prev => [...prev, { label: "", tipe_data: "desimal", wajib: true, tampil_grafik: true, pilihan: "" }]);
   };
 
   const updateField = (idx, key, val) => {
@@ -552,23 +598,56 @@ function ModalBuatDataset({ opdList, user, isOperator, onClose, onCreated, showT
     setFields(prev => prev.filter((_, i) => i !== idx));
   };
 
+  const validateStep = (currentStep) => {
+    if (currentStep === 1) {
+      if (!form.opd_id) {
+        showToast("Pilih OPD Produsen Data terlebih dahulu");
+        return false;
+      }
+    }
+    if (currentStep === 2) {
+      if (!form.nama_data.trim()) {
+        showToast("Nama Data / Indikator wajib diisi");
+        return false;
+      }
+      if (!form.definisi.trim()) {
+        showToast("Definisi data wajib diisi");
+        return false;
+      }
+      let finalSatuan = isCustomSatuan ? form.satuan_custom.trim() : form.satuan_id;
+      if (!finalSatuan) {
+        showToast("Satuan wajib dipilih atau diisi");
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const goNext = () => {
+    if (validateStep(step)) setStep(s => Math.min(3, s + 1));
+  };
+
+  const goPrev = () => {
+    setStep(s => Math.max(1, s - 1));
+  };
+
   const handleSubmit = async () => {
-    if (!form.nama_data.trim()) return showToast("Nama Data / Indikator wajib diisi");
-    if (!form.opd_id) return showToast("OPD Produsen Data wajib dipilih");
-    if (!form.definisi.trim()) return showToast("Definisi data wajib diisi");
+    if (!form.nama_data.trim()) { setStep(2); return showToast("Nama Data / Indikator wajib diisi"); }
+    if (!form.opd_id) { setStep(1); return showToast("OPD Produsen Data wajib dipilih"); }
+    if (!form.definisi.trim()) { setStep(2); return showToast("Definisi data wajib diisi"); }
 
     let finalSatuan = "";
     if (isCustomSatuan) {
       finalSatuan = form.satuan_custom.trim();
-      if (!finalSatuan) return showToast("Satuan kustom wajib diisi");
+      if (!finalSatuan) { setStep(2); return showToast("Satuan kustom wajib diisi"); }
     } else if (form.satuan_id) {
       const found = satuanList.find(s => String(s.id) === String(form.satuan_id));
       finalSatuan = found ? found.nama_satuan : "";
     }
-    if (!finalSatuan && !form.satuan_id) return showToast("Satuan wajib dipilih atau diisi");
+    if (!finalSatuan && !form.satuan_id) { setStep(2); return showToast("Satuan wajib dipilih atau diisi"); }
 
     const validFields = fields.filter(f => f.label.trim());
-    if (validFields.length === 0) return showToast("Tambahkan minimal 1 kolom indikator");
+    if (validFields.length === 0) { setStep(3); return showToast("Tambahkan minimal 1 kolom indikator"); }
 
     setSaving(true);
     try {
@@ -630,6 +709,12 @@ function ModalBuatDataset({ opdList, user, isOperator, onClose, onCreated, showT
     display: "block", marginBottom: 5,
   };
 
+  const STEPS = [
+    { num: 1, title: "Klasifikasi", sub: "Produsen & Urusan", icon: "layers" },
+    { num: 2, title: "Metadata SDI", sub: "Definisi & Satuan", icon: "fileText" },
+    { num: 3, title: "Kolom & Jadwal", sub: "Frekuensi & Struktur", icon: "database" },
+  ];
+
   return (
     <div
       onClick={onClose}
@@ -639,538 +724,674 @@ function ModalBuatDataset({ opdList, user, isOperator, onClose, onCreated, showT
         justifyContent: "center", zIndex: 1300, padding: isMobile ? 8 : 20,
       }}
     >
-      <div
+      <Geser
         onClick={e => e.stopPropagation()}
         style={{
           background: T.card, borderRadius: 16, border: `1px solid ${T.border}`,
-          padding: isMobile ? 16 : 24, width: "100%", maxWidth: 840,
-          maxHeight: "92vh", overflowY: "auto", boxShadow: T.shadowLg,
+          width: "100%", maxWidth: 840, maxHeight: "92vh",
+          display: "flex", flexDirection: "column",
+          boxShadow: T.shadowLg, overflow: "hidden",
         }}
       >
-        {/* Header Modal */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, borderBottom: `1px solid ${T.border}`, paddingBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {/* Header Modal Draggable */}
+        <div
+          data-pegang
+          style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            padding: isMobile ? "14px 16px" : "18px 24px",
+            borderBottom: `1px solid ${T.border}`,
+            cursor: "grab", userSelect: "none", flexShrink: 0,
+            background: T.card,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div title="Seret untuk memindahkan posisi modal" style={{ display: "flex", alignItems: "center", color: T.textMuted, opacity: 0.6, cursor: "grab" }}>
+              <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor">
+                <circle cx="2.5" cy="3" r="1.5" />
+                <circle cx="7.5" cy="3" r="1.5" />
+                <circle cx="2.5" cy="8" r="1.5" />
+                <circle cx="7.5" cy="8" r="1.5" />
+                <circle cx="2.5" cy="13" r="1.5" />
+                <circle cx="7.5" cy="13" r="1.5" />
+              </svg>
+            </div>
             <div style={{
               width: 36, height: 36, borderRadius: 10,
               background: T.primaryLight, color: T.primary,
-              display: "flex", alignItems: "center", justifyContent: "center",
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
             }}>
               <Icon name="layers" size={20} />
             </div>
             <div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: T.text }}>Form Tambah Indikator Data</div>
-              <div style={{ fontSize: 12, color: T.textMuted }}>Standar Metadata Satu Data Indonesia (SDI)</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>Form Tambah Indikator Data</div>
+              <div style={{ fontSize: 12, color: T.textMuted }}>Standar Metadata Satu Data Indonesia (SDI) &bull; Dapat digeser</div>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, padding: 4 }}>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, padding: 6, borderRadius: 6 }}>
             <Icon name="x" size={20} />
           </button>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* OPD Produsen Data */}
-          <div>
-            <label style={labelSt}>OPD Produsen Data <span style={{ color: T.danger }}>*</span></label>
-            {isOperator ? (
-              <div style={{
-                background: "rgba(13, 148, 136, 0.08)",
-                border: "1px solid rgba(13, 148, 136, 0.25)",
-                borderRadius: 8, padding: "10px 14px",
-                display: "flex", alignItems: "center", gap: 10,
-              }}>
-                <Icon name="building" size={18} style={{ color: "#0D9488", flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#0F766E" }}>
-                    {userOpdObj?.nama || user?.opd_nama || "OPD Anda"}
+        {/* Wizard Stepper Navigation (ui-ux-pro-max progressive disclosure) */}
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(3, 1fr)",
+          background: T.bg, borderBottom: `1px solid ${T.border}`,
+          padding: "8px 16px", gap: 8, flexShrink: 0,
+        }}>
+          {STEPS.map(s => {
+            const active = step === s.num;
+            const done = step > s.num;
+            return (
+              <button
+                key={s.num}
+                type="button"
+                onClick={() => {
+                  if (s.num < step || validateStep(step)) setStep(s.num);
+                }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "8px 12px", borderRadius: 8, border: "none",
+                  background: active ? T.card : "transparent",
+                  boxShadow: active ? T.shadowSm : "none",
+                  cursor: "pointer", textAlign: "left",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <div style={{
+                  width: 26, height: 26, borderRadius: "50%",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 12, fontWeight: 700,
+                  background: done ? "#16A34A" : active ? T.primary : T.surfaceHover,
+                  color: done || active ? "#fff" : T.textMuted,
+                  flexShrink: 0,
+                }}>
+                  {done ? <Icon name="check" size={14} /> : s.num}
+                </div>
+                <div style={{ minWidth: 0, display: isMobile ? "none" : "block" }}>
+                  <div style={{ fontSize: 12.5, fontWeight: active ? 700 : 600, color: active ? T.primary : T.text }}>
+                    {s.title}
                   </div>
-                  <div style={{ fontSize: 11.5, color: "#115E59", marginTop: 1 }}>
-                    Data indikator ini akan disimpan untuk OPD Anda
+                  <div style={{ fontSize: 10.5, color: T.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {s.sub}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Modal Body / Steps Content */}
+        <div style={{ padding: isMobile ? 16 : 24, overflowY: "auto", flex: 1 }}>
+          {/* LANGKAH 1: KLASIFIKASI & PRODUSEN DATA */}
+          {step === 1 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* OPD Produsen Data */}
+              <div>
+                <label style={labelSt}>OPD Produsen Data <span style={{ color: T.danger }}>*</span></label>
+                {isOperator ? (
+                  <div style={{
+                    background: "rgba(13, 148, 136, 0.08)",
+                    border: "1px solid rgba(13, 148, 136, 0.25)",
+                    borderRadius: 8, padding: "10px 14px",
+                    display: "flex", alignItems: "center", gap: 10,
+                  }}>
+                    <Icon name="building" size={18} style={{ color: "#0D9488", flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#0F766E" }}>
+                        {userOpdObj?.nama || user?.opd_nama || "OPD Anda"}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: "#115E59", marginTop: 1 }}>
+                        Data indikator ini akan dikaitkan dengan OPD Anda
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <Select
+                    fullWidth
+                    searchable
+                    value={form.opd_id}
+                    placeholder="— Pilih atau cari OPD Produsen Data —"
+                    onChange={v => setForm({ ...form, opd_id: v })}
+                    options={[
+                      { value: "", label: "— Pilih atau cari OPD Produsen Data —" },
+                      ...opdList.map(o => ({ value: String(o.id), label: o.nama })),
+                    ]}
+                  />
+                )}
+              </div>
+
+              {/* Urusan & Bidang Urusan */}
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={labelSt}>Urusan Pemerintahan</label>
+                  <Select
+                    fullWidth
+                    searchable
+                    value={form.urusan_id}
+                    placeholder="Pilih Urusan (Opsional)..."
+                    onChange={v => setForm({ ...form, urusan_id: v, bidang_urusan_id: "" })}
+                    options={[
+                      { value: "", label: "— Pilih Urusan (Opsional) —" },
+                      ...urusanList.map(u => ({ value: String(u.id), label: `${u.kode_urusan} - ${u.nama_urusan}` })),
+                    ]}
+                  />
+                </div>
+                <div>
+                  <label style={labelSt}>Bidang Urusan</label>
+                  <Select
+                    fullWidth
+                    searchable
+                    disabled={!form.urusan_id}
+                    value={form.bidang_urusan_id}
+                    placeholder={!form.urusan_id ? "Pilih urusan terlebih dahulu..." : "Pilih Bidang Urusan..."}
+                    onChange={v => setForm({ ...form, bidang_urusan_id: v })}
+                    options={[
+                      { value: "", label: !form.urusan_id ? "— Pilih urusan terlebih dahulu —" : "— Pilih Bidang Urusan (Opsional) —" },
+                      ...filteredBidangUrusan.map(b => ({ value: String(b.id), label: `${b.kode_bidang} - ${b.nama_bidang}` })),
+                    ]}
+                  />
+                </div>
+              </div>
+
+              {/* Topik & Sub Topik */}
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={labelSt}>Topik SDI</label>
+                  <Select
+                    fullWidth
+                    searchable
+                    value={form.topik_id}
+                    placeholder="Pilih Topik (Opsional)..."
+                    onChange={v => setForm({ ...form, topik_id: v, sub_topik_id: "" })}
+                    options={[
+                      { value: "", label: "— Pilih Topik (Opsional) —" },
+                      ...topikList.map(t => ({ value: String(t.id), label: t.nama_topik })),
+                    ]}
+                  />
+                </div>
+                <div>
+                  <label style={labelSt}>Sub Topik SDI</label>
+                  <Select
+                    fullWidth
+                    searchable
+                    disabled={!form.topik_id}
+                    value={form.sub_topik_id}
+                    placeholder={!form.topik_id ? "Pilih topik terlebih dahulu..." : "Pilih Sub Topik..."}
+                    onChange={v => setForm({ ...form, sub_topik_id: v })}
+                    options={[
+                      { value: "", label: !form.topik_id ? "— Pilih topik terlebih dahulu —" : "— Pilih Sub Topik (Opsional) —" },
+                      ...filteredSubTopik.map(s => ({ value: String(s.id), label: s.nama_sub_topik })),
+                    ]}
+                  />
+                </div>
+              </div>
+
+              {/* Keywords Tag Input */}
+              <div>
+                <label style={labelSt}>Kata Kunci / Tag Pencarian</label>
+                <div style={{
+                  display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6,
+                  padding: "7px 10px", borderRadius: 8, border: `1px solid ${T.border}`,
+                  background: T.inputBg, minHeight: 42,
+                }}>
+                  {keywords.map((kw, i) => (
+                    <span
+                      key={i}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        padding: "3px 9px", borderRadius: 6,
+                        background: T.primaryLight, color: T.primary,
+                        fontSize: 12, fontWeight: 600,
+                      }}
+                    >
+                      <Icon name="tag" size={11} />
+                      <span>{kw}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeTag(i)}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: T.primary, display: "flex", padding: 0 }}
+                      >
+                        <Icon name="x" size={12} />
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    value={keywordInput}
+                    onChange={e => setKeywordInput(e.target.value)}
+                    onKeyDown={handleKeywordKeyDown}
+                    onBlur={() => { if (keywordInput.trim()) addTag(keywordInput); }}
+                    placeholder={keywords.length === 0 ? "Ketik kata kunci lalu tekan Enter atau koma..." : "Tambah tag..."}
+                    style={{
+                      flex: 1, minWidth: 160, border: "none", outline: "none",
+                      background: "transparent", color: T.text, fontSize: 13,
+                    }}
+                  />
+                </div>
+                <div style={{ fontSize: 11, color: T.textMuted, marginTop: 4 }}>
+                  Tekan <kbd style={{ padding: "1px 5px", fontSize: 10.5, fontFamily: "monospace", background: T.surfaceHover, borderRadius: 4, border: `1px solid ${T.border}` }}>Enter</kbd> atau <kbd style={{ padding: "1px 5px", fontSize: 10.5, fontFamily: "monospace", background: T.surfaceHover, borderRadius: 4, border: `1px solid ${T.border}` }}>,</kbd> untuk menambahkan tag pencarian
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* LANGKAH 2: METADATA & DEFINISI INDIKATOR */}
+          {step === 2 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {/* Nama Data / Indikator */}
+              <div>
+                <label style={labelSt}>Nama Data / Indikator <span style={{ color: T.danger }}>*</span></label>
+                <input
+                  value={form.nama_data}
+                  onChange={e => setForm({ ...form, nama_data: e.target.value })}
+                  placeholder="Contoh: Jumlah Produksi Padi Sawah Menurut Kecamatan"
+                  style={inputSt}
+                />
+              </div>
+
+              {/* Kode SDS & Kode Indikator */}
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={labelSt}>Kode SDS (Standar Data Spasial / Statistik)</label>
+                  <input
+                    value={form.kode_sds}
+                    onChange={e => setForm({ ...form, kode_sds: e.target.value })}
+                    placeholder="Contoh: SDS-5312-01 (opsional)"
+                    style={inputSt}
+                  />
+                </div>
+                <div>
+                  <label style={labelSt}>Kode Indikator Sistem</label>
+                  <div style={{
+                    ...inputSt, background: T.surfaceHover, color: T.textMuted,
+                    display: "flex", alignItems: "center",
+                  }}>
+                    <Icon name="check" size={13} style={{ marginRight: 6, color: "#16A34A" }} />
+                    <span>Dibuat otomatis setelah disimpan</span>
                   </div>
                 </div>
               </div>
-            ) : (
-              <Select
-                fullWidth
-                searchable
-                value={form.opd_id}
-                placeholder="— Pilih atau cari OPD Produsen Data —"
-                onChange={v => setForm({ ...form, opd_id: v })}
-                options={[
-                  { value: "", label: "— Pilih atau cari OPD Produsen Data —" },
-                  ...opdList.map(o => ({ value: String(o.id), label: o.nama })),
-                ]}
-              />
-            )}
-          </div>
 
-          {/* Urusan & Bidang Urusan */}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
-            <div>
-              <label style={labelSt}>Urusan</label>
-              <Select
-                fullWidth
-                searchable
-                value={form.urusan_id}
-                placeholder="Pilih atau cari Urusan..."
-                onChange={v => setForm({ ...form, urusan_id: v, bidang_urusan_id: "" })}
-                options={[
-                  { value: "", label: "— Pilih Urusan (Opsional) —" },
-                  ...urusanList.map(u => ({ value: String(u.id), label: `${u.kode_urusan} - ${u.nama_urusan}` })),
-                ]}
-              />
-            </div>
-            <div>
-              <label style={labelSt}>Bidang Urusan</label>
-              <Select
-                fullWidth
-                searchable
-                disabled={!form.urusan_id}
-                value={form.bidang_urusan_id}
-                placeholder={!form.urusan_id ? "Pilih urusan terlebih dahulu..." : "Pilih atau cari Bidang Urusan..."}
-                onChange={v => setForm({ ...form, bidang_urusan_id: v })}
-                options={[
-                  { value: "", label: !form.urusan_id ? "— Pilih urusan terlebih dahulu —" : "— Pilih Bidang Urusan (Opsional) —" },
-                  ...filteredBidangUrusan.map(b => ({ value: String(b.id), label: `${b.kode_bidang} - ${b.nama_bidang}` })),
-                ]}
-              />
-            </div>
-          </div>
+              {/* Definisi */}
+              <div>
+                <label style={labelSt}>Definisi & Konsep Data <span style={{ color: T.danger }}>*</span></label>
+                <textarea
+                  rows={3}
+                  value={form.definisi}
+                  onChange={e => setForm({ ...form, definisi: e.target.value })}
+                  placeholder="Penjelasan definisi, konsep, metodologi perhitungan, atau cakupan data indikator ini..."
+                  style={inputSt}
+                />
+              </div>
 
-          {/* Topik & Sub Topik */}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
-            <div>
-              <label style={labelSt}>Topik</label>
-              <Select
-                fullWidth
-                searchable
-                value={form.topik_id}
-                placeholder="Pilih atau cari Topik..."
-                onChange={v => setForm({ ...form, topik_id: v, sub_topik_id: "" })}
-                options={[
-                  { value: "", label: "— Pilih Topik (Opsional) —" },
-                  ...topikList.map(t => ({ value: String(t.id), label: t.nama_topik })),
-                ]}
-              />
-            </div>
-            <div>
-              <label style={labelSt}>Sub Topik</label>
-              <Select
-                fullWidth
-                searchable
-                disabled={!form.topik_id}
-                value={form.sub_topik_id}
-                placeholder={!form.topik_id ? "Pilih topik terlebih dahulu..." : "Pilih atau cari Sub Topik..."}
-                onChange={v => setForm({ ...form, sub_topik_id: v })}
-                options={[
-                  { value: "", label: !form.topik_id ? "— Pilih topik terlebih dahulu —" : "— Pilih Sub Topik (Opsional) —" },
-                  ...filteredSubTopik.map(s => ({ value: String(s.id), label: s.nama_sub_topik })),
-                ]}
-              />
-            </div>
-          </div>
+              {/* Sumber Referensi */}
+              <div>
+                <label style={labelSt}>Sumber Referensi / Walidata</label>
+                <input
+                  value={form.sumber_referensi}
+                  onChange={e => setForm({ ...form, sumber_referensi: e.target.value })}
+                  placeholder="Contoh: Survei BPS / Laporan Rutin Dinas"
+                  style={inputSt}
+                />
+              </div>
 
-          {/* Keywords Tag Input */}
-          <div>
-            <label style={labelSt}>Keyword / Kata Kunci</label>
-            <div style={{
-              display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6,
-              padding: "7px 10px", borderRadius: 8, border: `1px solid ${T.border}`,
-              background: T.inputBg, minHeight: 42,
-            }}>
-              {keywords.map((kw, i) => (
-                <span
-                  key={i}
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    padding: "3px 9px", borderRadius: 6,
-                    background: T.primaryLight, color: T.primary,
-                    fontSize: 12, fontWeight: 600,
-                  }}
-                >
-                  <Icon name="tag" size={11} />
-                  <span>{kw}</span>
+              {/* Satuan */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+                  <label style={{ ...labelSt, marginBottom: 0 }}>Satuan Pengukuran <span style={{ color: T.danger }}>*</span></label>
                   <button
                     type="button"
-                    onClick={() => removeTag(i)}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: T.primary, display: "flex", padding: 0 }}
+                    onClick={() => setIsCustomSatuan(v => !v)}
+                    style={{ background: "none", border: "none", color: T.primary, fontSize: 11.5, fontWeight: 700, cursor: "pointer", padding: 0 }}
                   >
-                    <Icon name="x" size={12} />
+                    {isCustomSatuan ? "← Pilih dari Master Satuan" : "+ Input Kustom"}
                   </button>
-                </span>
-              ))}
-              <input
-                value={keywordInput}
-                onChange={e => setKeywordInput(e.target.value)}
-                onKeyDown={handleKeywordKeyDown}
-                onBlur={() => { if (keywordInput.trim()) addTag(keywordInput); }}
-                placeholder={keywords.length === 0 ? "Ketik keyword lalu tekan Enter atau koma..." : "Tambah keyword..."}
-                style={{
-                  flex: 1, minWidth: 160, border: "none", outline: "none",
-                  background: "transparent", color: T.text, fontSize: 13,
-                }}
-              />
-            </div>
-            <div style={{ fontSize: 11, color: T.textMuted, marginTop: 4 }}>
-              Tekan <kbd style={{ padding: "1px 5px", fontSize: 10.5, fontFamily: "monospace", background: T.surfaceHover, borderRadius: 4, border: `1px solid ${T.border}` }}>Enter</kbd> atau <kbd style={{ padding: "1px 5px", fontSize: 10.5, fontFamily: "monospace", background: T.surfaceHover, borderRadius: 4, border: `1px solid ${T.border}` }}>,</kbd> untuk menambah keyword
-            </div>
-          </div>
-
-          {/* Kode SDS & Kode Indikator */}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
-            <div>
-              <label style={labelSt}>Kode SDS</label>
-              <input
-                value={form.kode_sds}
-                onChange={e => setForm({ ...form, kode_sds: e.target.value })}
-                placeholder="Masukkan kode SDS (opsional)"
-                style={inputSt}
-              />
-            </div>
-            <div>
-              <label style={labelSt}>Kode Indikator</label>
-              <div style={{
-                ...inputSt, background: T.surfaceHover, color: T.textMuted,
-                display: "flex", alignItems: "center",
-              }}>
-                <Icon name="check" size={13} style={{ marginRight: 6, color: "#16A34A" }} />
-                <span>Dibuat otomatis setelah disimpan</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Nama Data / Indikator */}
-          <div>
-            <label style={labelSt}>Nama Data / Indikator <span style={{ color: T.danger }}>*</span></label>
-            <input
-              value={form.nama_data}
-              onChange={e => setForm({ ...form, nama_data: e.target.value })}
-              placeholder="Contoh: Jumlah Produksi Padi Sawah Menurut Kecamatan"
-              style={inputSt}
-            />
-          </div>
-
-          {/* Definisi */}
-          <div>
-            <label style={labelSt}>Definisi Data <span style={{ color: T.danger }}>*</span></label>
-            <textarea
-              rows={3}
-              value={form.definisi}
-              onChange={e => setForm({ ...form, definisi: e.target.value })}
-              placeholder="Penjelasan definisi, konsep, metodologi perhitungan, atau cakupan data indikator ini..."
-              style={inputSt}
-            />
-          </div>
-
-          {/* Sumber Referensi */}
-          <div>
-            <label style={labelSt}>Sumber Referensi / Sumber Data</label>
-            <textarea
-              rows={2}
-              value={form.sumber_referensi}
-              onChange={e => setForm({ ...form, sumber_referensi: e.target.value })}
-              placeholder="Contoh: Survei Pertanian BPS / Laporan Bulanan Dinas Pertanian"
-              style={inputSt}
-            />
-          </div>
-
-          {/* Satuan */}
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-              <label style={{ ...labelSt, marginBottom: 0 }}>Satuan <span style={{ color: T.danger }}>*</span></label>
-              <button
-                type="button"
-                onClick={() => setIsCustomSatuan(v => !v)}
-                style={{ background: "none", border: "none", color: T.primary, fontSize: 11.5, fontWeight: 600, cursor: "pointer", padding: 0 }}
-              >
-                {isCustomSatuan ? "← Pilih dari Master Satuan" : "+ Input Kustom"}
-              </button>
-            </div>
-            {isCustomSatuan ? (
-              <input
-                value={form.satuan_custom}
-                onChange={e => setForm({ ...form, satuan_custom: e.target.value })}
-                placeholder="Contoh: Ton / Ha / Persen / Jiwa"
-                style={inputSt}
-              />
-            ) : (
-              <Select
-                fullWidth
-                searchable
-                value={form.satuan_id}
-                placeholder="Pilih atau cari satuan..."
-                onChange={v => setForm({ ...form, satuan_id: v })}
-                options={[
-                  { value: "", label: "— Pilih Satuan —" },
-                  ...satuanList.map(s => ({ value: String(s.id), label: s.nama_satuan })),
-                ]}
-              />
-            )}
-          </div>
-
-          {/* Prioritas & Klasifikasi Risiko */}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
-            <div>
-              <label style={labelSt}>Prioritas <span style={{ color: T.danger }}>*</span></label>
-              <Select
-                fullWidth
-                value={form.prioritas}
-                onChange={v => setForm({ ...form, prioritas: v })}
-                options={[
-                  { value: "non_prioritas", label: "Non Prioritas" },
-                  { value: "prioritas", label: "Prioritas" },
-                ]}
-              />
-            </div>
-            <div>
-              <label style={labelSt}>Klasifikasi Risiko <span style={{ color: T.danger }}>*</span></label>
-              <Select
-                fullWidth
-                value={form.klasifikasi_risiko}
-                onChange={v => setForm({ ...form, klasifikasi_risiko: v })}
-                options={[
-                  { value: "terbuka", label: "Terbuka (Publik)" },
-                  { value: "terbatas", label: "Terbatas (Internal)" },
-                  { value: "tertutup", label: "Tertutup (Rahasia)" },
-                ]}
-              />
-            </div>
-          </div>
-
-          {/* Klasifikasi Penyajian & Frekuensi Pemutakhiran */}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
-            <div>
-              <label style={labelSt}>Klasifikasi Penyajian</label>
-              <input
-                value={form.klasifikasi_penyajian}
-                onChange={e => setForm({ ...form, klasifikasi_penyajian: e.target.value })}
-                placeholder="Contoh: Angka Mutlak, Rasio, Indeks (opsional)"
-                style={inputSt}
-              />
-            </div>
-            <div>
-              <label style={labelSt}>Frekuensi Pemutakhiran <span style={{ color: T.danger }}>*</span></label>
-              <Select
-                fullWidth
-                value={form.frekuensi_pemutakhiran}
-                onChange={v => setForm({ ...form, frekuensi_pemutakhiran: v })}
-                options={[
-                  { value: "Tahunan", label: "Tahunan" },
-                  { value: "Semesteran", label: "Semesteran" },
-                  { value: "Triwulan", label: "Triwulanan" },
-                  { value: "Bulanan", label: "Bulanan" },
-                ]}
-              />
-            </div>
-          </div>
-
-          {/* Jadwal Pemutakhiran (Single vs Range) */}
-          <div style={{
-            background: T.bg, borderRadius: 10, border: `1px solid ${T.border}`, padding: 14,
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <label style={{ ...labelSt, marginBottom: 0 }}>
-                Jadwal Pemutakhiran Data
-              </label>
-              <div style={{
-                display: "inline-flex", background: T.surfaceHover,
-                borderRadius: 8, padding: 3, border: `1px solid ${T.border}`,
-              }}>
-                <button
-                  type="button"
-                  onClick={() => setModeRange(false)}
-                  style={{
-                    padding: "4px 12px", border: "none", borderRadius: 6,
-                    background: !modeRange ? T.primary : "transparent",
-                    color: !modeRange ? "#fff" : T.textSecondary,
-                    fontSize: 12, fontWeight: 700, cursor: "pointer",
-                  }}
-                >
-                  Single
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModeRange(true)}
-                  style={{
-                    padding: "4px 12px", border: "none", borderRadius: 6,
-                    background: modeRange ? T.primary : "transparent",
-                    color: modeRange ? "#fff" : T.textSecondary,
-                    fontSize: 12, fontWeight: 700, cursor: "pointer",
-                  }}
-                >
-                  Range
-                </button>
-              </div>
-            </div>
-
-            {!modeRange ? (
-              <div>
-                <input
-                  type="date"
-                  value={form.jadwal_pemutakhiran}
-                  onChange={e => setForm({ ...form, jadwal_pemutakhiran: e.target.value })}
-                  style={inputSt}
-                />
-                {form.jadwal_pemutakhiran && (
-                  <div style={{ fontSize: 11.5, color: T.textSecondary, marginTop: 6, display: "flex", alignItems: "center", gap: 5 }}>
-                    <Icon name="bell" size={13} style={{ color: T.primary }} />
-                    <span>
-                      Notifikasi pemutakhiran dikirim pada tanggal <b>{formatTanggalIndo(form.jadwal_pemutakhiran)}</b>, berulang <b>{form.frekuensi_pemutakhiran}</b>.
-                    </span>
-                  </div>
+                </div>
+                {isCustomSatuan ? (
+                  <input
+                    value={form.satuan_custom}
+                    onChange={e => setForm({ ...form, satuan_custom: e.target.value })}
+                    placeholder="Contoh: Ton / Ha / Persen / Jiwa / Butir"
+                    style={inputSt}
+                  />
+                ) : (
+                  <Select
+                    fullWidth
+                    searchable
+                    value={form.satuan_id}
+                    placeholder="Pilih atau cari satuan..."
+                    onChange={v => setForm({ ...form, satuan_id: v })}
+                    options={[
+                      { value: "", label: "— Pilih Satuan —" },
+                      ...satuanList.map(s => ({ value: String(s.id), label: s.nama_satuan })),
+                    ]}
+                  />
                 )}
               </div>
-            ) : (
+
+              {/* Prioritas & Klasifikasi Risiko */}
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={labelSt}>Prioritas Data <span style={{ color: T.danger }}>*</span></label>
+                  <Select
+                    fullWidth
+                    value={form.prioritas}
+                    onChange={v => setForm({ ...form, prioritas: v })}
+                    options={[
+                      { value: "non_prioritas", label: "Non Prioritas" },
+                      { value: "prioritas", label: "Prioritas Daerah (Prioritas)" },
+                    ]}
+                  />
+                </div>
+                <div>
+                  <label style={labelSt}>Klasifikasi Keterbukaan / Risiko <span style={{ color: T.danger }}>*</span></label>
+                  <Select
+                    fullWidth
+                    value={form.klasifikasi_risiko}
+                    onChange={v => setForm({ ...form, klasifikasi_risiko: v })}
+                    options={[
+                      { value: "terbuka", label: "Terbuka (Publik)" },
+                      { value: "terbatas", label: "Terbatas (Internal Pemda)" },
+                      { value: "tertutup", label: "Tertutup (Rahasia Negara)" },
+                    ]}
+                  />
+                </div>
+              </div>
+
+              {/* Klasifikasi Penyajian */}
               <div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <label style={labelSt}>Klasifikasi Penyajian (Opsional)</label>
+                <input
+                  value={form.klasifikasi_penyajian}
+                  onChange={e => setForm({ ...form, klasifikasi_penyajian: e.target.value })}
+                  placeholder="Contoh: Angka Mutlak, Rasio, Indeks, Persentase"
+                  style={inputSt}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* LANGKAH 3: PEMUTAKHIRAN & STRUKTUR KOLOM */}
+          {step === 3 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Frekuensi & Jadwal Pemutakhiran */}
+              <div style={{ background: T.bg, borderRadius: 10, border: `1px solid ${T.border}`, padding: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 12 }}>
                   <div>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, display: "block", marginBottom: 3 }}>Tanggal Mulai</label>
-                    <input
-                      type="date"
-                      value={form.jadwal_pemutakhiran}
-                      onChange={e => setForm({ ...form, jadwal_pemutakhiran: e.target.value })}
-                      style={inputSt}
+                    <label style={labelSt}>Frekuensi Pemutakhiran <span style={{ color: T.danger }}>*</span></label>
+                    <Select
+                      fullWidth
+                      value={form.frekuensi_pemutakhiran}
+                      onChange={v => setForm({ ...form, frekuensi_pemutakhiran: v })}
+                      options={[
+                        { value: "Tahunan", label: "Tahunan (1x setahun)" },
+                        { value: "Semesteran", label: "Semesteran (2x setahun)" },
+                        { value: "Triwulan", label: "Triwulanan (4x setahun)" },
+                        { value: "Bulanan", label: "Bulanan (12x setahun)" },
+                      ]}
                     />
                   </div>
                   <div>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, display: "block", marginBottom: 3 }}>Tanggal Akhir</label>
-                    <input
-                      type="date"
-                      min={form.jadwal_pemutakhiran}
-                      value={form.jadwal_pemutakhiran_akhir}
-                      onChange={e => setForm({ ...form, jadwal_pemutakhiran_akhir: e.target.value })}
-                      style={inputSt}
-                    />
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+                      <label style={{ ...labelSt, marginBottom: 0 }}>Jadwal Rilis Data</label>
+                      <div style={{ display: "inline-flex", background: T.surfaceHover, borderRadius: 6, padding: 2 }}>
+                        <button
+                          type="button"
+                          onClick={() => setModeRange(false)}
+                          style={{
+                            padding: "3px 8px", border: "none", borderRadius: 4,
+                            background: !modeRange ? T.primary : "transparent",
+                            color: !modeRange ? "#fff" : T.textSecondary,
+                            fontSize: 11, fontWeight: 700, cursor: "pointer",
+                          }}
+                        >
+                          Single
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setModeRange(true)}
+                          style={{
+                            padding: "3px 8px", border: "none", borderRadius: 4,
+                            background: modeRange ? T.primary : "transparent",
+                            color: modeRange ? "#fff" : T.textSecondary,
+                            fontSize: 11, fontWeight: 700, cursor: "pointer",
+                          }}
+                        >
+                          Rentang
+                        </button>
+                      </div>
+                    </div>
+                    {!modeRange ? (
+                      <input
+                        type="date"
+                        value={form.jadwal_pemutakhiran}
+                        onChange={e => setForm({ ...form, jadwal_pemutakhiran: e.target.value })}
+                        style={inputSt}
+                      />
+                    ) : (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                        <input
+                          type="date"
+                          value={form.jadwal_pemutakhiran}
+                          onChange={e => setForm({ ...form, jadwal_pemutakhiran: e.target.value })}
+                          style={inputSt}
+                        />
+                        <input
+                          type="date"
+                          min={form.jadwal_pemutakhiran}
+                          value={form.jadwal_pemutakhiran_akhir}
+                          onChange={e => setForm({ ...form, jadwal_pemutakhiran_akhir: e.target.value })}
+                          style={inputSt}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
-                {form.jadwal_pemutakhiran && form.jadwal_pemutakhiran_akhir && (
-                  <div style={{ fontSize: 11.5, color: T.textSecondary, marginTop: 6, display: "flex", alignItems: "center", gap: 5 }}>
-                    <Icon name="bell" size={13} style={{ color: T.primary }} />
+
+                {form.jadwal_pemutakhiran && (
+                  <div style={{ fontSize: 12, color: "#0F766E", background: "#F0FDFA", border: "1px solid #CCFBF1", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}>
+                    <Icon name="bell" size={14} style={{ color: "#0D9488" }} />
                     <span>
-                      Notifikasi pemutakhiran dikirim pada <b>{formatTanggalIndo(form.jadwal_pemutakhiran)}</b> dan <b>{formatTanggalIndo(form.jadwal_pemutakhiran_akhir)}</b>, berulang <b>{form.frekuensi_pemutakhiran}</b>.
+                      Siklus pemutakhiran dijadwalkan setiap <b>{form.frekuensi_pemutakhiran}</b> (rilis <b>{formatTanggalIndo(form.jadwal_pemutakhiran)}{modeRange && form.jadwal_pemutakhiran_akhir ? ` s/d ${formatTanggalIndo(form.jadwal_pemutakhiran_akhir)}` : ""}</b>).
                     </span>
                   </div>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* Kolom Dinamis */}
-          <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              {/* Template Kolom Presets */}
+              {templatePresets.length > 0 && (
+                <div>
+                  <label style={labelSt}>Template Kolom Siap Pakai (Opsional)</label>
+                  <Select
+                    fullWidth
+                    size="sm"
+                    value=""
+                    placeholder="⚡ Terapkan Template Field / Grup Kolom Siap Pakai..."
+                    onChange={v => {
+                      const tpl = templatePresets.find(t => String(t.id) === String(v));
+                      if (tpl && Array.isArray(tpl.fields_json) && tpl.fields_json.length > 0) {
+                        setFields(tpl.fields_json.map(f => ({
+                          label: f.label || f.nama_field || "Nilai",
+                          tipe_data: f.tipe_data || "desimal",
+                          wajib: f.wajib !== false,
+                          tampil_grafik: f.tampil_grafik !== false,
+                          pilihan: "",
+                        })));
+                        showToast?.(`Template "${tpl.nama_template}" diterapkan`);
+                      }
+                    }}
+                    options={[
+                      { value: "", label: "⚡ Pilih Template Kolom Siap Pakai..." },
+                      ...templatePresets.map(t => ({ value: String(t.id), label: `${t.nama_template} (${(t.fields_json || []).length} kolom)` })),
+                    ]}
+                  />
+                </div>
+              )}
+
+              {/* Struktur Kolom Dinamis */}
               <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>Struktur Kolom Indikator</div>
-                <div style={{ fontSize: 11.5, color: T.textMuted }}>Kolom Tahun, Periode, dan Wilayah sudah tersedia otomatis.</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>Struktur Kolom Indikator</div>
+                    <div style={{ fontSize: 11.5, color: T.textMuted }}>Kolom Tahun, Periode, dan Wilayah sudah otomatis disediakan sistem.</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addField}
+                    style={{
+                      padding: "6px 14px", background: T.primaryLight, color: T.primary,
+                      border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                      display: "flex", alignItems: "center", gap: 5,
+                    }}
+                  >
+                    <Icon name="plus" size={13} />
+                    <span>Tambah Kolom</span>
+                  </button>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {fields.map((f, idx) => (
+                    <div key={idx} style={{
+                      display: "grid",
+                      gridTemplateColumns: isMobile ? "1fr" : "2fr 1.2fr auto auto auto",
+                      gap: 8, alignItems: "center", background: T.bg, padding: 10,
+                      borderRadius: 8, border: `1px solid ${T.border}`,
+                    }}>
+                      <input
+                        value={f.label}
+                        onChange={e => updateField(idx, "label", e.target.value)}
+                        placeholder="Nama Kolom (mis: Produksi, Luas Panen)"
+                        style={inputSt}
+                      />
+                      <Select
+                        fullWidth
+                        size="sm"
+                        value={f.tipe_data}
+                        onChange={v => updateField(idx, "tipe_data", v)}
+                        options={[
+                          { value: "desimal", label: "Angka Desimal" },
+                          { value: "angka", label: "Bilangan Bulat" },
+                          { value: "teks", label: "Teks Bebas" },
+                          { value: "tanggal", label: "Tanggal" },
+                          { value: "pilihan", label: "Pilihan Dropdown" },
+                        ]}
+                      />
+                      <label style={{ fontSize: 11.5, color: T.textSecondary, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                        <input type="checkbox" checked={f.wajib} onChange={e => updateField(idx, "wajib", e.target.checked)} />
+                        <span>Wajib</span>
+                      </label>
+                      <label style={{ fontSize: 11.5, color: T.textSecondary, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={f.tampil_grafik}
+                          disabled={f.tipe_data !== "angka" && f.tipe_data !== "desimal"}
+                          onChange={e => updateField(idx, "tampil_grafik", e.target.checked)}
+                        />
+                        <span>Grafik</span>
+                      </label>
+                      {fields.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => removeField(idx)}
+                          title="Hapus kolom"
+                          style={{ background: "none", border: "none", color: T.danger, cursor: "pointer", padding: 4 }}
+                        >
+                          <Icon name="trash" size={15} />
+                        </button>
+                      ) : (
+                        <div style={{ width: 23 }} />
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              {/* Ringkasan Konfirmasi */}
+              <div style={{ background: T.surfaceHover, borderRadius: 10, padding: "10px 14px", border: `1px solid ${T.border}`, fontSize: 12 }}>
+                <div style={{ fontWeight: 700, color: T.text, marginBottom: 4 }}>Ringkasan Indikator:</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, color: T.textSecondary }}>
+                  <span><b>Indikator:</b> {form.nama_data || "(Belum diisi)"}</span>
+                  <span><b>Satuan:</b> {isCustomSatuan ? form.satuan_custom : (satuanList.find(s => String(s.id) === String(form.satuan_id))?.nama_satuan || "-")}</span>
+                  <span><b>Frekuensi:</b> {form.frekuensi_pemutakhiran}</span>
+                  <span><b>Kolom:</b> {fields.filter(f => f.label.trim()).length} kolom</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Modal Footer Controls */}
+        <div style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          padding: isMobile ? "12px 16px" : "14px 24px",
+          borderTop: `1px solid ${T.border}`, background: T.card, flexShrink: 0,
+        }}>
+          <div>
+            {step > 1 ? (
               <button
                 type="button"
-                onClick={addField}
+                onClick={goPrev}
                 style={{
-                  padding: "5px 12px", background: T.primaryLight, color: T.primary,
-                  border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                  padding: "8px 16px", background: T.bg, color: T.text,
+                  border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13,
+                  fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
                 }}
               >
-                + Tambah Kolom
+                &larr; Kembali
               </button>
-            </div>
-
-            {templatePresets.length > 0 && (
-              <div style={{ marginBottom: 10 }}>
-                <Select
-                  fullWidth
-                  size="sm"
-                  value=""
-                  placeholder="⚡ Terapkan Template Field / Grup Kolom Siap Pakai..."
-                  onChange={v => {
-                    const tpl = templatePresets.find(t => String(t.id) === String(v));
-                    if (tpl && Array.isArray(tpl.fields_json) && tpl.fields_json.length > 0) {
-                      setFields(tpl.fields_json.map(f => ({
-                        label: f.label || f.nama_field || "Nilai",
-                        tipe_data: f.tipe_data || "desimal",
-                        wajib: f.wajib !== false,
-                        tampil_grafik: f.tampil_grafik !== false,
-                        pilihan: "",
-                      })));
-                      showToast?.(`Template "${tpl.nama_template}" diterapkan`);
-                    }
-                  }}
-                  options={[
-                    { value: "", label: "⚡ Terapkan Template Field / Grup Kolom Siap Pakai..." },
-                    ...templatePresets.map(t => ({ value: String(t.id), label: `${t.nama_template} (${(t.fields_json || []).length} kolom)` })),
-                  ]}
-                />
-              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  padding: "8px 16px", background: "transparent", color: T.textMuted,
+                  border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                Batal
+              </button>
             )}
+          </div>
 
-            {fields.map((f, idx) => (
-              <div key={idx} style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "2fr 1.1fr auto auto auto", gap: 8, alignItems: "center", marginBottom: 8, background: T.bg, padding: 8, borderRadius: 8 }}>
-                <input
-                  value={f.label}
-                  onChange={e => updateField(idx, "label", e.target.value)}
-                  placeholder="Label Kolom (mis: Produksi Padi)"
-                  style={inputSt}
-                />
-                <Select
-                  fullWidth
-                  size="sm"
-                  value={f.tipe_data}
-                  onChange={v => updateField(idx, "tipe_data", v)}
-                  options={[
-                    { value: "desimal", label: "Angka Desimal" },
-                    { value: "angka", label: "Bilangan Bulat" },
-                    { value: "teks", label: "Teks" },
-                    { value: "tanggal", label: "Tanggal" },
-                    { value: "pilihan", label: "Pilihan" },
-                  ]}
-                />
-                <label style={{ fontSize: 11.5, color: T.textSecondary, display: "flex", alignItems: "center", gap: 4 }}>
-                  <input type="checkbox" checked={f.wajib} onChange={e => updateField(idx, "wajib", e.target.checked)} /> Wajib
-                </label>
-                <label style={{ fontSize: 11.5, color: T.textSecondary, display: "flex", alignItems: "center", gap: 4 }}>
-                  <input type="checkbox" checked={f.tampil_grafik} disabled={f.tipe_data !== "angka" && f.tipe_data !== "desimal"} onChange={e => updateField(idx, "tampil_grafik", e.target.checked)} /> Grafik
-                </label>
-                {fields.length > 1 && (
-                  <button type="button" onClick={() => removeField(idx)} style={{ background: "none", border: "none", color: T.danger, cursor: "pointer" }}>
-                    <Icon name="trash" size={14} />
-                  </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {step < 3 ? (
+              <button
+                type="button"
+                onClick={goNext}
+                style={{
+                  padding: "9px 20px", background: T.primary, color: "#fff",
+                  border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700,
+                  cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
+                }}
+              >
+                <span>Lanjut ke {step === 1 ? "Metadata" : "Kolom & Jadwal"}</span>
+                &rarr;
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={saving}
+                style={{
+                  padding: "9px 24px", background: "#16A34A", color: "#fff",
+                  border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700,
+                  cursor: "pointer", opacity: saving ? 0.7 : 1,
+                  display: "inline-flex", alignItems: "center", gap: 8,
+                }}
+              >
+                {saving ? (
+                  <>
+                    <Icon name="loader" size={15} /> Menyimpan Indikator...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="check" size={16} /> Simpan Indikator Data
+                  </>
                 )}
-              </div>
-            ))}
+              </button>
+            )}
           </div>
         </div>
-
-        {/* Footer Actions */}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20, paddingTop: 14, borderTop: `1px solid ${T.border}` }}>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              padding: "9px 16px", background: T.surfaceHover, color: T.textSecondary,
-              border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
-            }}
-          >
-            Batal
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={saving}
-            style={{
-              padding: "9px 20px", background: T.primary, color: "#fff",
-              border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700,
-              cursor: "pointer", opacity: saving ? 0.7 : 1,
-              display: "inline-flex", alignItems: "center", gap: 8,
-            }}
-          >
-            {saving ? (
-              <>
-                <Icon name="loader" size={15} /> Menyimpan Indikator...
-              </>
-            ) : (
-              "Simpan Indikator Data"
-            )}
-          </button>
-        </div>
-      </div>
+      </Geser>
     </div>
   );
 }

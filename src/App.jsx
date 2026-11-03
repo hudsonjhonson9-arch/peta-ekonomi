@@ -62,6 +62,9 @@ import SpmPage from "./components/SpmPage.jsx";
 import KelolaKonten from "./components/KelolaKonten.jsx";
 import MonitoringPage from "./components/MonitoringPage.jsx";
 import KelolaRolePage from "./components/KelolaRolePage.jsx";
+import AkunPage from "./components/AkunPage.jsx";
+import PengaturanWebsitePage from "./components/PengaturanWebsitePage.jsx";
+import PortalPublikLengkap from "./components/PortalPublikLengkap.jsx";
 import { Icon, Toast }  from "./components/ui.jsx";
 import { ROLE_COLOR } from "./data.js";
 import { Badge } from "./components/ui.jsx";
@@ -69,7 +72,7 @@ import { Badge } from "./components/ui.jsx";
 const ThemeContext = createContext({ T: LIGHT, isDark: false, theme: "system", setTheme: () => {} });
 export { ThemeContext };
 
-function ProfileMenu({ user, onLogout }) {
+function ProfileMenu({ user, onLogout, onBukaAkun }) {
   const { T } = useContext(ThemeContext);
   const [open, setOpen] = useState(false);
   return (
@@ -94,9 +97,7 @@ function ProfileMenu({ user, onLogout }) {
             <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{user.name}</div>
             <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>{user.role}</div>
           </div>
-          <button
-            onClick={onLogout}
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "none", border: "none", cursor: "pointer", fontSize: 13, color: T.danger }}
+          <button onClick={() => { setOpen(false); onBukaAkun?.(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "none", border: "none", cursor: "pointer", fontSize: 13, color: T.text }}><Icon name="users" size={15} /> Akun Saya</button><button onClick={onLogout} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "none", border: "none", cursor: "pointer", fontSize: 13, color: T.danger }}
           >
             <Icon name="logout" size={15} /> Keluar
           </button>
@@ -340,7 +341,11 @@ export default function App() {
       sessionStorage.setItem("page", p);
       localStorage.setItem("active_page", p);
     } catch (_) {}
-    if (pushState) history.pushState({ page: p }, "", `#${p}`);
+    if (pushState) {
+      const savedTab = localStorage.getItem(`${p}_tab`);
+      const targetHash = savedTab ? `${p}?tab=${savedTab}` : p;
+      history.pushState({ page: p }, "", `#${targetHash}`);
+    }
   };
 
   const openDoc = (d) => {
@@ -408,7 +413,7 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  // push initial state on mount (jangan timpa hash halaman publik / dokumen)
+  // push initial state on mount (mempertahankan sub-menu dan query params saat refresh)
   useEffect(() => {
     if (publicParams) return;
     const m = window.location.hash.match(/^#dokumen\/(\d+)/);
@@ -419,8 +424,17 @@ export default function App() {
       localStorage.setItem("active_page", p);
       sessionStorage.setItem("page", p);
     } catch (_) {}
-    if (window.location.hash !== `#${p}`) {
-      history.replaceState({ page: p }, "", `#${p}`);
+
+    const curHash = window.location.hash || "";
+    const curBase = curHash.replace(/^#\/?/, "").split("?")[0].trim();
+    if (curBase === p && curHash) {
+      // Pertahankan seluruh parameter query dan sub-menu saat refresh
+      history.replaceState({ page: p }, "", curHash);
+    } else {
+      // Pulihkan sub-menu yang tersimpan di localStorage bila ada
+      const savedTab = localStorage.getItem(`${p}_tab`);
+      const targetHash = savedTab ? `#${p}?tab=${savedTab}` : `#${p}`;
+      history.replaceState({ page: p }, "", targetHash);
     }
   }, []);
 
@@ -1088,13 +1102,81 @@ export default function App() {
     );
   }
 
-// ── Not logged in ─────────────────────────────────────────────────────────
-// Tunggu /api/auth/me selesai dulu, supaya Admin tidak sempat melihat halaman
-// admin walau localStorage masih menyimpan user lama.
+// ── Not logged in (Pengunjung Publik vs Login Petugas) ──────────────────────
 if (!user) {
   if (cekSesi) return null;
-  return <LoginPage onLogin={handleLogin} />;
+  const h = (window.location.hash || "").replace(/^#\/?/, "").toLowerCase();
+  
+  // Jika pengunjung secara eksplisit meminta halaman login petugas:
+  if (h === "login" || h.startsWith("login")) {
+    return (
+      <ThemeContext.Provider value={{ T, isDark, theme, setTheme }}>
+        <LoginPage
+          onLogin={handleLogin}
+          onBackToPublic={() => {
+            window.location.hash = "#publik";
+          }}
+        />
+      </ThemeContext.Provider>
+    );
+  }
+
+  // DEFAULT UTAMA: Siapapun yang mengakses domain (arsipdigital.mindcloud.my.id, root /, #, #publik, #portal)
+  // langsung disajikan PORTAL PUBLIK LENGKAP Satu Data Sumba Barat!
+  return (
+    <ThemeContext.Provider value={{ T, isDark, theme, setTheme }}>
+      <PortalPublikLengkap
+        onLoginClick={() => {
+          window.location.hash = "#login";
+        }}
+      />
+    </ThemeContext.Provider>
+  );
 }
+
+  // ── Khusus Halaman Portal Publik saat Login (Mode Penuh / Standalone) ──────
+  if (page === "publik") {
+    return (
+      <ThemeContext.Provider value={{ T, isDark, theme, setTheme }}>
+        <div style={{ display: "flex", flexDirection: "column", width: "100%", minHeight: "100dvh", background: T.bg }}>
+          {/* Banner Mode Pratinjau Admin */}
+          <div style={{
+            background: "#0F172A", color: "#F8FAFC",
+            padding: "10px 24px", display: "flex", alignItems: "center",
+            justifyContent: "space-between", fontSize: 13, zIndex: 1200,
+            position: "sticky", top: 0, borderBottom: "1px solid #334155",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+            flexShrink: 0, width: "100%", boxSizing: "border-box",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: "#10B981", boxShadow: "0 0 8px #10B981" }} />
+              <span>
+                <b>Mode Pratinjau Portal Publik</b> &bull; Anda masuk sebagai <b>{user.nama || user.name}</b> ({user.role})
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => goPage("dashboard")}
+              style={{
+                padding: "6px 16px", background: "#2563EB", color: "#fff",
+                border: "none", borderRadius: 8, fontSize: 12.5, fontWeight: 700,
+                cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
+              }}
+            >
+              <Icon name="chevronLeft" size={15} />
+              <span>Kembali ke Panel Admin</span>
+            </button>
+          </div>
+          <div style={{ flex: 1, width: "100%", display: "flex", flexDirection: "column" }}>
+            <PortalPublikLengkap
+              user={user}
+              onLoginClick={() => goPage("dashboard")}
+            />
+          </div>
+        </div>
+      </ThemeContext.Provider>
+    );
+  }
 
   // ── Pending notifications count ────────────────────────────────────────────
   const pendingCount = docs.filter(d => d.status !== "Diarsipkan" && d.status !== "Ditolak").length;
@@ -1150,6 +1232,8 @@ if (!user) {
                   {page === "kelola-konten" && "Kelola Konten"}
                   {page === "monitoring" && "Monitoring Sistem"}
                   {page === "kelola-role" && "Kelola Role & Hak Akses"}
+                  {page === "akun" && "Akun Saya"}
+                  {page === "pengaturan-website" && "Pengaturan Website"}
                 </div>
               )}
             </div>
@@ -1171,7 +1255,7 @@ if (!user) {
                   <Badge label={user.role} colors={ROLE_COLOR[user.role]} />
                 </>
               )}
-              {isMobile && <ProfileMenu user={user} onLogout={handleLogout} />}
+              {isMobile && <ProfileMenu user={user} onLogout={handleLogout} onBukaAkun={() => setPage("akun")} />}
             </div>
           </div>
 
@@ -1217,7 +1301,7 @@ if (!user) {
               <Pencarian docs={docs} onView={openDoc} />
             )}
             {page === "publik" && (
-              <PortalPublik docs={docs} onDownload={handleDownload} />
+              <PortalPublikLengkap user={user} onLoginClick={() => goPage("dashboard")} />
             )}
             {page === "panduan" && (
               <PanduanPengguna />
@@ -1268,6 +1352,12 @@ if (!user) {
             )}
             {page === "kelola-role" && user.role === "Admin" && (
               <KelolaRolePage showToast={showToast} />
+            )}
+            {page === "akun" && (
+              <AkunPage user={user} onUpdateUser={u => setUser(u)} />
+            )}
+            {page === "pengaturan-website" && user.role === "Admin" && (
+              <PengaturanWebsitePage />
             )}
           </div>
 

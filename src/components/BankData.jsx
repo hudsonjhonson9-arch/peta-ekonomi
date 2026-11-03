@@ -81,7 +81,12 @@ export default function BankData({ showToast, user }) {
 
   const reload = () => {
     queryClient.invalidateQueries({ queryKey: ['bankdata'] });
+    queryClient.invalidateQueries({ queryKey: ['bankdata-dashboard'] });
+    queryClient.invalidateQueries({ queryKey: ['bankdata-opd'] });
     queryClient.invalidateQueries({ queryKey: ['bankdata-tahun'] });
+    queryClient.invalidateQueries({ queryKey: ['satudata-master-ringkasan'] });
+    queryClient.invalidateQueries({ queryKey: ['portal-ringkasan'] });
+    queryClient.invalidateQueries({ queryKey: ['portal-dataset'] });
   };
 
   const toggle = (key) => setExpanded(prev => ({ ...prev, [key]: !prev[key] }));

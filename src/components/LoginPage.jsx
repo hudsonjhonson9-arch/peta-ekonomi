@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { Icon } from "./ui.jsx";
+import LupaPasswordModal from "./LupaPasswordModal.jsx";
 
-export default function LoginPage({ onLogin }) {
+export default function LoginPage({ onLogin, onBackToPublic }) {
   const [nip, setNip] = useState("");
   const [pass, setPass]   = useState("");
   const [err, setErr]     = useState("");
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [remember, setRemember] = useState(true);
+  const [showLupaModal, setShowLupaModal] = useState(false);
 
   const handle = async () => {
     if (!nip || !pass) {
@@ -138,7 +140,7 @@ export default function LoginPage({ onLogin }) {
                   />
                   Ingat saya
                 </label>
-                <a href="#" onClick={e => e.preventDefault()} style={{ fontSize: 12.5, color: "#2563EB", fontWeight: 600, textDecoration: "none" }}>
+                <a href="#" onClick={e => { e.preventDefault(); setShowLupaModal(true); }} style={{ fontSize: 12.5, color: "#2563EB", fontWeight: 600, textDecoration: "none" }}>
                   Lupa password?
                 </a>
               </div>
@@ -197,6 +199,34 @@ export default function LoginPage({ onLogin }) {
                 </svg>
                 Lanjutkan dengan Google
               </button>
+              <div style={{ marginTop: 16, textAlign: "center" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onBackToPublic) onBackToPublic();
+                    else window.location.hash = "#publik";
+                  }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: 13,
+                    color: "#0F766E",
+                    fontWeight: 700,
+                    textDecoration: "none",
+                    padding: "9px 18px",
+                    borderRadius: 10,
+                    background: "#F0FDFA",
+                    border: "1px solid #CCFBF1",
+                    cursor: "pointer",
+                    width: "100%",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Icon name="world" size={16} style={{ color: "#0D9488" }} />
+                  <span>Kembali ke Portal Publik Satu Data</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -224,6 +254,7 @@ export default function LoginPage({ onLogin }) {
       </div>
 
       <style>{`@keyframes adSpin { to { transform: rotate(360deg); } }`}</style>
+      <LupaPasswordModal isOpen={showLupaModal} onClose={() => setShowLupaModal(false)} />
     </>
   );
 }

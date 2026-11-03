@@ -1,8 +1,8 @@
-import { useState, useContext, useMemo } from "react";
+import { useState, useContext, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ThemeContext } from "../App.jsx";
 import useResponsive from "../useResponsive.js";
-import { Icon, Select, DatePicker, Button, Badge } from "./ui.jsx";
+import { Icon, Select, DatePicker, Button, Badge, Geser } from "./ui.jsx";
 import SumbaBaratMap from "./SumbaBaratMap.jsx";
 
 const TABS = [
@@ -34,6 +34,9 @@ export default function MasterSatuData({ user, showToast, initialTab = "opd" }) 
 
   const [tab, setTabState] = useState(() => {
     try {
+      const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
+      const urlTab = hp.get("tab");
+      if (urlTab && TABS.some(t => t.key === urlTab)) return urlTab;
       return localStorage.getItem("master_satudata_tab") || initialTab || "opd";
     } catch {
       return initialTab || "opd";
@@ -43,8 +46,24 @@ export default function MasterSatuData({ user, showToast, initialTab = "opd" }) 
     setTabState(t);
     try {
       localStorage.setItem("master_satudata_tab", t);
+      const base = (window.location.hash || "#master-satudata").split("?")[0] || "#master-satudata";
+      history.replaceState(null, "", `${base}?tab=${t}`);
     } catch (_) {}
   };
+
+  useEffect(() => {
+    const onHash = () => {
+      try {
+        const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
+        const urlTab = hp.get("tab");
+        if (urlTab && TABS.some(t => t.key === urlTab)) {
+          setTabState(urlTab);
+        }
+      } catch (_) {}
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const [searchQ, setSearchQ] = useState("");
   const [filterParent, setFilterParent] = useState("SEMUA");
   const [modal, setModal] = useState(null); // { mode: 'add'|'edit'|'decide', type, item }
@@ -59,7 +78,11 @@ export default function MasterSatuData({ user, showToast, initialTab = "opd" }) 
   const reload = () => {
     queryClient.invalidateQueries({ queryKey: ["satudata-master-ringkasan"] });
     queryClient.invalidateQueries({ queryKey: ["bankdata-opd"] });
-    queryClient.invalidateQueries({ queryKey: ["bankdata-tree"] });
+    queryClient.invalidateQueries({ queryKey: ["bankdata"] });
+    queryClient.invalidateQueries({ queryKey: ["bankdata-dashboard"] });
+    queryClient.invalidateQueries({ queryKey: ["bankdata-dataset"] });
+    queryClient.invalidateQueries({ queryKey: ["portal-ringkasan"] });
+    queryClient.invalidateQueries({ queryKey: ["portal-dataset"] });
   };
 
   const bidangs = data?.bidangs || [];
@@ -869,34 +892,55 @@ export default function MasterSatuData({ user, showToast, initialTab = "opd" }) 
         )}
       </div>
 
-      {/* Modal Form Add / Edit / Decide */}
+      {/* Modal Form Add / Edit / Decide (Draggable) */}
       {modal && (
         <div
           onClick={() => !busy && setModal(null)}
           style={{
             position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)",
+            backdropFilter: "blur(4px)",
             zIndex: 1300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
           }}
         >
-          <div
+          <Geser
             onClick={e => e.stopPropagation()}
             style={{
               background: T.card, color: T.text, borderRadius: 14,
               border: `1px solid ${T.border}`, boxShadow: T.shadowLg,
               width: "100%", maxWidth: modal.type === "template_field" ? 680 : 500,
-              maxHeight: "90vh", overflowY: "auto", padding: 22,
+              maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
-                {modal.mode === "decide"
-                  ? "Keputusan Permintaan Reopen"
-                  : `${modal.mode === "edit" ? "Edit" : "Tambah"} ${TABS.find(t => t.key === modal.type)?.label || ""}`}
-              </h3>
-              <button onClick={() => setModal(null)} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted }}>
+            <div
+              data-pegang
+              style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "16px 20px", borderBottom: `1px solid ${T.border}`,
+                cursor: "grab", userSelect: "none", flexShrink: 0,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div title="Seret untuk memindahkan posisi modal" style={{ display: "flex", alignItems: "center", color: T.textMuted, opacity: 0.6 }}>
+                  <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor">
+                    <circle cx="2.5" cy="3" r="1.5" />
+                    <circle cx="7.5" cy="3" r="1.5" />
+                    <circle cx="2.5" cy="8" r="1.5" />
+                    <circle cx="7.5" cy="8" r="1.5" />
+                    <circle cx="2.5" cy="13" r="1.5" />
+                    <circle cx="7.5" cy="13" r="1.5" />
+                  </svg>
+                </div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
+                  {modal.mode === "decide"
+                    ? "Keputusan Permintaan Reopen"
+                    : `${modal.mode === "edit" ? "Edit" : "Tambah"} ${TABS.find(t => t.key === modal.type)?.label || ""}`}
+                </h3>
+              </div>
+              <button onClick={() => setModal(null)} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, padding: 4 }}>
                 <Icon name="x" size={18} />
               </button>
             </div>
+            <div style={{ padding: 20, overflowY: "auto", flex: 1 }}>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {modal.type === "opd" && (
@@ -1304,11 +1348,12 @@ export default function MasterSatuData({ user, showToast, initialTab = "opd" }) 
               )}
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "14px 20px", borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
               <Button variant="ghost" onClick={() => setModal(null)}>Batal</Button>
               <Button variant="primary" loading={busy} onClick={simpanModal}>Simpan</Button>
             </div>
-          </div>
+          </Geser>
         </div>
       )}
     </div>

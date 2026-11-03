@@ -101,6 +101,7 @@ export const NAV_GROUPS = [
       { key: "master-satudata",  label: "Master Satu Data", icon: "building", adminOnly: true },
       { key: "kelola-konten",    label: "Kelola Konten",    icon: "world",    adminOnly: true },
       { key: "monitoring",       label: "Monitoring Sistem",icon: "chart",    adminOnly: true },
+      { key: "pengaturan-website", label: "Pengaturan Website", icon: "settings", adminOnly: true },
       { key: "kategori-dokumen", label: "Jenis Dokumen", icon: "tag",     adminOnly: true },
       { key: "sektor",           label: "Sektor",        icon: "layers",  adminOnly: true },
       { key: "standar-harga",    label: "Standar Harga", icon: "dollar",  adminOnly: true },
@@ -113,6 +114,7 @@ export const NAV_GROUPS = [
     icon: "file",
     items: [
       { key: "panduan", label: "Panduan", icon: "file" },
+      { key: "akun",    label: "Akun Saya", icon: "users", selalu: true },
     ],
   },
 ];
@@ -123,7 +125,7 @@ export function navGroupsUntuk(role, allowedMenus) {
   if (Array.isArray(allowedMenus) && allowedMenus.length > 0 && role !== "Admin") {
     const set = new Set(allowedMenus);
     return NAV_GROUPS
-      .map(g => ({ ...g, items: g.items.filter(i => set.has(i.key)) }))
+      .map(g => ({ ...g, items: g.items.filter(i => set.has(i.key) || i.selalu) }))
       .filter(g => g.items.length > 0);
   }
   if (role === "Operator Bank Data") {
@@ -132,7 +134,7 @@ export function navGroupsUntuk(role, allowedMenus) {
         key: "perencanaan",
         label: "Bank Data",
         icon: "chart",
-        items: [{ key: "bankdata", label: "Bank Data", icon: "chart" }],
+        items: [{ key: "bankdata", label: "Bank Data", icon: "chart" }, { key: "akun", label: "Akun Saya", icon: "users" }],
       },
     ];
   }

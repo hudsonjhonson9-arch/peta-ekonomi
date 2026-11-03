@@ -1,8 +1,8 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ThemeContext } from "../App.jsx";
 import useResponsive from "../useResponsive.js";
-import { Icon, Select, DatePicker, Button, Badge } from "./ui.jsx";
+import { Icon, Select, DatePicker, Button, Badge, Geser } from "./ui.jsx";
 
 export default function KelolaKonten({ showToast }) {
   const { T } = useContext(ThemeContext);
@@ -11,6 +11,9 @@ export default function KelolaKonten({ showToast }) {
 
   const [tab, setTabState] = useState(() => {
     try {
+      const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
+      const urlTab = hp.get("tab");
+      if (urlTab && ["berita", "rilis"].includes(urlTab)) return urlTab;
       return localStorage.getItem("konten_tab") || "berita";
     } catch {
       return "berita";
@@ -20,8 +23,24 @@ export default function KelolaKonten({ showToast }) {
     setTabState(t);
     try {
       localStorage.setItem("konten_tab", t);
+      const base = (window.location.hash || "#kelola-konten").split("?")[0] || "#kelola-konten";
+      history.replaceState(null, "", `${base}?tab=${t}`);
     } catch (_) {}
   };
+
+  useEffect(() => {
+    const onHash = () => {
+      try {
+        const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
+        const urlTab = hp.get("tab");
+        if (urlTab && ["berita", "rilis"].includes(urlTab)) {
+          setTabState(urlTab);
+        }
+      } catch (_) {}
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const [modal, setModal] = useState(null); // { mode: 'add'|'edit', type, item }
   const [form, setForm] = useState({});
   const [busy, setBusy] = useState(false);
@@ -356,31 +375,53 @@ export default function KelolaKonten({ showToast }) {
         )}
       </div>
 
-      {/* Modal Add / Edit */}
+      {/* Modal Add / Edit (Draggable) */}
       {modal && (
         <div
           onClick={() => !busy && setModal(null)}
           style={{
             position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)",
+            backdropFilter: "blur(4px)",
             zIndex: 1300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
           }}
         >
-          <div
+          <Geser
             onClick={e => e.stopPropagation()}
             style={{
               background: T.card, color: T.text, borderRadius: 14,
               border: `1px solid ${T.border}`, boxShadow: T.shadowLg,
-              width: "100%", maxWidth: 560, maxHeight: "90vh", overflowY: "auto", padding: 22,
+              width: "100%", maxWidth: 560, maxHeight: "90vh",
+              display: "flex", flexDirection: "column", overflow: "hidden",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
-                {modal.mode === "edit" ? "Edit" : "Tambah"} Konten ({modal.type.toUpperCase()})
-              </h3>
-              <button onClick={() => setModal(null)} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted }}>
+            <div
+              data-pegang
+              style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "16px 20px", borderBottom: `1px solid ${T.border}`,
+                cursor: "grab", userSelect: "none", flexShrink: 0,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div title="Seret untuk memindahkan posisi modal" style={{ display: "flex", alignItems: "center", color: T.textMuted, opacity: 0.6 }}>
+                  <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor">
+                    <circle cx="2.5" cy="3" r="1.5" />
+                    <circle cx="7.5" cy="3" r="1.5" />
+                    <circle cx="2.5" cy="8" r="1.5" />
+                    <circle cx="7.5" cy="8" r="1.5" />
+                    <circle cx="2.5" cy="13" r="1.5" />
+                    <circle cx="7.5" cy="13" r="1.5" />
+                  </svg>
+                </div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
+                  {modal.mode === "edit" ? "Edit" : "Tambah"} Konten ({modal.type.toUpperCase()})
+                </h3>
+              </div>
+              <button onClick={() => setModal(null)} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, padding: 4 }}>
                 <Icon name="x" size={18} />
               </button>
             </div>
+            <div style={{ padding: 20, overflowY: "auto", flex: 1 }}>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {modal.type === "berita" && (
@@ -564,11 +605,12 @@ export default function KelolaKonten({ showToast }) {
               )}
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "14px 20px", borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
               <Button variant="ghost" onClick={() => setModal(null)}>Batal</Button>
               <Button variant="primary" loading={busy} onClick={simpanModal}>Simpan</Button>
             </div>
-          </div>
+          </Geser>
         </div>
       )}
     </div>

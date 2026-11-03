@@ -52,7 +52,20 @@ const PATHS = {
   x:            "M18 6L6 18 M6 6l12 12",
   eye:          "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 9a3 3 0 100 6 3 3 0 000-6z",
   eyeOff:       "M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24 M1 1l22 22",
+    chevronLeft: "M15 18l-6-6 6-6",
   chevronRight: "M9 18l6-6-6-6",
+  chevronDown: "M6 9l6 6 6-6",
+  chevronUp:   "M18 15l-6-6-6 6",
+  info:        "M12 16v-4 M12 8h.01 M22 12A10 10 0 1112 2a10 10 0 0110 10z",
+  server:      "M2 2h20v8H2z M2 14h20v8H2z M6 6h.01 M6 18h.01",
+  loader:      "M12 2v4 M12 18v4 M4.93 4.93l2.83 2.83 M16.24 16.24l2.83 2.83 M2 12h4 M18 12h4 M4.93 19.07l2.83-2.83 M16.24 7.76l2.83-2.83",
+  fileText:    "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8",
+  database:    "M12 2C6.48 2 2 4.02 2 6.5v11C2 19.98 6.48 22 12 22s10-2.02 10-4.5v-11C22 4.02 17.52 2 12 2z M2 6.5C2 8.98 6.48 11 12 11s10-2.02 10-4.5 M2 12c0 2.48 4.48 4.5 10 4.5s10-2.02 10-4.5",
+  externalLink: "M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6 M15 3h6v6 M10 14L21 3",
+  "external-link": "M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6 M15 3h6v6 M10 14L21 3",
+  user:        "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2 M12 11a4 4 0 100-8 4 4 0 000 8z",
+  arrowRight:  "M5 12h14 M12 5l7 7-7 7",
+  arrowLeft:   "M19 12H5 M12 19l-7-7 7-7",
   plus:         "M12 5v14 M5 12h14",
   menu:         "M3 12h18 M3 6h18 M3 18h18",
   bell:         "M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 01-3.46 0",
@@ -63,7 +76,6 @@ const PATHS = {
   filter:       "M22 3H2l8 9.46V19l4 2v-8.54L22 3z",
   layers:       "M12 2L2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5",
   link:         "M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71 M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71",
-  "external-link": "M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6 M15 3h6v6 M10 14L21 3",
   folder:  "M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z",
   grid:   "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z",
   list:   "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",
@@ -79,12 +91,15 @@ const PATHS = {
   share:     "M18 8a3 3 0 100-6 3 3 0 000 6z M6 15a3 3 0 100-6 3 3 0 000 6z M18 22a3 3 0 100-6 3 3 0 000 6z M8.59 13.51l6.83 3.98 M15.41 6.51l-6.82 3.98",
   refresh:   "M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0114.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0020.49 15",
   // ponytail: ikon untuk fitur Kertas Kerja
-  chevronDown: "M6 9l6 6 6-6",
   alert:      "M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z M12 9v4 M12 17h.01",
   clock:      "M12 22a10 10 0 100-20 10 10 0 000 20z M12 6v6l4 2",
   checkCircle: "M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3",
   dollar: "M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6",
   shield: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
+  lock:   "M19 11H5a2 2 0 00-2 2v7a2 2 0 002 2h14a2 2 0 002-2v-7a2 2 0 00-2-2z M7 11V7a5 5 0 0110 0v4",
+  copy:   "M8 4v12a2 2 0 002 2h8a2 2 0 002-2V7.242a2 2 0 00-.602-1.43L16.083 2.57A2 2 0 0014.685 2H10a2 2 0 00-2 2z M16 18v2a2 2 0 01-2 2H6a2 2 0 01-2-2V9a2 2 0 012-2h2",
+  key:    "M21 2l-2 2m-1.5 1.5L19 7l-2 2-2-2-1.5 1.5 1.5 1.5L13 12l-2-2-2 2 2 2-4 4a5 5 0 11-7.07-7.07l4-4 2 2 2-2-2-2 2-2 1.5 1.5L12 5l-2-2 2-2z",
+  settings: "M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z M12 15a3 3 0 100-6 3 3 0 000 6z",
 };
 
 // ── Google Drive Embed ─────────────────────────────────────────────────────
@@ -609,6 +624,8 @@ export function Modal({
           gap: 12, flexShrink: 0,
           padding: isMobile ? "18px 18px 14px" : "20px 24px 16px",
           borderBottom: `1px solid ${T.border}`,
+          cursor: isMobile ? "default" : "grab",
+          userSelect: "none",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
             {icon && (
@@ -678,7 +695,7 @@ export function GoogleDriveEmbed({ url, title, onClose }) {
         justifyContent: "center", zIndex: 1200, padding: 20,
       }}
     >
-      <div
+      <Geser
         onClick={e => e.stopPropagation()}
         style={{
           background: "#fff", borderRadius: 16, width: "90vw", maxWidth: 1100,
@@ -687,9 +704,9 @@ export function GoogleDriveEmbed({ url, title, onClose }) {
         }}
       >
         {/* Header */}
-        <div style={{
+        <div data-pegang style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "14px 20px", borderBottom: "1px solid #e8e8e8",
+          padding: "14px 20px", borderBottom: "1px solid #e8e8e8", cursor: "grab", userSelect: "none",
           background: "#F8FAFC", flexShrink: 0,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
@@ -729,13 +746,13 @@ export function GoogleDriveEmbed({ url, title, onClose }) {
         </div>
 
         {/* Iframe */}
-        <iframe
+                <iframe
           src={embedUrl}
-          title={title}
-          style={{ flex: 1, width: "100%", border: "none" }}
+          style={{ width: "100%", height: "100%", border: "none", flex: 1 }}
+          title={title || "Google Drive"}
           allow="autoplay"
         />
-      </div>
+      </Geser>
     </div>
   );
 }

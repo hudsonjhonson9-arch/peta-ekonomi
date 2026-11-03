@@ -26,6 +26,13 @@ import {
   validasiMetadataDataset, validasiDaftarField, validasiSatuBaris,
 } from './bank-dataset.js';
 import { daftarkanRuteSatuData } from './satudata-routes.js';
+import { pembatasLaju } from './rate-limit.js';
+import { daftarkanRuteAkun } from './akun-routes.js';
+import { daftarkanRutePortal } from './portal-routes.js';
+import { daftarkanRutePortalKonten } from './portal-konten-routes.js';
+import { daftarkanRuteDatasetLanjutan } from './dataset-lanjutan-routes.js';
+import { daftarkanRuteAdminLanjutan } from './admin-lanjutan-routes.js';
+import { daftarkanRutePengaturanSitus } from './pengaturan-situs-routes.js';
 
 dotenv.config();
 
@@ -55,6 +62,16 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json({ limit: '50mb' }));
+
+// Anti-cache header untuk semua endpoint API agar selalu menyajikan data langsung dari database
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+// Rate limiting endpoint publik & login — sebelum gerbang session (lihat rate-limit.js).
+app.use(pembatasLaju);
 
 // Integrator server-to-server mengunggah dokumen dengan header x-upload-key,
 // bukan dengan session. Satu-satunya route yang boleh tanpa login, dan hanya
@@ -509,6 +526,14 @@ jalankanMigration('tahap_2', [
   .then(() => jalankanMigration('tahap_15', ['bank_dataset', 'bank_dataset_field', 'bank_dataset_row', 'bank_dataset_log']))
   .then(() => jalankanMigration('tahap_16', ['sd_urusan', 'sd_bidang_urusan', 'sd_topik', 'sd_satuan', 'sd_wilayah', 'sd_spm_urusan', 'sd_spm_layanan'], true))
   .then(() => jalankanMigration('tahap_17', ['bank_dataset'], true))
+  // Tahap 18–23: modul lanjutan (akun, portal, konten portal, dataset lanjutan,
+  // admin lanjutan, pengaturan website). Semua idempoten (IF NOT EXISTS).
+  .then(() => jalankanMigration('tahap_18', [], true))
+  .then(() => jalankanMigration('tahap_19', [], true))
+  .then(() => jalankanMigration('tahap_20', [], true))
+  .then(() => jalankanMigration('tahap_21', [], true))
+  .then(() => jalankanMigration('tahap_22', [], true))
+  .then(() => jalankanMigration('tahap_23', [], true))
   .then(jalankanSeed)
   // Impor bawaan standar harga SIPD (db/standar_harga_sipd_<jenis>_<tahun>.xlsx).
   // Setelah tahap_13 karena merge-nya menarget index unik tahap_13. Gagal di
@@ -4895,6 +4920,12 @@ app.get('/api/publik/verify', async (req, res) => {
 
 // ── SPA fallback: semua route non-API → index.html (production only) ──────
 daftarkanRuteSatuData(app, pool, queryDB);
+daftarkanRuteAkun(app, pool, queryDB);
+daftarkanRutePortal(app, pool, queryDB);
+daftarkanRutePortalKonten(app, pool, queryDB);
+daftarkanRuteDatasetLanjutan(app, pool, queryDB);
+daftarkanRuteAdminLanjutan(app, pool, queryDB);
+daftarkanRutePengaturanSitus(app, pool, queryDB);
 if (isProd) {
   app.get('/{*path}', (_, res) => {
     res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));

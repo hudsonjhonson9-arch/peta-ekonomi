@@ -3,22 +3,11 @@ import os from 'os';
 import { opdTerbatas, opdMilik } from './bank-dataset.js';
 
 export function daftarkanRuteSatuData(app, pool, queryDB) {
-  // Cache in-memory (TTL 45 detik) untuk mempercepat loading modul Satu Data
+  // Data Satu Data selalu ditarik langsung dan real-time dari PostgreSQL agar setiap perubahan langsung tampil seketika
   const sdCache = new Map();
-  const getCached = (key, ttlMs = 45000) => {
-    const item = sdCache.get(key);
-    if (item && (Date.now() - item.ts < ttlMs)) return item.data;
-    return null;
-  };
-  const setCached = (key, data) => {
-    sdCache.set(key, { data, ts: Date.now() });
-  };
-  const clearCache = (prefix) => {
-    if (!prefix) { sdCache.clear(); return; }
-    for (const k of Array.from(sdCache.keys())) {
-      if (k.startsWith(prefix)) sdCache.delete(k);
-    }
-  };
+  const getCached = () => null; // Selalu queryDB langsung ke PostgreSQL
+  const setCached = () => {};
+  const clearCache = () => {};
 
   // Helper: pastikan OPD milik operator bila role Operator Bank Data
   const pastikanOpdOperator = (req, res, targetOpdId) => {
@@ -693,8 +682,20 @@ export function daftarkanRuteSatuData(app, pool, queryDB) {
           JOIN sd_spm_urusan u ON u.id = l.spm_urusan_id
          ORDER BY c.tahun DESC, u.urutan, l.urutan, c.wilayah_kode
       `),
-      queryDB(`SELECT * FROM sd_spm_dokumen ORDER BY tahun DESC, created_at DESC`),
-      queryDB(`SELECT kode_wilayah, nama_wilayah, tingkat, luas_km2, jumlah_penduduk FROM sd_wilayah WHERE tingkat IN ('Kabupaten/Kota', 'Kecamatan') ORDER BY kode_wilayah`),
+      queryDB(`
+        SELECT d.*,
+               COALESCE(d.file_url, a.url) AS file_url,
+               a.id AS arsip_id, a.judul AS arsip_judul, a.nomor_dokumen AS arsip_nomor, a.url AS arsip_url
+          FROM sd_spm_dokumen d
+          LEFT JOIN bapperida_dokumen a ON a.id = d.dokumen_arsip_id
+         ORDER BY d.tahun DESC, d.created_at DESC
+      `),
+      queryDB(`
+        SELECT kode_wilayah, nama_wilayah, tingkat, luas_km2, jumlah_penduduk
+          FROM sd_wilayah
+         WHERE kode_wilayah = '53.12' OR kode_wilayah IN ('53.12.04', '53.12.10', '53.12.11', '53.12.12', '53.12.15', '53.12.18')
+         ORDER BY kode_wilayah
+      `),
     ]);
     return { urusan, layanan, capaian, dokumen, wilayah: kecamatan };
   };
@@ -868,18 +869,48 @@ export function daftarkanRuteSatuData(app, pool, queryDB) {
     }
   });
 
+  app.get('/api/spm/arsip-pilihan', async (req, res) => {
+    try {
+      const q = String(req.query.q || '').trim();
+      const params = [];
+      let sql = `SELECT id, judul, kategori, nomor_dokumen, tanggal_dokumen, url, files FROM bapperida_dokumen`;
+      if (q) {
+        sql += ` WHERE judul ILIKE $1 OR nomor_dokumen ILIKE $1 OR kategori ILIKE $1`;
+        params.push(`%${q}%`);
+      }
+      sql += ` ORDER BY id DESC LIMIT 50`;
+      const rows = await queryDB(sql, params);
+      res.json(rows);
+    } catch (err) {
+      console.error('Arsip pilihan error:', err);
+      res.status(500).json({ error: 'Gagal mencari dokumen arsip' });
+    }
+  });
+
   app.post('/api/spm/dokumen', async (req, res) => {
-    const { judul, kategori = 'Laporan SPM', tahun = 2025, nomor_dokumen, file_url, deskripsi } = req.body;
-    if (!judul) return res.status(400).json({ error: 'Judul dokumen SPM wajib diisi' });
+    let { judul, kategori = 'Laporan SPM', tahun = 2025, nomor_dokumen, file_url, deskripsi, dokumen_arsip_id } = req.body;
     const aktor = req.pengguna?.nama || req.pengguna?.name || 'Admin';
     try {
+      if (dokumen_arsip_id) {
+        const arsipRows = await queryDB('SELECT id, judul, nomor_dokumen, url, tanggal_dokumen FROM bapperida_dokumen WHERE id = $1', [Number(dokumen_arsip_id)]);
+        if (arsipRows.length > 0) {
+          const a = arsipRows[0];
+          if (!judul) judul = a.judul;
+          if (!nomor_dokumen && a.nomor_dokumen) nomor_dokumen = a.nomor_dokumen;
+          if (!file_url && a.url) file_url = a.url;
+          if (!tahun && a.tanggal_dokumen) tahun = new Date(a.tanggal_dokumen).getFullYear();
+        }
+      }
+      if (!judul) return res.status(400).json({ error: 'Judul dokumen SPM wajib diisi' });
+
       const rows = await queryDB(
-        `INSERT INTO sd_spm_dokumen (judul, kategori, tahun, nomor_dokumen, file_url, deskripsi, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [String(judul).trim(), kategori, Number(tahun) || 2025, nomor_dokumen || null, file_url || null, deskripsi || null, aktor]
+        `INSERT INTO sd_spm_dokumen (judul, kategori, tahun, nomor_dokumen, file_url, deskripsi, created_by, dokumen_arsip_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [String(judul).trim(), kategori, Number(tahun) || 2025, nomor_dokumen || null, file_url || null, deskripsi || null, aktor, dokumen_arsip_id ? Number(dokumen_arsip_id) : null]
       );
       res.json({ message: 'Dokumen SPM berhasil ditambahkan', row: rows[0] });
     } catch (err) {
+      console.error('Post dokumen SPM error:', err);
       res.status(500).json({ error: 'Gagal menyimpan dokumen SPM' });
     }
   });
