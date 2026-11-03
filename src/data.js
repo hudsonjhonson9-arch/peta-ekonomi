@@ -170,7 +170,7 @@ export const NAV_BOTTOM_LABEL = {
   dokumen:   "Dokumen",
   upload:    "Upload",
   pencarian: "Cari",
-  bankdata:  "Data Produsen",
+  bankdata:  "Bank Data",
   spm:       "SPM",
 };
 

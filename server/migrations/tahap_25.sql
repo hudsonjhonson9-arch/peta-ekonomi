@@ -28,3 +28,4 @@ WHERE (
   LOWER(label) LIKE '%kematian%' OR
   LOWER(label) LIKE '%pengangguran%'
 ) AND (polaritas IS NULL OR polaritas = 'positif');
+
