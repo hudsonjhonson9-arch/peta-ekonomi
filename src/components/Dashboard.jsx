@@ -1,6 +1,7 @@
 import { useContext, useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Icon, Badge, Button } from "./ui.jsx";
+import { Select } from "./customControls.jsx";
 import { STATUS_COLOR, ROLE_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
 import BankDataDashboard from "./BankDataDashboard.jsx";
@@ -31,17 +32,13 @@ function InfoKertasKerja({ T, onNav }) {
           <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Kertas Kerja Perencanaan</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <select
+          <Select
+            size="sm"
+            minWidth={90}
             value={tahun}
-            onChange={(e) => pilihTahun(parseInt(e.target.value, 10))}
-            aria-label="Tahun statistik kertas kerja"
-            style={{
-              padding: "5px 8px", border: `1px solid ${T.inputBorder}`, borderRadius: 8,
-              fontSize: 12, background: T.inputBg, color: T.text, fontFamily: "inherit",
-            }}
-          >
-            {opsiTahun.map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
+            onChange={(v) => pilihTahun(parseInt(v, 10))}
+            options={opsiTahun.map((y) => ({ value: y, label: String(y) }))}
+          />
           <button
             onClick={() => onNav("kertas-kerja")}
             style={{ fontSize: 12, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
@@ -882,7 +879,7 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
             </>
           ) : role === "Staf" ? (
             <>
-              <Button size="sm" variant="primary" icon="plus" onClick={() => onNav("dokumen")}>
+              <Button size="sm" variant="primary" icon="upload" onClick={() => onNav("upload")}>
                 Unggah Dokumen
               </Button>
               <Button size="sm" variant="secondary" icon="checkCircle" onClick={() => onNav("kertas-kerja")}>
@@ -891,8 +888,8 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
             </>
           ) : (
             <>
-              <Button size="sm" variant="primary" icon="plus" onClick={() => onNav("dokumen")}>
-                + Dokumen
+              <Button size="sm" variant="primary" icon="upload" onClick={() => onNav("upload")}>
+                Unggah Dokumen
               </Button>
               <Button size="sm" variant="secondary" icon="building" onClick={() => onNav("master-satudata")}>
                 Master Data

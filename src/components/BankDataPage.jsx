@@ -1895,19 +1895,21 @@ function DatasetDetailView({ datasetId, user, canWrite, canVerify, onBack, onRel
                     </td>
                     {!hasKecamatanField && (
                       <td style={{ padding: 6 }}>
-                        <select
+                        <Select
+                          size="sm"
+                          minWidth={140}
                           value={newRow.wilayah_kode}
-                          onChange={e => setNewRow({ ...newRow, wilayah_kode: e.target.value })}
-                          style={{ width: 140, padding: "6px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.inputBg, color: T.text, fontSize: 12 }}
-                        >
-                          <option value="53.12">Kab. Sumba Barat</option>
-                          <option value="53.12.15">Kota Waikabubak</option>
-                          <option value="53.12.10">Loli</option>
-                          <option value="53.12.11">Wanokaka</option>
-                          <option value="53.12.12">Lamboya</option>
-                          <option value="53.12.18">Laboya Barat</option>
-                          <option value="53.12.04">Tana Righu</option>
-                        </select>
+                          onChange={val => setNewRow({ ...newRow, wilayah_kode: val })}
+                          options={[
+                            { value: "53.12", label: "Kab. Sumba Barat" },
+                            { value: "53.12.15", label: "Kota Waikabubak" },
+                            { value: "53.12.10", label: "Loli" },
+                            { value: "53.12.11", label: "Wanokaka" },
+                            { value: "53.12.12", label: "Lamboya" },
+                            { value: "53.12.18", label: "Laboya Barat" },
+                            { value: "53.12.04", label: "Tana Righu" },
+                          ]}
+                        />
                       </td>
                     )}
                     {fields.map(f => (

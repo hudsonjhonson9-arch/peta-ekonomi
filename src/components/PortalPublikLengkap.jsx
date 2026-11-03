@@ -4,6 +4,8 @@ import { Icon, Badge } from "./ui.jsx";
 import * as XLSX from "xlsx";
 import SumbaBaratMap from "./SumbaBaratMap.jsx";
 import GrafikDataset from "./GrafikDataset.jsx";
+import { PortalNavbar, PortalHero, SectionHead, DatasetCard, portalVars } from "./PortalChrome.jsx";
+import { kitVars } from "./pageKit.jsx";
 import {
   ResponsiveContainer,
   BarChart,
@@ -24,6 +26,11 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
 
   // Sub-navigasi portal: 'beranda' | 'dataset' | 'detail' | 'jelajah' | 'bandingkan' | 'visualisasi' | 'berita' | 'berita-detail' | 'katalog' | 'tanya-data'
   const [subPage, setSubPage] = useState("beranda");
+  // Portal satu halaman: semua bagian tampil berurutan dan menu hanya melompat ke bagian.
+  // "detail" dan "berita-detail" adalah tampilan lanjutan yang menggantikan halaman utama.
+  const landing = subPage !== "detail" && subPage !== "berita-detail";
+  const [aktifBagian, setAktifBagian] = useState("beranda");
+  const pendingScroll = useRef(null);
 
   // State data utama
   const [ringkasan, setRingkasan] = useState(null);
@@ -79,6 +86,12 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
   });
   const [qnaPesan, setQnaPesan] = useState({ jenis: "", teks: "" });
 
+  // Leaderboard Cakupan Data per OPD
+  const [leaderboardOpd, setLeaderboardOpd] = useState([]);
+  const [lbTab, setLbTab] = useState("target_sk"); // "target_sk" | "volume"
+  const [lbSearch, setLbSearch] = useState("");
+  const [lbShowAll, setLbShowAll] = useState(false);
+
   // Catat kunjungan halaman setiap kali subPage berubah
   useEffect(() => {
     fetch("/api/portal/visit", {
@@ -115,6 +128,11 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
       .then((d) => setListOpd(Array.isArray(d) ? d : []))
       .catch(() => {});
 
+    fetch("/api/portal/leaderboard-opd", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setLeaderboardOpd(Array.isArray(d) ? d : []))
+      .catch(() => {});
+
     fetch("/api/portal/berita?limit=6", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : { data: [] }))
       .then((d) => setBeritaList(d.data || []))
@@ -140,7 +158,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
 
   // Fetch Dataset List saat filter berubah
   useEffect(() => {
-    if (subPage !== "dataset" && subPage !== "beranda") return;
+    if (!landing) return;
     setLoading(true);
     const sp = new URLSearchParams();
     if (searchQ) sp.set("q", searchQ);
@@ -159,22 +177,114 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [subPage, searchQ, filterOpd, filterTopik, filterUrusan, sortOrder]);
+  }, [landing, searchQ, filterOpd, filterTopik, filterUrusan, sortOrder]);
+
+  const BAGIAN = ["beranda", "dataset", "jelajah", "leaderboard", "peta", "bandingkan", "visualisasi", "berita", "katalog", "tanya-data"];
+
+  // Logika pengurutan & filter Leaderboard OPD
+  const lbSortedRows = useMemo(() => {
+    const list = [...leaderboardOpd];
+    if (lbTab === "target_sk") {
+      return list.sort((a, b) => {
+        if (b.persentase_sk !== a.persentase_sk) return b.persentase_sk - a.persentase_sk;
+        if (b.realisasi_sk !== a.realisasi_sk) return b.realisasi_sk - a.realisasi_sk;
+        return a.nama.localeCompare(b.nama);
+      });
+    } else {
+      return list.sort((a, b) => {
+        if (b.total_dataset !== a.total_dataset) return b.total_dataset - a.total_dataset;
+        if (b.disetujui !== a.disetujui) return b.disetujui - a.disetujui;
+        return a.nama.localeCompare(b.nama);
+      });
+    }
+  }, [leaderboardOpd, lbTab]);
+
+  const lbFilteredRows = useMemo(() => {
+    if (!lbSearch.trim()) return lbSortedRows;
+    const q = lbSearch.toLowerCase();
+    return lbSortedRows.filter((r) => `${r.nama} ${r.singkatan || ""}`.toLowerCase().includes(q));
+  }, [lbSortedRows, lbSearch]);
+
+  const lbDisplayList = lbShowAll ? lbFilteredRows : lbFilteredRows.slice(0, 6);
+
+  const lbAvgPct = useMemo(() => {
+    const valid = leaderboardOpd.filter((r) => Number(r.target_sk) > 0);
+    if (!valid.length) return 0;
+    const sum = valid.reduce((acc, r) => acc + Number(r.persentase_sk || 0), 0);
+    return Math.round(sum / valid.length);
+  }, [leaderboardOpd]);
+
+  // Gulir ke bagian yang sedang ditunggu. Hanya memakai ref dan DOM, jadi aman dipanggil dari mana saja.
+  const scrollKeBagian = () => {
+    const sub = pendingScroll.current;
+    if (!sub) return;
+    if (sub === "beranda") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      pendingScroll.current = null;
+      return;
+    }
+    const el = document.getElementById(`bagian-${sub}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      pendingScroll.current = null;
+    }
+  };
+
+  const lompatKe = (sub) => {
+    pendingScroll.current = sub;
+    setAktifBagian(sub);
+    // Dari tampilan detail, kembali dulu ke halaman utama; efek di bawah yang menggulir.
+    setSubPage((p) => (p === "detail" || p === "berita-detail" ? "beranda" : p));
+    requestAnimationFrame(scrollKeBagian);
+  };
+
+  useEffect(() => {
+    scrollKeBagian();
+  }, [subPage]);
+
+  // Sorot menu sesuai bagian yang sedang terlihat
+  useEffect(() => {
+    if (!landing || typeof IntersectionObserver === "undefined") return;
+    const els = BAGIAN.filter((b) => b !== "beranda")
+      .map((b) => document.getElementById(`bagian-${b}`))
+      .filter(Boolean);
+    if (!els.length) return;
+    const terlihat = new Set();
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          const k = e.target.id.replace("bagian-", "");
+          if (e.isIntersecting) terlihat.add(k);
+          else terlihat.delete(k);
+        });
+        const urut = BAGIAN.filter((b) => terlihat.has(b));
+        setAktifBagian(urut.length ? urut[0] : "beranda");
+      },
+      { rootMargin: "-130px 0px -55% 0px" }
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [landing]);
 
   const navigasiPortal = (sub, id = null) => {
-    setSubPage(sub);
-    if (sub === "dataset") {
-      setSelectedDatasetId(null);
-      setDatasetDetail(null);
-      history.replaceState(null, "", "#publik/dataset");
-    } else if (sub === "detail" && id) {
+    if (sub === "detail" && id) {
       setSelectedDatasetId(id);
+      setSubPage("detail");
       history.replaceState(null, "", `#publik/dataset/${id}`);
-    } else if (sub === "beranda") {
-      history.replaceState(null, "", "#publik");
-    } else {
-      history.replaceState(null, "", `#publik/${sub}`);
+      window.scrollTo({ top: 0 });
+      return;
     }
+    if (BAGIAN.includes(sub)) {
+      if (sub === "dataset") {
+        setSelectedDatasetId(null);
+        setDatasetDetail(null);
+      }
+      history.replaceState(null, "", sub === "beranda" ? "#publik" : `#publik/${sub}`);
+      lompatKe(sub);
+      return;
+    }
+    setSubPage(sub);
+    history.replaceState(null, "", `#publik/${sub}`);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -190,7 +300,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
         if (sub === "dataset" && id) {
           bukaDetailDataset(id);
         } else if (["beranda", "dataset", "jelajah", "bandingkan", "visualisasi", "berita", "katalog", "tanya-data"].includes(sub)) {
-          setSubPage(sub);
+          lompatKe(sub);
         }
       }
     };
@@ -205,6 +315,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
     setLoading(true);
     setSubPage("detail");
     setDetailTab("tabel");
+    window.scrollTo({ top: 0 });
     try {
       history.replaceState(null, "", `#publik/dataset/${id}`);
     } catch (_) {}
@@ -259,13 +370,13 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
 
   // Muat opsi indikator untuk Bandingkan
   useEffect(() => {
-    if (subPage === "bandingkan" && !opsiIndikator.length) {
+    if (landing && !opsiIndikator.length) {
       fetch("/api/portal/bandingkan/indikator")
         .then((r) => (r.ok ? r.json() : []))
         .then((d) => setOpsiIndikator(Array.isArray(d) ? d : []))
         .catch(() => {});
     }
-  }, [subPage, opsiIndikator.length]);
+  }, [landing, opsiIndikator.length]);
 
   // Eksekusi perbandingan indikator
   const jalankanBandingkan = () => {
@@ -284,13 +395,13 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
 
   // Muat Visualisasi Makro
   useEffect(() => {
-    if (subPage === "visualisasi" && !visualisasiData) {
+    if (landing && !visualisasiData) {
       fetch("/api/portal/visualisasi")
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => d && setVisualisasiData(d))
         .catch(() => {});
     }
-  }, [subPage, visualisasiData]);
+  }, [landing, visualisasiData]);
 
   // Muat Captcha untuk Tanya Data
   const muatCaptcha = () => {
@@ -301,8 +412,8 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
   };
 
   useEffect(() => {
-    if (subPage === "tanya-data") muatCaptcha();
-  }, [subPage]);
+    if (landing) muatCaptcha();
+  }, [landing]);
 
   // Kirim Form Tanya Data
   const handleKirimQna = async (e) => {
@@ -362,727 +473,35 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
   }, [datasetDetail, selectedChartField]);
 
   return (
-    <div style={{ minHeight: "100dvh", background: T.bg, color: T.text, fontFamily: T.font }}>
-      {/* ── NAVBAR PORTAL SATU DATA (TEMA ARSIP DIGITAL - UI/UX PRO MAX) ── */}
-      <header
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 100,
-          background: isDark ? "rgba(15, 23, 42, 0.92)" : "rgba(255, 255, 255, 0.92)",
-          backdropFilter: "blur(16px)",
-          borderBottom: isDark ? "1px solid rgba(255, 255, 255, 0.08)" : "1px solid #E2E8F0",
-          boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.3)" : "0 2px 12px rgba(15,23,42,0.04)",
-          padding: "0 24px",
-          transition: "all 0.2s ease",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1280,
-            margin: "0 auto",
-            height: 70,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 16,
-          }}
-        >
-          {/* Logo Brand Sumba Barat */}
-          <div
-            onClick={() => navigasiPortal("beranda")}
-            style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer", flexShrink: 0 }}
-          >
-            <div style={{
-              width: 44,
-              height: 44,
-              borderRadius: 10,
-              background: isDark ? "rgba(255,255,255,0.05)" : "#FFFFFF",
-              border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid #E2E8F0",
-              boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 4,
-            }}>
-              <img
-                src="/Lambang_Kabupaten_Sumba_Barat.png"
-                alt="Logo Sumba Barat"
-                style={{ height: 36, width: 36, objectFit: "contain" }}
-              />
-            </div>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontWeight: 800, fontSize: 16, color: T.text, letterSpacing: "-0.02em" }}>
-                  Satu Data
-                </span>
-                <span style={{
-                  fontWeight: 800,
-                  fontSize: 16,
-                  color: "#2563EB",
-                  letterSpacing: "-0.02em",
-                }}>
-                  Sumba Barat
-                </span>
-                <span style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  background: isDark ? "rgba(16,185,129,0.18)" : "#ECFDF5",
-                  color: "#059669",
-                  border: isDark ? "1px solid rgba(16,185,129,0.3)" : "1px solid #A7F3D0",
-                  padding: "1px 6px",
-                  borderRadius: 99,
-                  marginLeft: 2,
-                }}>
-                  Resmi
-                </span>
-              </div>
-              <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 500, marginTop: 1 }}>
-                BAPPERIDA · Kabupaten Sumba Barat
-              </div>
-            </div>
-          </div>
-
-          {/* Menu Navigasi Segmented Pills (Sesuai Tab Arsip Digital) */}
-          <nav
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 3,
-              background: isDark ? "rgba(255,255,255,0.04)" : "#F1F5F9",
-              padding: "4px",
-              borderRadius: 12,
-              border: isDark ? "1px solid rgba(255,255,255,0.06)" : "1px solid #E2E8F0",
-              overflowX: "auto",
-            }}
-          >
-            {[
-              { key: "beranda", label: "Beranda", icon: "home" },
-              { key: "dataset", label: "Katalog Data", icon: "archive" },
-              { key: "jelajah", label: "Jelajah Kategori", icon: "layers" },
-              { key: "bandingkan", label: "Bandingkan", icon: "filter" },
-              { key: "visualisasi", label: "Visualisasi", icon: "chart" },
-              { key: "berita", label: "Berita", icon: "world" },
-              { key: "katalog", label: "Katalog SK & Kajian", icon: "file" },
-              { key: "tanya-data", label: "Tanya Data", icon: "users" },
-            ].map((m) => {
-              const active = subPage === m.key;
-              return (
-                <button
-                  key={m.key}
-                  onClick={() => navigasiPortal(m.key)}
-                  style={{
-                    padding: "7px 12px",
-                    background: active
-                      ? (isDark ? "rgba(255,255,255,0.12)" : "#FFFFFF")
-                      : "transparent",
-                    color: active ? "#2563EB" : T.textSecondary,
-                    border: "none",
-                    borderRadius: 8,
-                    fontSize: 12.5,
-                    fontWeight: active ? 700 : 500,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    boxShadow: active
-                      ? (isDark ? "0 2px 8px rgba(0,0,0,0.3)" : "0 2px 6px rgba(0,0,0,0.06)")
-                      : "none",
-                    transition: "all 0.18s ease",
-                    whiteSpace: "nowrap",
-                  }}
-                  onMouseEnter={e => {
-                    if (!active) {
-                      e.currentTarget.style.color = T.text;
-                      e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.6)";
-                    }
-                  }}
-                  onMouseLeave={e => {
-                    if (!active) {
-                      e.currentTarget.style.color = T.textSecondary;
-                      e.currentTarget.style.background = "transparent";
-                    }
-                  }}
-                >
-                  <Icon name={m.icon} size={14} style={{ color: active ? "#2563EB" : "inherit" }} />
-                  <span className="hide-mobile">{m.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* Action Tools & User Profile / Login */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            {/* Jika User Login (Admin/Operator) - Tampilkan Sapaan & Tombol Panel Admin */}
-            {user ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "4px 10px 4px 6px",
-                  borderRadius: 99,
-                  background: isDark ? "rgba(255,255,255,0.06)" : "#F8FAFC",
-                  border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid #E2E8F0",
-                }}>
-                  <div style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: "50%",
-                    background: "#2563EB",
-                    color: "#FFFFFF",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}>
-                    {(user.nama || user.name || "A").charAt(0).toUpperCase()}
-                  </div>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: T.text }}>
-                    {user.nama?.split(" ")[0] || "Petugas"}
-                  </span>
-                  <span style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    background: "#EFF6FF",
-                    color: "#2563EB",
-                    padding: "2px 6px",
-                    borderRadius: 99,
-                  }}>
-                    {user.role}
-                  </span>
-                </div>
-                {onLoginClick && (
-                  <button
-                    onClick={onLoginClick}
-                    style={{
-                      padding: "7px 14px",
-                      background: "#2563EB",
-                      color: "#FFFFFF",
-                      border: "none",
-                      borderRadius: 8,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      boxShadow: "0 2px 6px rgba(37,99,235,0.25)",
-                      transition: "all 0.15s ease",
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = "#1D4ED8"}
-                    onMouseLeave={e => e.currentTarget.style.background = "#2563EB"}
-                  >
-                    <Icon name="chevronLeft" size={13} />
-                    <span>Panel Admin</span>
-                  </button>
-                )}
-              </div>
-            ) : (
-              onLoginClick && (
-                <button
-                  onClick={onLoginClick}
-                  style={{
-                    padding: "7px 16px",
-                    background: "#2563EB",
-                    color: "#FFFFFF",
-                    border: "none",
-                    borderRadius: 8,
-                    fontSize: 12.5,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    boxShadow: "0 2px 6px rgba(37,99,235,0.25)",
-                    transition: "all 0.15s ease",
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = "#1D4ED8"}
-                  onMouseLeave={e => e.currentTarget.style.background = "#2563EB"}
-                >
-                  <Icon name="users" size={14} />
-                  <span>Login Petugas</span>
-                </button>
-              )
-            )}
-          </div>
-        </div>
-      </header>
+    <div className="pk" style={{ minHeight: "100dvh", background: T.bg, color: T.text, fontFamily: T.font, ...kitVars(T, isDark), ...portalVars(isDark) }}>
+      {/* ── NAVBAR PORTAL SATU DATA ── */}
+      <PortalNavbar subPage={subPage === "berita-detail" ? "berita" : subPage === "detail" ? "dataset" : aktifBagian} onNav={navigasiPortal} user={user} onLoginClick={onLoginClick} />
 
       {/* ── 1. BERANDA PORTAL ── */}
-      {subPage === "beranda" && (
-        <div>
-          {/* Hero Banner (Tema Arsip Digital) */}
-          <section
-            style={{
-              padding: "56px 24px 64px",
-              background: isDark
-                ? "linear-gradient(180deg, #0B132B 0%, #0F172A 50%, #1E293B 100%)"
-                : "linear-gradient(180deg, #F8FAFC 0%, #EFF6FF 50%, #F8FAFC 100%)",
-              borderBottom: isDark ? "1px solid rgba(255,255,255,0.08)" : "1px solid #E2E8F0",
-            }}
-          >
-            <div style={{ maxWidth: 960, margin: "0 auto", textAlign: "center" }}>
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "5px 16px",
-                  borderRadius: 99,
-                  background: isDark ? "rgba(37, 99, 235, 0.15)" : "#EFF6FF",
-                  border: isDark ? "1px solid rgba(59, 130, 246, 0.3)" : "1px solid #BFDBFE",
-                  color: isDark ? "#93C5FD" : "#2563EB",
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  marginBottom: 18,
-                  letterSpacing: "0.04em",
-                  boxShadow: "0 2px 8px rgba(37,99,235,0.08)",
-                }}
-              >
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#2563EB", boxShadow: "0 0 8px #2563EB" }} />
-                <span>PORTAL RESMI SATU DATA · KABUPATEN SUMBA BARAT</span>
-              </div>
-              <h1
-                style={{
-                  fontSize: "clamp(28px, 4.5vw, 40px)",
-                  fontWeight: 850,
-                  lineHeight: 1.2,
-                  margin: "0 0 14px",
-                  letterSpacing: "-0.03em",
-                  color: T.text,
-                }}
-              >
-                Data Terpadu untuk Perencanaan{" "}
-                <span style={{
-                  color: "#2563EB",
-                  background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                }}>
-                  Pembangunan yang Lebih Baik
-                </span>
-              </h1>
-              <p style={{ fontSize: 15, color: T.textMuted, lineHeight: 1.6, margin: "0 auto 28px", maxWidth: 740 }}>
-                Akses terbuka terhadap kumpulan data statistik sektoral, indikator kinerja daerah, capaian Standar
-                Pelayanan Minimal (SPM), dan kajian perencanaan pembangunan daerah.
-              </p>
+      {landing && (
+        <div id="bagian-beranda">
+          <PortalHero searchQ={searchQ} setSearchQ={setSearchQ} onNav={navigasiPortal} ringkasan={ringkasan} />
 
-              {/* Search Box Besar - Gaya Arsip Digital */}
-              <div
-                style={{
-                  maxWidth: 700,
-                  margin: "0 auto",
-                  position: "relative",
-                  background: isDark ? "#1E293B" : "#FFFFFF",
-                  borderRadius: 14,
-                  border: isDark ? "1px solid rgba(255,255,255,0.12)" : "1.5px solid #E2E8F0",
-                  boxShadow: isDark ? "0 10px 30px rgba(0,0,0,0.4)" : "0 10px 30px rgba(15,23,42,0.06)",
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "6px 8px 6px 18px",
-                  transition: "all 0.2s ease",
-                }}
-              >
-                <Icon name="search" size={18} style={{ color: "#94A3B8", marginRight: 10, flexShrink: 0 }} />
-                <input
-                  type="text"
-                  value={searchQ}
-                  onChange={(e) => setSearchQ(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && setSubPage("dataset")}
-                  placeholder="Cari dataset, indikator, urusan, atau nama perangkat daerah..."
-                  style={{
-                    flex: 1,
-                    border: "none",
-                    outline: "none",
-                    fontSize: 14.5,
-                    background: "transparent",
-                    color: T.text,
-                  }}
-                />
-                {searchQ && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQ("")}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: T.textMuted,
-                      cursor: "pointer",
-                      padding: "4px 8px",
-                      fontSize: 14,
-                    }}
-                  >
-                    <Icon name="x" size={13} />
-                  </button>
-                )}
-                <button
-                  onClick={() => navigasiPortal("dataset")}
-                  style={{
-                    padding: "10px 22px",
-                    background: "#2563EB",
-                    color: "#FFFFFF",
-                    border: "none",
-                    borderRadius: 10,
-                    fontSize: 13.5,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    boxShadow: "0 2px 8px rgba(37,99,235,0.25)",
-                    transition: "all 0.15s ease",
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = "#1D4ED8"}
-                  onMouseLeave={e => e.currentTarget.style.background = "#2563EB"}
-                >
-                  <Icon name="search" size={15} />
-                  <span>Cari Data</span>
-                </button>
-              </div>
-
-              {/* Quick Search Chips */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>Pencarian Cepat:</span>
-                {[
-                  { label: "Kemiskinan", q: "kemiskinan" },
-                  { label: "Pertanian & Padi", q: "padi" },
-                  { label: "Pendidikan", q: "pendidikan" },
-                  { label: "Kesehatan", q: "kesehatan" },
-                  { label: "Kecamatan", q: "kecamatan" },
-                ].map((chip) => (
-                  <button
-                    key={chip.q}
-                    type="button"
-                    onClick={() => {
-                      setSearchQ(chip.q);
-                      navigasiPortal("dataset");
-                    }}
-                    style={{
-                      background: isDark ? "rgba(255,255,255,0.06)" : "#FFFFFF",
-                      border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid #E2E8F0",
-                      borderRadius: 99,
-                      padding: "5px 14px",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: T.textSecondary,
-                      cursor: "pointer",
-                      transition: "all 0.15s ease",
-                      boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "#2563EB";
-                      e.currentTarget.style.color = "#2563EB";
-                      e.currentTarget.style.background = isDark ? "rgba(37,99,235,0.15)" : "#EFF6FF";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = isDark ? "rgba(255,255,255,0.1)" : "#E2E8F0";
-                      e.currentTarget.style.color = T.textSecondary;
-                      e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.06)" : "#FFFFFF";
-                    }}
-                  >
-                    {chip.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          {/* Statistik Ringkasan Counter - Gaya Kartu Arsip Digital */}
-          <section style={{ maxWidth: 1280, margin: "-28px auto 40px", padding: "0 24px" }}>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
-                gap: 16,
-              }}
-            >
-              {[
-                { label: "Dataset Sektoral Terbuka", val: ringkasan?.total_dataset ?? 0, icon: "archive", color: "#2563EB", bg: "#EFF6FF" },
-                { label: "Organisasi / Produsen Data", val: ringkasan?.total_opd ?? 0, icon: "building", color: "#16A34A", bg: "#F0FDF4" },
-                { label: "Kategori Bidang Urusan", val: ringkasan?.total_urusan ?? 0, icon: "layers", color: "#7C3AED", bg: "#FAF5FF" },
-                { label: "Topik Pembangunan", val: ringkasan?.total_topik ?? 0, icon: "tag", color: "#EA580C", bg: "#FFF7ED" },
-              ].map((s, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    background: isDark ? "#1E293B" : "#FFFFFF",
-                    border: isDark ? "1px solid rgba(255,255,255,0.08)" : "1px solid #E2E8F0",
-                    borderRadius: 16,
-                    padding: "20px 22px",
-                    boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.2)" : "0 2px 10px rgba(15,23,42,0.04)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 16,
-                    transition: "all 0.2s ease",
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.transform = "translateY(-3px)";
-                    e.currentTarget.style.boxShadow = isDark ? "0 8px 25px rgba(0,0,0,0.3)" : "0 8px 25px rgba(37,99,235,0.08)";
-                    e.currentTarget.style.borderColor = s.color;
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = isDark ? "0 4px 20px rgba(0,0,0,0.2)" : "0 2px 10px rgba(15,23,42,0.04)";
-                    e.currentTarget.style.borderColor = isDark ? "rgba(255,255,255,0.08)" : "#E2E8F0";
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 50,
-                      height: 50,
-                      borderRadius: 12,
-                      background: isDark ? `${s.color}25` : s.bg,
-                      color: s.color,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Icon name={s.icon} size={24} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 28, fontWeight: 800, color: T.text, lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}>
-                      {s.val}
-                    </div>
-                    <div style={{ fontSize: 12.5, color: T.textMuted, marginTop: 4, fontWeight: 500 }}>
-                      {s.label}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-{/* Dataset Populer & Terbaru */}
-          <section style={{ maxWidth: 1240, margin: "0 auto 48px", padding: "0 24px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-              <div>
-                <h2 style={{ fontSize: 22, fontWeight: 800, color: T.text, margin: 0 }}>Dataset Sektoral Populer</h2>
-                <p style={{ fontSize: 13, color: T.textMuted, margin: "4px 0 0" }}>
-                  Kumpulan data statistik yang paling banyak diakses oleh publik dan akademisi
-                </p>
-              </div>
-              <button
-                onClick={() => setSubPage("dataset")}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: T.primary,
-                  fontWeight: 700,
-                  fontSize: 13.5,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                }}
-              >
-                Lihat Semua ({ringkasan?.total_dataset ?? 0}) <Icon name="arrowRight" size={16} />
-              </button>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
-                gap: 18,
-              }}
-            >
+          {/* Dataset populer */}
+          <section className="pp-sec" style={{ paddingBottom: 48 }}>
+            <SectionHead
+              title="Dataset sektoral populer"
+              desc="Kumpulan data statistik yang paling banyak diakses oleh publik dan akademisi"
+              actionLabel={`Lihat semua (${ringkasan?.total_dataset ?? 0})`}
+              onAction={() => navigasiPortal("dataset")}
+            />
+            <div className="pp-cards">
               {(ringkasan?.populer || datasetList.slice(0, 6)).map((d) => (
-                <div
-                  key={d.id}
-                  onClick={() => bukaDetailDataset(d.id)}
-                  style={{
-                    background: T.cardBg,
-                    border: `1px solid ${T.border}`,
-                    borderRadius: 14,
-                    padding: 20,
-                    boxShadow: T.shadow,
-                    cursor: "pointer",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    transition: "transform 0.15s, box-shadow 0.15s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-3px)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "translateY(0)";
-                  }}
-                >
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          padding: "2px 8px",
-                          borderRadius: 6,
-                          background: "#EFF6FF",
-                          color: "#2563EB",
-                        }}
-                      >
-                        {d.opd_singkatan || d.opd_nama}
-                      </span>
-                      {d.satuan && (
-                        <span style={{ fontSize: 11, color: T.textMuted }}>• Satuan: {d.satuan}</span>
-                      )}
-                      {d.polaritas === "negatif" && (
-                        <span style={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          padding: "1px 6px",
-                          borderRadius: 4,
-                          background: "#FEF2F2",
-                          color: "#DC2626",
-                          border: "1px solid #FECACA",
-                          marginLeft: "auto",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 3,
-                        }}>
-                          <Icon name="trendingDown" size={10} /> Minimasi
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: T.text, marginBottom: 8, lineHeight: 1.35 }}>
-                      {d.nama}
-                    </div>
-                    {d.deskripsi && (
-                      <p
-                        style={{
-                          fontSize: 12.5,
-                          color: T.textMuted,
-                          lineHeight: 1.5,
-                          margin: "0 0 14px",
-                          display: "-webkit-box",
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: "vertical",
-                          overflow: "hidden",
-                        }}
-                      >
-                        {d.deskripsi}
-                      </p>
-                    )}
-                  </div>
-                  <div
-                    style={{
-                      borderTop: `1px solid ${T.border}`,
-                      paddingTop: 12,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      fontSize: 12,
-                      color: T.textMuted,
-                    }}
-                  >
-                    <span>{d.frekuensi || "Tahunan"}</span>
-                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <Icon name="eye" size={13} /> {d.view_count || 0} dilihat
-                    </span>
-                  </div>
-                </div>
+                <DatasetCard key={d.id} d={d} onOpen={bukaDetailDataset} />
               ))}
             </div>
           </section>
-
-          {/* Seksi Berita Terkini */}
-          {beritaList.length > 0 && (
-            <section style={{ maxWidth: 1240, margin: "0 auto 48px", padding: "0 24px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                <div>
-                  <h2 style={{ fontSize: 22, fontWeight: 800, color: T.text, margin: 0 }}>Berita & Publikasi Terkini</h2>
-                  <p style={{ fontSize: 13, color: T.textMuted, margin: "4px 0 0" }}>
-                    Informasi pemutakhiran data, rilis statistik, dan kegiatan Satu Data Sumba Barat
-                  </p>
-                </div>
-                <button
-                  onClick={() => setSubPage("berita")}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: T.primary,
-                    fontWeight: 700,
-                    fontSize: 13.5,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                  }}
-                >
-                  Semua Berita <Icon name="arrowRight" size={16} />
-                </button>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 18 }}>
-                {beritaList.slice(0, 3).map((b) => (
-                  <div
-                    key={b.id}
-                    onClick={() => {
-                      setBeritaDetail(b);
-                      setSubPage("berita-detail");
-                    }}
-                    style={{
-                      background: T.cardBg,
-                      border: `1px solid ${T.border}`,
-                      borderRadius: 14,
-                      overflow: "hidden",
-                      boxShadow: T.shadow,
-                      cursor: "pointer",
-                      display: "flex",
-                      flexDirection: "column",
-                    }}
-                  >
-                    {b.gambar_url ? (
-                      <img
-                        src={b.gambar_url}
-                        alt={b.judul}
-                        style={{ width: "100%", height: 160, objectFit: "cover" }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          height: 120,
-                          background: `${T.primary}12`,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: T.primary,
-                        }}
-                      >
-                        <Icon name="world" size={32} />
-                      </div>
-                    )}
-                    <div style={{ padding: 18, flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                      <div>
-                        <div style={{ fontSize: 11.5, color: T.primary, fontWeight: 700, marginBottom: 6 }}>
-                          {b.kategori || "Berita Data"}
-                        </div>
-                        <div style={{ fontWeight: 700, fontSize: 15, color: T.text, marginBottom: 8, lineHeight: 1.4 }}>
-                          {b.judul}
-                        </div>
-                        <p style={{ fontSize: 12.5, color: T.textMuted, lineHeight: 1.5, margin: 0 }}>
-                          {b.ringkasan}
-                        </p>
-                      </div>
-                      <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 14 }}>
-                        {new Date(b.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
         </div>
       )}
 
       {/* ── 2. KATALOG DATASET PUBLIK ── */}
-      {subPage === "dataset" && (
-        <div style={{ maxWidth: 1240, margin: "0 auto", padding: "32px 24px" }}>
+      {landing && (
+        <div id="bagian-dataset" className="pp-anchor" style={{ maxWidth: 1240, margin: "0 auto", padding: "56px 24px 16px" }}>
           {/* Header & Filter Bar */}
           <div style={{ marginBottom: 24 }}>
             <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, margin: 0 }}>Katalog Dataset Terbuka</h1>
@@ -1352,7 +771,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
         <div style={{ maxWidth: 1240, margin: "0 auto", padding: "32px 24px" }}>
           {/* Tombol Kembali & Breadcrumb */}
           <button
-            onClick={() => setSubPage("dataset")}
+            onClick={() => navigasiPortal("dataset")}
             style={{
               background: "none",
               border: "none",
@@ -1883,8 +1302,8 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
       )}
 
       {/* ── 4. JELAJAH KATEGORI (URUSAN / TOPIK / OPD) ── */}
-      {subPage === "jelajah" && (
-        <div style={{ maxWidth: 1240, margin: "0 auto", padding: "32px 24px" }}>
+      {landing && (
+        <div id="bagian-jelajah" className="pp-anchor" style={{ maxWidth: 1240, margin: "0 auto", padding: "56px 24px 16px" }}>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, margin: "0 0 6px" }}>Jelajah Dataset Sektoral</h1>
           <p style={{ fontSize: 13.5, color: T.textMuted, margin: "0 0 20px" }}>
             Eksplorasi data statistik daerah berdasarkan urusan pemerintahan, topik pembangunan, atau perangkat daerah
@@ -1928,7 +1347,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
                   key={u.id}
                   onClick={() => {
                     setFilterUrusan(u.id);
-                    setSubPage("dataset");
+                    navigasiPortal("dataset");
                   }}
                   style={{
                     background: T.cardBg,
@@ -1977,7 +1396,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
                   key={t.id}
                   onClick={() => {
                     setFilterTopik(t.id);
-                    setSubPage("dataset");
+                    navigasiPortal("dataset");
                   }}
                   style={{
                     background: T.cardBg,
@@ -2024,7 +1443,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
                   key={o.id}
                   onClick={() => {
                     setFilterOpd(o.id);
-                    setSubPage("dataset");
+                    navigasiPortal("dataset");
                   }}
                   style={{
                     background: T.cardBg,
@@ -2065,9 +1484,317 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
         </div>
       )}
 
+      {/* ── 4a. LEADERBOARD CAKUPAN DATA PER OPD ── */}
+      {landing && (
+        <div id="bagian-leaderboard" className="pp-anchor" style={{ maxWidth: 1240, margin: "0 auto", padding: "56px 24px 16px" }}>
+          {/* Header Widget */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 16, marginBottom: 16 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <div style={{ width: 34, height: 34, borderRadius: 9, background: "#EFF6FF", color: "#2563EB", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Icon name="award" size={18} />
+                </div>
+                <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, margin: 0 }}>
+                  Leaderboard Cakupan Data per OPD
+                </h1>
+                <span style={{ fontSize: 11.5, fontWeight: 700, background: "#ECFDF5", color: "#059669", padding: "3px 10px", borderRadius: 99, border: "1px solid #BBF7D0" }}>
+                  Rata-rata {lbAvgPct}%
+                </span>
+              </div>
+              <p style={{ fontSize: 13.5, color: T.textMuted, margin: "6px 0 0" }}>
+                Peringkat ketercapaian target SK Bupati dan keaktifan produsen data Kabupaten Sumba Barat
+              </p>
+            </div>
+
+            {/* Tab Toggle Mode */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: T.card, border: `1px solid ${T.border}`, padding: 4, borderRadius: 10 }}>
+              <button
+                type="button"
+                onClick={() => setLbTab("target_sk")}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  border: "none",
+                  background: lbTab === "target_sk" ? T.primary : "transparent",
+                  color: lbTab === "target_sk" ? "#fff" : T.textSecondary,
+                  boxShadow: lbTab === "target_sk" ? "0 1px 3px rgba(37,99,235,0.3)" : "none",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                Target SK Bupati
+              </button>
+              <button
+                type="button"
+                onClick={() => setLbTab("volume")}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  border: "none",
+                  background: lbTab === "volume" ? T.primary : "transparent",
+                  color: lbTab === "volume" ? "#fff" : T.textSecondary,
+                  boxShadow: lbTab === "volume" ? "0 1px 3px rgba(37,99,235,0.3)" : "none",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                Volume Dataset
+              </button>
+            </div>
+          </div>
+
+          {/* Kartu Kontainer Leaderboard */}
+          <div style={{ background: T.cardBg || T.card, border: `1px solid ${T.border}`, borderRadius: 14, padding: 20, boxShadow: T.shadow }}>
+            {/* Bar Pencarian */}
+            <div style={{ position: "relative", marginBottom: 14 }}>
+              <input
+                type="text"
+                placeholder="Cari perangkat daerah (OPD)..."
+                value={lbSearch}
+                onChange={(e) => setLbSearch(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px 8px 34px",
+                  borderRadius: 8,
+                  border: `1px solid ${T.border}`,
+                  background: T.inputBg || T.card,
+                  color: T.text,
+                  fontSize: 12.5,
+                  fontFamily: "inherit",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+              <span style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: T.textMuted, display: "flex" }}>
+                <Icon name="search" size={14} />
+              </span>
+            </div>
+
+            {/* Tabel Leaderboard */}
+            <div style={{ overflowX: "auto", border: `1px solid ${T.border}`, borderRadius: 10 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: T.surfaceHover || "rgba(0,0,0,0.02)", borderBottom: `1px solid ${T.border}`, color: T.textMuted, fontSize: 11, textAlign: "left" }}>
+                    <th style={{ padding: "8px 12px", width: 60, textAlign: "center" }}>Rank</th>
+                    <th style={{ padding: "8px 12px" }}>Perangkat Daerah</th>
+                    {lbTab === "target_sk" ? (
+                      <>
+                        <th style={{ padding: "8px 12px", width: 110 }}>Target SK</th>
+                        <th style={{ padding: "8px 12px", width: 150 }}>Realisasi Dataset</th>
+                        <th style={{ padding: "8px 12px", minWidth: 160 }}>Ketercapaian</th>
+                        <th style={{ padding: "8px 12px", width: 110, textAlign: "right" }}>Status</th>
+                      </>
+                    ) : (
+                      <>
+                        <th style={{ padding: "8px 12px", width: 110 }}>Total Dataset</th>
+                        <th style={{ padding: "8px 12px", width: 110 }}>Disetujui</th>
+                        <th style={{ padding: "8px 12px", width: 120 }}>Menunggu Verval</th>
+                        <th style={{ padding: "8px 12px", width: 90, textAlign: "right" }}>Draf</th>
+                      </>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {lbDisplayList.map((row, idx) => {
+                    const rank = idx + 1;
+                    let rankBadgeBg = T.surfaceHover || "rgba(0,0,0,0.04)";
+                    let rankBadgeColor = T.textSecondary;
+                    let rankLabel = `#${rank}`;
+                    if (rank === 1) {
+                      rankBadgeBg = "#FEF9C3";
+                      rankBadgeColor = "#854D0E";
+                      rankLabel = "#1";
+                    } else if (rank === 2) {
+                      rankBadgeBg = "#F1F5F9";
+                      rankBadgeColor = "#334155";
+                      rankLabel = "#2";
+                    } else if (rank === 3) {
+                      rankBadgeBg = "#FFEDD5";
+                      rankBadgeColor = "#9A3412";
+                      rankLabel = "#3";
+                    }
+
+                    const pct = Number(row.persentase_sk || 0);
+                    const statusColor = pct >= 80 ? "#16A34A" : pct >= 50 ? "#D97706" : "#DC2626";
+                    const statusLabel = pct >= 80 ? "Sangat Baik" : pct >= 50 ? "Sedang" : "Rendah";
+
+                    return (
+                      <tr
+                        key={row.id}
+                        style={{
+                          borderBottom: idx < lbDisplayList.length - 1 ? `1px solid ${T.border}` : "none",
+                          transition: "background 0.15s ease",
+                        }}
+                      >
+                        <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              minWidth: 26,
+                              height: 24,
+                              padding: "0 6px",
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              background: rankBadgeBg,
+                              color: rankBadgeColor,
+                            }}
+                          >
+                            {rankLabel}
+                          </span>
+                        </td>
+                        <td style={{ padding: "10px 12px" }}>
+                          <div
+                            onClick={() => {
+                              setFilterOpd(row.id);
+                              navigasiPortal("dataset");
+                            }}
+                            style={{ cursor: "pointer" }}
+                            title="Klik untuk menyaring dataset dari OPD ini di katalog"
+                          >
+                            <span style={{ fontWeight: 600, color: T.primary }}>
+                              {row.nama}
+                            </span>
+                            {row.singkatan && (
+                              <div style={{ fontSize: 11, color: T.textMuted }}>{row.singkatan}</div>
+                            )}
+                          </div>
+                        </td>
+                        {lbTab === "target_sk" ? (
+                          <>
+                            <td style={{ padding: "10px 12px", color: T.textSecondary }}>
+                              {Number(row.target_sk) > 0 ? (
+                                <span style={{ fontWeight: 600 }}>{row.target_sk} Dataset</span>
+                              ) : (
+                                <span style={{ color: T.textMuted, fontStyle: "italic" }}>Belum ada SK</span>
+                              )}
+                            </td>
+                            <td style={{ padding: "10px 12px" }}>
+                              <span style={{ fontWeight: 700, color: T.text }}>{row.realisasi_sk || row.total_dataset || 0}</span>
+                              <span style={{ fontSize: 11, color: T.textMuted }}> ({row.disetujui_sk || row.disetujui || 0} disetujui)</span>
+                            </td>
+                            <td style={{ padding: "10px 12px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <div style={{ flex: 1, height: 7, background: T.surfaceHover || "rgba(0,0,0,0.06)", borderRadius: 99, overflow: "hidden" }}>
+                                  <div
+                                    style={{
+                                      width: `${Math.min(100, pct)}%`,
+                                      height: "100%",
+                                      background: statusColor,
+                                      borderRadius: 99,
+                                    }}
+                                  />
+                                </div>
+                                <span style={{ fontSize: 11.5, fontWeight: 700, color: statusColor, width: 38 }}>
+                                  {pct}%
+                                </span>
+                              </div>
+                            </td>
+                            <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                              <span
+                                style={{
+                                  fontSize: 10.5,
+                                  fontWeight: 700,
+                                  padding: "2px 8px",
+                                  borderRadius: 6,
+                                  background: `${statusColor}18`,
+                                  color: statusColor,
+                                  border: `1px solid ${statusColor}33`,
+                                }}
+                              >
+                                {Number(row.target_sk) > 0 ? statusLabel : "Belum SK"}
+                              </span>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td style={{ padding: "10px 12px", fontWeight: 700, color: T.text }}>
+                              {row.total_dataset || 0} Dataset
+                            </td>
+                            <td style={{ padding: "10px 12px" }}>
+                              <span style={{ color: "#16A34A", fontWeight: 600 }}>{row.disetujui || 0}</span>
+                            </td>
+                            <td style={{ padding: "10px 12px" }}>
+                              {Number(row.menunggu_verval) > 0 ? (
+                                <span style={{ color: "#D97706", fontWeight: 600 }}>{row.menunggu_verval} dataset</span>
+                              ) : (
+                                <span style={{ color: T.textMuted }}>0</span>
+                              )}
+                            </td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", color: T.textMuted }}>
+                              {row.draft || 0}
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    );
+                  })}
+                  {lbFilteredRows.length === 0 && (
+                    <tr>
+                      <td colSpan={6} style={{ padding: 24, textAlign: "center", color: T.textMuted }}>
+                        Tidak ada perangkat daerah yang cocok dengan kata kunci &quot;{lbSearch}&quot;.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer Leaderboard */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, fontSize: 11.5, color: T.textMuted, flexWrap: "wrap", gap: 10 }}>
+              <div>
+                Menampilkan {lbDisplayList.length} dari {lbFilteredRows.length} Perangkat Daerah Kabupaten Sumba Barat
+              </div>
+              {lbFilteredRows.length > 6 && (
+                <button
+                  type="button"
+                  onClick={() => setLbShowAll(!lbShowAll)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: T.primary,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontSize: 11.5,
+                    fontFamily: "inherit",
+                    padding: 0,
+                  }}
+                >
+                  {lbShowAll ? "Tampilkan Lebih Sedikit ↑" : `Lihat Semua (${lbFilteredRows.length} OPD) ↓`}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 4b. PETA WILAYAH ── */}
+      {landing && (
+        <div id="bagian-peta" className="pp-anchor" style={{ maxWidth: 1240, margin: "0 auto", padding: "56px 24px 16px" }}>
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, margin: "0 0 6px" }}>Peta Wilayah Kabupaten Sumba Barat</h1>
+          <p style={{ fontSize: 13.5, color: T.textMuted, margin: "0 0 24px" }}>
+            Batas administrasi kecamatan berdasarkan kode wilayah Kemendagri 53.12
+          </p>
+          <div style={{ background: T.cardBg || T.card, border: `1px solid ${T.border}`, borderRadius: 14, padding: 20, boxShadow: T.shadow }}>
+            <SumbaBaratMap
+              mode="wilayah"
+              title="Peta Administrasi Kecamatan"
+              subtitle="Arahkan kursor ke poligon kecamatan untuk melihat nama dan jumlah desa"
+              height={460}
+            />
+          </div>
+        </div>
+      )}
+
       {/* ── 5. BANDINGKAN INDIKATOR ── */}
-      {subPage === "bandingkan" && (
-        <div style={{ maxWidth: 1240, margin: "0 auto", padding: "32px 24px" }}>
+      {landing && (
+        <div id="bagian-bandingkan" className="pp-anchor" style={{ maxWidth: 1240, margin: "0 auto", padding: "56px 24px 16px" }}>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, margin: "0 0 6px" }}>Bandingkan Indikator Publik</h1>
           <p style={{ fontSize: 13.5, color: T.textMuted, margin: "0 0 20px" }}>
             Pilih beberapa indikator pembangunan dan bandingkan pergerakan tren data antar tahun
@@ -2232,8 +1959,8 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
       )}
 
       {/* ── 6. VISUALISASI DATA MAKRO DENGAN ANIMASI ── */}
-      {subPage === "visualisasi" && (
-        <div style={{ maxWidth: 1240, margin: "0 auto", padding: "32px 24px" }}>
+      {landing && (
+        <div id="bagian-visualisasi" className="pp-anchor" style={{ maxWidth: 1240, margin: "0 auto", padding: "56px 24px 16px" }}>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, margin: "0 0 6px" }}>Visualisasi Data Makro Pembangunan</h1>
           <p style={{ fontSize: 13.5, color: T.textMuted, margin: "0 0 24px" }}>
             Dasbor statistik interaktif capaian Standar Pelayanan Minimal dan pembagian indikator sektoral Sumba Barat
@@ -2298,8 +2025,8 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
       )}
 
       {/* ── 7. BERITA & DETAIL BERITA ── */}
-      {subPage === "berita" && (
-        <div style={{ maxWidth: 1240, margin: "0 auto", padding: "32px 24px" }}>
+      {landing && (
+        <div id="bagian-berita" className="pp-anchor" style={{ maxWidth: 1240, margin: "0 auto", padding: "56px 24px 16px" }}>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, margin: "0 0 6px" }}>Berita & Artikel Publik</h1>
           <p style={{ fontSize: 13.5, color: T.textMuted, margin: "0 0 24px" }}>
             Kabar terkini seputar Satu Data Indonesia, sensus, survei, dan rilis statistik daerah
@@ -2312,6 +2039,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
                 onClick={() => {
                   setBeritaDetail(b);
                   setSubPage("berita-detail");
+                  window.scrollTo({ top: 0 });
                 }}
                 style={{
                   background: T.cardBg,
@@ -2349,7 +2077,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
       {subPage === "berita-detail" && beritaDetail && (
         <div style={{ maxWidth: 840, margin: "0 auto", padding: "32px 24px" }}>
           <button
-            onClick={() => setSubPage("berita")}
+            onClick={() => navigasiPortal("berita")}
             style={{
               background: "none",
               border: "none",
@@ -2400,8 +2128,8 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
       )}
 
       {/* ── 8. KATALOG DOKUMEN & SK ── */}
-      {subPage === "katalog" && (
-        <div style={{ maxWidth: 1240, margin: "0 auto", padding: "32px 24px" }}>
+      {landing && (
+        <div id="bagian-katalog" className="pp-anchor" style={{ maxWidth: 1240, margin: "0 auto", padding: "56px 24px 16px" }}>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, margin: "0 0 6px" }}>
             Katalog Produk Hukum, SK & Publikasi Kajian
           </h1>
@@ -2439,8 +2167,8 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
       )}
 
       {/* ── 9. TANYA DATA & PERMOHONAN DENGAN CAPTCHA ── */}
-      {subPage === "tanya-data" && (
-        <div style={{ maxWidth: 760, margin: "0 auto", padding: "32px 24px" }}>
+      {landing && (
+        <div id="bagian-tanya-data" className="pp-anchor" style={{ maxWidth: 760, margin: "0 auto", padding: "56px 24px 16px" }}>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, margin: "0 0 6px" }}>Layanan Tanya Data</h1>
           <p style={{ fontSize: 13.5, color: T.textMuted, margin: "0 0 24px" }}>
             Ajukan pertanyaan, konfirmasi data, atau permohonan dataset kepada Walidata Satu Data Kabupaten Sumba Barat

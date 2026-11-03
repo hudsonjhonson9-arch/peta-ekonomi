@@ -512,6 +512,49 @@ export function daftarkanRutePortal(app, pool, queryDB) {
     }
   });
 
+  // ── 9b. Leaderboard Ketercapaian Target SK & Dataset per OPD (Publik) ───────
+  app.get('/api/portal/leaderboard-opd', async (_, res) => {
+    try {
+      const rows = await queryDB(`
+        SELECT o.id, o.nama, o.singkatan,
+               COUNT(d.id)::int AS total_dataset,
+               COUNT(CASE WHEN d.status = 'disetujui' THEN 1 END)::int AS disetujui,
+               COUNT(CASE WHEN d.status = 'diajukan' THEN 1 END)::int AS menunggu_verval,
+               COUNT(CASE WHEN d.status = 'draft' THEN 1 END)::int AS draft,
+               COALESCE(sk.jumlah_target_sk, 0)::int AS target_sk,
+               COALESCE(sk.nomor_sk, '')::text AS nomor_sk,
+               COALESCE(sk.tahun, 2025)::int AS tahun_sk
+          FROM bank_data_opd o
+          LEFT JOIN bank_dataset d ON d.opd_id = o.id
+          LEFT JOIN (
+            SELECT DISTINCT ON (opd_id) opd_id, jumlah_target_sk, nomor_sk, tahun
+              FROM sd_daftar_data
+             ORDER BY opd_id, tahun DESC
+          ) sk ON sk.opd_id = o.id
+         GROUP BY o.id, o.nama, o.singkatan, sk.jumlah_target_sk, sk.nomor_sk, sk.tahun
+         ORDER BY o.nama
+      `);
+
+      const formatted = rows.map((r) => {
+        const targetSk = Number(r.target_sk || 0);
+        const total = Number(r.total_dataset || 0);
+        const disetujui = Number(r.disetujui || 0);
+        const pctSk = targetSk > 0 ? Math.round((total / targetSk) * 100) : 0;
+        return {
+          ...r,
+          realisasi_sk: total,
+          disetujui_sk: disetujui,
+          persentase_sk: pctSk,
+        };
+      });
+
+      res.json(formatted);
+    } catch (err) {
+      console.error('Portal leaderboard error:', err);
+      res.status(500).json({ error: 'Gagal memuat leaderboard OPD' });
+    }
+  });
+
   // ── 10. Visualisasi Interaktif & Animasi Data Makro ───────────────────────
   app.get('/api/portal/visualisasi', async (_, res) => {
     try {

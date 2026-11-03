@@ -4,18 +4,18 @@ import useResponsive from "../useResponsive.js";
 import { ThemeContext } from "../App.jsx";
 
 const SECTIONS = [
-  { id: "login",     title: "Login",              icon: "users"    },
-  { id: "dashboard", title: "Dashboard",           icon: "home"     },
-  { id: "dokumen",   title: "Dokumen",             icon: "archive"  },
-  { id: "detail",    title: "Detail & Persetujuan", icon: "eye"    },
-  { id: "upload",    title: "Upload Dokumen",       icon: "upload"  },
-  { id: "pencarian", title: "Pencarian",            icon: "search"  },
-  { id: "publik",    title: "Portal Publik",        icon: "world"   },
-  { id: "bankdata",  title: "Bank Data",            icon: "chart"   },
-  { id: "pengguna",  title: "Manajemen Pengguna",   icon: "users"   },
-  { id: "kategori",  title: "Kategori Dokumen",     icon: "tag"     },
-  { id: "audit",     title: "Audit Trail",          icon: "history" },
-  { id: "trouble",   title: "Troubleshooting",      icon: "x"       },
+  { id: "login", title: "Login", icon: "users" },
+  { id: "dashboard", title: "Dashboard", icon: "home" },
+  { id: "dokumen", title: "Dokumen", icon: "archive" },
+  { id: "detail", title: "Detail & Persetujuan", icon: "eye" },
+  { id: "upload", title: "Upload Dokumen", icon: "upload" },
+  { id: "pencarian", title: "Pencarian", icon: "search" },
+  { id: "publik", title: "Portal Publik", icon: "world" },
+  { id: "bankdata", title: "Bank Data", icon: "chart" },
+  { id: "pengguna", title: "Manajemen Pengguna", icon: "users" },
+  { id: "kategori", title: "Kategori Dokumen", icon: "tag" },
+  { id: "audit", title: "Audit Trail", icon: "history" },
+  { id: "trouble", title: "Troubleshooting", icon: "x" },
 ];
 
 const CONTENT = {
@@ -213,8 +213,10 @@ export default function PanduanPengguna() {
       <div style={{ display: "flex", gap: 6, marginBottom: 20, overflowX: "auto", paddingBottom: 4, flexWrap: "wrap" }}>
         {SECTIONS.map(s => (
           <button key={s.id} onClick={() => setActiveId(s.id)}
-            style={{ padding: "6px 14px", borderRadius: 99, border: "none", cursor: "pointer", fontSize: 12, fontWeight: activeId === s.id ? 600 : 400, whiteSpace: "nowrap",
-              background: activeId === s.id ? T.primary : T.border, color: activeId === s.id ? "#fff" : T.textSecondary }}>
+            style={{
+              padding: "6px 14px", borderRadius: 99, border: "none", cursor: "pointer", fontSize: 12, fontWeight: activeId === s.id ? 600 : 400, whiteSpace: "nowrap",
+              background: activeId === s.id ? T.primary : T.border, color: activeId === s.id ? "#fff" : T.textSecondary
+            }}>
             <Icon name={s.icon} size={12} style={{ marginRight: 4 }} />{s.title}
           </button>
         ))}
