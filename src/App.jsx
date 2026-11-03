@@ -75,6 +75,7 @@ export { ThemeContext };
 function ProfileMenu({ user, onLogout, onBukaAkun }) {
   const { T } = useContext(ThemeContext);
   const [open, setOpen] = useState(false);
+  if (!user) return null;
   return (
     <div style={{ position: "relative" }}>
       {open && <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 149 }} />}
@@ -195,14 +196,10 @@ export default function App() {
   // cekSesi masih true selama /api/auth/me berjalan, jadi user dari
   // localStorage saja belum cukup: cookie-nya bisa sudah hilang.
   const siap = !!user && !cekSesi;
-  // Log audit dan daftar pengguna hanya dipakai halaman yang sudah dibatasi
-  // Admin (AuditTrail, ManajemenPengguna). Tanpa gate ini setiap user biasa
-  // tetap men polled dua endpoint itu dan menerima 403 tiap 30-60 detik —
-  // sia-sia, dan hereof penuh 403 menutupi 403 yang penting.
-  const siapAdmin = siap && user.role === "Admin";
-  // Operator Bank Data hanya boleh mengakses modul Bank Data, jadi jangan
+  const siapAdmin = siap && user?.role === "Admin";
+  // Operator Bank Data / Produsen Data hanya boleh mengakses modul Bank Data, jadi jangan
   // mem-polling endpoint arsip dokumen.
-  const isProdusen = user.role === "Operator Bank Data" || user.role === "Produsen Data";
+  const isProdusen = user?.role === "Operator Bank Data" || user?.role === "Produsen Data";
   const siapArsip = siap && !isProdusen;
 
   const { data: serverDocs = [], isLoading: docsLoading, isSuccess: docsReady } = useDocs(siapArsip);
@@ -1178,7 +1175,7 @@ if (!user) {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#94A3B8", fontSize: 12 }}>
                 <span>Masuk sebagai:</span>
-                <span style={{ color: "#F8FAFC", fontWeight: 700 }}>{user.nama || user.name}</span>
+                <span style={{ color: "#F8FAFC", fontWeight: 700 }}>{user?.nama || user?.name || "Petugas"}</span>
                 <span style={{
                   background: "rgba(255, 255, 255, 0.1)",
                   padding: "2px 8px",
@@ -1187,7 +1184,7 @@ if (!user) {
                   fontWeight: 600,
                   color: "#E2E8F0",
                 }}>
-                  {user.role}
+                  {user?.role || "Admin"}
                 </span>
               </div>
             </div>
@@ -1292,13 +1289,13 @@ if (!user) {
                   </span>
                 </div>
               )}
-              <NotificationDropdown userId={user.nip} onBukaKertasKerja={() => setPage("kertas-kerja")} />
+              <NotificationDropdown userId={user?.nip} onBukaKertasKerja={() => setPage("kertas-kerja")} />
               {!isMobile && (
                 <>
                   <div style={{ fontSize: 13, color: T.textSecondary }}>
-                    Halo, <b>{user.name.split(" ")[0]}</b>
+                    Halo, <b>{(user?.nama || user?.name || "User").split(" ")[0]}</b>
                   </div>
-                  <Badge label={user.role} colors={ROLE_COLOR[user.role]} />
+                  <Badge label={user?.role || "Staf"} colors={ROLE_COLOR[user?.role] || ROLE_COLOR.Staf} />
                 </>
               )}
               {isMobile && <ProfileMenu user={user} onLogout={handleLogout} onBukaAkun={() => setPage("akun")} />}
