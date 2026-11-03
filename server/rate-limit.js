@@ -30,22 +30,23 @@ export function pembatasLaju(req, res, next) {
     return next();
   }
 
+  const ip = dapatkanIP(req);
+  const isLocal = ip === '127.0.0.1' || ip === '::1' || ip === 'localhost';
+
   // Tentukan batas berdasarkan jenis endpoint
-  let limit = 200;      // default: 200 request / menit
+  let limit = isLocal ? 1000 : 300; // default: 300 request / menit (1000 untuk localhost)
   let windowMs = 60_000; // 1 menit
   let category = 'general';
 
   if (path === '/api/auth/login' || path.startsWith('/api/akun/lupa-password')) {
-    limit = 20;         // max 20 percobaan login / lupa password
+    limit = isLocal ? 60 : 20; // percobaan login / lupa password
     windowMs = 600_000; // per 10 menit
     category = 'auth';
   } else if (path.startsWith('/api/publik') || path.startsWith('/api/portal') || path.startsWith('/api/v1')) {
-    limit = 120;        // max 120 request / menit untuk publik
+    limit = isLocal ? 1500 : 400; // limit agregasi portal publik & visualisasi
     windowMs = 60_000;
     category = 'public';
   }
-
-  const ip = dapatkanIP(req);
   const key = `${category}:${ip}`;
   const now = Date.now();
 

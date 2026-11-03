@@ -475,13 +475,13 @@ export function daftarkanRutePortal(app, pool, queryDB) {
   app.get('/api/portal/jelajah/topik', async (_, res) => {
     try {
       const rows = await queryDB(`
-        SELECT t.id, t.nama_topik, t.icon, t.urutan,
+        SELECT t.id, t.nama_topik, COALESCE(t.ikon, 'folder') AS icon, t.urutan,
                COUNT(DISTINCT d.id)::int AS jumlah_dataset,
                JSON_AGG(DISTINCT JSONB_BUILD_OBJECT('id', st.id, 'nama', st.nama_sub_topik)) FILTER (WHERE st.id IS NOT NULL) AS sub_topik
           FROM sd_topik t
           LEFT JOIN sd_sub_topik st ON st.topik_id = t.id
           LEFT JOIN bank_dataset d ON d.topik_id = t.id AND d.status = 'disetujui' AND d.klasifikasi = 'terbuka'
-         GROUP BY t.id, t.nama_topik, t.icon, t.urutan
+         GROUP BY t.id, t.nama_topik, t.ikon, t.urutan
          ORDER BY t.urutan, t.id
       `);
       res.json(rows);

@@ -18,7 +18,12 @@ const queryClient = new QueryClient({
 // Preload peta GeoJSON Sumba Barat agar langsung siap saat buka SPM / Wilayah
 fetch('/geojson/5312.min.geojson').catch(() => {});
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+let root = window.__reactRoot;
+if (!root) {
+  root = ReactDOM.createRoot(document.getElementById('root'));
+  window.__reactRoot = root;
+}
+root.render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <App />

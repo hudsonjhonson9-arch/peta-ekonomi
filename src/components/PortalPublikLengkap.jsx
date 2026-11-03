@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext, useMemo } from "react";
+import { useState, useEffect, useContext, useMemo, useRef, useCallback } from "react";
 import { ThemeContext } from "../App.jsx";
 import { Icon, Badge } from "./ui.jsx";
 import * as XLSX from "xlsx";
@@ -87,8 +87,13 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
     }).catch(() => {});
   }, [subPage]);
 
-  // Fungsi sinkronisasi data langsung dari PostgreSQL database
-  const muatSemuaDataPortal = () => {
+  // Fungsi sinkronisasi data langsung dari PostgreSQL database dengan cooldown 5 detik
+  const lastSyncRef = useRef(0);
+  const muatSemuaDataPortal = useCallback((force = false) => {
+    const now = Date.now();
+    if (!force && now - lastSyncRef.current < 5000) return;
+    lastSyncRef.current = now;
+
     fetch("/api/portal/ringkasan", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setRingkasan(d))
@@ -118,19 +123,19 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setBeritaPopuler(Array.isArray(d) ? d : []))
       .catch(() => {});
-  };
+  }, []);
 
-  // Muat data langsung dari database saat komponen dipasang, saat tab subPage berubah, dan berkala tiap 25 detik
+  // Muat data langsung dari database saat komponen dipasang dan berkala tiap 40 detik
   useEffect(() => {
-    muatSemuaDataPortal();
-    const interval = setInterval(muatSemuaDataPortal, 25000);
-    const onFocus = () => muatSemuaDataPortal();
+    muatSemuaDataPortal(true);
+    const interval = setInterval(() => muatSemuaDataPortal(false), 40000);
+    const onFocus = () => muatSemuaDataPortal(false);
     window.addEventListener("focus", onFocus);
     return () => {
       clearInterval(interval);
       window.removeEventListener("focus", onFocus);
     };
-  }, [subPage]);
+  }, [muatSemuaDataPortal]);
 
   // Fetch Dataset List saat filter berubah
   useEffect(() => {
