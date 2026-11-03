@@ -26,7 +26,7 @@ export const DOC_TYPES = [
   "Notulen Rapat",
 ];
 
-export const YEARS = ["Semua Tahun","2027","2026","2025", "2024", "2023", "2022", "2021", "2020"];
+export const YEARS = ["Semua Tahun", "2027", "2026", "2025", "2024", "2023", "2022", "2021", "2020"];
 
 export const STATUS_LIST = [
   "Semua Status",
@@ -37,18 +37,18 @@ export const STATUS_LIST = [
 ];
 
 export const STATUS_COLOR = {
-  Diarsipkan:             { bg: "#EFF6FF", text: "#2563EB", darkBg: "#1E3A5F", darkText: "#60A5FA" },
-  "Menunggu Review":      { bg: "#FFF7ED", text: "#EA580C", darkBg: "#431407", darkText: "#FB923C" },
+  Diarsipkan: { bg: "#EFF6FF", text: "#2563EB", darkBg: "#1E3A5F", darkText: "#60A5FA" },
+  "Menunggu Review": { bg: "#FFF7ED", text: "#EA580C", darkBg: "#431407", darkText: "#FB923C" },
   "Menunggu Persetujuan": { bg: "#FFFBEB", text: "#D97706", darkBg: "#451A03", darkText: "#FBBF24" },
-  Ditolak:                { bg: "#FEF2F2", text: "#DC2626", darkBg: "#450A0A", darkText: "#F87171" },
+  Ditolak: { bg: "#FEF2F2", text: "#DC2626", darkBg: "#450A0A", darkText: "#F87171" },
 };
 
 export const ROLE_COLOR = {
-  Admin:                { bg: "#EDE9FE", text: "#7C3AED", darkBg: "#2E1065", darkText: "#A78BFA" },
-  Reviewer:             { bg: "#EFF6FF", text: "#2563EB", darkBg: "#1E3A5F", darkText: "#60A5FA" },
-  Staf:                 { bg: "#F0FDF4", text: "#16A34A", darkBg: "#052E16", darkText: "#4ADE80" },
+  Admin: { bg: "#EDE9FE", text: "#7C3AED", darkBg: "#2E1065", darkText: "#A78BFA" },
+  Reviewer: { bg: "#EFF6FF", text: "#2563EB", darkBg: "#1E3A5F", darkText: "#60A5FA" },
+  Staf: { bg: "#F0FDF4", text: "#16A34A", darkBg: "#052E16", darkText: "#4ADE80" },
   "Operator Bank Data": { bg: "#ECFEFF", text: "#0E7490", darkBg: "#083344", darkText: "#22D3EE" },
-  "Produsen Data":      { bg: "#ECFEFF", text: "#0E7490", darkBg: "#083344", darkText: "#22D3EE" },
+  "Produsen Data": { bg: "#ECFEFF", text: "#0E7490", darkBg: "#083344", darkText: "#22D3EE" },
 };
 
 // ═══ Navigasi ══════════════════════════════════════════════════════════════
@@ -67,7 +67,7 @@ export const NAV_GROUPS = [
     label: "Utama",
     icon: "home",
     items: [
-      { key: "dashboard", label: "Dashboard",     icon: "home"    },
+      { key: "dashboard", label: "Dashboard", icon: "home" },
     ],
   },
   {
@@ -75,10 +75,10 @@ export const NAV_GROUPS = [
     label: "Arsip Digital",
     icon: "archive",
     items: [
-      { key: "dokumen",   label: "Dokumen",       icon: "archive" },
-      { key: "upload",    label: "Upload Dokumen", icon: "upload"  },
-      { key: "pencarian", label: "Pencarian",     icon: "search"  },
-      { key: "publik",    label: "Portal Publik", icon: "world"   },
+      { key: "dokumen", label: "Dokumen", icon: "archive" },
+      { key: "upload", label: "Upload Dokumen", icon: "upload" },
+      { key: "pencarian", label: "Pencarian", icon: "search" },
+      { key: "publik", label: "Portal Publik", icon: "world" },
     ],
   },
   {
@@ -87,9 +87,9 @@ export const NAV_GROUPS = [
     icon: "checkCircle",
     items: [
       { key: "kertas-kerja", label: "Kertas Kerja", icon: "checkCircle" },
-      { key: "screening",    label: "Screening RKA", icon: "filter"     },
-      { key: "bankdata",     label: "Bank Data", icon: "chart"       },
-      { key: "spm",          label: "Capaian SPM",  icon: "shield"      },
+      { key: "screening", label: "Screening RKA", icon: "filter" },
+      { key: "bankdata", label: "Bank Data", icon: "chart" },
+      { key: "spm", label: "Capaian SPM", icon: "shield" },
     ],
   },
   {
@@ -97,16 +97,16 @@ export const NAV_GROUPS = [
     label: "Administrasi",
     icon: "building",
     items: [
-      { key: "pengguna",         label: "Pengguna",         icon: "users",    adminOnly: true },
-      { key: "kelola-role",      label: "Kelola Role",      icon: "shield",   adminOnly: true },
-      { key: "master-satudata",  label: "Master Satu Data", icon: "building", adminOnly: true },
-      { key: "kelola-konten",    label: "Kelola Konten",    icon: "world",    adminOnly: true },
-      { key: "monitoring",       label: "Monitoring Sistem",icon: "chart",    adminOnly: true },
+      { key: "pengguna", label: "Pengguna", icon: "users", adminOnly: true },
+      { key: "kelola-role", label: "Kelola Role", icon: "shield", adminOnly: true },
+      { key: "master-satudata", label: "Master Satu Data", icon: "building", adminOnly: true },
+      { key: "kelola-konten", label: "Kelola Konten", icon: "world", adminOnly: true },
+      { key: "monitoring", label: "Monitoring Sistem", icon: "chart", adminOnly: true },
       { key: "pengaturan-website", label: "Pengaturan Website", icon: "settings", adminOnly: true },
-      { key: "kategori-dokumen", label: "Jenis Dokumen", icon: "tag",     adminOnly: true },
-      { key: "sektor",           label: "Sektor",        icon: "layers",  adminOnly: true },
-      { key: "standar-harga",    label: "Standar Harga", icon: "dollar",  adminOnly: true },
-      { key: "audit",            label: "Audit Trail",   icon: "history", adminOnly: true },
+      { key: "kategori-dokumen", label: "Jenis Dokumen", icon: "tag", adminOnly: true },
+      { key: "sektor", label: "Sektor", icon: "layers", adminOnly: true },
+      { key: "standar-harga", label: "Standar Harga", icon: "dollar", adminOnly: true },
+      { key: "audit", label: "Audit Trail", icon: "history", adminOnly: true },
     ],
   },
   {
@@ -115,7 +115,7 @@ export const NAV_GROUPS = [
     icon: "file",
     items: [
       { key: "panduan", label: "Panduan", icon: "file" },
-      { key: "akun",    label: "Akun Saya", icon: "users", selalu: true },
+      { key: "akun", label: "Akun Saya", icon: "users", selalu: true },
     ],
   },
 ];
@@ -167,8 +167,8 @@ export function navUtamaBottomUntuk(role) {
 
 export const NAV_BOTTOM_LABEL = {
   dashboard: "Dashboard",
-  dokumen:   "Dokumen",
-  upload:    "Upload",
+  dokumen: "Dokumen",
+  upload: "Upload",
   pencarian: "Cari",
   bankdata:  "Bank Data",
   spm:       "SPM",
@@ -176,11 +176,11 @@ export const NAV_BOTTOM_LABEL = {
 
 export const NAV_BOTTOM_ICON = {
   dashboard: "home",
-  dokumen:   "archive",
-  upload:    "upload",
+  dokumen: "archive",
+  upload: "upload",
   pencarian: "search",
-  bankdata:  "chart",
-  spm:       "shield",
+  bankdata: "chart",
+  spm: "shield",
 };
 
 // ═══ Kertas Kerja (Output per Sub Kegiatan) ═══════════════════════════════
@@ -192,11 +192,11 @@ export const BULAN = ["Januari", "Februari", "Maret", "April", "Mei", "Juni",
 // dokumen, satu per bulan; target 1 berarti satu dokumen untuk setahun.
 // Frekuensi hanya menentukan penamaan periode dan aturan deadline.
 export const FREKUENSI = [
-  { value: "Bulanan",    label: "Bulanan",    jumlah: 12 },
-  { value: "Triwulan",   label: "Triwulan",   jumlah: 4  },
-  { value: "Semesteran", label: "Semesteran", jumlah: 2  },
-  { value: "Tahunan",    label: "Tahunan",    jumlah: 1  },
-  { value: "Lainnya",    label: "Lainnya",    jumlah: null },
+  { value: "Bulanan", label: "Bulanan", jumlah: 12 },
+  { value: "Triwulan", label: "Triwulan", jumlah: 4 },
+  { value: "Semesteran", label: "Semesteran", jumlah: 2 },
+  { value: "Tahunan", label: "Tahunan", jumlah: 1 },
+  { value: "Lainnya", label: "Lainnya", jumlah: null },
 ];
 
 export const FREKUENSI_MAP = Object.fromEntries(FREKUENSI.map(f => [f.value, f]));
@@ -206,9 +206,9 @@ export const FREKUENSI_MAP = Object.fromEntries(FREKUENSI.map(f => [f.value, f])
 export function frekuensiDariTarget(target) {
   const t = parseInt(target, 10);
   if (t === 12) return "Bulanan";
-  if (t === 4)  return "Triwulan";
-  if (t === 2)  return "Semesteran";
-  if (t === 1)  return "Tahunan";
+  if (t === 4) return "Triwulan";
+  if (t === 2) return "Semesteran";
+  if (t === 1) return "Tahunan";
   return "Lainnya";
 }
 
@@ -223,29 +223,29 @@ export function jumlahPeriode(target) {
 // deadline_rule; perhitungannya di server (lihat hitungDeadline).
 export const DEADLINE_PRESET = {
   Bulanan: [
-    { value: "next_month:5",    label: "Tanggal 5 bulan berikutnya" },
-    { value: "next_month:10",   label: "Tanggal 10 bulan berikutnya" },
-    { value: "next_month:15",   label: "Tanggal 15 bulan berikutnya" },
-    { value: "next_month:20",   label: "Tanggal 20 bulan berikutnya" },
-    { value: "next_month:25",   label: "Tanggal 25 bulan berikutnya" },
+    { value: "next_month:5", label: "Tanggal 5 bulan berikutnya" },
+    { value: "next_month:10", label: "Tanggal 10 bulan berikutnya" },
+    { value: "next_month:15", label: "Tanggal 15 bulan berikutnya" },
+    { value: "next_month:20", label: "Tanggal 20 bulan berikutnya" },
+    { value: "next_month:25", label: "Tanggal 25 bulan berikutnya" },
     { value: "next_month:last", label: "Hari terakhir bulan berikutnya" },
   ],
   Triwulan: [
-    { value: "quarter_end:5",  label: "5 hari setelah akhir kuartal" },
+    { value: "quarter_end:5", label: "5 hari setelah akhir kuartal" },
     { value: "quarter_end:10", label: "10 hari setelah akhir kuartal" },
   ],
   Semesteran: [
-    { value: "semiannual_end:5",  label: "5 hari setelah akhir semester" },
+    { value: "semiannual_end:5", label: "5 hari setelah akhir semester" },
     { value: "semiannual_end:10", label: "10 hari setelah akhir semester" },
   ],
   Tahunan: [
-    { value: "year_end",      label: "31 Desember tahun tersebut" },
-    { value: "next_january",  label: "31 Januari tahun berikutnya" },
+    { value: "year_end", label: "31 Desember tahun tersebut" },
+    { value: "next_january", label: "31 Januari tahun berikutnya" },
   ],
   Lainnya: [
-    { value: "year_end",       label: "31 Desember tahun tersebut" },
-    { value: "next_january",   label: "31 Januari tahun berikutnya" },
-    { value: "next_month:10",  label: "Tanggal 10 bulan berikutnya" },
+    { value: "year_end", label: "31 Desember tahun tersebut" },
+    { value: "next_january", label: "31 Januari tahun berikutnya" },
+    { value: "next_month:10", label: "Tanggal 10 bulan berikutnya" },
   ],
 };
 
@@ -274,13 +274,13 @@ export function canManageOutput(role) {
 // Status periode tidak disimpan di database — diturunkan dari deadline dan
 // status dokumen, supaya tidak pernah out-of-sync dengan review dokumen.
 export const STATUS_PERIODE = {
-  Terlambat:    { label: "Terlambat",      icon: "alert",       color: "#DC2626", darkBg: "#450A0A", darkText: "#F87171" },
-  JatuhTempo:   { label: "Jatuh tempo",    icon: "clock",       color: "#EA580C", darkBg: "#431407", darkText: "#FB923C" },
-  Menunggu:     { label: "Menunggu review",icon: "clock",       color: "#D97706", darkBg: "#451A03", darkText: "#FBBF24" },
-  Ditolak:      { label: "Ditolak",        icon: "alert",       color: "#DC2626", darkBg: "#450A0A", darkText: "#F87171" },
-  Selesai:      { label: "Diarsipkan",     icon: "checkCircle", color: "#16A34A", darkBg: "#052E16", darkText: "#4ADE80" },
-  Belum:        { label: "Belum ada",      icon: "file",        color: "#64748B", darkBg: "#1E293B", darkText: "#94A3B8" },
-  TidakBerlaku: { label: "Tidak berlaku",  icon: "x",           color: "#94A3B8", darkBg: "#1E293B", darkText: "#64748B" },
+  Terlambat: { label: "Terlambat", icon: "alert", color: "#DC2626", darkBg: "#450A0A", darkText: "#F87171" },
+  JatuhTempo: { label: "Jatuh tempo", icon: "clock", color: "#EA580C", darkBg: "#431407", darkText: "#FB923C" },
+  Menunggu: { label: "Menunggu review", icon: "clock", color: "#D97706", darkBg: "#451A03", darkText: "#FBBF24" },
+  Ditolak: { label: "Ditolak", icon: "alert", color: "#DC2626", darkBg: "#450A0A", darkText: "#F87171" },
+  Selesai: { label: "Diarsipkan", icon: "checkCircle", color: "#16A34A", darkBg: "#052E16", darkText: "#4ADE80" },
+  Belum: { label: "Belum ada", icon: "file", color: "#64748B", darkBg: "#1E293B", darkText: "#94A3B8" },
+  TidakBerlaku: { label: "Tidak berlaku", icon: "x", color: "#94A3B8", darkBg: "#1E293B", darkText: "#64748B" },
 };
 
 const HARI_MENDATANG = 3;
