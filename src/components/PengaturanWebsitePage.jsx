@@ -1410,23 +1410,23 @@ export default function PengaturanWebsitePage() {
               {/* Mock Module Badges */}
               <div style={{ padding: "8px 12px", borderTop: `1px solid ${T.border}`, display: "flex", gap: 4, flexWrap: "wrap" }}>
                 {settings.beranda.tampilkan_statistik && (
-                  <span style={{ fontSize: 7.5, padding: "2px 5px", borderRadius: 3, background: "#EFF6FF", color: "#2563EB" }}>
-                    ✓ Counter
+                  <span style={{ fontSize: 7.5, padding: "2px 5px", borderRadius: 3, background: "#EFF6FF", color: "#2563EB", fontWeight: 700 }}>
+                    Counter
                   </span>
                 )}
                 {settings.beranda.tampilkan_spm && (
-                  <span style={{ fontSize: 7.5, padding: "2px 5px", borderRadius: 3, background: "#ECFDF5", color: "#059669" }}>
-                    ✓ SPM
+                  <span style={{ fontSize: 7.5, padding: "2px 5px", borderRadius: 3, background: "#ECFDF5", color: "#059669", fontWeight: 700 }}>
+                    SPM
                   </span>
                 )}
                 {settings.beranda.tampilkan_peta && (
-                  <span style={{ fontSize: 7.5, padding: "2px 5px", borderRadius: 3, background: "#FEF3C7", color: "#D97706" }}>
-                    ✓ Peta
+                  <span style={{ fontSize: 7.5, padding: "2px 5px", borderRadius: 3, background: "#FEF3C7", color: "#D97706", fontWeight: 700 }}>
+                    Peta
                   </span>
                 )}
                 {settings.beranda.tampilkan_berita && (
-                  <span style={{ fontSize: 7.5, padding: "2px 5px", borderRadius: 3, background: "#F3E8FF", color: "#7C3AED" }}>
-                    ✓ Berita
+                  <span style={{ fontSize: 7.5, padding: "2px 5px", borderRadius: 3, background: "#F3E8FF", color: "#7C3AED", fontWeight: 700 }}>
+                    Berita
                   </span>
                 )}
               </div>
@@ -1451,7 +1451,7 @@ export default function PengaturanWebsitePage() {
               </div>
               <div style={{ fontSize: 11, color: T.textSecondary, marginTop: 8, lineHeight: 1.4 }}>
                 {kelengkapanIdentitas === 100
-                  ? "✓ Seluruh profil identitas dan kontak dinas lengkap."
+                  ? "Seluruh profil identitas dan kontak dinas lengkap."
                   : "Lengkapi semua field identitas untuk memaksimalkan kepatuhan standar Satu Data Indonesia."}
               </div>
             </div>

@@ -263,8 +263,8 @@ export default function PanduanPengguna() {
         )}
 
         {section.note && (
-          <div style={{ background: T.markBg, borderRadius: 8, padding: "10px 14px", fontSize: 12, color: T.textSecondary, marginBottom: 16, display: "flex", gap: 6, alignItems: "flex-start" }}>
-            <span style={{ fontSize: 14 }}>💡</span>
+          <div style={{ background: T.markBg, borderRadius: 8, padding: "10px 14px", fontSize: 12, color: T.textSecondary, marginBottom: 16, display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <Icon name="info" size={14} style={{ flexShrink: 0, marginTop: 2, color: T.primary }} />
             <span>{section.note}</span>
           </div>
         )}

@@ -536,7 +536,7 @@ function NilaiTable({ level, ind, conf, tahunList, onSave, onSaveTw, T }) {
               <td style={{ padding: "4px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
                 <button onClick={() => saveRow(t)} disabled={!!saved[t]}
                   style={{ padding: "5px 10px", background: saved[t] ? "#16a34a" : T.primary, color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-                  {saved[t] ? "✓" : "Simpan"}
+                  {saved[t] ? <Icon name="check" size={12} /> : "Simpan"}
                 </button>
               </td>
             </tr>
@@ -581,7 +581,7 @@ function NilaiTable({ level, ind, conf, tahunList, onSave, onSaveTw, T }) {
                     <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
                       <button onClick={() => saveTwRow(t)} disabled={!!twSaved[t]}
                         style={{ padding: "5px 12px", background: twSaved[t] ? "#16a34a" : T.primary, color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-                        {twSaved[t] ? "✓" : "Simpan Triwulan"}
+                        {twSaved[t] ? <Icon name="check" size={12} /> : "Simpan Triwulan"}
                       </button>
                     </div>
                   </div>

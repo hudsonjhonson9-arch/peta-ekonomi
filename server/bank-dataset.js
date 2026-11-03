@@ -97,6 +97,27 @@ export function validasiMetadataDataset(body = {}) {
   const jadwalPemutakhiran = body.jadwal_pemutakhiran || null;
   const jadwalPemutakhiranAkhir = body.jadwal_pemutakhiran_akhir || null;
 
+  const lowNama = nama.toLowerCase();
+  const lowDesk = String(body.deskripsi || '').toLowerCase();
+  const isNegatifDefault =
+    lowNama.includes('miskin') ||
+    lowNama.includes('kemiskinan') ||
+    lowNama.includes('stunting') ||
+    lowNama.includes('kematian') ||
+    lowNama.includes('pengangguran') ||
+    lowNama.includes('gizi buruk') ||
+    lowNama.includes('putus sekolah') ||
+    lowNama.includes('kriminal') ||
+    lowDesk.includes('kemiskinan') ||
+    lowDesk.includes('stunting');
+
+  let polaritas = 'positif';
+  if (body.polaritas === 'negatif' || body.polaritas === 'positif') {
+    polaritas = body.polaritas;
+  } else if (isNegatifDefault) {
+    polaritas = 'negatif';
+  }
+
   const nilai = {
     opd_id: opdId,
     nama,
@@ -122,6 +143,7 @@ export function validasiMetadataDataset(body = {}) {
     frekuensi_pemutakhiran: frekuensi,
     jadwal_pemutakhiran: jadwalPemutakhiran,
     jadwal_pemutakhiran_akhir: jadwalPemutakhiranAkhir,
+    polaritas,
   };
   return {
     ok: true,

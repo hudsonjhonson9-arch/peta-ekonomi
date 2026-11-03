@@ -23,6 +23,7 @@ export function daftarkanRutePortal(app, pool, queryDB) {
         queryDB(`SELECT COUNT(*)::int AS count FROM sd_urusan`),
         queryDB(`
           SELECT d.id, d.nama, d.deskripsi, d.satuan, d.frekuensi, d.tahun_mulai,
+                 COALESCE(d.polaritas, 'positif') AS polaritas,
                  o.nama AS opd_nama, o.singkatan AS opd_singkatan,
                  t.nama_topik, u.nama_urusan, d.verified_at
             FROM bank_dataset d
@@ -35,6 +36,7 @@ export function daftarkanRutePortal(app, pool, queryDB) {
         `),
         queryDB(`
           SELECT d.id, d.nama, d.deskripsi, d.satuan, d.frekuensi,
+                 COALESCE(d.polaritas, 'positif') AS polaritas,
                  o.nama AS opd_nama, o.singkatan AS opd_singkatan,
                  COALESCE(s.view_count, 0) AS view_count,
                  COALESCE(s.download_count, 0) AS download_count
@@ -143,6 +145,7 @@ export function daftarkanRutePortal(app, pool, queryDB) {
 
       const dataSql = `
         SELECT d.id, d.nama, d.deskripsi, d.definisi, d.satuan, d.sumber_data,
+               COALESCE(d.polaritas, 'positif') AS polaritas,
                d.frekuensi, d.tahun_mulai, d.verified_at, d.updated_at,
                o.id AS opd_id, o.nama AS opd_nama, o.singkatan AS opd_singkatan,
                t.id AS topik_id, t.nama_topik,

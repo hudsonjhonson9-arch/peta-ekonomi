@@ -300,15 +300,15 @@ function LeaderboardOpdWidget({ walidataData, masterData, user, T, isMobile, onN
               if (rank === 1) {
                 rankBadgeBg = "#FEF9C3";
                 rankBadgeColor = "#854D0E";
-                rankLabel = "🥇 1";
+                rankLabel = "#1";
               } else if (rank === 2) {
                 rankBadgeBg = "#F1F5F9";
                 rankBadgeColor = "#334155";
-                rankLabel = "🥈 2";
+                rankLabel = "#2";
               } else if (rank === 3) {
                 rankBadgeBg = "#FFEDD5";
                 rankBadgeColor = "#9A3412";
-                rankLabel = "🥉 3";
+                rankLabel = "#3";
               }
 
               const pct = row.persentase_sk;
@@ -825,9 +825,12 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
                     borderRadius: 6,
                     background: T.bgAlt,
                     color: T.textSecondary,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
                   }}
                 >
-                  🏢 {opdNama}
+                  <Icon name="building" size={13} /> {opdNama}
                 </span>
               )}
               {bidang && (
@@ -839,9 +842,12 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
                     borderRadius: 6,
                     background: T.bgAlt,
                     color: T.textSecondary,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
                   }}
                 >
-                  📂 Bidang {bidang}
+                  <Icon name="folder" size={13} /> Bidang {bidang}
                 </span>
               )}
             </div>

@@ -88,7 +88,7 @@ export const NAV_GROUPS = [
     items: [
       { key: "kertas-kerja", label: "Kertas Kerja", icon: "checkCircle" },
       { key: "screening",    label: "Screening RKA", icon: "filter"     },
-      { key: "bankdata",     label: "Produsen Data", icon: "chart"       },
+      { key: "bankdata",     label: "Bank Data", icon: "chart"       },
       { key: "spm",          label: "Capaian SPM",  icon: "shield"      },
     ],
   },
@@ -133,10 +133,10 @@ export function navGroupsUntuk(role, allowedMenus) {
     return [
       {
         key: "perencanaan",
-        label: "Produsen Data OPD",
+        label: "Perencanaan",
         icon: "chart",
         items: [
-          { key: "bankdata", label: "Data Produsen OPD", icon: "chart" },
+          { key: "bankdata", label: "Bank Data", icon: "chart" },
           { key: "spm", label: "Capaian SPM", icon: "shield" },
           { key: "akun", label: "Akun Saya", icon: "users", selalu: true },
         ],

@@ -276,26 +276,6 @@ export default function BankDataPage({ user, showToast }) {
             </button>
           );
         })}
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center" }}>
-          <button
-            onClick={() => {
-              reloadDatasets();
-              showToast?.("Data disinkronkan langsung dari database");
-            }}
-            title="Ambil data terbaru langsung dari database"
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "8px 14px", borderRadius: 8,
-              border: `1px solid ${T.border}`,
-              background: T.card,
-              color: T.textSecondary,
-              fontSize: 12.5, fontWeight: 600, cursor: "pointer",
-            }}
-          >
-            <Icon name="refresh" size={13} />
-            <span>Sinkron Database</span>
-          </button>
-        </div>
       </div>
 
       {tab === "kinerja" ? (
@@ -543,6 +523,8 @@ function ModalBuatDataset({ opdList, user, isOperator, onClose, onCreated, showT
     jadwal_pemutakhiran: "",
     jadwal_pemutakhiran_akhir: "",
     tahun_mulai: new Date().getFullYear(),
+    polaritas: "positif",
+    polaritas_manual: false,
   });
 
   const [modeRange, setModeRange] = useState(false);
@@ -678,6 +660,7 @@ function ModalBuatDataset({ opdList, user, isOperator, onClose, onCreated, showT
           jadwal_pemutakhiran: form.jadwal_pemutakhiran || null,
           jadwal_pemutakhiran_akhir: modeRange ? (form.jadwal_pemutakhiran_akhir || null) : null,
           tahun_mulai: Number(form.tahun_mulai) || new Date().getFullYear(),
+          polaritas: form.polaritas || "positif",
           fields: validFields.map((f, idx) => ({
             label: f.label.trim(),
             tipe_data: f.tipe_data,
@@ -982,10 +965,115 @@ function ModalBuatDataset({ opdList, user, isOperator, onClose, onCreated, showT
                 <label style={labelSt}>Nama Data / Indikator <span style={{ color: T.danger }}>*</span></label>
                 <input
                   value={form.nama_data}
-                  onChange={e => setForm({ ...form, nama_data: e.target.value })}
+                  onChange={e => {
+                    const val = e.target.value;
+                    const low = val.toLowerCase();
+                    const isNegatif =
+                      low.includes("miskin") ||
+                      low.includes("kemiskinan") ||
+                      low.includes("stunting") ||
+                      low.includes("kematian") ||
+                      low.includes("pengangguran") ||
+                      low.includes("gizi buruk") ||
+                      low.includes("putus sekolah") ||
+                      low.includes("kriminal");
+                    setForm(prev => ({
+                      ...prev,
+                      nama_data: val,
+                      polaritas: prev.polaritas_manual ? prev.polaritas : (isNegatif ? "negatif" : "positif"),
+                    }));
+                  }}
                   placeholder="Contoh: Jumlah Produksi Padi Sawah Menurut Kecamatan"
                   style={inputSt}
                 />
+              </div>
+
+              {/* Polaritas / Arah Capaian Indikator */}
+              <div style={{
+                padding: "12px 14px",
+                borderRadius: 10,
+                background: form.polaritas === "negatif" ? "#FEF2F2" : "#F0FDF4",
+                border: `1px solid ${form.polaritas === "negatif" ? "#FECACA" : "#BBF7D0"}`,
+                transition: "all 0.2s ease",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
+                  <label style={{ ...labelSt, marginBottom: 0, color: form.polaritas === "negatif" ? "#991B1B" : "#166534" }}>
+                    Arah Target / Polaritas Indikator <span style={{ color: T.danger }}>*</span>
+                  </label>
+                  <span style={{ fontSize: 11, color: form.polaritas === "negatif" ? "#DC2626" : "#059669", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    <Icon name={form.polaritas === "negatif" ? "trendingDown" : "trendingUp"} size={12} />
+                    {form.polaritas === "negatif"
+                      ? "Target Minimasi: Semakin kecil semakin bagus (misal: Kemiskinan, Stunting)"
+                      : "Target Maksimasi: Semakin besar semakin bagus (misal: APM, Produksi Padi, PAD)"}
+                  </span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, polaritas: "positif", polaritas_manual: true })}
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: 8,
+                      border: form.polaritas === "positif" ? "2px solid #059669" : `1px solid ${T.border}`,
+                      background: form.polaritas === "positif" ? "#ECFDF5" : T.card,
+                      color: form.polaritas === "positif" ? "#065F46" : T.text,
+                      cursor: "pointer",
+                      textAlign: "left",
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 12,
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <div style={{
+                      width: 32, height: 32, borderRadius: 8,
+                      background: form.polaritas === "positif" ? "#A7F3D0" : T.surfaceHover,
+                      color: form.polaritas === "positif" ? "#047857" : T.textMuted,
+                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                    }}>
+                      <Icon name="trendingUp" size={17} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Positif (Maksimasi)</div>
+                      <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
+                        Nilai semakin tinggi menandakan capaian membaik
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, polaritas: "negatif", polaritas_manual: true })}
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: 8,
+                      border: form.polaritas === "negatif" ? "2px solid #DC2626" : `1px solid ${T.border}`,
+                      background: form.polaritas === "negatif" ? "#FFF1F2" : T.card,
+                      color: form.polaritas === "negatif" ? "#9F1239" : T.text,
+                      cursor: "pointer",
+                      textAlign: "left",
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 12,
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <div style={{
+                      width: 32, height: 32, borderRadius: 8,
+                      background: form.polaritas === "negatif" ? "#FECDD3" : T.surfaceHover,
+                      color: form.polaritas === "negatif" ? "#BE123C" : T.textMuted,
+                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                    }}>
+                      <Icon name="trendingDown" size={17} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Negatif (Minimasi)</div>
+                      <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
+                        Nilai semakin kecil menandakan capaian membaik
+                      </div>
+                    </div>
+                  </button>
+                </div>
               </div>
 
               {/* Kode SDS & Kode Indikator */}
@@ -1205,7 +1293,7 @@ function ModalBuatDataset({ opdList, user, isOperator, onClose, onCreated, showT
                     fullWidth
                     size="sm"
                     value=""
-                    placeholder="⚡ Terapkan Template Field / Grup Kolom Siap Pakai..."
+                    placeholder="Terapkan Template Field / Grup Kolom Siap Pakai..."
                     onChange={v => {
                       const tpl = templatePresets.find(t => String(t.id) === String(v));
                       if (tpl && Array.isArray(tpl.fields_json) && tpl.fields_json.length > 0) {
@@ -1220,7 +1308,7 @@ function ModalBuatDataset({ opdList, user, isOperator, onClose, onCreated, showT
                       }
                     }}
                     options={[
-                      { value: "", label: "⚡ Pilih Template Kolom Siap Pakai..." },
+                      { value: "", label: "Pilih Template Kolom Siap Pakai..." },
                       ...templatePresets.map(t => ({ value: String(t.id), label: `${t.nama_template} (${(t.fields_json || []).length} kolom)` })),
                     ]}
                   />
@@ -1649,6 +1737,23 @@ function DatasetDetailView({ datasetId, user, canWrite, canVerify, onBack, onRel
               Prioritas
             </span>
           )}
+          {detail.polaritas === "negatif" ? (
+            <span style={{
+              fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 99,
+              background: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA",
+              display: "inline-flex", alignItems: "center", gap: 5,
+            }} title="Indikator Negatif / Minimasi: Semakin kecil nilainya semakin baik capaiannya">
+              <Icon name="trendingDown" size={12} /> Target Minimasi (Semakin kecil semakin baik)
+            </span>
+          ) : (
+            <span style={{
+              fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 99,
+              background: "#ECFDF5", color: "#059669", border: "1px solid #A7F3D0",
+              display: "inline-flex", alignItems: "center", gap: 5,
+            }} title="Indikator Positif / Maksimasi: Semakin tinggi nilainya semakin baik capaiannya">
+              <Icon name="trendingUp" size={12} /> Target Maksimasi (Semakin besar semakin baik)
+            </span>
+          )}
         </div>
         <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 4 }}>{detail.nama}</div>
         <div style={{ fontSize: 13, color: T.primary, fontWeight: 600, marginBottom: 6 }}>
@@ -1709,7 +1814,7 @@ function DatasetDetailView({ datasetId, user, canWrite, canVerify, onBack, onRel
       </div>
 
       {subTab === "grafik" && (
-        <GrafikDataset fields={fields} rows={rows} satuanDefault={detail.satuan || ""} />
+        <GrafikDataset fields={fields} rows={rows} satuanDefault={detail.satuan || ""} polaritas={detail.polaritas || "positif"} />
       )}
 
       {subTab === "data" && (
@@ -1923,23 +2028,23 @@ function DatasetDetailView({ datasetId, user, canWrite, canVerify, onBack, onRel
                 <button
                   disabled={busy}
                   onClick={() => handleVerifikasi("disetujui")}
-                  style={{ padding: "9px 16px", background: "#16A34A", color: "#fff", border: "none", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+                  style={{ padding: "9px 16px", background: "#16A34A", color: "#fff", border: "none", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
                 >
-                  ✓ Setujui & Publikasikan
+                  <Icon name="check" size={13} /> Setujui & Publikasikan
                 </button>
                 <button
                   disabled={busy}
                   onClick={() => handleVerifikasi("perlu_perbaikan")}
-                  style={{ padding: "9px 16px", background: "#D97706", color: "#fff", border: "none", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+                  style={{ padding: "9px 16px", background: "#D97706", color: "#fff", border: "none", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
                 >
-                  ↺ Minta Perbaikan
+                  <Icon name="refresh" size={13} /> Minta Perbaikan
                 </button>
                 <button
                   disabled={busy}
                   onClick={() => handleVerifikasi("ditolak")}
-                  style={{ padding: "9px 16px", background: "#DC2626", color: "#fff", border: "none", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+                  style={{ padding: "9px 16px", background: "#DC2626", color: "#fff", border: "none", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
                 >
-                  ✕ Tolak Dataset
+                  <Icon name="x" size={13} /> Tolak Dataset
                 </button>
               </div>
             </div>

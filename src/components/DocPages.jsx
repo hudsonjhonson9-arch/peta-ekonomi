@@ -1296,7 +1296,7 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
               }}
               onMouseEnter={e => { e.currentTarget.style.background = doc.publik ? T.successHover : T.primaryLight; }}
               onMouseLeave={e => { e.currentTarget.style.background = doc.publik ? T.successBg : T.primaryLight; }}>
-              <Icon name="world" size={14} /> {doc.publik ? "✓ Dipublikasikan" : "Publikasikan"}
+              <Icon name="world" size={14} /> {doc.publik ? "Dipublikasikan" : "Publikasikan"}
             </button>
           )}
           {canEdit && (

@@ -1,4 +1,5 @@
 import { useState, useEffect, useContext, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { ThemeContext } from "../App.jsx";
 import { Icon } from "./ui.jsx";
 
@@ -215,7 +216,7 @@ export function Select({
         </span>
       </button>
 
-      {buka && rect && (
+      {buka && rect && typeof document !== "undefined" && createPortal(
         <div
           ref={panelRef}
           role="listbox"
@@ -225,7 +226,7 @@ export function Select({
             bottom: keAtas ? window.innerHeight - rect.bottom + 5 : undefined,
             left: Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 12)),
             width: rect.width,
-            zIndex: 1400,
+            zIndex: 99999,
             background: T.card,
             border: `1px solid ${T.border}`,
             borderRadius: 12,
@@ -316,7 +317,8 @@ export function Select({
               ))
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -350,9 +352,18 @@ function OptionRow({ o, on, isHover, onSelect, onHover, T, fSize }) {
       }}
     >
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.label}</div>
+        <div
+          title={o.label}
+          style={{
+            whiteSpace: "normal",
+            wordBreak: "break-word",
+            lineHeight: 1.35,
+          }}
+        >
+          {o.label}
+        </div>
         {o.sub && (
-          <div style={{ fontSize: 11, color: T.textMuted, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <div style={{ fontSize: 11, color: T.textMuted, marginTop: 1, whiteSpace: "normal", wordBreak: "break-word" }}>
             {o.sub}
           </div>
         )}
@@ -597,7 +608,7 @@ export function DatePicker({
         </span>
       </div>
 
-      {buka && rect && (
+      {buka && rect && typeof document !== "undefined" && createPortal(
         <div
           ref={panelRef}
           role="dialog"
@@ -608,7 +619,7 @@ export function DatePicker({
             bottom: keAtas ? window.innerHeight - rect.bottom + 6 : undefined,
             left: Math.max(8, Math.min(rect.left, window.innerWidth - panelWidth - 12)),
             width: panelWidth,
-            zIndex: 1400,
+            zIndex: 99999,
             background: T.card,
             border: `1px solid ${T.border}`,
             borderRadius: 14,
@@ -783,7 +794,8 @@ export function DatePicker({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -534,6 +534,8 @@ jalankanMigration('tahap_2', [
   .then(() => jalankanMigration('tahap_21', [], true))
   .then(() => jalankanMigration('tahap_22', [], true))
   .then(() => jalankanMigration('tahap_23', [], true))
+  .then(() => jalankanMigration('tahap_24', [], true))
+  .then(() => jalankanMigration('tahap_25', [], true))
   .then(jalankanSeed)
   // Impor bawaan standar harga SIPD (db/standar_harga_sipd_<jenis>_<tahun>.xlsx).
   // Setelah tahap_13 karena merge-nya menarget index unik tahap_13. Gagal di
@@ -3882,8 +3884,8 @@ app.post('/api/bankdata/dataset', async (req, res) => {
          (opd_id, nama, deskripsi, definisi, satuan, sumber_data, klasifikasi, frekuensi, tahun_mulai, status, created_by,
           urusan_id, bidang_urusan_id, topik_id, sub_topik_id, satuan_id, keywords, kode_sds, kode_indikator,
           sumber_referensi, prioritas, klasifikasi_risiko, klasifikasi_penyajian, frekuensi_pemutakhiran,
-          jadwal_pemutakhiran, jadwal_pemutakhiran_akhir)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'draft',$10,$11,$12,$13,$14,$15,$16::jsonb,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+          jadwal_pemutakhiran, jadwal_pemutakhiran_akhir, polaritas)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'draft',$10,$11,$12,$13,$14,$15,$16::jsonb,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
        RETURNING *`,
       [
         v.nilai.opd_id, v.nilai.nama, v.nilai.deskripsi, v.nilai.definisi,
@@ -3893,7 +3895,7 @@ app.post('/api/bankdata/dataset', async (req, res) => {
         v.nilai.satuan_id, JSON.stringify(v.nilai.keywords || []), v.nilai.kode_sds,
         kodeIndikator, v.nilai.sumber_referensi, v.nilai.prioritas, v.nilai.klasifikasi_risiko,
         v.nilai.klasifikasi_penyajian, v.nilai.frekuensi_pemutakhiran, v.nilai.jadwal_pemutakhiran,
-        v.nilai.jadwal_pemutakhiran_akhir,
+        v.nilai.jadwal_pemutakhiran_akhir, v.nilai.polaritas || 'positif',
       ]
     );
     const dataset = ins.rows[0];
@@ -3947,8 +3949,9 @@ app.put('/api/bankdata/dataset/:id', async (req, res) => {
               sumber_referensi = $17, prioritas = $18, klasifikasi_risiko = $19,
               klasifikasi_penyajian = $20, frekuensi_pemutakhiran = $21,
               jadwal_pemutakhiran = $22, jadwal_pemutakhiran_akhir = $23,
+              polaritas = $24,
               updated_at = NOW()
-        WHERE id = $24
+        WHERE id = $25
         RETURNING *`,
       [
         v.nilai.opd_id, v.nilai.nama, v.nilai.deskripsi, v.nilai.definisi, v.nilai.satuan,
@@ -3957,7 +3960,7 @@ app.put('/api/bankdata/dataset/:id', async (req, res) => {
         v.nilai.satuan_id, JSON.stringify(v.nilai.keywords || []), v.nilai.kode_sds,
         v.nilai.sumber_referensi, v.nilai.prioritas, v.nilai.klasifikasi_risiko,
         v.nilai.klasifikasi_penyajian, v.nilai.frekuensi_pemutakhiran, v.nilai.jadwal_pemutakhiran,
-        v.nilai.jadwal_pemutakhiran_akhir, id,
+        v.nilai.jadwal_pemutakhiran_akhir, v.nilai.polaritas || 'positif', id,
       ]
     );
     res.json({ message: 'Metadata dataset diperbarui', dataset: upd[0] });

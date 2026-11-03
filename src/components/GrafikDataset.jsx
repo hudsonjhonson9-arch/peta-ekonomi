@@ -68,7 +68,7 @@ function formatAngka(val) {
   return n.toLocaleString("id-ID", { maximumFractionDigits: 2 });
 }
 
-export default function GrafikDataset({ fields = [], rows = [], satuanDefault = "", compact = false }) {
+export default function GrafikDataset({ fields = [], rows = [], satuanDefault = "", polaritas = "positif", compact = false }) {
   const { T } = useContext(ThemeContext);
 
   const numericFields = useMemo(() => {
@@ -196,6 +196,63 @@ export default function GrafikDataset({ fields = [], rows = [], satuanDefault = 
     };
   }, [numericFields, rows, activeFieldKey, selectedField]);
 
+  const trendSummary = useMemo(() => {
+    if (!chartData || chartData.length < 2 || !seriesList.length) return null;
+    const firstPeriod = chartData[0];
+    const lastPeriod = chartData[chartData.length - 1];
+
+    let sumFirst = 0;
+    let sumLast = 0;
+    let count = 0;
+
+    const seriesTrends = seriesList.map(s => {
+      const v1 = Number(firstPeriod[s.key]);
+      const v2 = Number(lastPeriod[s.key]);
+      if (Number.isFinite(v1) && Number.isFinite(v2)) {
+        sumFirst += v1;
+        sumLast += v2;
+        count++;
+        const delta = v2 - v1;
+        const pct = v1 !== 0 ? (delta / v1) * 100 : 0;
+        // Pada polaritas negatif (minimasi): penurunan (delta < 0) = prestasi membaik!
+        const isMembaik = polaritas === "negatif" ? delta < 0 : delta > 0;
+        const isSama = Math.abs(delta) < 0.0001;
+        return {
+          key: s.key,
+          name: s.name,
+          v1,
+          v2,
+          delta,
+          pct,
+          isMembaik,
+          isSama,
+        };
+      }
+      return null;
+    }).filter(Boolean);
+
+    if (!seriesTrends.length || count === 0) return null;
+
+    const avg1 = sumFirst / count;
+    const avg2 = sumLast / count;
+    const avgDelta = avg2 - avg1;
+    const avgPct = avg1 !== 0 ? (avgDelta / avg1) * 100 : 0;
+    const overallMembaik = polaritas === "negatif" ? avgDelta < 0 : avgDelta > 0;
+    const overallSama = Math.abs(avgDelta) < 0.0001;
+
+    return {
+      firstLabel: firstPeriod.kategori,
+      lastLabel: lastPeriod.kategori,
+      avg1,
+      avg2,
+      avgDelta,
+      avgPct,
+      overallMembaik,
+      overallSama,
+      seriesTrends,
+    };
+  }, [chartData, seriesList, polaritas]);
+
   if (numericFields.length === 0) {
     return (
       <div style={{
@@ -260,6 +317,22 @@ export default function GrafikDataset({ fields = [], rows = [], satuanDefault = 
               Satuan: {satuanDefault}
             </span>
           )}
+          <span
+            title={polaritas === "negatif"
+              ? "Indikator Negatif / Minimasi: Semakin kecil nilainya semakin baik capaiannya (misal: Kemiskinan, Prevalensi Stunting)"
+              : "Indikator Positif / Maksimasi: Semakin tinggi nilainya semakin baik capaiannya"
+            }
+            style={{
+              fontSize: 11, padding: "3px 9px", borderRadius: 99,
+              background: polaritas === "negatif" ? "#FEF2F2" : "#ECFDF5",
+              color: polaritas === "negatif" ? "#DC2626" : "#059669",
+              border: `1px solid ${polaritas === "negatif" ? "#FECACA" : "#A7F3D0"}`,
+              fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 5,
+            }}
+          >
+            <Icon name={polaritas === "negatif" ? "trendingDown" : "trendingUp"} size={13} />
+            {polaritas === "negatif" ? "Target Minimasi (Semakin kecil semakin baik)" : "Target Maksimasi (Semakin besar semakin baik)"}
+          </span>
         </div>
 
         <div style={{
@@ -291,6 +364,69 @@ export default function GrafikDataset({ fields = [], rows = [], satuanDefault = 
           })}
         </div>
       </div>
+
+      {/* Ringkasan Tren Capaian Antar Periode (Sesuai Polaritas Indikator) */}
+      {trendSummary && (
+        <div style={{
+          display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between",
+          gap: 10, padding: "9px 13px", borderRadius: 8, marginBottom: 16,
+          background: trendSummary.overallSama
+            ? T.surfaceHover
+            : (trendSummary.overallMembaik ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.08)"),
+          border: `1px solid ${trendSummary.overallSama ? T.border : (trendSummary.overallMembaik ? "rgba(16, 185, 129, 0.28)" : "rgba(239, 68, 68, 0.28)")}`,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12 }}>
+            <span style={{
+              fontWeight: 800,
+              color: trendSummary.overallSama ? T.textSecondary : (trendSummary.overallMembaik ? "#059669" : "#DC2626"),
+              display: "inline-flex", alignItems: "center", gap: 5,
+            }}>
+              {trendSummary.overallSama ? (
+                <span>Tren Stabil:</span>
+              ) : trendSummary.overallMembaik ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="check" size={13} /> Capaian Membaik:</span>
+              ) : (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="alert" size={13} /> Perlu Perhatian:</span>
+              )}
+            </span>
+            <span style={{ color: T.text, fontWeight: 600 }}>
+              {trendSummary.firstLabel} → {trendSummary.lastLabel}
+            </span>
+            <span style={{ color: T.textMuted }}>·</span>
+            <span style={{
+              fontWeight: 700,
+              color: trendSummary.overallSama ? T.textSecondary : (trendSummary.overallMembaik ? "#059669" : "#DC2626"),
+            }}>
+              Rata-rata {trendSummary.avgDelta > 0 ? "Naik" : "Turun"} {formatAngka(Math.abs(trendSummary.avgDelta))}{satuanDefault ? ` ${satuanDefault}` : ""} ({formatAngka(Math.abs(trendSummary.avgPct))}%)
+            </span>
+            {polaritas === "negatif" && (
+              <span style={{ fontSize: 11, color: T.textMuted, fontStyle: "italic" }}>
+                (Indikator minimasi: nilai menurun = capaian membaik)
+              </span>
+            )}
+          </div>
+
+          {trendSummary.seriesTrends.length > 1 && trendSummary.seriesTrends.length <= 6 && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {trendSummary.seriesTrends.map(st => (
+                <span
+                  key={st.key}
+                  style={{
+                    fontSize: 11, padding: "2px 7px", borderRadius: 6,
+                    background: st.isSama ? T.surfaceHover : (st.isMembaik ? "rgba(16, 185, 129, 0.12)" : "rgba(239, 68, 68, 0.12)"),
+                    color: st.isSama ? T.textSecondary : (st.isMembaik ? "#059669" : "#DC2626"),
+                    fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 3,
+                  }}
+                  title={`${st.name}: ${formatAngka(st.v1)} → ${formatAngka(st.v2)} (${st.delta > 0 ? "+" : ""}${formatAngka(st.delta)})`}
+                >
+                  <Icon name={st.delta < 0 ? "arrowDown" : "arrowUp"} size={10} />
+                  <span>{st.name.replace("Kota ", "")}: {formatAngka(Math.abs(st.delta))}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ width: "100%", height: compact ? 260 : 320 }}>
         <ResponsiveContainer width="100%" height="100%">

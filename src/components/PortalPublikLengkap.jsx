@@ -3,6 +3,7 @@ import { ThemeContext } from "../App.jsx";
 import { Icon, Badge } from "./ui.jsx";
 import * as XLSX from "xlsx";
 import SumbaBaratMap from "./SumbaBaratMap.jsx";
+import GrafikDataset from "./GrafikDataset.jsx";
 import {
   ResponsiveContainer,
   BarChart,
@@ -512,38 +513,6 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
 
           {/* Action Tools & User Profile / Login */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            {/* Tombol Sinkron DB */}
-            <button
-              onClick={muatSemuaDataPortal}
-              title="Segarkan data langsung dari database"
-              style={{
-                padding: "7px 12px",
-                background: isDark ? "rgba(255,255,255,0.06)" : "#FFFFFF",
-                color: T.textSecondary,
-                border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid #E2E8F0",
-                borderRadius: 8,
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-                transition: "all 0.15s ease",
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.borderColor = "#2563EB";
-                e.currentTarget.style.color = "#2563EB";
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.borderColor = isDark ? "rgba(255,255,255,0.1)" : "#E2E8F0";
-                e.currentTarget.style.color = T.textSecondary;
-              }}
-            >
-              <Icon name="refresh" size={13} className={memuatPortal ? "spin" : ""} />
-              <span className="hide-mobile">Sinkron DB</span>
-            </button>
-
             {/* Jika User Login (Admin/Operator) - Tampilkan Sapaan & Tombol Panel Admin */}
             {user ? (
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -745,7 +714,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
                       fontSize: 14,
                     }}
                   >
-                    ✕
+                    <Icon name="x" size={13} />
                   </button>
                 )}
                 <button
@@ -960,6 +929,23 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
                       </span>
                       {d.satuan && (
                         <span style={{ fontSize: 11, color: T.textMuted }}>• Satuan: {d.satuan}</span>
+                      )}
+                      {d.polaritas === "negatif" && (
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: "1px 6px",
+                          borderRadius: 4,
+                          background: "#FEF2F2",
+                          color: "#DC2626",
+                          border: "1px solid #FECACA",
+                          marginLeft: "auto",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 3,
+                        }}>
+                          <Icon name="trendingDown" size={10} /> Minimasi
+                        </span>
                       )}
                     </div>
                     <div style={{ fontWeight: 700, fontSize: 15, color: T.text, marginBottom: 8, lineHeight: 1.35 }}>
@@ -1303,6 +1289,23 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
                       {d.nama_topik && (
                         <span style={{ fontSize: 11, color: T.textMuted }}>{d.nama_topik}</span>
                       )}
+                      {d.polaritas === "negatif" && (
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: "1px 6px",
+                          borderRadius: 4,
+                          background: "#FEF2F2",
+                          color: "#DC2626",
+                          border: "1px solid #FECACA",
+                          marginLeft: "auto",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 3,
+                        }}>
+                          <Icon name="trendingDown" size={10} /> Minimasi
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontWeight: 700, fontSize: 15, color: T.text, marginBottom: 8, lineHeight: 1.35 }}>
                       {d.nama}
@@ -1405,6 +1408,43 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
                   {datasetDetail.nama_topik}
                 </span>
               )}
+              {datasetDetail.polaritas === "negatif" ? (
+                <span
+                  style={{
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    padding: "3px 10px",
+                    borderRadius: 6,
+                    background: "#FEF2F2",
+                    color: "#DC2626",
+                    border: "1px solid #FECACA",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                  }}
+                  title="Indikator Minimasi: Nilai yang semakin kecil / menurun menandakan capaian positif"
+                >
+                  <Icon name="trendingDown" size={13} /> Target Minimasi (Semakin kecil semakin baik)
+                </span>
+              ) : (
+                <span
+                  style={{
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    padding: "3px 10px",
+                    borderRadius: 6,
+                    background: "#ECFDF5",
+                    color: "#059669",
+                    border: "1px solid #A7F3D0",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                  }}
+                  title="Indikator Maksimasi: Nilai yang semakin tinggi menandakan capaian positif"
+                >
+                  <Icon name="trendingUp" size={13} /> Target Maksimasi (Semakin besar semakin baik)
+                </span>
+              )}
             </div>
 
             <h1 style={{ fontSize: 24, fontWeight: 800, color: T.text, margin: "0 0 10px", lineHeight: 1.3 }}>
@@ -1426,10 +1466,16 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
                 paddingTop: 16,
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 12.5, color: T.textMuted }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 12.5, color: T.textMuted, flexWrap: "wrap" }}>
                 <span>Frekuensi: <b>{datasetDetail.frekuensi || "Tahunan"}</b></span>
                 <span>Satuan: <b>{datasetDetail.satuan || "—"}</b></span>
                 <span>Jumlah Baris: <b>{datasetDetail.rows?.length ?? 0}</b></span>
+                <span>
+                  Arah Capaian:{" "}
+                  <b style={{ color: datasetDetail.polaritas === "negatif" ? "#DC2626" : "#059669" }}>
+                    {datasetDetail.polaritas === "negatif" ? "Minimasi (Makin kecil makin bagus)" : "Maksimasi (Makin besar makin bagus)"}
+                  </b>
+                </span>
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

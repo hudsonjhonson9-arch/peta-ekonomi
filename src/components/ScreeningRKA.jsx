@@ -1774,7 +1774,7 @@ function FormBaris({ T, tahun, sub, form, setForm, onSimpan, onBatal, sibuk,
           </b>
         </span>
         <span style={{ fontSize: 11, color: form.standar_harga_id != null ? T.primary : T.textMuted }}>
-          {form.standar_harga_id != null ? "✓ cocok standar harga" : "tanpa standar harga"}
+          {form.standar_harga_id != null ? "Cocok standar harga" : "Tanpa standar harga"}
         </span>
         {banding && (
           <span style={{ fontSize: 11, fontWeight: 700, color: "#DC2626" }}>
