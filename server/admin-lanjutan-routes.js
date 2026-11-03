@@ -4,7 +4,7 @@ tambahAturan([
   aturan('POST',   ADMIN,    '/api/spm/capaian/import'),
   aturan('PUT',    ADMIN,    '/api/spm/capaian/[^/]+'),
   aturan('PUT',    ADMIN,    '/api/spm/dokumen/[^/]+'),
-  aturan('GET',    REVIEW,   '/api/dashboard/walidata'),
+  aturan('GET',    LOGIN,    '/api/dashboard/walidata'),
   aturan('GET',    BANKDATA, '/api/dashboard/produsen'),
   aturan('POST',   PUBLIK,   '/api/portal/visit'),
   aturan('GET',    ADMIN,    '/api/monitoring/page-visits'),
