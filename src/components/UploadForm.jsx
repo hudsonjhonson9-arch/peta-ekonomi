@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useContext } from "react";
-import { Icon, Modal } from "./ui.jsx";
+import { Icon, Modal, Select, DatePicker, Button } from "./ui.jsx";
 import useResponsive from "../useResponsive.js";
 import { ThemeContext } from "../App.jsx";
 
@@ -210,17 +210,16 @@ export default function UploadForm({
               <label style={labelStyle}>
                 Jenis Dokumen <span style={requiredMark}>*</span>
               </label>
-              <select
+              <Select
+                fullWidth
+                size="lg"
                 value={form.type}
-                onChange={e => set("type", e.target.value)}
-                onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = `0 0 0 3px ${T.primaryRing}`; }}
-                onBlur={e => { e.target.style.borderColor = errors.type ? T.danger : T.border; e.target.style.boxShadow = "none"; }}
-                style={{ ...inpStyle(errors.type), cursor: "pointer" }}
+                onChange={v => set("type", v)}
+                placeholder="— Pilih Jenis —"
+                error={!!errors.type}
                 disabled={uploading}
-              >
-                <option value="">— Pilih Jenis —</option>
-                {categories.map(c => <option key={c.id} value={c.nama}>{c.nama}</option>)}
-              </select>
+                options={[{ value: "", label: "— Pilih Jenis —" }, ...categories.map(c => ({ value: c.nama, label: c.nama }))]}
+              />
               {errors.type && <div style={{ fontSize: 12, color: T.danger, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
                 <Icon name="x" size={12} /> {errors.type}
               </div>}
@@ -231,17 +230,16 @@ export default function UploadForm({
               <label style={labelStyle}>
                 Sektor <span style={requiredMark}>*</span>
               </label>
-              <select
+              <Select
+                fullWidth
+                size="lg"
                 value={form.sector}
-                onChange={e => set("sector", e.target.value)}
-                onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = `0 0 0 3px ${T.primaryRing}`; }}
-                onBlur={e => { e.target.style.borderColor = errors.sector ? T.danger : T.border; e.target.style.boxShadow = "none"; }}
-                style={{ ...inpStyle(errors.sector), cursor: "pointer" }}
+                onChange={v => set("sector", v)}
+                placeholder="— Pilih Sektor —"
+                error={!!errors.sector}
                 disabled={uploading}
-              >
-                <option value="">— Pilih Sektor —</option>
-                {sectors.map(s => <option key={s.id} value={s.nama}>{s.nama}</option>)}
-              </select>
+                options={[{ value: "", label: "— Pilih Sektor —" }, ...sectors.map(s => ({ value: s.nama, label: s.nama }))]}
+              />
               {errors.sector && <div style={{ fontSize: 12, color: T.danger, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
                 <Icon name="x" size={12} /> {errors.sector}
               </div>}
@@ -250,33 +248,32 @@ export default function UploadForm({
             {/* Bidang */}
             <div>
               <label style={labelStyle}>Bidang</label>
-              <select
+              <Select
+                fullWidth
+                size="lg"
                 value={form.bidang}
-                onChange={e => set("bidang", e.target.value)}
-                onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = `0 0 0 3px ${T.primaryRing}`; }}
-                onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
-                style={{ ...inpStyle(), cursor: "pointer" }}
+                onChange={v => set("bidang", v)}
+                placeholder="— Pilih Bidang —"
                 disabled={uploading}
-              >
-                <option value="">— Pilih Bidang —</option>
-                <option value="Umum">Umum</option>
-                {bidangs.map(b => <option key={b.id} value={b.nama}>{b.nama}</option>)}
-              </select>
+                options={[
+                  { value: "", label: "— Pilih Bidang —" },
+                  { value: "Umum", label: "Umum" },
+                  ...bidangs.map(b => ({ value: b.nama, label: b.nama })),
+                ]}
+              />
             </div>
 
             {/* Tahun */}
             <div>
               <label style={labelStyle}>Tahun Dokumen</label>
-              <select
+              <Select
+                fullWidth
+                size="lg"
                 value={form.year}
-                onChange={e => set("year", e.target.value)}
-                onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = `0 0 0 3px ${T.primaryRing}`; }}
-                onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
-                style={{ ...inpStyle(), cursor: "pointer" }}
+                onChange={v => set("year", v)}
                 disabled={uploading}
-              >
-                {["2027", "2026", "2025", "2024", "2023", "2022", "2021", "2020", "2019"].map(y => <option key={y}>{y}</option>)}
-              </select>
+                options={["2027", "2026", "2025", "2024", "2023", "2022", "2021", "2020", "2019"].map(y => ({ value: y, label: y }))}
+              />
             </div>
 
             {/* Tags */}
@@ -311,13 +308,10 @@ export default function UploadForm({
             {/* Tanggal Dokumen */}
             <div style={{ gridColumn: isMobile ? "1 / -1" : "auto" }}>
               <label style={labelStyle}>Tanggal Dokumen</label>
-              <input
-                type="date"
+              <DatePicker
                 value={form.tanggal_dokumen}
-                onChange={e => set("tanggal_dokumen", e.target.value)}
-                onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = `0 0 0 3px ${T.primaryRing}`; }}
-                onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
-                style={inpStyle()}
+                onChange={v => set("tanggal_dokumen", v)}
+                placeholder="Pilih tanggal dokumen..."
                 disabled={uploading}
               />
             </div>
@@ -436,13 +430,13 @@ export default function UploadForm({
                             <span>{f.type || "unknown"}</span>
                           </div>
                         </div>
-                        <button
-                          type="button"
+                        <Button
+                          size="xs"
+                          variant="dangerSoft"
                           onClick={e => { e.stopPropagation(); setFiles(prev => prev.filter((_, i) => i !== idx)); }}
-                          style={{ padding: "6px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, cursor: "pointer", fontSize: 12, color: T.danger }}
                         >
                           Hapus
-                        </button>
+                        </Button>
                       </div>
                     ))}
                     {!satuFile && (
@@ -458,20 +452,16 @@ export default function UploadForm({
                 ) : (
                   <>
                     <Icon name="upload" size={30} style={{ color: dragOver ? T.primary : T.textMuted, marginBottom: 12 }} />
-                    <button
-                      type="button"
-                      onClick={e => { e.stopPropagation(); fileRef.current.click(); }}
-                      style={{
-                        background: T.primary, color: "#fff", border: "none", borderRadius: T.radius,
-                        padding: "11px 26px", fontSize: 14, fontWeight: 600, cursor: "pointer",
-                        fontFamily: T.font, display: "flex", alignItems: "center", gap: 8, margin: "0 auto",
-                        boxShadow: "0 1px 3px rgba(37,99,235,0.3)",
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = T.primaryHover; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = T.primary; }}
-                    >
-                      <Icon name="upload" size={16} /> Pilih File
-                    </button>
+                    <div style={{ display: "flex", justifyContent: "center" }}>
+                      <Button
+                        size="lg"
+                        variant="primary"
+                        icon="upload"
+                        onClick={e => { e.stopPropagation(); fileRef.current.click(); }}
+                      >
+                        Pilih File
+                      </Button>
+                    </div>
                     <div style={{ fontSize: 13, color: dragOver ? T.primary : T.textSecondary, marginTop: 12, fontWeight: 500 }}>
                       {dragOver ? "Lepaskan file di sini" : "atau seret file ke kotak ini"}
                     </div>
@@ -531,51 +521,24 @@ export default function UploadForm({
 
         {/* ── Actions ── */}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
-          <button
+          <Button
+            variant="outline"
+            size="lg"
             onClick={resetForm}
             disabled={uploading}
-            style={{
-              padding: "11px 20px",
-              background: T.card,
-              color: T.textSecondary,
-              border: `1.5px solid ${T.border}`,
-              borderRadius: T.radius,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: uploading ? "not-allowed" : "pointer",
-              fontFamily: T.font,
-              transition: "all 0.15s",
-            }}
-            onMouseEnter={e => { if (!uploading) { e.currentTarget.style.borderColor = T.borderHover; e.currentTarget.style.background = T.bg; }}}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.background = T.card; }}
           >
             Reset
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
+            size="lg"
+            icon="upload"
+            loading={uploading}
             onClick={handle}
             disabled={uploading}
-            style={{
-              padding: "11px 24px",
-              background: uploading ? T.textMuted : T.primary,
-              color: "#fff",
-              border: "none",
-              borderRadius: T.radius,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: uploading ? "not-allowed" : "pointer",
-              fontFamily: T.font,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              transition: "all 0.15s",
-              boxShadow: uploading ? "none" : "0 1px 3px rgba(37,99,235,0.3)",
-            }}
-            onMouseEnter={e => { if (!uploading) { e.currentTarget.style.background = T.primaryHover; e.currentTarget.style.boxShadow = "0 2px 6px rgba(37,99,235,0.4)"; }}}
-            onMouseLeave={e => { if (!uploading) { e.currentTarget.style.background = T.primary; e.currentTarget.style.boxShadow = "0 1px 3px rgba(37,99,235,0.3)"; }}}
           >
-            <Icon name="upload" size={16} />
             {uploading ? "Mengunggah " + progress + "%..." : labelKirim}
-          </button>
+          </Button>
         </div>
     </>
   );

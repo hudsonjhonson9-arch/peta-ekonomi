@@ -17,9 +17,10 @@ const LEVEL_CONF = {
   sektoral: { icon: "chart",    label: "Data Sektoral",  parentKey: "sektoral_id", parentLabel: "Data Sektoral", valA: { k: "data", label: "Data" }, valB: null }
 };
 
-export default function BankData({ showToast }) {
+export default function BankData({ showToast, user }) {
   const { T } = useContext(ThemeContext);
   const { isMobile } = useResponsive();
+  const isOperator = user?.role === "Operator Bank Data";
   const queryClient = useQueryClient();
   const { data: tree = [], isLoading } = useQuery({
     queryKey: ['bankdata'],
@@ -33,12 +34,50 @@ export default function BankData({ showToast }) {
     refetchInterval: POLLING,
   });
 
-  const [expanded, setExpanded] = useState({});
-  const [activeBidang, setActiveBidang] = useState(null);
+  const [expanded, setExpandedState] = useState(() => {
+    try {
+      const s = sessionStorage.getItem("bankdata_expanded");
+      return s ? JSON.parse(s) : {};
+    } catch {
+      return {};
+    }
+  });
+  const setExpanded = (updater) => {
+    setExpandedState(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      try { sessionStorage.setItem("bankdata_expanded", JSON.stringify(next)); } catch (_) {}
+      return next;
+    });
+  };
+
+  const [activeBidang, setActiveBidangState] = useState(() => {
+    try {
+      const s = sessionStorage.getItem("bankdata_active_bidang");
+      return s ? JSON.parse(s) : null;
+    } catch {
+      return null;
+    }
+  });
+  const setActiveBidang = (id) => {
+    setActiveBidangState(id);
+    try {
+      if (id == null) sessionStorage.removeItem("bankdata_active_bidang");
+      else sessionStorage.setItem("bankdata_active_bidang", JSON.stringify(id));
+    } catch (_) {}
+  };
   const [newTahun, setNewTahun] = useState("");
   const [form, setForm] = useState(null); // { level, parentId, type, editId, values }
   const [ensureDone, setEnsureDone] = useState({}); // opd_id -> true setelah sektoral default dipastikan
   const [q, setQ] = useState("");
+
+  useEffect(() => {
+    if (isOperator && tree.length > 0) {
+      const b = tree[0];
+      if (!activeBidang) setActiveBidang(b.id);
+      const o = b.opds?.[0];
+      if (o) setExpanded(prev => (prev[`o${o.id}`] ? prev : { ...prev, [`o${o.id}`]: true }));
+    }
+  }, [isOperator, tree, activeBidang]);
 
   const reload = () => {
     queryClient.invalidateQueries({ queryKey: ['bankdata'] });
@@ -52,18 +91,37 @@ export default function BankData({ showToast }) {
   const addTahun = async () => {
     if (!newTahun.trim()) return showToast("Tahun wajib diisi");
     const res = await fetch('/api/bankdata/tahun', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tahun: Number(newTahun) })
     });
-    if (!res.ok) return showToast((await res.json()).error);
+    if (!res.ok) return showToast((await res.json().catch(() => ({}))).error || "Gagal menambah tahun");
     setNewTahun(""); reload(); showToast("Tahun ditambahkan");
   };
 
   const delTahun = async (t) => {
-    if (!confirm(`Hapus tahun ${t.tahun} dari daftar?`)) return;
-    const res = await fetch(`/api/bankdata/tahun/${t.id}`, { method: 'DELETE' });
-    if (!res.ok) return showToast((await res.json()).error);
-    reload(); showToast("Tahun dihapus");
+    const targetId = t.id ?? t.tahun;
+    // Optimistic update agar langsung hilang dari layar saat diklik
+    queryClient.setQueryData(['bankdata-tahun'], prev =>
+      Array.isArray(prev) ? prev.filter(x => x.id !== t.id && x.tahun !== t.tahun) : []
+    );
+    try {
+      const res = await fetch(`/api/bankdata/tahun/${targetId}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        reload();
+        return showToast(err.error || "Gagal menghapus tahun");
+      }
+      reload();
+      showToast(`Tahun ${t.tahun} dihapus`);
+    } catch {
+      reload();
+      showToast("Gagal menghapus tahun");
+    }
   };
 
   const openForm = (level, parentId, editId = null, values = {}) => setForm({ level, parentId, editId, values });
@@ -139,24 +197,38 @@ export default function BankData({ showToast }) {
           <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>Daftar Tahun</div>
           <div style={{ fontSize: 11, color: T.textMuted }}>dipakai semua data target/capaian & triwulan dan data sektoral</div>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: isOperator ? 0 : 10 }}>
           {tahunList.map(t => (
-            <span key={t.id} style={{ display: "flex", alignItems: "center", gap: 6, background: T.primaryLight, color: T.primary, padding: "5px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+            <span key={t.id ?? t.tahun} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: T.primaryLight, color: T.primary, padding: "4px 6px 4px 11px", borderRadius: 99, fontSize: 12, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
               {t.tahun}
-              <button aria-label={`Hapus tahun ${t.tahun}`} onClick={() => delTahun(t)} style={{ background: "none", border: "none", cursor: "pointer", color: T.danger, display: "flex", padding: 0 }}>
-                <Icon name="x" size={12} />
-              </button>
+              {!isOperator && (
+                <button
+                  type="button"
+                  title={`Hapus tahun ${t.tahun}`}
+                  aria-label={`Hapus tahun ${t.tahun}`}
+                  onClick={e => { e.stopPropagation(); delTahun(t); }}
+                  style={{
+                    background: "rgba(220,38,38,0.12)", border: "none", cursor: "pointer",
+                    color: T.danger, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    width: 18, height: 18, borderRadius: 99, padding: 0,
+                  }}
+                >
+                  <Icon name="x" size={11} />
+                </button>
+              )}
             </span>
           ))}
-          {tahunList.length === 0 && <span style={{ fontSize: 12, color: T.textMuted }}>Belum ada tahun. Tambahkan di bawah.</span>}
+          {tahunList.length === 0 && <span style={{ fontSize: 12, color: T.textMuted }}>Belum ada tahun terdaftar.</span>}
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input value={newTahun} onChange={e => setNewTahun(e.target.value)} type="number" placeholder="Contoh: 2026"
-            style={{ width: 130, padding: "8px 11px", border: `1px solid ${T.inputBorder}`, borderRadius: 8, fontSize: 13, outline: "none", background: T.inputBg, color: T.text }} />
-          <button onClick={addTahun} style={{ padding: "8px 14px", background: T.primary, color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-            + Tambah Tahun
-          </button>
-        </div>
+        {!isOperator && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input value={newTahun} onChange={e => setNewTahun(e.target.value)} type="number" placeholder="Contoh: 2026"
+              style={{ width: 130, padding: "8px 11px", border: `1px solid ${T.inputBorder}`, borderRadius: 8, fontSize: 13, outline: "none", background: T.inputBg, color: T.text }} />
+            <button onClick={addTahun} style={{ padding: "8px 14px", background: T.primary, color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+              + Tambah Tahun
+            </button>
+          </div>
+        )}
       </div>
 
       {q.trim() ? (
@@ -167,6 +239,7 @@ export default function BankData({ showToast }) {
         <BidangDetail
           bidang={tree.find(b => String(b.id) === String(activeBidang))}
           onBack={() => setActiveBidang(null)}
+          isOperator={isOperator}
           form={form} setForm={setForm} expanded={expanded} toggle={toggle}
           ikusDesc={ikusDesc} openForm={openForm} cancelForm={cancelForm} submitIndikator={submitIndikator}
           reload={reload} setEnsureDone={setEnsureDone} ensureDone={ensureDone}
@@ -224,12 +297,16 @@ function EntityHead({ level, node, expandedKey, expanded, onToggle, extraCount, 
         {extraCount && <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 600, color: T.primary, background: T.primaryLight, borderRadius: 99, padding: "2px 8px", fontVariantNumeric: "tabular-nums" }}>{extraCount}</span>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
-        <button aria-label={`Edit ${node.nama}`} onClick={e => { e.stopPropagation(); onEdit(); }} style={{ ...ICON_BTN, color: T.textMuted }}>
-          <Icon name="edit" size={13} />
-        </button>
-        <button aria-label={`Hapus ${node.nama}`} onClick={e => { e.stopPropagation(); onDel(); }} style={{ ...ICON_BTN, color: T.danger }}>
-          <Icon name="trash" size={13} />
-        </button>
+        {onEdit && (
+          <button aria-label={`Edit ${node.nama}`} onClick={e => { e.stopPropagation(); onEdit(); }} style={{ ...ICON_BTN, color: T.textMuted }}>
+            <Icon name="edit" size={13} />
+          </button>
+        )}
+        {onDel && (
+          <button aria-label={`Hapus ${node.nama}`} onClick={e => { e.stopPropagation(); onDel(); }} style={{ ...ICON_BTN, color: T.danger }}>
+            <Icon name="trash" size={13} />
+          </button>
+        )}
         <Icon name="chevronRight" size={13} style={{ color: T.textMuted, transform: expanded ? "rotate(90deg)" : "", transition: "transform .2s" }} />
       </div>
     </div>
@@ -557,7 +634,7 @@ function BidangList({ tree, onSelect, T }) {
 /* ── Detail satu bidang (isi OPD + IKU/IKK + Data Sektoral flat) ───────── */
 function BidangDetail(props) {
   const {
-    bidang, onBack, form, setForm, expanded, toggle, ikusDesc,
+    bidang, onBack, isOperator, form, setForm, expanded, toggle, ikusDesc,
     openForm, cancelForm, submitIndikator, reload, setEnsureDone, ensureDone,
     saveNilai, saveTriwulan, delEntity, delIndikator, openFormForEntity,
     tahunList, showToast, T,
@@ -566,42 +643,48 @@ function BidangDetail(props) {
   if (!bidang) {
     return (
       <div style={{ background: T.card, borderRadius: 12, padding: 24, color: T.textMuted, fontSize: 13, border: `1px solid ${T.border}` }}>
-        Bidang tidak ditemukan. <button onClick={onBack} style={{ color: T.primary, background: "none", border: "none", cursor: "pointer" }}>Kembali</button>
+        Bidang tidak ditemukan. {!isOperator && <button onClick={onBack} style={{ color: T.primary, background: "none", border: "none", cursor: "pointer" }}>Kembali</button>}
       </div>
     );
   }
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: T.surfaceHover, border: `1px solid ${T.border}`, color: T.textSecondary, borderRadius: 8, padding: "7px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-          <Icon name="chevronRight" size={13} style={{ transform: "rotate(180deg)" }} /> Kembali ke Bidang
-        </button>
-      </div>
+      {!isOperator && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+          <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: T.surfaceHover, border: `1px solid ${T.border}`, color: T.textSecondary, borderRadius: 8, padding: "7px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+            <Icon name="chevronRight" size={13} style={{ transform: "rotate(180deg)" }} /> Kembali ke Bidang
+          </button>
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <Icon name="building" size={18} style={{ color: T.primary }} />
         <div>
           <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{bidang.nama}</div>
-          <div style={{ fontSize: 12, color: T.textSecondary }}>{bidang.opds.length} OPD pada bidang koordinasi ini</div>
+          <div style={{ fontSize: 12, color: T.textSecondary }}>
+            {isOperator ? `OPD Anda: ${bidang.opds[0]?.nama || "—"}` : `${bidang.opds.length} OPD pada bidang koordinasi ini`}
+          </div>
         </div>
       </div>
 
-      <InlineEntityAdd label="Tambah OPD" show={form && form.level === "opd" && form.parentId === bidang.id && !form.editId}
-        onOpen={() => openFormForEntity("opd", bidang.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
-        title="OPD baru" fields={[{ k: "nama", label: "Nama OPD" }]} submit={async () => {
-          const body = { bidang_id: bidang.id, nama: (form.values.nama || "").trim() };
-          if (!body.nama) return showToast("Nama OPD wajib diisi");
-          const res = await fetch('/api/bankdata/opd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-          if (!res.ok) return showToast((await res.json()).error);
-          setForm(null); reload(); showToast("OPD ditambahkan");
-        }} />
+      {!isOperator && (
+        <InlineEntityAdd label="Tambah OPD" show={form && form.level === "opd" && form.parentId === bidang.id && !form.editId}
+          onOpen={() => openFormForEntity("opd", bidang.id)} onCancel={cancelForm} T={T} form={form} setVal={(k, v) => setForm(p => p ? { ...p, values: { ...p.values, [k]: v } } : p)}
+          title="OPD baru" fields={[{ k: "nama", label: "Nama OPD" }]} submit={async () => {
+            const body = { bidang_id: bidang.id, nama: (form.values.nama || "").trim() };
+            if (!body.nama) return showToast("Nama OPD wajib diisi");
+            const res = await fetch('/api/bankdata/opd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            if (!res.ok) return showToast((await res.json()).error);
+            setForm(null); reload(); showToast("OPD ditambahkan");
+          }} />
+      )}
 
       {bidang.opds.map(o => (
         <div key={o.id} style={{ marginBottom: 8 }}>
           <EntityHead level="opd" node={o} expandedKey={`o${o.id}`} expanded={expanded[`o${o.id}`]} onToggle={() => toggle(`o${o.id}`)}
             extraCount={`${o.ikus.length} IKU · ${o.sektorals.length} DS`}
-            onEdit={() => openFormForEntity("opd", bidang.id, o.id, { nama: o.nama })}
-            onDel={() => delEntity("opd", o.id, o.nama, "OPD")} T={T} />
+            onEdit={isOperator ? null : () => openFormForEntity("opd", bidang.id, o.id, { nama: o.nama })}
+            onDel={isOperator ? null : () => delEntity("opd", o.id, o.nama, "OPD")} T={T} />
 
           {expanded[`o${o.id}`] && (
             <OpdContent

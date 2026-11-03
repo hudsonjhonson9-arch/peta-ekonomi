@@ -1,7 +1,7 @@
 import { useState, useContext, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
-import { Icon } from "./ui.jsx";
+import { Icon, Select } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
 import { api, useStandarHarga, usePksTahun } from "../hooks.js";
 import { btn } from "./PksAdmin.jsx";
@@ -118,7 +118,9 @@ export default function SbuSshAdmin({ showToast }) {
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <select
+            <Select size="sm" minWidth={90} label="Jenis standar harga" value={jenis} onChange={val => { setJenis(val); setPreview(null); setQ(""); setQD(""); }} options={[{ value: "SSH", label: "SSH" }, { value: "SBU", label: "SBU" }]} />
+            <Select size="sm" minWidth={145} label="Pilih tahun" value={tahun ?? ""} placeholder="— pilih tahun —" onChange={val => setTahun(val ? parseInt(val, 10) : null)} options={[{ value: "", label: "— pilih tahun —" }, ...tahunList.map(y => ({ value: y, label: String(y) }))]} />
+            {false && <select
               value={jenis}
               onChange={e => {
                 setJenis(e.target.value);
@@ -132,8 +134,8 @@ export default function SbuSshAdmin({ showToast }) {
               }}>
               <option value="SSH">SSH</option>
               <option value="SBU">SBU</option>
-            </select>
-            <select
+            </select>}
+            {false && <select
               value={tahun ?? ""}
               onChange={e => setTahun(e.target.value ? parseInt(e.target.value, 10) : null)}
               aria-label="Pilih tahun"
@@ -143,7 +145,7 @@ export default function SbuSshAdmin({ showToast }) {
               }}>
               <option value="">— pilih tahun —</option>
               {tahunList.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
+            </select>}
           </div>
         </div>
       </div>

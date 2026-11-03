@@ -1,6 +1,6 @@
 import { useState, useContext, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Icon, CariPilih, Modal } from "./ui.jsx";
+import { Icon, CariPilih, Modal, Select } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
 import { api, usePksTree, usePksTahun, useStandarHarga, useKodeRekening, useDraftRincian, usePerubahan, useRencanaTotal, useRincianTahun } from "../hooks.js";
 import { canManageOutput } from "../data.js";
@@ -337,7 +337,8 @@ export default function ScreeningRKA({ user, showToast }) {
               <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary }}>
                 Tahun
               </span>
-              <select value={tahun ?? ""} aria-label="Tahun anggaran"
+              <Select size="sm" minWidth={95} label="Tahun anggaran" value={tahun ?? ""} onChange={val => setTahun(parseInt(val, 10))} options={[...new Set([tahun, ...tahunList].filter(Boolean))].sort((a, b) => b - a).map(y => ({ value: y, label: String(y) }))} />
+              {false && <select value={tahun ?? ""} aria-label="Tahun anggaran"
                 onChange={e => setTahun(parseInt(e.target.value, 10))}
                 style={{
                   padding: "6px 9px", border: `1px solid ${T.inputBorder}`, borderRadius: 8,
@@ -346,7 +347,7 @@ export default function ScreeningRKA({ user, showToast }) {
                 {[...new Set([tahun, ...tahunList].filter(Boolean))].sort((a, b) => b - a).map(y =>
                   <option key={y} value={y}>{y}</option>
                 )}
-              </select>
+              </select>}
             </label>
 
             {admin && tahun != null && (

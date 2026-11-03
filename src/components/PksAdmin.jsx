@@ -1,6 +1,6 @@
 import { useState, useContext, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Icon, Modal } from "./ui.jsx";
+import { Icon, Modal, Select } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
 import { api, usePksTree, usePksTahun } from "../hooks.js";
 
@@ -375,14 +375,15 @@ export function FormPois({ form, tahun, tree, sibuk, setSibuk, onTutup, onSelesa
         {cfg.parent && !form.parentId && (
           <label style={{ ...labelWrap(T), marginTop: 10, display: "block" }}>
             <span style={labelStyle(T)}>{LEVELS[cfg.parent].label} induk *</span>
-            <select value={parentId} onChange={e => setParentId(e.target.value)} style={inputStyle(T)}>
+            <Select fullWidth size="sm" value={parentId} placeholder="— pilih —" onChange={v => setParentId(String(v))} options={[{ value: "", label: "— pilih —" }, ...opsiParent]} />
+            {false && <select value={parentId} onChange={e => setParentId(e.target.value)} style={inputStyle(T)}>
               <option value="">— pilih —</option>
               {opsiParent.map(g => (
                 <optgroup key={g.group} label={g.group}>
                   {g.options.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
                 </optgroup>
               ))}
-            </select>
+            </select>}
             {opsiParent.length === 0 && (
               <span style={{ fontSize: 10, color: "#DC2626", marginTop: 3 }}>
                 Belum ada {LEVELS[cfg.parent].label}. Tambah dulu lewat tombol di atas.

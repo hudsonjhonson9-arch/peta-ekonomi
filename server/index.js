@@ -15,12 +15,17 @@ import { imporStandarHargaSipd } from './impor-standar-harga-sipd.js';
 import { validasiItem, validasiPatch, jumlahItem } from './draft-rincian.js';
 import { ajukanDari, validasiStatus, cekSetujui } from './screening.js';
 import {
-  NAMA_COOKIE, MASA_JAM, MASA_JAM_INGAT, R_ADMIN, R_REVIEWER, R_STAF,
+  NAMA_COOKIE, MASA_JAM, MASA_JAM_INGAT, R_ADMIN, R_REVIEWER, R_STAF, R_BANKDATA,
   normalisasiRole, rahasia, buatToken, verifikasiTokenDetail,
   periksaKonfigurasiSession, periksaPemisahanSecret,
   bacaCookie, pasangCookie, lepasCookie, PANJANG_MINIMUM,
 } from './session.js';
-import { kebutuhan, PUBLIK, LOGIN, REVIEW, ADMIN } from './kebijakan.js';
+import { kebutuhan, PUBLIK, LOGIN, BANKDATA, REVIEW, ADMIN, jalurOperatorDiizinkan } from './kebijakan.js';
+import {
+  opdTerbatas, opdMilik, bolehEditStatus, bolehVerifikasi,
+  validasiMetadataDataset, validasiDaftarField, validasiSatuBaris,
+} from './bank-dataset.js';
+import { daftarkanRuteSatuData } from './satudata-routes.js';
 
 dotenv.config();
 
@@ -69,7 +74,7 @@ const izinkanLewatiUpload = req => {
 // Role dibaca ulang dari database tiap request. Kalau role ikut disimpan di dalam
 // token, admin yang dicabut haknya masih bisa memakai token lamanya sampai
 // token itu kedaluwarsa.
-const PERINGKAT = { [R_STAF]: 1, [R_REVIEWER]: 2, [R_ADMIN]: 3 };
+const PERINGKAT = { [R_STAF]: 1, [R_BANKDATA]: 1, [R_REVIEWER]: 2, [R_ADMIN]: 3 };
 
 // Status aktif diambil dari user_list."Status" (AKTIF / TUGAS / NONAKTIF),
 // bukan dari user_credentials.active — kolom itu tidak ada di skema
@@ -87,6 +92,38 @@ const siapa = req => req.pengguna
       id: req.body?.uploader_id ?? req.body?.actor_id ?? '',
       nama: req.body?.uploader ?? req.body?.actor_name ?? '',
     };
+
+// Cache sesi in-memory (TTL 60 detik) untuk menghilangkan latensi query DB
+// berulang pada setiap request API, namun langsung dibersihkan saat user/role diubah.
+const sessionCache = new Map();
+const SESSION_CACHE_TTL = 60_000;
+const bersihkanCacheSesi = () => sessionCache.clear();
+app.locals.bersihkanCacheSesi = bersihkanCacheSesi;
+
+const bangunProfilPengguna = (u) => {
+  const baseRole = normalisasiRole(u.role_base_level || u.role);
+  const displayRole = u.role_nama || normalisasiRole(u.role);
+  const opdScoped = u.role_opd_scoped != null ? Boolean(u.role_opd_scoped) : (baseRole === R_BANKDATA);
+  const allowedMenus = Array.isArray(u.role_allowed_menus) ? u.role_allowed_menus : [];
+  const permissions = Array.isArray(u.role_permissions) ? u.role_permissions : [];
+  return {
+    nip: u.nip,
+    id: u.id ?? null,
+    nama: u.username || u.nip,
+    name: u.username || u.nip,
+    unit: u.bidang || '—',
+    status: u.Status || 'Aktif',
+    role: displayRole,
+    base_level: baseRole,
+    opd_scoped: opdScoped,
+    allowed_menus: allowedMenus,
+    permissions,
+    warna_bg: u.role_warna_bg || null,
+    warna_text: u.role_warna_text || null,
+    opd_id: u.opd_id ?? null,
+    opd_nama: u.opd_nama ?? null,
+  };
+};
 
 app.use(async (req, res, next) => {
   const path = req.originalUrl.split('?')[0];
@@ -106,41 +143,57 @@ app.use(async (req, res, next) => {
 
   const { muatan, alasan } = verifikasiTokenDetail(bacaCookie(req), secret);
   if (!muatan) {
-    // Log alasannya. Tanpa ini semua penyebab 401 kelihatan sama dari sisi
-    // klien, jadi "Sesi berakhir" bisa berarti cookie tidak terkirim, secret
-    // berganti, atau token kedaluwarsa, dan ketiganya diperbaiki berbeda.
     console.warn(`[auth] 401 ${req.method} ${path} — ${alasan}`);
     return res.status(401).json({ error: 'Sesi berakhir, silakan login kembali' });
   }
 
   try {
-    const { rows } = await pool.query(
-      `SELECT c.nip, c.role, u.id, u.username, u.bidang, u."Status"
-         FROM user_credentials c
-         LEFT JOIN user_list u ON u."NIP" = c.nip
-        WHERE c.nip = $1`,
-      [muatan.sub]
-    );
-    const u = rows[0];
+    let u = null;
+    const cached = sessionCache.get(muatan.sub);
+    if (cached && Date.now() - cached.ts < SESSION_CACHE_TTL) {
+      u = cached.row;
+    } else {
+      const { rows } = await pool.query(
+        `SELECT c.nip, c.role, c.opd_id, o.nama AS opd_nama, u.id, u.username, u.bidang, u."Status",
+                r.nama AS role_nama, r.base_level AS role_base_level, r.opd_scoped AS role_opd_scoped,
+                r.allowed_menus AS role_allowed_menus, r.permissions AS role_permissions,
+                r.warna_bg AS role_warna_bg, r.warna_text AS role_warna_text
+           FROM user_credentials c
+           LEFT JOIN user_list u ON u."NIP" = c.nip
+           LEFT JOIN bank_data_opd o ON o.id = c.opd_id
+           LEFT JOIN sd_roles r ON LOWER(r.nama) = LOWER(c.role)
+          WHERE c.nip = $1`,
+        [muatan.sub]
+      ).catch(async () => {
+        return pool.query(
+          `SELECT c.nip, c.role, c.opd_id, o.nama AS opd_nama, u.id, u.username, u.bidang, u."Status"
+             FROM user_credentials c
+             LEFT JOIN user_list u ON u."NIP" = c.nip
+             LEFT JOIN bank_data_opd o ON o.id = c.opd_id
+            WHERE c.nip = $1`,
+          [muatan.sub]
+        );
+      });
+      u = rows[0];
+      if (u) sessionCache.set(muatan.sub, { row: u, ts: Date.now() });
+    }
+
     if (!u) return res.status(401).json({ error: 'Akun tidak ditemukan' });
     if (akunNonaktif(u.Status))
       return res.status(403).json({ error: 'Akun Anda dinonaktifkan. Hubungi administrator.' });
 
-    req.pengguna = {
-      nip: u.nip,
-      id: u.id ?? null,
-      nama: u.username || u.nip,
-      // name ikut dikembalikan karena komponen klien membaca user.name.
-      name: u.username || u.nip,
-      unit: u.bidang || '—',
-      status: u.Status || 'Aktif',
-      role: normalisasiRole(u.role),
-    };
+    req.pengguna = bangunProfilPengguna(u);
+    const baseRole = req.pengguna.base_level || normalisasiRole(req.pengguna.role);
 
-    if (level === ADMIN && req.pengguna.role !== R_ADMIN)
+    if (req.pengguna.role === R_BANKDATA && (!req.pengguna.allowed_menus?.length || (req.pengguna.allowed_menus.length === 1 && req.pengguna.allowed_menus[0] === 'bankdata')) && !jalurOperatorDiizinkan(path)) {
+      return res.status(403).json({ error: 'Akun Operator Bank Data hanya dapat mengakses modul Bank Data' });
+    }
+    if (level === ADMIN && baseRole !== R_ADMIN)
       return res.status(403).json({ error: 'Hanya admin yang boleh melakukan ini' });
-    if (level === REVIEW && PERINGKAT[req.pengguna.role] < PERINGKAT[R_REVIEWER])
+    if (level === REVIEW && (PERINGKAT[baseRole] || 1) < PERINGKAT[R_REVIEWER])
       return res.status(403).json({ error: 'Fitur ini untuk reviewer dan admin' });
+    if (level === BANKDATA && baseRole !== R_ADMIN && baseRole !== R_BANKDATA && !req.pengguna.opd_scoped)
+      return res.status(403).json({ error: 'Fitur ini khusus Admin dan Operator/Produsen Data' });
 
     next();
   } catch (e) {
@@ -158,7 +211,17 @@ if (isProd) {
 
 // ── PostgreSQL ────────────────────────────────────────────────────────────
 const { Pool } = pg;
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 20,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+});
+pool.on('error', (err) => {
+  console.error('PostgreSQL pool idle client error (ditangani agar server tetap berjalan):', err.message);
+});
 
 // ── Auto-migration: tambah kolom bidang ────────────────────────────────────
 (async () => {
@@ -286,7 +349,9 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
       );
     `);
     await pool.query(`
-      INSERT INTO bank_data_tahun (tahun) VALUES (2024), (2025)
+      INSERT INTO bank_data_tahun (tahun)
+      SELECT y FROM (VALUES (2024), (2025)) AS v(y)
+      WHERE NOT EXISTS (SELECT 1 FROM bank_data_tahun LIMIT 1)
       ON CONFLICT (tahun) DO NOTHING
     `);
     console.log('Migration: bank data v4 ready (IKU & IKK direct data)');
@@ -440,6 +505,10 @@ jalankanMigration('tahap_2', [
   // Tahap 13: unique index (tahun, jenis, id_standar_harga) — ID STANDAR HARGA
   // SIPD adalah kunci unik baris; dipakai ON CONFLICT saat upload standar harga.
   .then(() => jalankanMigration('tahap_13', ['standar_harga'], true))
+  .then(() => jalankanMigration('tahap_14', ['user_credentials'], true))
+  .then(() => jalankanMigration('tahap_15', ['bank_dataset', 'bank_dataset_field', 'bank_dataset_row', 'bank_dataset_log']))
+  .then(() => jalankanMigration('tahap_16', ['sd_urusan', 'sd_bidang_urusan', 'sd_topik', 'sd_satuan', 'sd_wilayah', 'sd_spm_urusan', 'sd_spm_layanan'], true))
+  .then(() => jalankanMigration('tahap_17', ['bank_dataset'], true))
   .then(jalankanSeed)
   // Impor bawaan standar harga SIPD (db/standar_harga_sipd_<jenis>_<tahun>.xlsx).
   // Setelah tahap_13 karena merge-nya menarget index unik tahap_13. Gagal di
@@ -473,9 +542,20 @@ app.post('/api/auth/login', async (req, res) => {
   const ingat = remember === true;
 
   try {
-    // Ambil hash dan role dari user_credentials
+    // Ambil hash, role, dan profil role dinamis dari user_credentials + sd_roles
     const credResult = await pool.query(
-      'SELECT password_hash, role FROM user_credentials WHERE nip = $1', [nip]
+      `SELECT c.password_hash, c.role, c.opd_id, o.nama AS opd_nama,
+              r.nama AS role_nama, r.base_level AS role_base_level, r.opd_scoped AS role_opd_scoped,
+              r.allowed_menus AS role_allowed_menus, r.permissions AS role_permissions,
+              r.warna_bg AS role_warna_bg, r.warna_text AS role_warna_text
+         FROM user_credentials c
+         LEFT JOIN bank_data_opd o ON o.id = c.opd_id
+         LEFT JOIN sd_roles r ON LOWER(r.nama) = LOWER(c.role)
+        WHERE c.nip = $1`, [nip]
+    ).catch(async () =>
+      pool.query(
+        'SELECT c.password_hash, c.role, c.opd_id, o.nama AS opd_nama FROM user_credentials c LEFT JOIN bank_data_opd o ON o.id = c.opd_id WHERE c.nip = $1', [nip]
+      )
     );
     if (!credResult.rows.length)
       return res.status(401).json({ error: 'NIP atau password salah' });
@@ -488,10 +568,8 @@ app.post('/api/auth/login', async (req, res) => {
     if (!match)
       return res.status(401).json({ error: 'NIP atau password salah' });
 
-    // Update last_login
-    await pool.query(
-      'UPDATE user_credentials SET last_login = NOW() WHERE nip = $1', [nip]
-    );
+    // Update last_login (non-blocking)
+    pool.query('UPDATE user_credentials SET last_login = NOW() WHERE nip = $1', [nip]).catch(() => {});
     // Ambil data user dari user_list
     const userResult = await pool.query(
       'SELECT * FROM user_list WHERE "NIP" = $1', [nip]
@@ -515,6 +593,10 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(500).json({ error: 'Session belum dikonfigurasi. Hubungi administrator.' });
     }
     pasangCookie(res, token, req, ingat);
+    bersihkanCacheSesi();
+
+    const baseRole = normalisasiRole(cred.role_base_level || cred.role);
+    const displayRole = cred.role_nama || normalisasiRole(cred.role);
 
     res.json({
       message: 'Login berhasil',
@@ -522,9 +604,17 @@ app.post('/api/auth/login', async (req, res) => {
         id:     u.id,
         name:   u.username,
         nip:    u.NIP,
-        role:   normalisasiRole(cred.role),
+        role:   displayRole,
+        base_level: baseRole,
+        opd_scoped: cred.role_opd_scoped != null ? Boolean(cred.role_opd_scoped) : (baseRole === R_BANKDATA),
+        allowed_menus: Array.isArray(cred.role_allowed_menus) ? cred.role_allowed_menus : [],
+        permissions: Array.isArray(cred.role_permissions) ? cred.role_permissions : [],
+        warna_bg: cred.role_warna_bg || null,
+        warna_text: cred.role_warna_text || null,
         unit:   u.bidang || '—',
         status: u.Status || 'Aktif',
+        opd_id: cred.opd_id ?? null,
+        opd_nama: cred.opd_nama ?? null,
       }
     });
   } catch (err) {
@@ -902,7 +992,7 @@ app.post('/api/docs/:id/content', async (req, res) => {
     for (const p of pages) {
       await pool.query(
         `INSERT INTO doc_content (doc_id, version_no, page_no, content)
-         VALUES ($1, $2, $3, $4)
+         VALUES ($1, $2, $3)
          ON CONFLICT (doc_id, version_no, page_no) DO UPDATE SET content = $4`,
         [id, version_no || 1, p.page, p.text]
       );
@@ -1360,17 +1450,22 @@ app.post('/api/logs', async (req, res) => {
 });
 
 // ── Role Mapping Helpers ──────────────────────────────────────────────────
-const mapRoleToFrontend = (dbRole) => {
+const mapRoleToFrontend = (dbRole, roleNamaFromTable) => {
+  if (roleNamaFromTable) return roleNamaFromTable;
   if (!dbRole) return 'Staf';
-  const r = dbRole.toUpperCase();
+  const r = String(dbRole).trim().toUpperCase();
   if (r === 'ADMIN') return 'Admin';
   if (r === 'KABID' || r === 'REVIEWER') return 'Reviewer';
-  return 'Staf';
+  if (r === 'BANKDATA' || r === 'OPERATOR_BANKDATA' || r === 'OPERATOR BANK DATA') return 'Operator Bank Data';
+  if (r === 'USER' || r === 'STAF') return 'Staf';
+  return String(dbRole).trim();
 };
 
-const mapRoleToDb = (feRole) => {
-  if (feRole === 'Admin') return 'ADMIN';
-  if (feRole === 'Reviewer') return 'KABID';
+const mapRoleToDb = (feRole, baseLevel) => {
+  const target = baseLevel || feRole;
+  if (target === 'Admin') return 'ADMIN';
+  if (target === 'Reviewer') return 'KABID';
+  if (target === 'Operator Bank Data' || target === 'BANKDATA') return 'BANKDATA';
   return 'USER';
 };
 
@@ -1383,20 +1478,29 @@ app.get('/api/users', async (_, res) => {
              u.bidang    AS unit,
              u."Status"  AS status,
              u."NIP"     AS nip,
-             c.role      AS cred_role,
+             c.role      AS cred_role, c.opd_id AS opd_id, o.nama AS opd_nama,
+             r.nama      AS role_nama, r.opd_scoped AS role_opd_scoped,
+             r.warna_bg  AS warna_bg, r.warna_text AS warna_text,
              TO_CHAR(c.last_login, 'DD Mon YYYY, HH24:MI') AS "lastLogin"
       FROM user_list u
       LEFT JOIN user_credentials c ON u."NIP" = c.nip
+      LEFT JOIN bank_data_opd o ON o.id = c.opd_id
+      LEFT JOIN sd_roles r ON LOWER(r.nama) = LOWER(c.role)
       ORDER BY u.no ASC
     `);
     
     const mapped = users.map(u => ({
       id: u.id,
       name: u.name,
-      role: mapRoleToFrontend(u.cred_role || u.role),
+      role: mapRoleToFrontend(u.cred_role || u.role, u.role_nama),
+      opd_scoped: Boolean(u.role_opd_scoped || u.cred_role === 'Operator Bank Data'),
+      warna_bg: u.warna_bg || null,
+      warna_text: u.warna_text || null,
       unit: u.unit || '—',
       status: u.status || 'Aktif',
       nip: u.nip,
+      opd_id: u.opd_id ?? null,
+      opd_nama: u.opd_nama ?? null,
       lastLogin: u.lastLogin || '—'
     }));
     
@@ -1408,12 +1512,19 @@ app.get('/api/users', async (_, res) => {
 });
 
 app.post('/api/users', async (req, res) => {
-  const { nip, name, role, unit, status, password } = req.body;
+  const { nip, name, role, unit, status, password, opd_id } = req.body;
   if (!nip || !name || !role || !password) {
     return res.status(400).json({ error: 'NIP, Nama, Peran, dan Password wajib diisi' });
   }
-  
   try {
+    const roleRow = await pool.query('SELECT nama, base_level, opd_scoped FROM sd_roles WHERE LOWER(nama) = LOWER($1)', [String(role).trim()]).catch(() => ({ rows: [] }));
+    const rd = roleRow.rows[0];
+    const butuhOpd = rd ? Boolean(rd.opd_scoped) : (role === 'Operator Bank Data' || role === 'Produsen Data');
+    const opdVal = (butuhOpd || opd_id) ? (opd_id ? Number(opd_id) : null) : null;
+    if (butuhOpd && !opdVal) {
+      return res.status(400).json({ error: `OPD wajib dipilih untuk akun dengan role ${role}` });
+    }
+
     const checkUser = await pool.query('SELECT 1 FROM user_list WHERE "NIP" = $1', [nip]);
     if (checkUser.rows.length) {
       return res.status(400).json({ error: 'NIP sudah digunakan' });
@@ -1421,7 +1532,8 @@ app.post('/api/users', async (req, res) => {
     
     const passwordHash = await bcrypt.hash(password, 10);
     const userId = Math.floor(1000000000 + Math.random() * 9000000000).toString();
-    const dbRole = mapRoleToDb(role);
+    const dbRole = mapRoleToDb(role, rd?.base_level);
+    const finalRoleName = rd?.nama || String(role).trim();
     
     await pool.query(`
       INSERT INTO user_list (id, username, "NIP", role, bidang, "Status", no)
@@ -1429,10 +1541,11 @@ app.post('/api/users', async (req, res) => {
     `, [userId, name, nip, dbRole, unit || '—', status || 'AKTIF']);
     
     await pool.query(`
-      INSERT INTO user_credentials (nip, password_hash, role)
-      VALUES ($1, $2, $3)
-    `, [nip, passwordHash, role]);
+      INSERT INTO user_credentials (nip, password_hash, role, opd_id)
+      VALUES ($1, $2, $3, $4)
+    `, [nip, passwordHash, finalRoleName, opdVal]);
     
+    bersihkanCacheSesi();
     res.json({ message: 'Pengguna berhasil ditambahkan' });
   } catch (err) {
     console.error('Create user error:', err);
@@ -1442,18 +1555,27 @@ app.post('/api/users', async (req, res) => {
 
 app.put('/api/users/:id', async (req, res) => {
   const { id } = req.params;
-  const { nip, name, role, unit, status, password } = req.body;
+  const { nip, name, role, unit, status, password, opd_id } = req.body;
   if (!nip || !name || !role) {
     return res.status(400).json({ error: 'NIP, Nama, dan Peran wajib diisi' });
   }
   
   try {
+    const roleRow = await pool.query('SELECT nama, base_level, opd_scoped FROM sd_roles WHERE LOWER(nama) = LOWER($1)', [String(role).trim()]).catch(() => ({ rows: [] }));
+    const rd = roleRow.rows[0];
+    const butuhOpd = rd ? Boolean(rd.opd_scoped) : (role === 'Operator Bank Data' || role === 'Produsen Data');
+    const opdVal = (butuhOpd || opd_id) ? (opd_id ? Number(opd_id) : null) : null;
+    if (butuhOpd && !opdVal) {
+      return res.status(400).json({ error: `OPD wajib dipilih untuk akun dengan role ${role}` });
+    }
+
     const oldUserResult = await pool.query('SELECT "NIP" FROM user_list WHERE id = $1', [id]);
     if (!oldUserResult.rows.length) {
       return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
     }
     const oldNip = oldUserResult.rows[0].NIP;
-    const dbRole = mapRoleToDb(role);
+    const dbRole = mapRoleToDb(role, rd?.base_level);
+    const finalRoleName = rd?.nama || String(role).trim();
     
     if (nip !== oldNip) {
       const checkUser = await pool.query('SELECT 1 FROM user_list WHERE "NIP" = $1 AND id <> $2', [nip, id]);
@@ -1475,31 +1597,32 @@ app.put('/api/users/:id', async (req, res) => {
       if (credCheck.rows.length) {
         await pool.query(`
           UPDATE user_credentials
-          SET nip = $1, password_hash = $2, role = $3, updated_at = NOW()
-          WHERE nip = $4
-        `, [nip, passwordHash, role, oldNip]);
+          SET nip = $1, password_hash = $2, role = $3, opd_id = $4, updated_at = NOW()
+          WHERE nip = $5
+        `, [nip, passwordHash, finalRoleName, opdVal, oldNip]);
       } else {
         await pool.query(`
-          INSERT INTO user_credentials (nip, password_hash, role)
-          VALUES ($1, $2, $3)
-        `, [nip, passwordHash, role]);
+          INSERT INTO user_credentials (nip, password_hash, role, opd_id)
+          VALUES ($1, $2, $3, $4)
+        `, [nip, passwordHash, finalRoleName, opdVal]);
       }
     } else {
       if (credCheck.rows.length) {
         await pool.query(`
           UPDATE user_credentials
-          SET nip = $1, role = $2, updated_at = NOW()
-          WHERE nip = $3
-        `, [nip, role, oldNip]);
+          SET nip = $1, role = $2, opd_id = $3, updated_at = NOW()
+          WHERE nip = $4
+        `, [nip, finalRoleName, opdVal, oldNip]);
       } else {
         const defaultHash = '$2b$10$vgAo0ik8CSJ2vaoaM6Lh9OXfn3Tt2Mv/edTx1ZzdmqKD6AGvnhREq';
         await pool.query(`
-          INSERT INTO user_credentials (nip, password_hash, role)
-          VALUES ($1, $2, $3)
-        `, [nip, defaultHash, role]);
+          INSERT INTO user_credentials (nip, password_hash, role, opd_id)
+          VALUES ($1, $2, $3, $4)
+        `, [nip, defaultHash, finalRoleName, opdVal]);
       }
     }
     
+    bersihkanCacheSesi();
     res.json({ message: 'Pengguna berhasil diperbarui' });
   } catch (err) {
     console.error('Update user error:', err);
@@ -1519,6 +1642,7 @@ app.delete('/api/users/:id', async (req, res) => {
     await pool.query('DELETE FROM user_credentials WHERE nip = $1', [nip]);
     await pool.query('DELETE FROM user_list WHERE id = $1', [id]);
     
+    bersihkanCacheSesi();
     res.json({ message: 'Pengguna berhasil dihapus' });
   } catch (err) {
     console.error('Delete user error:', err);
@@ -2972,18 +3096,108 @@ app.post('/api/bankdata/tahun', async (req, res) => {
 
 app.delete('/api/bankdata/tahun/:id', async (req, res) => {
   const { id } = req.params;
+  const numId = Number(id);
+  if (!Number.isFinite(numId)) return res.status(400).json({ error: 'ID atau Tahun tidak valid' });
   try {
-    await queryDB('DELETE FROM bank_data_tahun WHERE id = $1', [id]);
-    res.json({ message: 'Tahun berhasil dihapus' });
+    const rows = await queryDB(
+      'DELETE FROM bank_data_tahun WHERE id = $1 OR tahun = $1 RETURNING id, tahun',
+      [numId]
+    );
+    const deletedTahun = rows[0]?.tahun || (numId >= 1900 && numId <= 2200 ? numId : null);
+    if (deletedTahun) {
+      await Promise.all([
+        queryDB('DELETE FROM bank_data_iku_nilai WHERE tahun = $1', [deletedTahun]).catch(() => {}),
+        queryDB('DELETE FROM bank_data_iku_triwulan WHERE tahun = $1', [deletedTahun]).catch(() => {}),
+        queryDB('DELETE FROM bank_data_ikk_nilai WHERE tahun = $1', [deletedTahun]).catch(() => {}),
+        queryDB('DELETE FROM bank_data_ikk_triwulan WHERE tahun = $1', [deletedTahun]).catch(() => {}),
+        queryDB('DELETE FROM bank_data_sektoral_nilai WHERE tahun = $1', [deletedTahun]).catch(() => {}),
+        queryDB('DELETE FROM bank_data_sektoral_triwulan WHERE tahun = $1', [deletedTahun]).catch(() => {}),
+      ]);
+    }
+    res.json({ message: `Tahun ${deletedTahun || id} berhasil dihapus`, deleted: rows[0] || { id: numId } });
   } catch (err) {
     console.error('Delete tahun error:', err);
     res.status(500).json({ error: 'Gagal menghapus tahun' });
   }
 });
 
-app.get('/api/bankdata', async (_, res) => {
+function pastikanOpdBoleh(req, res, targetOpdId) {
+  if (!opdTerbatas(req.pengguna)) return true;
+  if (!req.pengguna?.opd_id) {
+    res.status(403).json({ error: 'Akun Operator belum dipetakan ke OPD' });
+    return false;
+  }
+  if (!opdMilik(req.pengguna, targetOpdId)) {
+    res.status(403).json({ error: 'Data ini bukan milik OPD Anda' });
+    return false;
+  }
+  return true;
+}
+
+async function cariOpdDariIku(ikuId) {
+  const r = await queryDB('SELECT opd_id FROM bank_data_iku WHERE id = $1', [ikuId]);
+  return r[0]?.opd_id ?? null;
+}
+
+async function cariOpdDariIkk(ikkId) {
+  const r = await queryDB(
+    'SELECT i.opd_id FROM bank_data_ikk k JOIN bank_data_iku i ON i.id = k.iku_id WHERE k.id = $1',
+    [ikkId]
+  );
+  return r[0]?.opd_id ?? null;
+}
+
+async function cariOpdDariSektoral(sektoralId) {
+  const r = await queryDB('SELECT opd_id FROM bank_data_sektoral WHERE id = $1', [sektoralId]);
+  return r[0]?.opd_id ?? null;
+}
+
+async function cariOpdDariIndikatorSektoral(indId) {
+  const r = await queryDB(
+    'SELECT s.opd_id FROM bank_data_sektoral_indikator ind JOIN bank_data_sektoral s ON s.id = ind.sektoral_id WHERE ind.id = $1',
+    [indId]
+  );
+  return r[0]?.opd_id ?? null;
+}
+
+async function cariOpdTargetLevel(level, targetId) {
+  if (level === 'iku') return cariOpdDariIku(targetId);
+  if (level === 'ikk') return cariOpdDariIkk(targetId);
+  if (level === 'sektoral') return cariOpdDariIndikatorSektoral(targetId);
+  return null;
+}
+
+async function cariOpdBarisNilai(level, rowId, isTriwulan = false) {
+  const conf = BD_CONF[level];
+  if (!conf) return null;
+  const tbl = isTriwulan ? conf.twTable : conf.nilTable;
+  if (level === 'iku') {
+    const r = await queryDB(`SELECT i.opd_id FROM ${tbl} n JOIN bank_data_iku i ON i.id = n.iku_id WHERE n.id = $1`, [rowId]);
+    return r[0]?.opd_id ?? null;
+  }
+  if (level === 'ikk') {
+    const r = await queryDB(
+      `SELECT i.opd_id FROM ${tbl} n JOIN bank_data_ikk k ON k.id = n.ikk_id JOIN bank_data_iku i ON i.id = k.iku_id WHERE n.id = $1`,
+      [rowId]
+    );
+    return r[0]?.opd_id ?? null;
+  }
+  if (level === 'sektoral') {
+    const r = await queryDB(
+      `SELECT s.opd_id FROM ${tbl} n JOIN bank_data_sektoral_indikator ind ON ind.id = n.indikator_id JOIN bank_data_sektoral s ON s.id = ind.sektoral_id WHERE n.id = $1`,
+      [rowId]
+    );
+    return r[0]?.opd_id ?? null;
+  }
+  return null;
+}
+
+app.get('/api/bankdata', async (req, res) => {
   try {
-    const [bidangs, opds, ikus, ikks, nilIkuR, twIkuR, nilIkkR, twIkkR, sektorals, indSektR, nilSektR, twSektR] = await Promise.all([
+    if (opdTerbatas(req.pengguna) && !req.pengguna?.opd_id) {
+      return res.json([]);
+    }
+    const [bidangs, opdsAll, ikus, ikks, nilIkuR, twIkuR, nilIkkR, twIkkR, sektorals, indSektR, nilSektR, twSektR] = await Promise.all([
       queryDB(`SELECT id, nama_bidang AS nama FROM bidang_list WHERE instansi_id = 'bapperida' AND id = ANY($1::int[]) ORDER BY id`, [BIDANG_BANKDATA]),
       queryDB(`SELECT id, bidang_id, nama, urutan FROM bank_data_opd ORDER BY bidang_id, urutan, id`),
       queryDB(`SELECT id, opd_id, nama, sumber_data, aspek, satuan, urutan FROM bank_data_iku ORDER BY opd_id, urutan, id`),
@@ -2997,6 +3211,10 @@ app.get('/api/bankdata', async (_, res) => {
       queryDB(`SELECT id, indikator_id, tahun, data FROM bank_data_sektoral_nilai ORDER BY indikator_id, tahun`),
       queryDB(`SELECT * FROM bank_data_sektoral_triwulan ORDER BY indikator_id, tahun`)
     ]);
+
+    const opds = opdTerbatas(req.pengguna)
+      ? opdsAll.filter(o => String(o.id) === String(req.pengguna.opd_id))
+      : opdsAll;
 
     // Map nilai: { key -> [rows] } dengan kunci kolom target (ikk_id / indikator_id)
     const nilMap = (arr, key = 'indikator_id') => { const m = new Map(); for (const r of arr) { const k = String(r[key]); (m.get(k) || m.set(k, []).get(k)).push(r); } return m; };
@@ -3050,6 +3268,7 @@ app.get('/api/bankdata', async (_, res) => {
         id: i.id, nama: i.nama,
         sumber_data: i.sumber_data ?? null,
         aspek: i.aspek ?? null,
+        satuan: i.satuan ?? null,
         nilai: nils.map(n => {
           const o = { id: n.id, tahun: n.tahun };
           if (n.target !== null && n.target !== undefined) o.target = n.target;
@@ -3077,6 +3296,7 @@ app.get('/api/bankdata', async (_, res) => {
         id: i.id, nama: i.nama,
         sumber_data: i.sumber_data ?? null,
         aspek: i.aspek ?? null,
+        satuan: i.satuan ?? null,
         ikks: [],
         nilai: nils.map(n => {
           const o = { id: n.id, tahun: n.tahun };
@@ -3096,8 +3316,9 @@ app.get('/api/bankdata', async (_, res) => {
     for (const i of ikus) { const p = opdMap.get(String(i.opd_id)); if (p) p.ikus.push(ikuMap.get(String(i.id))); }
     for (const s of sektorals) { const p = opdMap.get(String(s.opd_id)); if (p) p.sektorals.push(sektMap.get(String(s.id))); }
 
-    const tree = bidangs.map(b => ({ ...b, opds: [] }));
-    for (const o of opds) { const b = tree.find(x => String(x.id) === String(o.bidang_id)); if (b) b.opds.push(opdMap.get(String(o.id))); }
+    const treeAll = bidangs.map(b => ({ ...b, opds: [] }));
+    for (const o of opds) { const b = treeAll.find(x => String(x.id) === String(o.bidang_id)); if (b) b.opds.push(opdMap.get(String(o.id))); }
+    const tree = opdTerbatas(req.pengguna) ? treeAll.filter(b => b.opds.length > 0) : treeAll;
 
     res.json(tree);
   } catch (err) {
@@ -3107,6 +3328,32 @@ app.get('/api/bankdata', async (_, res) => {
 });
 
 // ── OPD ─────────────────────────────────────────────────────────────────
+app.get('/api/bankdata/opd', async (req, res) => {
+  try {
+    if (opdTerbatas(req.pengguna)) {
+      if (!req.pengguna?.opd_id) return res.json([]);
+      const rows = await queryDB(
+        `SELECT o.id, o.bidang_id, o.nama, o.urutan, b.nama_bidang AS bidang_nama
+           FROM bank_data_opd o
+           LEFT JOIN bidang_list b ON b.id = o.bidang_id
+          WHERE o.id = $1`,
+        [req.pengguna.opd_id]
+      );
+      return res.json(rows);
+    }
+    const rows = await queryDB(
+      `SELECT o.id, o.bidang_id, o.nama, o.urutan, b.nama_bidang AS bidang_nama
+         FROM bank_data_opd o
+         LEFT JOIN bidang_list b ON b.id = o.bidang_id
+        ORDER BY o.bidang_id, o.urutan, o.id`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Get OPD list error:', err);
+    res.status(500).json({ error: 'Gagal mengambil daftar OPD' });
+  }
+});
+
 app.post('/api/bankdata/opd', async (req, res) => {
   const { bidang_id, nama } = req.body;
   if (!bidang_id || !nama) return res.status(400).json({ error: 'Bidang dan nama wajib diisi' });
@@ -3151,6 +3398,7 @@ app.delete('/api/bankdata/opd/:id', async (req, res) => {
 app.post('/api/bankdata/iku', async (req, res) => {
   const { opd_id, nama, sumber_data, aspek } = req.body;
   if (!opd_id || !nama) return res.status(400).json({ error: 'OPD dan nama wajib diisi' });
+  if (!pastikanOpdBoleh(req, res, opd_id)) return;
   try {
     const max = await queryDB('SELECT COALESCE(MAX(urutan), 0) + 1 AS next FROM bank_data_iku WHERE opd_id = $1', [opd_id]);
     const result = await queryDB(
@@ -3169,6 +3417,10 @@ app.put('/api/bankdata/iku/:id', async (req, res) => {
   const { nama, sumber_data, aspek } = req.body;
   if (!nama) return res.status(400).json({ error: 'Nama wajib diisi' });
   try {
+    if (opdTerbatas(req.pengguna)) {
+      const opdId = await cariOpdDariIku(id);
+      if (!pastikanOpdBoleh(req, res, opdId)) return;
+    }
     await queryDB('UPDATE bank_data_iku SET nama = $1, sumber_data = $2, aspek = $3, satuan = $4 WHERE id = $5', [nama.trim(), sumber_data ?? null, aspek ?? null, (req.body.satuan ?? null), id]);
     res.json({ message: 'IKU berhasil diperbarui' });
   } catch (err) {
@@ -3180,6 +3432,10 @@ app.put('/api/bankdata/iku/:id', async (req, res) => {
 app.delete('/api/bankdata/iku/:id', async (req, res) => {
   const { id } = req.params;
   try {
+    if (opdTerbatas(req.pengguna)) {
+      const opdId = await cariOpdDariIku(id);
+      if (!pastikanOpdBoleh(req, res, opdId)) return;
+    }
     await queryDB('DELETE FROM bank_data_iku WHERE id = $1', [id]);
     res.json({ message: 'IKU berhasil dihapus' });
   } catch (err) {
@@ -3193,6 +3449,10 @@ app.post('/api/bankdata/ikk', async (req, res) => {
   const { iku_id, nama, sumber_data, aspek } = req.body;
   if (!iku_id || !nama) return res.status(400).json({ error: 'IKU dan nama wajib diisi' });
   try {
+    if (opdTerbatas(req.pengguna)) {
+      const opdId = await cariOpdDariIku(iku_id);
+      if (!pastikanOpdBoleh(req, res, opdId)) return;
+    }
     const max = await queryDB('SELECT COALESCE(MAX(urutan), 0) + 1 AS next FROM bank_data_ikk WHERE iku_id = $1', [iku_id]);
     const result = await queryDB(
       'INSERT INTO bank_data_ikk (iku_id, nama, sumber_data, aspek, satuan, urutan) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
@@ -3210,6 +3470,10 @@ app.put('/api/bankdata/ikk/:id', async (req, res) => {
   const { nama, sumber_data, aspek } = req.body;
   if (!nama) return res.status(400).json({ error: 'Nama wajib diisi' });
   try {
+    if (opdTerbatas(req.pengguna)) {
+      const opdId = await cariOpdDariIkk(id);
+      if (!pastikanOpdBoleh(req, res, opdId)) return;
+    }
     await queryDB('UPDATE bank_data_ikk SET nama = $1, sumber_data = $2, aspek = $3, satuan = $4 WHERE id = $5', [nama.trim(), sumber_data ?? null, aspek ?? null, (req.body.satuan ?? null), id]);
     res.json({ message: 'IKK berhasil diperbarui' });
   } catch (err) {
@@ -3221,6 +3485,10 @@ app.put('/api/bankdata/ikk/:id', async (req, res) => {
 app.delete('/api/bankdata/ikk/:id', async (req, res) => {
   const { id } = req.params;
   try {
+    if (opdTerbatas(req.pengguna)) {
+      const opdId = await cariOpdDariIkk(id);
+      if (!pastikanOpdBoleh(req, res, opdId)) return;
+    }
     await queryDB('DELETE FROM bank_data_ikk WHERE id = $1', [id]);
     res.json({ message: 'IKK berhasil dihapus' });
   } catch (err) {
@@ -3233,6 +3501,7 @@ app.delete('/api/bankdata/ikk/:id', async (req, res) => {
 app.post('/api/bankdata/sektoral', async (req, res) => {
   const { opd_id, nama } = req.body;
   if (!opd_id || !nama) return res.status(400).json({ error: 'OPD dan nama wajib diisi' });
+  if (!pastikanOpdBoleh(req, res, opd_id)) return;
   try {
     const max = await queryDB('SELECT COALESCE(MAX(urutan), 0) + 1 AS next FROM bank_data_sektoral WHERE opd_id = $1', [opd_id]);
     const result = await queryDB(
@@ -3251,6 +3520,10 @@ app.put('/api/bankdata/sektoral/:id', async (req, res) => {
   const { nama } = req.body;
   if (!nama) return res.status(400).json({ error: 'Nama wajib diisi' });
   try {
+    if (opdTerbatas(req.pengguna)) {
+      const opdId = await cariOpdDariSektoral(id);
+      if (!pastikanOpdBoleh(req, res, opdId)) return;
+    }
     await queryDB('UPDATE bank_data_sektoral SET nama = $1 WHERE id = $2', [nama.trim(), id]);
     res.json({ message: 'Data Sektoral berhasil diperbarui' });
   } catch (err) {
@@ -3262,6 +3535,10 @@ app.put('/api/bankdata/sektoral/:id', async (req, res) => {
 app.delete('/api/bankdata/sektoral/:id', async (req, res) => {
   const { id } = req.params;
   try {
+    if (opdTerbatas(req.pengguna)) {
+      const opdId = await cariOpdDariSektoral(id);
+      if (!pastikanOpdBoleh(req, res, opdId)) return;
+    }
     await queryDB('DELETE FROM bank_data_sektoral WHERE id = $1', [id]);
     res.json({ message: 'Data Sektoral berhasil dihapus' });
   } catch (err) {
@@ -3274,6 +3551,7 @@ app.delete('/api/bankdata/sektoral/:id', async (req, res) => {
 app.post('/api/bankdata/sektoral/ensure', async (req, res) => {
   const { opd_id } = req.body;
   if (!opd_id) return res.status(400).json({ error: 'OPD wajib diisi' });
+  if (!pastikanOpdBoleh(req, res, opd_id)) return;
   try {
     let rows = await queryDB('SELECT * FROM bank_data_sektoral WHERE opd_id = $1 ORDER BY urutan, id LIMIT 1', [opd_id]);
     if (rows.length === 0) {
@@ -3299,6 +3577,10 @@ app.post('/api/bankdata/indikator/:level', async (req, res) => {
   const parentId = req.body[conf.indParentKey];
   if (!parentId || !indikator) return res.status(400).json({ error: 'Indikator wajib diisi' });
   try {
+    if (opdTerbatas(req.pengguna)) {
+      const opdId = await cariOpdDariSektoral(parentId);
+      if (!pastikanOpdBoleh(req, res, opdId)) return;
+    }
     const max = await queryDB(`SELECT COALESCE(MAX(urutan), 0) + 1 AS next FROM ${conf.indTable} WHERE ${conf.indParentKey} = $1`, [parentId]);
     const result = await queryDB(
       `INSERT INTO ${conf.indTable} (${conf.indParentKey}, indikator, sumber_data, aspek, satuan, urutan)
@@ -3319,6 +3601,10 @@ app.put('/api/bankdata/indikator/:level/:id', async (req, res) => {
   const { indikator, sumber_data, aspek, satuan } = req.body;
   if (!indikator) return res.status(400).json({ error: 'Indikator wajib diisi' });
   try {
+    if (opdTerbatas(req.pengguna)) {
+      const opdId = await cariOpdDariIndikatorSektoral(id);
+      if (!pastikanOpdBoleh(req, res, opdId)) return;
+    }
     await queryDB(
       `UPDATE ${conf.indTable} SET indikator = $1, sumber_data = $2, aspek = $3, satuan = $4 WHERE id = $5`,
       [indikator.trim(), sumber_data ?? null, aspek ?? null, satuan ?? null, id]
@@ -3335,6 +3621,10 @@ app.delete('/api/bankdata/indikator/:level/:id', async (req, res) => {
   const conf = BD_CONF[level];
   if (!conf || !conf.indTable) return res.status(400).json({ error: 'Level tidak memakai indikator' });
   try {
+    if (opdTerbatas(req.pengguna)) {
+      const opdId = await cariOpdDariIndikatorSektoral(id);
+      if (!pastikanOpdBoleh(req, res, opdId)) return;
+    }
     await queryDB(`DELETE FROM ${conf.indTable} WHERE id = $1`, [id]);
     res.json({ message: 'Indikator berhasil dihapus' });
   } catch (err) {
@@ -3352,6 +3642,10 @@ app.post('/api/bankdata/nilai/:level', async (req, res) => {
   const { target_id, tahun, valA, valB } = req.body;
   if (!target_id || !tahun) return res.status(400).json({ error: 'Data dan tahun wajib diisi' });
   try {
+    if (opdTerbatas(req.pengguna)) {
+      const opdId = await cariOpdTargetLevel(level, target_id);
+      if (!pastikanOpdBoleh(req, res, opdId)) return;
+    }
     if (level === 'sektoral') {
       await queryDB(
         `INSERT INTO bank_data_sektoral_nilai (indikator_id, tahun, data)
@@ -3379,6 +3673,10 @@ app.delete('/api/bankdata/nilai/:level/:id', async (req, res) => {
   const conf = BD_CONF[level];
   if (!conf) return res.status(400).json({ error: 'Level tidak dikenal' });
   try {
+    if (opdTerbatas(req.pengguna)) {
+      const opdId = await cariOpdBarisNilai(level, id, false);
+      if (!pastikanOpdBoleh(req, res, opdId)) return;
+    }
     await queryDB(`DELETE FROM ${conf.nilTable} WHERE id = $1`, [id]);
     res.json({ message: 'Nilai berhasil dihapus' });
   } catch (err) {
@@ -3397,6 +3695,10 @@ app.post('/api/bankdata/triwulan/:level', async (req, res) => {
   const { target_id, tahun, tw } = req.body;
   if (!target_id || !tahun || !tw) return res.status(400).json({ error: 'Data, tahun, dan triwulan wajib diisi' });
   try {
+    if (opdTerbatas(req.pengguna)) {
+      const opdId = await cariOpdTargetLevel(level, target_id);
+      if (!pastikanOpdBoleh(req, res, opdId)) return;
+    }
     const idKey = conf.idKey;
     const cols = [];
     const vals = [];
@@ -3432,11 +3734,548 @@ app.delete('/api/bankdata/triwulan/:level/:id', async (req, res) => {
   const conf = BD_CONF[level];
   if (!conf) return res.status(400).json({ error: 'Level tidak dikenal' });
   try {
+    if (opdTerbatas(req.pengguna)) {
+      const opdId = await cariOpdBarisNilai(level, id, true);
+      if (!pastikanOpdBoleh(req, res, opdId)) return;
+    }
     await queryDB(`DELETE FROM ${conf.twTable} WHERE id = $1`, [id]);
     res.json({ message: 'Triwulan berhasil dihapus' });
   } catch (err) {
     console.error('Delete triwulan error:', err);
     res.status(500).json({ error: 'Gagal menghapus triwulan' });
+  }
+});
+
+// ── Bank Dataset Sektoral Dinamis (Satu Data) ────────────────────────────
+const SELECT_DATASET_RINGKAS = `
+  SELECT d.*,
+         d.nama AS judul,
+         o.nama AS opd_nama,
+         o.bidang_id,
+         b.nama_bidang AS bidang_nama,
+         u.nama_urusan,
+         u.kode_urusan,
+         bu.nama_bidang AS bidang_urusan_nama,
+         bu.kode_bidang AS bidang_urusan_kode,
+         tp.nama_topik,
+         stp.nama_sub_topik,
+         st.nama_satuan,
+         (SELECT COUNT(*)::int FROM bank_dataset_field f WHERE f.dataset_id = d.id) AS jumlah_field,
+         (SELECT COUNT(*)::int FROM bank_dataset_row r WHERE r.dataset_id = d.id) AS jumlah_baris,
+         (SELECT MIN(r.tahun) FROM bank_dataset_row r WHERE r.dataset_id = d.id) AS tahun_min,
+         (SELECT MAX(r.tahun) FROM bank_dataset_row r WHERE r.dataset_id = d.id) AS tahun_max
+    FROM bank_dataset d
+    JOIN bank_data_opd o ON o.id = d.opd_id
+    LEFT JOIN bidang_list b ON b.id = o.bidang_id
+    LEFT JOIN sd_urusan u ON u.id = d.urusan_id
+    LEFT JOIN sd_bidang_urusan bu ON bu.id = d.bidang_urusan_id
+    LEFT JOIN sd_topik tp ON tp.id = d.topik_id
+    LEFT JOIN sd_sub_topik stp ON stp.id = d.sub_topik_id
+    LEFT JOIN sd_satuan st ON st.id = d.satuan_id
+`;
+
+app.get('/api/bankdata/dataset', async (req, res) => {
+  try {
+    if (opdTerbatas(req.pengguna)) {
+      if (!req.pengguna?.opd_id) return res.json([]);
+      const rows = await queryDB(
+        `${SELECT_DATASET_RINGKAS} WHERE d.opd_id = $1 ORDER BY d.updated_at DESC, d.id DESC`,
+        [req.pengguna.opd_id]
+      );
+      return res.json(rows);
+    }
+    const rows = await queryDB(`${SELECT_DATASET_RINGKAS} ORDER BY d.updated_at DESC, d.id DESC`);
+    res.json(rows);
+  } catch (err) {
+    console.error('Get dataset list error:', err);
+    res.status(500).json({ error: 'Gagal mengambil daftar dataset' });
+  }
+});
+
+app.get('/api/bankdata/dataset/verifikasi', async (_, res) => {
+  try {
+    const rows = await queryDB(`
+      ${SELECT_DATASET_RINGKAS}
+       WHERE d.status IN ('diajukan', 'disetujui', 'perlu_perbaikan', 'ditolak')
+       ORDER BY (CASE WHEN d.status = 'diajukan' THEN 0 ELSE 1 END), d.updated_at DESC, d.id DESC
+    `);
+    res.json(rows);
+  } catch (err) {
+    console.error('Get dataset verifikasi error:', err);
+    res.status(500).json({ error: 'Gagal mengambil antrean verifikasi dataset' });
+  }
+});
+
+app.get('/api/bankdata/dataset/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const dsRows = await queryDB(`${SELECT_DATASET_RINGKAS} WHERE d.id = $1`, [id]);
+    if (!dsRows.length) return res.status(404).json({ error: 'Dataset tidak ditemukan' });
+    const ds = dsRows[0];
+    if (!pastikanOpdBoleh(req, res, ds.opd_id)) return;
+
+    const [fields, rows, logs] = await Promise.all([
+      queryDB('SELECT * FROM bank_dataset_field WHERE dataset_id = $1 ORDER BY urutan, id', [id]),
+      queryDB('SELECT * FROM bank_dataset_row WHERE dataset_id = $1 ORDER BY tahun, periode, wilayah_kode, id', [id]),
+      queryDB('SELECT * FROM bank_dataset_log WHERE dataset_id = $1 ORDER BY created_at DESC, id DESC', [id]),
+    ]);
+    res.json({ ...ds, fields, rows, logs });
+  } catch (err) {
+    console.error('Get dataset detail error:', err);
+    res.status(500).json({ error: 'Gagal mengambil detail dataset' });
+  }
+});
+
+app.post('/api/bankdata/dataset', async (req, res) => {
+  const body = { ...req.body };
+  if (opdTerbatas(req.pengguna)) {
+    body.opd_id = req.pengguna?.opd_id;
+  }
+  const v = validasiMetadataDataset(body);
+  if (!v.ok) return res.status(400).json({ error: v.error });
+  if (!pastikanOpdBoleh(req, res, v.nilai.opd_id)) return;
+
+  let fieldList = [];
+  if (Array.isArray(req.body?.fields) && req.body.fields.length > 0) {
+    const vf = validasiDaftarField(req.body.fields);
+    if (!vf.ok) return res.status(400).json({ error: vf.error });
+    fieldList = vf.fields;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const opdCheck = await client.query('SELECT id FROM bank_data_opd WHERE id = $1', [v.nilai.opd_id]);
+    if (!opdCheck.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'OPD tidak ditemukan' });
+    }
+
+    const kodeIndikator = v.nilai.kode_indikator || ('IND-' + String(v.nilai.opd_id).padStart(3, '0') + '-' + Math.floor(Math.random() * 90000 + 10000));
+    const ins = await client.query(
+      `INSERT INTO bank_dataset
+         (opd_id, nama, deskripsi, definisi, satuan, sumber_data, klasifikasi, frekuensi, tahun_mulai, status, created_by,
+          urusan_id, bidang_urusan_id, topik_id, sub_topik_id, satuan_id, keywords, kode_sds, kode_indikator,
+          sumber_referensi, prioritas, klasifikasi_risiko, klasifikasi_penyajian, frekuensi_pemutakhiran,
+          jadwal_pemutakhiran, jadwal_pemutakhiran_akhir)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'draft',$10,$11,$12,$13,$14,$15,$16::jsonb,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+       RETURNING *`,
+      [
+        v.nilai.opd_id, v.nilai.nama, v.nilai.deskripsi, v.nilai.definisi,
+        v.nilai.satuan, v.nilai.sumber_data, v.nilai.klasifikasi, v.nilai.frekuensi,
+        v.nilai.tahun_mulai, req.pengguna?.nama || req.pengguna?.nip || null,
+        v.nilai.urusan_id, v.nilai.bidang_urusan_id, v.nilai.topik_id, v.nilai.sub_topik_id,
+        v.nilai.satuan_id, JSON.stringify(v.nilai.keywords || []), v.nilai.kode_sds,
+        kodeIndikator, v.nilai.sumber_referensi, v.nilai.prioritas, v.nilai.klasifikasi_risiko,
+        v.nilai.klasifikasi_penyajian, v.nilai.frekuensi_pemutakhiran, v.nilai.jadwal_pemutakhiran,
+        v.nilai.jadwal_pemutakhiran_akhir,
+      ]
+    );
+    const dataset = ins.rows[0];
+
+    for (const f of fieldList) {
+      await client.query(
+        `INSERT INTO bank_dataset_field (dataset_id, nama_field, label, tipe_data, wajib, urutan, pilihan, tampil_grafik)
+         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8)`,
+        [dataset.id, f.nama_field, f.label, f.tipe_data, f.wajib, f.urutan, JSON.stringify(f.pilihan || []), f.tampil_grafik]
+      );
+    }
+
+    await client.query(
+      `INSERT INTO bank_dataset_log (dataset_id, aksi, aktor, catatan)
+       VALUES ($1, 'buat', $2, 'Dataset dibuat')`,
+      [dataset.id, req.pengguna?.nama || req.pengguna?.nip || null]
+    );
+
+    await client.query('COMMIT');
+    res.json({ message: 'Dataset berhasil dibuat', dataset });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('Create dataset error:', err);
+    res.status(500).json({ error: 'Gagal membuat dataset' });
+  } finally {
+    client.release();
+  }
+});
+
+app.put('/api/bankdata/dataset/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const cur = await queryDB('SELECT * FROM bank_dataset WHERE id = $1', [id]);
+    if (!cur.length) return res.status(404).json({ error: 'Dataset tidak ditemukan' });
+    const ds = cur[0];
+    if (!pastikanOpdBoleh(req, res, ds.opd_id)) return;
+    if (!bolehEditStatus(ds.status) && req.pengguna?.role !== R_ADMIN) {
+      return res.status(409).json({ error: 'Dataset sedang diajukan atau telah disetujui dan tidak dapat diubah' });
+    }
+
+    const body = { ...req.body, opd_id: opdTerbatas(req.pengguna) ? ds.opd_id : (req.body.opd_id ?? ds.opd_id) };
+    const v = validasiMetadataDataset(body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+
+    const upd = await queryDB(
+      `UPDATE bank_dataset
+          SET opd_id = $1, nama = $2, deskripsi = $3, definisi = $4, satuan = $5,
+              sumber_data = $6, klasifikasi = $7, frekuensi = $8, tahun_mulai = $9,
+              urusan_id = $10, bidang_urusan_id = $11, topik_id = $12, sub_topik_id = $13,
+              satuan_id = $14, keywords = $15::jsonb, kode_sds = $16,
+              sumber_referensi = $17, prioritas = $18, klasifikasi_risiko = $19,
+              klasifikasi_penyajian = $20, frekuensi_pemutakhiran = $21,
+              jadwal_pemutakhiran = $22, jadwal_pemutakhiran_akhir = $23,
+              updated_at = NOW()
+        WHERE id = $24
+        RETURNING *`,
+      [
+        v.nilai.opd_id, v.nilai.nama, v.nilai.deskripsi, v.nilai.definisi, v.nilai.satuan,
+        v.nilai.sumber_data, v.nilai.klasifikasi, v.nilai.frekuensi, v.nilai.tahun_mulai,
+        v.nilai.urusan_id, v.nilai.bidang_urusan_id, v.nilai.topik_id, v.nilai.sub_topik_id,
+        v.nilai.satuan_id, JSON.stringify(v.nilai.keywords || []), v.nilai.kode_sds,
+        v.nilai.sumber_referensi, v.nilai.prioritas, v.nilai.klasifikasi_risiko,
+        v.nilai.klasifikasi_penyajian, v.nilai.frekuensi_pemutakhiran, v.nilai.jadwal_pemutakhiran,
+        v.nilai.jadwal_pemutakhiran_akhir, id,
+      ]
+    );
+    res.json({ message: 'Metadata dataset diperbarui', dataset: upd[0] });
+  } catch (err) {
+    console.error('Update dataset error:', err);
+    res.status(500).json({ error: 'Gagal memperbarui dataset' });
+  }
+});
+
+app.delete('/api/bankdata/dataset/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const cur = await queryDB('SELECT * FROM bank_dataset WHERE id = $1', [id]);
+    if (!cur.length) return res.status(404).json({ error: 'Dataset tidak ditemukan' });
+    const ds = cur[0];
+    if (!pastikanOpdBoleh(req, res, ds.opd_id)) return;
+    if (!bolehEditStatus(ds.status) && req.pengguna?.role !== R_ADMIN) {
+      return res.status(409).json({ error: 'Dataset yang sedang diajukan atau telah disetujui tidak dapat dihapus' });
+    }
+    await queryDB('DELETE FROM bank_dataset WHERE id = $1', [id]);
+    res.json({ message: 'Dataset berhasil dihapus' });
+  } catch (err) {
+    console.error('Delete dataset error:', err);
+    res.status(500).json({ error: 'Gagal menghapus dataset' });
+  }
+});
+
+app.put('/api/bankdata/dataset/:id/fields', async (req, res) => {
+  const { id } = req.params;
+  const vf = validasiDaftarField(req.body?.fields);
+  if (!vf.ok) return res.status(400).json({ error: vf.error });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const cur = await client.query('SELECT * FROM bank_dataset WHERE id = $1 FOR UPDATE', [id]);
+    if (!cur.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Dataset tidak ditemukan' });
+    }
+    const ds = cur.rows[0];
+    if (!pastikanOpdBoleh(req, res, ds.opd_id)) {
+      await client.query('ROLLBACK');
+      return;
+    }
+    if (!bolehEditStatus(ds.status) && req.pengguna?.role !== R_ADMIN) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Struktur kolom terkunci karena dataset sedang diajukan atau sudah disetujui' });
+    }
+
+    await client.query('DELETE FROM bank_dataset_field WHERE dataset_id = $1', [id]);
+    const inserted = [];
+    for (const f of vf.fields) {
+      const r = await client.query(
+        `INSERT INTO bank_dataset_field (dataset_id, nama_field, label, tipe_data, wajib, urutan, pilihan, tampil_grafik)
+         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8)
+         RETURNING *`,
+        [id, f.nama_field, f.label, f.tipe_data, f.wajib, f.urutan, JSON.stringify(f.pilihan || []), f.tampil_grafik]
+      );
+      inserted.push(r.rows[0]);
+    }
+    await client.query('UPDATE bank_dataset SET updated_at = NOW() WHERE id = $1', [id]);
+    await client.query('COMMIT');
+    res.json({ message: 'Struktur kolom dataset disimpan', fields: inserted });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('Update dataset fields error:', err);
+    res.status(500).json({ error: 'Gagal menyimpan struktur kolom dataset' });
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/bankdata/dataset/:id/rows/import', async (req, res) => {
+  const { id } = req.params;
+  const rawRows = req.body?.rows;
+  const replaceAll = Boolean(req.body?.replace);
+  if (!Array.isArray(rawRows) || rawRows.length === 0) {
+    return res.status(400).json({ error: 'Data baris yang diimpor tidak boleh kosong' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const cur = await client.query('SELECT * FROM bank_dataset WHERE id = $1 FOR UPDATE', [id]);
+    if (!cur.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Dataset tidak ditemukan' });
+    }
+    const ds = cur.rows[0];
+    if (!pastikanOpdBoleh(req, res, ds.opd_id)) {
+      await client.query('ROLLBACK');
+      return;
+    }
+    if (!bolehEditStatus(ds.status) && req.pengguna?.role !== R_ADMIN) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Data baris terkunci karena dataset sedang diajukan atau sudah disetujui' });
+    }
+
+    const fRes = await client.query('SELECT * FROM bank_dataset_field WHERE dataset_id = $1 ORDER BY urutan, id', [id]);
+    const fields = fRes.rows;
+    if (fields.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Tentukan struktur kolom dataset terlebih dahulu sebelum mengisi baris data' });
+    }
+
+    const bersih = [];
+    for (let i = 0; i < rawRows.length; i++) {
+      const vr = validasiSatuBaris(rawRows[i], fields, i);
+      if (!vr.ok) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: vr.error });
+      }
+      bersih.push(vr.row);
+    }
+
+    if (replaceAll) {
+      await client.query('DELETE FROM bank_dataset_row WHERE dataset_id = $1', [id]);
+    }
+
+    const aktor = req.pengguna?.nama || req.pengguna?.nip || null;
+    for (const r of bersih) {
+      await client.query(
+        `INSERT INTO bank_dataset_row (dataset_id, tahun, periode, wilayah_kode, data, created_by, updated_at)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6, NOW())
+         ON CONFLICT (dataset_id, tahun, COALESCE(periode, ''), COALESCE(wilayah_kode, ''))
+         DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+        [id, r.tahun, r.periode, r.wilayah_kode, JSON.stringify(r.data), aktor]
+      );
+    }
+
+    await client.query('UPDATE bank_dataset SET updated_at = NOW() WHERE id = $1', [id]);
+    await client.query('COMMIT');
+    res.json({ message: `${bersih.length} baris data berhasil disimpan`, count: bersih.length });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('Import dataset rows error:', err);
+    res.status(500).json({ error: 'Gagal menyimpan baris dataset' });
+  } finally {
+    client.release();
+  }
+});
+
+app.put('/api/bankdata/dataset/:id/rows/:rowId', async (req, res) => {
+  const { id, rowId } = req.params;
+  try {
+    const cur = await queryDB('SELECT * FROM bank_dataset WHERE id = $1', [id]);
+    if (!cur.length) return res.status(404).json({ error: 'Dataset tidak ditemukan' });
+    const ds = cur[0];
+    if (!pastikanOpdBoleh(req, res, ds.opd_id)) return;
+    if (!bolehEditStatus(ds.status) && req.pengguna?.role !== R_ADMIN) {
+      return res.status(409).json({ error: 'Data baris terkunci' });
+    }
+    const fields = await queryDB('SELECT * FROM bank_dataset_field WHERE dataset_id = $1 ORDER BY urutan, id', [id]);
+    const vr = validasiSatuBaris(req.body || {}, fields);
+    if (!vr.ok) return res.status(400).json({ error: vr.error });
+
+    const upd = await queryDB(
+      `UPDATE bank_dataset_row
+          SET tahun = $1, periode = $2, wilayah_kode = $3, data = $4::jsonb, updated_at = NOW()
+        WHERE id = $5 AND dataset_id = $6
+        RETURNING *`,
+      [vr.row.tahun, vr.row.periode, vr.row.wilayah_kode, JSON.stringify(vr.row.data), rowId, id]
+    );
+    if (!upd.length) return res.status(404).json({ error: 'Baris data tidak ditemukan' });
+    await queryDB('UPDATE bank_dataset SET updated_at = NOW() WHERE id = $1', [id]);
+    res.json({ message: 'Baris data diperbarui', row: upd[0] });
+  } catch (err) {
+    console.error('Update dataset row error:', err);
+    res.status(500).json({ error: 'Gagal memperbarui baris data' });
+  }
+});
+
+app.delete('/api/bankdata/dataset/:id/rows/:rowId', async (req, res) => {
+  const { id, rowId } = req.params;
+  try {
+    const cur = await queryDB('SELECT * FROM bank_dataset WHERE id = $1', [id]);
+    if (!cur.length) return res.status(404).json({ error: 'Dataset tidak ditemukan' });
+    const ds = cur[0];
+    if (!pastikanOpdBoleh(req, res, ds.opd_id)) return;
+    if (!bolehEditStatus(ds.status) && req.pengguna?.role !== R_ADMIN) {
+      return res.status(409).json({ error: 'Data baris terkunci' });
+    }
+    await queryDB('DELETE FROM bank_dataset_row WHERE id = $1 AND dataset_id = $2', [rowId, id]);
+    await queryDB('UPDATE bank_dataset SET updated_at = NOW() WHERE id = $1', [id]);
+    res.json({ message: 'Baris data dihapus' });
+  } catch (err) {
+    console.error('Delete dataset row error:', err);
+    res.status(500).json({ error: 'Gagal menghapus baris data' });
+  }
+});
+
+app.post('/api/bankdata/dataset/:id/ajukan', async (req, res) => {
+  const { id } = req.params;
+  const catatan = req.body?.catatan ? String(req.body.catatan).trim() : null;
+  try {
+    const cur = await queryDB('SELECT * FROM bank_dataset WHERE id = $1', [id]);
+    if (!cur.length) return res.status(404).json({ error: 'Dataset tidak ditemukan' });
+    const ds = cur[0];
+    if (!pastikanOpdBoleh(req, res, ds.opd_id)) return;
+    if (!bolehEditStatus(ds.status)) {
+      return res.status(409).json({ error: `Dataset berstatus "${ds.status}" tidak dapat diajukan ulang` });
+    }
+
+    const [fCount, rCount] = await Promise.all([
+      queryDB('SELECT COUNT(*)::int AS n FROM bank_dataset_field WHERE dataset_id = $1', [id]),
+      queryDB('SELECT COUNT(*)::int AS n FROM bank_dataset_row WHERE dataset_id = $1', [id]),
+    ]);
+    if ((fCount[0]?.n || 0) < 1) {
+      return res.status(400).json({ error: 'Tambahkan minimal 1 kolom indikator sebelum mengajukan verifikasi' });
+    }
+    if ((rCount[0]?.n || 0) < 1) {
+      return res.status(400).json({ error: 'Isi minimal 1 baris data sebelum mengajukan verifikasi' });
+    }
+
+    const upd = await queryDB(
+      `UPDATE bank_dataset
+          SET status = 'diajukan', submitted_at = NOW(), updated_at = NOW()
+        WHERE id = $1
+        RETURNING *`,
+      [id]
+    );
+    await queryDB(
+      `INSERT INTO bank_dataset_log (dataset_id, aksi, aktor, catatan)
+       VALUES ($1, 'ajukan', $2, $3)`,
+      [id, req.pengguna?.nama || req.pengguna?.nip || null, catatan || 'Diajukan untuk verifikasi Walidata/Reviewer']
+    );
+
+    try {
+      const reviewers = (await queryDB('SELECT c.nip, c.role FROM user_credentials c'))
+        .filter(r => PERINGKAT[normalisasiRole(r.role)] >= PERINGKAT[R_REVIEWER]);
+      for (const rv of reviewers) {
+        await createNotification(
+          rv.nip,
+          'Dataset Menunggu Verifikasi',
+          `Dataset "${ds.nama}" diajukan oleh ${req.pengguna?.nama || 'Operator'}.`,
+          'info',
+          null
+        );
+      }
+    } catch (_) {}
+
+    res.json({ message: 'Dataset berhasil diajukan untuk verifikasi', dataset: upd[0] });
+  } catch (err) {
+    console.error('Ajukan dataset error:', err);
+    res.status(500).json({ error: 'Gagal mengajukan dataset' });
+  }
+});
+
+app.post('/api/bankdata/dataset/:id/verifikasi', async (req, res) => {
+  const { id } = req.params;
+  const { status, catatan } = req.body || {};
+  if (!bolehVerifikasi(req.pengguna)) {
+    return res.status(403).json({ error: 'Hanya Reviewer atau Admin yang dapat memverifikasi dataset' });
+  }
+  if (!['disetujui', 'perlu_perbaikan', 'ditolak'].includes(status)) {
+    return res.status(400).json({ error: 'Status keputusan verifikasi tidak valid' });
+  }
+  const catatanTrim = catatan ? String(catatan).trim() : '';
+  if ((status === 'perlu_perbaikan' || status === 'ditolak') && !catatanTrim) {
+    return res.status(400).json({ error: 'Catatan wajib diisi saat meminta perbaikan atau menolak dataset' });
+  }
+
+  try {
+    const cur = await queryDB('SELECT * FROM bank_dataset WHERE id = $1', [id]);
+    if (!cur.length) return res.status(404).json({ error: 'Dataset tidak ditemukan' });
+    const ds = cur[0];
+
+    const aktor = req.pengguna?.nama || req.pengguna?.nip || null;
+    const upd = await queryDB(
+      `UPDATE bank_dataset
+          SET status = $1,
+              catatan_verifikasi = $2,
+              verified_by = $3,
+              verified_at = NOW(),
+              updated_at = NOW()
+        WHERE id = $4
+        RETURNING *`,
+      [status, catatanTrim || null, aktor, id]
+    );
+
+    const aksi = status === 'disetujui' ? 'setujui' : status === 'perlu_perbaikan' ? 'perbaikan' : 'tolak';
+    await queryDB(
+      `INSERT INTO bank_dataset_log (dataset_id, aksi, aktor, catatan)
+       VALUES ($1, $2, $3, $4)`,
+      [id, aksi, aktor, catatanTrim || null]
+    );
+
+    try {
+      const opUsers = await queryDB('SELECT nip FROM user_credentials WHERE opd_id = $1', [ds.opd_id]);
+      const targets = new Set(opUsers.map(u => u.nip));
+      const labelStatus = status === 'disetujui' ? 'Disetujui & Dipublikasikan' : status === 'perlu_perbaikan' ? 'Perlu Perbaikan' : 'Ditolak';
+      for (const nip of targets) {
+        if (!nip) continue;
+        await createNotification(
+          nip,
+          `Verifikasi Dataset: ${labelStatus}`,
+          `Dataset "${ds.nama}" berstatus ${labelStatus}${catatanTrim ? `: ${catatanTrim}` : '.'}`,
+          status === 'disetujui' ? 'success' : 'warning',
+          null
+        );
+      }
+    } catch (_) {}
+
+    res.json({ message: 'Keputusan verifikasi dataset berhasil disimpan', dataset: upd[0] });
+  } catch (err) {
+    console.error('Verifikasi dataset error:', err);
+    res.status(500).json({ error: 'Gagal memverifikasi dataset' });
+  }
+});
+
+// ── Endpoint Publik Bank Data (Satu Data) ────────────────────────────────
+// Hanya mengekspos dataset berstatus 'disetujui' dan klasifikasi 'terbuka'.
+app.get('/api/publik/bankdata', async (_, res) => {
+  try {
+    const rows = await queryDB(`
+      ${SELECT_DATASET_RINGKAS}
+       WHERE d.status = 'disetujui' AND d.klasifikasi = 'terbuka'
+       ORDER BY d.verified_at DESC NULLS LAST, d.updated_at DESC, d.id DESC
+    `);
+    res.json(rows);
+  } catch (err) {
+    console.error('Get publik bankdata list error:', err);
+    res.status(500).json({ error: 'Gagal mengambil katalog dataset publik' });
+  }
+});
+
+app.get('/api/publik/bankdata/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const dsRows = await queryDB(
+      `${SELECT_DATASET_RINGKAS} WHERE d.id = $1 AND d.status = 'disetujui' AND d.klasifikasi = 'terbuka'`,
+      [id]
+    );
+    if (!dsRows.length) return res.status(404).json({ error: 'Dataset publik tidak ditemukan' });
+    const [fields, rows] = await Promise.all([
+      queryDB('SELECT id, dataset_id, nama_field, label, tipe_data, wajib, urutan, pilihan, tampil_grafik FROM bank_dataset_field WHERE dataset_id = $1 ORDER BY urutan, id', [id]),
+      queryDB('SELECT id, dataset_id, tahun, periode, wilayah_kode, data FROM bank_dataset_row WHERE dataset_id = $1 ORDER BY tahun, periode, wilayah_kode, id', [id]),
+    ]);
+    res.json({ ...dsRows[0], fields, rows });
+  } catch (err) {
+    console.error('Get publik bankdata detail error:', err);
+    res.status(500).json({ error: 'Gagal mengambil detail dataset publik' });
   }
 });
 
@@ -4055,6 +4894,7 @@ app.get('/api/publik/verify', async (req, res) => {
 });
 
 // ── SPA fallback: semua route non-API → index.html (production only) ──────
+daftarkanRuteSatuData(app, pool, queryDB);
 if (isProd) {
   app.get('/{*path}', (_, res) => {
     res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));

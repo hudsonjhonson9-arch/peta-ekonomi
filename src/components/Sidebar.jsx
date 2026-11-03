@@ -30,6 +30,8 @@ function simpanGrupTerbuka(v) {
 
 function RecentActivity({ logs = [] }) {
   const { T } = useContext(ThemeContext);
+  // Default disembunyikan (hide) sesuai permintaan pengguna
+  const [buka, setBuka] = useState(false);
   const recent = logs.slice(0, 5);
   if (recent.length === 0) return null;
 
@@ -52,23 +54,40 @@ function RecentActivity({ logs = [] }) {
   };
 
   return (
-    <div style={{ padding: "8px 12px 4px" }}>
-      <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
-        Aktivitas
-      </div>
-      {recent.map((log) => (
-        <div key={log.id} style={{ display: "flex", alignItems: "flex-start", gap: 7, padding: "4px 6px", borderRadius: 5 }}>
-          <Icon name={actionIcon(log.action)} size={12} style={{ color: T.textMuted, marginTop: 2, flexShrink: 0 }} />
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 11, color: T.sidebarText, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              <span style={{ fontWeight: 600 }}>{log.user || log.user_name}</span>{" "}
-              <span style={{ color: T.textMuted }}>{log.action}</span>{" "}
-              <span style={{ fontWeight: 500 }}>{log.doc || log.doc_title}</span>
+    <div style={{ padding: "4px 12px", borderTop: `1px solid ${T.border}` }}>
+      <button
+        onClick={() => setBuka(v => !v)}
+        aria-expanded={buka}
+        title={buka ? "Sembunyikan Aktivitas" : "Tampilkan Aktivitas"}
+        style={{
+          width: "100%",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "6px 4px",
+          background: "none", border: "none", cursor: "pointer",
+          fontSize: 10, fontWeight: 700, color: T.textMuted,
+          textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "inherit",
+        }}
+      >
+        <span>Aktivitas</span>
+        <Icon name={buka ? "chevronDown" : "chevronRight"} size={12} />
+      </button>
+      {buka && (
+        <div style={{ marginTop: 2, paddingBottom: 4 }}>
+          {recent.map((log) => (
+            <div key={log.id} style={{ display: "flex", alignItems: "flex-start", gap: 7, padding: "4px 6px", borderRadius: 5 }}>
+              <Icon name={actionIcon(log.action)} size={12} style={{ color: T.textMuted, marginTop: 2, flexShrink: 0 }} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 11, color: T.sidebarText, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ fontWeight: 600 }}>{log.user || log.user_name}</span>{" "}
+                  <span style={{ color: T.textMuted }}>{log.action}</span>{" "}
+                  <span style={{ fontWeight: 500 }}>{log.doc || log.doc_title}</span>
+                </div>
+                <div style={{ fontSize: 9, color: T.textMuted, marginTop: 1 }}>{timeAgo(log.time || log.created_at)}</div>
+              </div>
             </div>
-            <div style={{ fontSize: 9, color: T.textMuted, marginTop: 1 }}>{timeAgo(log.time || log.created_at)}</div>
-          </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -89,7 +108,11 @@ export default function Sidebar({ active, onNav, user, onLogout, onCiutkan, leba
   const modeIcon = lebar <= LEBAR_ICON;
   // useMemo dipakai karena daftar ini jadi dependensi effect di bawah; tanpa
   // itu referensinya baru tiap render dan effect berjalan terus.
-  const groups = useMemo(() => navGroupsUntuk(user.role), [user.role]);
+  const allowedMenusKey = Array.isArray(user.allowed_menus) ? user.allowed_menus.join(",") : "";
+  const groups = useMemo(
+    () => navGroupsUntuk(user.role, user.allowed_menus),
+    [user.role, allowedMenusKey]
+  );
   const [grupBuka, setGrupBuka] = useState(() => grupTerbukaAwal(muatGrupTerbuka()));
 
   // Halaman aktif selalu terlihat: kelompoknya dibuka otomatis. Tanpa ini,
@@ -254,7 +277,7 @@ export default function Sidebar({ active, onNav, user, onLogout, onCiutkan, leba
         })}
       </nav>
 
-      {/* Recent activity */}
+      {/* Recent activity (default disembunyikan / di-hide) */}
       {!modeIcon && <RecentActivity logs={logs} />}
 
       {/* Theme toggle */}

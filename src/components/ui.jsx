@@ -391,7 +391,8 @@ export function CariPilih({
 // Dropdown bertema (pengganti <select> bawaan yang tak bisa diatur gayanya).
 // options: [{ value, label }]. Panel absolute; cukup untuk toolbar filter yang
 // tidak berada di dalam kontainer bergulir.
-export function Select({ value, onChange, options = [], style, minWidth = 150, label }) {
+export { Select, DatePicker, Button } from "./customControls.jsx";
+function SelectLegacy({ value, onChange, options = [], style, minWidth = 150, label }) {
   const { T } = useContext(ThemeContext);
   const [buka, setBuka] = useState(false);
   const boxRef = useRef(null);

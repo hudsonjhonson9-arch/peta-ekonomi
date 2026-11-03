@@ -1,16 +1,17 @@
 import { useState, useContext } from "react";
 import { ThemeContext } from "../App.jsx";
 import { Icon } from "./ui.jsx";
-import { navGroupsUntuk, NAV_UTAMA_BOTTOM, NAV_BOTTOM_LABEL, NAV_BOTTOM_ICON } from "../data.js";
+import { navGroupsUntuk, navUtamaBottomUntuk, NAV_BOTTOM_LABEL, NAV_BOTTOM_ICON } from "../data.js";
 
 export default function BottomNav({ active, onNav, user }) {
   const { T, theme, setTheme } = useContext(ThemeContext);
   const [open, setOpen] = useState(false);
   // Sheet "Lainnya" memakai kelompok yang sama dengan Sidebar, jadi nama dan
   // urutannya tidak bisa berbeda antara desktop dan mobile.
+  const navUtama = navUtamaBottomUntuk(user.role);
   const groups = navGroupsUntuk(user.role);
   const moreGroups = groups
-    .map(g => ({ ...g, items: g.items.filter(i => !NAV_UTAMA_BOTTOM.includes(i.key)) }))
+    .map(g => ({ ...g, items: g.items.filter(i => !navUtama.includes(i.key)) }))
     .filter(g => g.items.length > 0);
   const isMoreActive = moreGroups.some(g => g.items.some(i => i.key === active));
 
@@ -81,7 +82,7 @@ export default function BottomNav({ active, onNav, user }) {
         display: "flex",
         paddingBottom: "env(safe-area-inset-bottom, 0)",
       }}>
-        {NAV_UTAMA_BOTTOM.map(key => {
+        {navUtama.map(key => {
           const isActive = active === key;
           return (
             <button

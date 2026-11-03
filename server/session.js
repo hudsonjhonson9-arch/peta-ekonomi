@@ -27,19 +27,21 @@ export const MASA_JAM_INGAT = 30 * 24;
 export const PANJANG_MINIMUM = 16;
 export const PANJANG_DIANJURKAN = 32;
 
-// Nilai role kanonik yang dipakai seluruh UI: 'Admin' | 'Reviewer' | 'Staf'.
+// Nilai role kanonik yang dipakai seluruh UI: 'Admin' | 'Reviewer' | 'Staf' | 'Operator Bank Data'.
 export const R_ADMIN = 'Admin';
 export const R_REVIEWER = 'Reviewer';
 export const R_STAF = 'Staf';
+export const R_BANKDATA = 'Operator Bank Data';
 
 // Database menyimpan role dengan kapitalisasi yang tidak seragam: user_list.role
-// diisi 'ADMIN'/'KABID'/'USER' oleh mapRoleToDb, sedangkan user_credentials.role
-// diisi nilai mentah dari form ('Admin'/'Reviewer'/'Staf'). Baris lama bisa
+// diisi 'ADMIN'/'KABID'/'USER'/'BANKDATA' oleh mapRoleToDb, sedangkan user_credentials.role
+// diisi nilai mentah dari form ('Admin'/'Reviewer'/'Staf'/'Operator Bank Data'). Baris lama bisa
 // campur. Semua penentuan hak akses harus lewat normalisasiRole.
 const PETA_ROLE = new Map(Object.entries({
   ADMIN: R_ADMIN, ADMINISTRATOR: R_ADMIN,
   KABID: R_REVIEWER, REVIEWER: R_REVIEWER, REVIEW: R_REVIEWER,
   USER: R_STAF, STAF: R_STAF, STAFF: R_STAF, UPLOADER: R_STAF,
+  BANKDATA: R_BANKDATA, OPERATOR_BANKDATA: R_BANKDATA, 'OPERATOR BANK DATA': R_BANKDATA,
 }));
 
 export function normalisasiRole(dbRole) {

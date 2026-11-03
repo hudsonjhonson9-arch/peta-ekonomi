@@ -53,11 +53,15 @@ async function extractPdfText(file, onProgress) {
 }
 import { Pencarian, PortalPublik, ManajemenPengguna, AuditTrail, ManajemenKategoriDokumen, ManajemenSektor } from "./components/Pages.jsx";
 import PanduanPengguna   from "./components/PanduanPengguna.jsx";
-import BankData          from "./components/BankData.jsx";
-import BankDataDashboard from "./components/BankDataDashboard.jsx";
+import BankDataPage      from "./components/BankDataPage.jsx";
 import KertasKerja from "./components/KertasKerja.jsx";
 import ScreeningRKA from "./components/ScreeningRKA.jsx";
 import SbuSshAdmin   from "./components/SbuSshAdmin.jsx";
+import MasterSatuData from "./components/MasterSatuData.jsx";
+import SpmPage from "./components/SpmPage.jsx";
+import KelolaKonten from "./components/KelolaKonten.jsx";
+import MonitoringPage from "./components/MonitoringPage.jsx";
+import KelolaRolePage from "./components/KelolaRolePage.jsx";
 import { Icon, Toast }  from "./components/ui.jsx";
 import { ROLE_COLOR } from "./data.js";
 import { Badge } from "./components/ui.jsx";
@@ -111,7 +115,19 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
   const [cekSesi,   setCekSesi]   = useState(true);
-  const [page,      setPage]      = useState(() => /^#dokumen\/\d+/.test(window.location.hash) ? "dokumen" : (sessionStorage.getItem("page") || "dashboard"));
+  const bacaHalamanAwal = () => {
+    try {
+      const hash = (window.location.hash || "").replace(/^#\/?/, "").split("?")[0].trim();
+      if (/^dokumen\/\d+/.test(hash)) return "dokumen";
+      if (hash && hash !== "konten-utama") return hash;
+      const tersimpan = localStorage.getItem("active_page") || sessionStorage.getItem("page");
+      if (tersimpan) return tersimpan;
+      return "dashboard";
+    } catch {
+      return "dashboard";
+    }
+  };
+  const [page,      setPage]      = useState(bacaHalamanAwal);
   const [docs,      setDocs]      = useState([]);
   const [users,     setUsers]     = useState([]);
   const [logs,      setLogs]      = useState([]);
@@ -183,13 +199,16 @@ export default function App() {
   // tetap men polled dua endpoint itu dan menerima 403 tiap 30-60 detik —
   // sia-sia, dan hereof penuh 403 menutupi 403 yang penting.
   const siapAdmin = siap && user.role === "Admin";
+  // Operator Bank Data hanya boleh mengakses modul Bank Data, jadi jangan
+  // mem-polling endpoint arsip dokumen.
+  const siapArsip = siap && user.role !== "Operator Bank Data";
 
-  const { data: serverDocs = [], isLoading: docsLoading, isSuccess: docsReady } = useDocs(siap);
+  const { data: serverDocs = [], isLoading: docsLoading, isSuccess: docsReady } = useDocs(siapArsip);
   const { data: logsData } = useLogs(siapAdmin);
   const { data: usersData } = useUsers(siapAdmin);
-  const { data: categoriesData } = useCategories(siap);
-  const { data: sectorsData } = useSectors(siap);
-  const { data: bidangData } = useBidang(siap);
+  const { data: categoriesData } = useCategories(siapArsip);
+  const { data: sectorsData } = useSectors(siapArsip);
+  const { data: bidangData } = useBidang(siapArsip);
 
   // Sync server data into local state, preserving local overrides
   useEffect(() => {
@@ -272,7 +291,18 @@ export default function App() {
     // menyusul admin dalam 30 detik akan melihat cache milik admin.
     queryClient.clear();
     setUser(loggedUser);
+    if (loggedUser?.role === "Operator Bank Data") {
+      setPage("bankdata");
+      sessionStorage.setItem("page", "bankdata");
+    }
   };
+
+  useEffect(() => {
+    if (user?.role === "Operator Bank Data" && page !== "bankdata") {
+      setPage("bankdata");
+      sessionStorage.setItem("page", "bankdata");
+    }
+  }, [user, page]);
 
   const handleLogout = async () => {
     // Server harus ikut melepas cookie; menghapus localStorage saja
@@ -306,14 +336,20 @@ export default function App() {
     setPage(p);
     setViewDoc(null);
     setPendingDocId(null);
-    sessionStorage.setItem("page", p);
+    try {
+      sessionStorage.setItem("page", p);
+      localStorage.setItem("active_page", p);
+    } catch (_) {}
     if (pushState) history.pushState({ page: p }, "", `#${p}`);
   };
 
   const openDoc = (d) => {
     setPage("dokumen");
     setViewDoc(d);
-    sessionStorage.setItem("page", "dokumen");
+    try {
+      sessionStorage.setItem("page", "dokumen");
+      localStorage.setItem("active_page", "dokumen");
+    } catch (_) {}
     history.pushState({ page: "dokumen", docId: d.id }, "", `#dokumen/${d.id}`);
   };
 
@@ -326,7 +362,10 @@ export default function App() {
     setPage("dokumen");
     setViewDoc(null);
     setPendingDocId(String(id));
-    sessionStorage.setItem("page", "dokumen");
+    try {
+      sessionStorage.setItem("page", "dokumen");
+      localStorage.setItem("active_page", "dokumen");
+    } catch (_) {}
     history.pushState({ page: "dokumen", docId: id }, "", `#dokumen/${id}`);
   };
 
@@ -338,9 +377,12 @@ export default function App() {
   // browser back/forward
   useEffect(() => {
     const onPop = (e) => {
-      const p = e.state?.page || "dashboard";
+      const p = e.state?.page || bacaHalamanAwal();
       setPage(p);
-      sessionStorage.setItem("page", p);
+      try {
+        sessionStorage.setItem("page", p);
+        localStorage.setItem("active_page", p);
+      } catch (_) {}
       if (e.state?.docId) setPendingDocId(String(e.state.docId));
       else { setViewDoc(null); setPendingDocId(null); }
     };
@@ -348,14 +390,48 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
+  // sinkronisasi hash manual / perubahan alamat URL
+  useEffect(() => {
+    const onHash = () => {
+      const hash = (window.location.hash || "").replace(/^#\/?/, "").split("?")[0].trim();
+      if (!hash || hash === "konten-utama") return;
+      if (/^dokumen\/\d+/.test(hash)) return;
+      setPage(hash);
+      setViewDoc(null);
+      setPendingDocId(null);
+      try {
+        localStorage.setItem("active_page", hash);
+        sessionStorage.setItem("page", hash);
+      } catch (_) {}
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
   // push initial state on mount (jangan timpa hash halaman publik / dokumen)
   useEffect(() => {
     if (publicParams) return;
     const m = window.location.hash.match(/^#dokumen\/(\d+)/);
     if (m) { history.replaceState({ page: "dokumen", docId: m[1] }, "", window.location.hash); return; }
-    const p = sessionStorage.getItem("page") || "dashboard";
-    history.replaceState({ page: p }, "", `#${p}`);
+    const p = bacaHalamanAwal();
+    setPage(p);
+    try {
+      localStorage.setItem("active_page", p);
+      sessionStorage.setItem("page", p);
+    } catch (_) {}
+    if (window.location.hash !== `#${p}`) {
+      history.replaceState({ page: p }, "", `#${p}`);
+    }
   }, []);
+
+  useEffect(() => {
+    if (page && !publicParams) {
+      try {
+        localStorage.setItem("active_page", page);
+        sessionStorage.setItem("page", page);
+      } catch (_) {}
+    }
+  }, [page, publicParams]);
 
   // buka dokumen dari hash begitu daftar dokumen sudah dimuat
   useEffect(() => {
@@ -1069,11 +1145,16 @@ if (!user) {
                   {page === "kertas-kerja" && "Kertas Kerja"}
                   {page === "screening" && "Screening RKA"}
                   {page === "standar-harga" && "Standar Harga"}
+                  {page === "spm" && "Standar Pelayanan Minimal (SPM)"}
+                  {page === "master-satudata" && "Master Satu Data"}
+                  {page === "kelola-konten" && "Kelola Konten"}
+                  {page === "monitoring" && "Monitoring Sistem"}
+                  {page === "kelola-role" && "Kelola Role & Hak Akses"}
                 </div>
               )}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 14 }}>
-              {pendingCount > 0 && (
+              {pendingCount > 0 && user.role !== "Operator Bank Data" && (
                 <div style={{ position: "relative", cursor: "pointer" }} onClick={() => goPage("dokumen")} title="Dokumen perlu review">
                   <Icon name="layers" size={isMobile ? 17 : 18} style={{ color: "#f59e0b" }} />
                   <span style={{ position: "absolute", top: -5, right: -5, width: 16, height: 16, background: "#f59e0b", borderRadius: 50, fontSize: 9, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
@@ -1141,11 +1222,8 @@ if (!user) {
             {page === "panduan" && (
               <PanduanPengguna />
             )}
-            {page === "bankdata" && user.role === "Admin" && (
-              <BankData showToast={showToast} />
-            )}
-            {page === "bankdata" && user.role !== "Admin" && (
-              <BankDataReadOnly />
+            {page === "bankdata" && (
+              <BankDataPage user={user} showToast={showToast} />
             )}
             {page === "kertas-kerja" && (
               <KertasKerja
@@ -1175,6 +1253,21 @@ if (!user) {
             )}
             {page === "audit" && user.role === "Admin" && (
               <AuditTrail logs={logs} />
+            )}
+            {page === "spm" && (
+              <SpmPage user={user} showToast={showToast} />
+            )}
+            {page === "master-satudata" && user.role === "Admin" && (
+              <MasterSatuData user={user} showToast={showToast} />
+            )}
+            {page === "kelola-konten" && user.role === "Admin" && (
+              <KelolaKonten showToast={showToast} />
+            )}
+            {page === "monitoring" && user.role === "Admin" && (
+              <MonitoringPage showToast={showToast} />
+            )}
+            {page === "kelola-role" && user.role === "Admin" && (
+              <KelolaRolePage showToast={showToast} />
             )}
           </div>
 
@@ -1215,20 +1308,5 @@ if (!user) {
         <Toast msg={toast} onClose={() => setToast("")} />
       </div>
     </ThemeContext.Provider>
-  );
-}
-
-function BankDataReadOnly() {
-  const { T } = useContext(ThemeContext);
-  return (
-    <div>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: T.text }}>Bank Data</div>
-        <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>
-          Data sektoral dan indikator kinerja per OPD di BAPPERIDA
-        </div>
-      </div>
-      <BankDataDashboard emptyMessage="Belum ada data bank data. Hubungi admin untuk melengkapi data." />
-    </div>
   );
 }

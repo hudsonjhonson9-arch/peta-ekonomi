@@ -1,9 +1,12 @@
 import { useState, useEffect, useContext, useMemo, useRef } from "react";
-import { Icon, Badge, Geser } from "./ui.jsx";
+import { Icon, Badge, Geser, Select, Button } from "./ui.jsx";
 import { STATUS_COLOR, ROLE_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
 import { ThemeContext } from "../App.jsx";
 import HighlightText from "./HighlightText.jsx";
+import GrafikDataset from "./GrafikDataset.jsx";
+import { unduhDatasetExcel } from "./BankDataPage.jsx";
+import SpmPage from "./SpmPage.jsx";
 
 // ── Shared Style Factories (use T from ThemeContext) ──────────────────────────
 function makeStyles(T) {
@@ -236,14 +239,61 @@ export function Pencarian({ docs, onView }) {
 export function PortalPublik({ docs, onDownload }) {
   const { isMobile } = useResponsive();
   const { T } = useContext(ThemeContext);
+  const [modePublik, setModePublik] = useState("dokumen"); // 'dokumen' | 'bankdata'
   const [verifCode, setVerifCode] = useState("");
   const [verifResult, setVerifResult] = useState(null);
   const [verifLoading, setVerifLoading] = useState(false);
   const [verifError, setVerifError] = useState("");
 
+  // State Katalog Bank Data Publik
+  const [publikDatasets, setPublikDatasets] = useState([]);
+  const [loadingDs, setLoadingDs] = useState(false);
+  const [selectedDsId, setSelectedDsId] = useState(null);
+  const [selectedDsDetail, setSelectedDsDetail] = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [qDs, setQDs] = useState("");
+  const [kontenPublik, setKontenPublik] = useState({ berita: [], publikasi: [], tautan: [], faq: [], qna: [] });
+  const [qnaForm, setQnaForm] = useState({ nama: "", email: "", instansi: "", pertanyaan: "" });
+  const [qnaMsg, setQnaMsg] = useState("");
+
+  useEffect(() => {
+    fetch("/api/publik/konten")
+      .then(r => (r.ok ? r.json() : {}))
+      .then(d => setKontenPublik(d || {}))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    setLoadingDs(true);
+    fetch("/api/publik/bankdata")
+      .then(r => (r.ok ? r.json() : []))
+      .then(d => setPublikDatasets(Array.isArray(d) ? d : []))
+      .catch(() => setPublikDatasets([]))
+      .finally(() => setLoadingDs(false));
+  }, []);
+
+  useEffect(() => {
+    if (!selectedDsId) {
+      setSelectedDsDetail(null);
+      return;
+    }
+    setLoadingDetail(true);
+    fetch(`/api/publik/bankdata/${selectedDsId}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setSelectedDsDetail(d))
+      .catch(() => setSelectedDsDetail(null))
+      .finally(() => setLoadingDetail(false));
+  }, [selectedDsId]);
+
   const publik = docs.filter(d =>
     d.status === "Diarsipkan" && d.publik
   );
+
+  const filteredDatasets = publikDatasets.filter(d => {
+    if (!qDs.trim()) return true;
+    const q = qDs.trim().toLowerCase();
+    return `${d.nama || ""} ${d.opd_nama || ""} ${d.deskripsi || ""}`.toLowerCase().includes(q);
+  });
 
   async function handleVerify() {
     if (!verifCode.trim()) return;
@@ -263,89 +313,399 @@ export function PortalPublik({ docs, onDownload }) {
 
   return (
     <div>
-      <div style={{ background: `linear-gradient(135deg, ${T.sidebarBg}, ${T.primary})`, borderRadius: 16, padding: isMobile ? "24px 20px" : "32px 28px", marginBottom: 24, color: "#fff" }}>
-        <div style={{ fontSize: isMobile ? 19 : 22, fontWeight: 700, marginBottom: 6 }}>Portal Dokumen Publik</div>
+      <div style={{ background: `linear-gradient(135deg, ${T.sidebarBg}, ${T.primary})`, borderRadius: 16, padding: isMobile ? "24px 20px" : "32px 28px", marginBottom: 20, color: "#fff" }}>
+        <div style={{ fontSize: isMobile ? 19 : 22, fontWeight: 700, marginBottom: 6 }}>Portal Publik & Satu Data</div>
         <div style={{ fontSize: 14, color: "rgba(255,255,255,0.75)" }}>
-          Akses dokumen perencanaan pembangunan yang tersedia untuk publik
+          Akses dokumen perencanaan pembangunan dan dataset sektoral terbuka (Satu Data)
         </div>
         <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 6 }}>
           BAPPERIDA Kabupaten Sumba Barat · NTT
         </div>
       </div>
 
-      {/* Verifikasi Dokumen */}
-      <div style={{ background: T.card, borderRadius: 12, padding: 20, marginBottom: 24, border: `1px solid ${T.border}` }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 8 }}>
-          Verifikasi Dokumen
-        </div>
-        <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 12 }}>
-          Masukkan kode verifikasi untuk memeriksa keaslian dokumen
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            value={verifCode}
-            onChange={e => setVerifCode(e.target.value)}
-            placeholder="Contoh: A3K9-M2X7"
-            maxLength={9}
-            style={{ flex: 1, padding: "10px 14px", background: T.inputBg, border: `1.5px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 14, fontFamily: "monospace", letterSpacing: 2, outline: "none" }}
-            onKeyDown={e => e.key === "Enter" && handleVerify()}
-          />
-          <button onClick={handleVerify} disabled={verifLoading}
-            style={{ padding: "10px 20px", background: T.primary, color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer", opacity: verifLoading ? 0.6 : 1 }}>
-            {verifLoading ? "Memeriksa..." : "Verifikasi"}
-          </button>
-        </div>
-
-        {verifError && (
-          <div style={{ marginTop: 12, padding: "10px 14px", background: T.dangerBg, border: `1px solid ${T.dangerBorder}`, borderRadius: 8, color: T.danger, fontSize: 13 }}>
-            {verifError}
-          </div>
-        )}
-
-        {verifResult && (
-          <div style={{ marginTop: 12, padding: "14px", background: T.successBg, border: `1px solid ${T.successBorder}`, borderRadius: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 18, color: T.success }}>&#10003;</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: T.success }}>Dokumen Terverifikasi</span>
-            </div>
-            <div style={{ fontSize: 13, color: T.text, marginBottom: 4 }}>{verifResult.doc?.judul}</div>
-            <div style={{ fontSize: 12, color: T.textSecondary }}>Tipe: {verifResult.doc?.file_type} | Versi: {verifResult.doc?.versi}</div>
-            {verifResult.share?.expires_at && (
-              <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 4 }}>
-                Berlaku hingga: {new Date(verifResult.share.expires_at).toLocaleString("id-ID")}
-              </div>
-            )}
-            {verifResult.expired && (
-              <div style={{ fontSize: 12, color: T.danger, marginTop: 4 }}>Catatan: Tautan ini sudah kedaluwarsa</div>
-            )}
-          </div>
-        )}
+      {/* Switcher Dokumen Publik vs Bank Data Terbuka */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+        <button
+          onClick={() => { setModePublik("dokumen"); setSelectedDsId(null); }}
+          style={{
+            padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer",
+            border: modePublik === "dokumen" ? `1.5px solid ${T.primary}` : `1px solid ${T.border}`,
+            background: modePublik === "dokumen" ? T.primary : T.card,
+            color: modePublik === "dokumen" ? "#fff" : T.textSecondary,
+            display: "inline-flex", alignItems: "center", gap: 8,
+          }}
+        >
+          <Icon name="file" size={15} /> Dokumen Publik ({publik.length})
+        </button>
+        <button
+          onClick={() => setModePublik("bankdata")}
+          style={{
+            padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer",
+            border: modePublik === "bankdata" ? `1.5px solid ${T.primary}` : `1px solid ${T.border}`,
+            background: modePublik === "bankdata" ? T.primary : T.card,
+            color: modePublik === "bankdata" ? "#fff" : T.textSecondary,
+            display: "inline-flex", alignItems: "center", gap: 8,
+          }}
+        >
+          <Icon name="chart" size={15} /> Bank Data Terbuka ({publikDatasets.length})
+        </button>
+        <button
+          onClick={() => { setModePublik("spm"); setSelectedDsId(null); }}
+          style={{
+            padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer",
+            border: modePublik === "spm" ? `1.5px solid ${T.primary}` : `1px solid ${T.border}`,
+            background: modePublik === "spm" ? T.primary : T.card,
+            color: modePublik === "spm" ? "#fff" : T.textSecondary,
+            display: "inline-flex", alignItems: "center", gap: 8,
+          }}
+        >
+          <Icon name="checkCircle" size={15} /> Capaian SPM & Peta Kecamatan
+        </button>
+        <button
+          onClick={() => { setModePublik("konten"); setSelectedDsId(null); }}
+          style={{
+            padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer",
+            border: modePublik === "konten" ? `1.5px solid ${T.primary}` : `1px solid ${T.border}`,
+            background: modePublik === "konten" ? T.primary : T.card,
+            color: modePublik === "konten" ? "#fff" : T.textSecondary,
+            display: "inline-flex", alignItems: "center", gap: 8,
+          }}
+        >
+          <Icon name="world" size={15} /> Berita, Regulasi & Tanya Data
+        </button>
       </div>
 
-      <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 14 }}>{publik.length} dokumen tersedia untuk publik</div>
+      {modePublik === "spm" ? (
+        <SpmPage readOnly />
+      ) : modePublik === "konten" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* Berita & Artikel */}
+          <div style={{ background: T.card, borderRadius: 12, padding: 20, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 12 }}>Berita & Informasi Satu Data</div>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 12 }}>
+              {(kontenPublik.berita || []).map(b => (
+                <div key={b.id} style={{ padding: 14, borderRadius: 10, background: T.bg, border: `1px solid ${T.border}` }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: T.primary }}>{b.kategori} · {String(b.tanggal_terbit || "").slice(0, 10)}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginTop: 4 }}>{b.judul}</div>
+                  <div style={{ fontSize: 12.5, color: T.textSecondary, marginTop: 6 }}>{b.ringkasan || b.isi}</div>
+                </div>
+              ))}
+            </div>
+          </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2,1fr)", gap: 12 }}>
-        {publik.map(d => (
-          <div key={d.id} style={{ background: T.card, borderRadius: 12, padding: 18, border: `1px solid ${T.border}` }}>
-            <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-              <div style={{ width: 40, height: 40, background: T.primaryLight, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Icon name="file" size={18} style={{ color: T.primary }} />
+          {/* Katalog Produk Hukum, SK Tim & Publikasi Kajian */}
+          <div style={{ background: T.card, borderRadius: 12, padding: 20, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 12 }}>Produk Hukum, SK Tim Satu Data & Publikasi Kajian</div>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 12 }}>
+              {(kontenPublik.publikasi || []).map(p => (
+                <div key={p.id} style={{ padding: 14, borderRadius: 10, background: T.bg, border: `1px solid ${T.border}` }}>
+                  <Badge label={`${p.jenis} (${p.tahun})`} colors={{ bg: "#EFF6FF", text: "#2563EB" }} />
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text, marginTop: 8 }}>{p.judul}</div>
+                  {p.nomor && <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 3 }}>{p.nomor}</div>}
+                  <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 6 }}>{p.deskripsi}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* FAQ & Form Tanya Data Masyarakat */}
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.1fr 1fr", gap: 16 }}>
+            <div style={{ background: T.card, borderRadius: 12, padding: 20, border: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 12 }}>FAQ — Pertanyaan yang Sering Diajukan</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {(kontenPublik.faq || []).map(f => (
+                  <div key={f.id} style={{ padding: 12, borderRadius: 8, background: T.bg, border: `1px solid ${T.border}` }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{f.pertanyaan}</div>
+                    <div style={{ fontSize: 12.5, color: T.textSecondary, marginTop: 4 }}>{f.jawaban}</div>
+                  </div>
+                ))}
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 4, lineHeight: 1.3 }}>{d.title}</div>
-                <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 8 }}>{d.type} · {d.year} · {d.size}</div>
-                <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 10, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{d.desc}</div>
-                <button
-                  onClick={() => onDownload && onDownload(d)}
-                  style={{ fontSize: 11, padding: "5px 12px", background: T.primary, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}
+            </div>
+
+            <div style={{ background: T.card, borderRadius: 12, padding: 20, border: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 6 }}>Tanya Data & Buku Tamu Masyarakat</div>
+              <div style={{ fontSize: 12.5, color: T.textSecondary, marginBottom: 12 }}>
+                Ajukan permohonan data atau pertanyaan kepada Tim Walidata BAPPERIDA
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <input
+                  value={qnaForm.nama}
+                  onChange={e => setQnaForm(f => ({ ...f, nama: e.target.value }))}
+                  placeholder="Nama Lengkap *"
+                  style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg, color: T.text, fontSize: 13 }}
+                />
+                <input
+                  value={qnaForm.email}
+                  onChange={e => setQnaForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="Alamat Email *"
+                  style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg, color: T.text, fontSize: 13 }}
+                />
+                <input
+                  value={qnaForm.instansi}
+                  onChange={e => setQnaForm(f => ({ ...f, instansi: e.target.value }))}
+                  placeholder="Asal Instansi / Universitas / Umum"
+                  style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg, color: T.text, fontSize: 13 }}
+                />
+                <textarea
+                  rows={3}
+                  value={qnaForm.pertanyaan}
+                  onChange={e => setQnaForm(f => ({ ...f, pertanyaan: e.target.value }))}
+                  placeholder="Tuliskan pertanyaan atau kebutuhan data Anda *"
+                  style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg, color: T.text, fontSize: 13 }}
+                />
+                <Button
+                  variant="primary"
+                  onClick={async () => {
+                    if (!qnaForm.nama || !qnaForm.email || !qnaForm.pertanyaan) {
+                      setQnaMsg("Nama, email, dan pertanyaan wajib diisi.");
+                      return;
+                    }
+                    const res = await fetch("/api/publik/qna", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(qnaForm),
+                    });
+                    await fetch("/api/publik/visitor", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ nama: qnaForm.nama, email: qnaForm.email, instansi: qnaForm.instansi, keperluan: qnaForm.pertanyaan, aksi: "tanya_data" }),
+                    }).catch(() => {});
+                    if (res.ok) {
+                      setQnaMsg("Pertanyaan Anda berhasil dikirim ke Tim Walidata.");
+                      setQnaForm({ nama: "", email: "", instansi: "", pertanyaan: "" });
+                    } else {
+                      setQnaMsg("Gagal mengirim pertanyaan.");
+                    }
+                  }}
                 >
-                  <Icon name="download" size={11} /> Unduh
-                </button>
+                  Kirim Pertanyaan
+                </Button>
+                {qnaMsg && <div style={{ fontSize: 12, fontWeight: 600, color: T.primary }}>{qnaMsg}</div>}
               </div>
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      ) : modePublik === "dokumen" ? (
+        <>
+          {/* Verifikasi Dokumen */}
+          <div style={{ background: T.card, borderRadius: 12, padding: 20, marginBottom: 24, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 8 }}>
+              Verifikasi Dokumen
+            </div>
+            <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 12 }}>
+              Masukkan kode verifikasi untuk memeriksa keaslian dokumen
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                value={verifCode}
+                onChange={e => setVerifCode(e.target.value)}
+                placeholder="Contoh: A3K9-M2X7"
+                maxLength={9}
+                style={{ flex: 1, padding: "10px 14px", background: T.inputBg, border: `1.5px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 14, fontFamily: "monospace", letterSpacing: 2, outline: "none" }}
+                onKeyDown={e => e.key === "Enter" && handleVerify()}
+              />
+              <button onClick={handleVerify} disabled={verifLoading}
+                style={{ padding: "10px 20px", background: T.primary, color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer", opacity: verifLoading ? 0.6 : 1 }}>
+                {verifLoading ? "Memeriksa..." : "Verifikasi"}
+              </button>
+            </div>
+
+            {verifError && (
+              <div style={{ marginTop: 12, padding: "10px 14px", background: T.dangerBg, border: `1px solid ${T.dangerBorder}`, borderRadius: 8, color: T.danger, fontSize: 13 }}>
+                {verifError}
+              </div>
+            )}
+
+            {verifResult && (
+              <div style={{ marginTop: 12, padding: "14px", background: T.successBg, border: `1px solid ${T.successBorder}`, borderRadius: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontSize: 18, color: T.success }}>&#10003;</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: T.success }}>Dokumen Terverifikasi</span>
+                </div>
+                <div style={{ fontSize: 13, color: T.text, marginBottom: 4 }}>{verifResult.doc?.judul}</div>
+                <div style={{ fontSize: 12, color: T.textSecondary }}>Tipe: {verifResult.doc?.file_type} | Versi: {verifResult.doc?.versi}</div>
+                {verifResult.share?.expires_at && (
+                  <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 4 }}>
+                    Berlaku hingga: {new Date(verifResult.share.expires_at).toLocaleString("id-ID")}
+                  </div>
+                )}
+                {verifResult.expired && (
+                  <div style={{ fontSize: 12, color: T.danger, marginTop: 4 }}>Catatan: Tautan ini sudah kedaluwarsa</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 14 }}>{publik.length} dokumen tersedia untuk publik</div>
+
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2,1fr)", gap: 12 }}>
+            {publik.map(d => (
+              <div key={d.id} style={{ background: T.card, borderRadius: 12, padding: 18, border: `1px solid ${T.border}` }}>
+                <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                  <div style={{ width: 40, height: 40, background: T.primaryLight, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon name="file" size={18} style={{ color: T.primary }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 4, lineHeight: 1.3 }}>{d.title}</div>
+                    <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 8 }}>{d.type} · {d.year} · {d.size}</div>
+                    <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 10, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{d.desc}</div>
+                    <button
+                      onClick={() => onDownload && onDownload(d)}
+                      style={{ fontSize: 11, padding: "5px 12px", background: T.primary, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}
+                    >
+                      <Icon name="download" size={11} /> Unduh
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : selectedDsId ? (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
+            <button
+              onClick={() => setSelectedDsId(null)}
+              style={{
+                padding: "8px 14px", borderRadius: 8, border: `1px solid ${T.border}`,
+                background: T.card, color: T.textSecondary, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                display: "inline-flex", alignItems: "center", gap: 6,
+              }}
+            >
+              <Icon name="chevronRight" size={13} style={{ transform: "rotate(180deg)" }} /> Kembali ke Katalog Dataset
+            </button>
+            {selectedDsDetail && (
+              <button
+                onClick={() => unduhDatasetExcel(selectedDsDetail, selectedDsDetail.fields || [], selectedDsDetail.rows || [])}
+                style={{
+                  padding: "9px 16px", borderRadius: 8, border: "none",
+                  background: T.primary, color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                }}
+              >
+                <Icon name="download" size={14} /> Unduh Data Excel (.xlsx)
+              </button>
+            )}
+          </div>
+
+          {loadingDetail ? (
+            <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>Memuat dataset publik...</div>
+          ) : !selectedDsDetail ? (
+            <div style={{ padding: 24, color: T.danger }}>Dataset tidak ditemukan.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, padding: 18 }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 4 }}>{selectedDsDetail.nama}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.primary, marginBottom: 6 }}>
+                  {selectedDsDetail.opd_nama} · Frekuensi: {selectedDsDetail.frekuensi}
+                  {selectedDsDetail.satuan ? ` · Satuan: ${selectedDsDetail.satuan}` : ""}
+                </div>
+                {selectedDsDetail.deskripsi && (
+                  <div style={{ fontSize: 13, color: T.textSecondary, lineHeight: 1.5 }}>{selectedDsDetail.deskripsi}</div>
+                )}
+              </div>
+
+              <GrafikDataset
+                fields={selectedDsDetail.fields || []}
+                rows={selectedDsDetail.rows || []}
+                satuanDefault={selectedDsDetail.satuan || ""}
+              />
+
+              <div style={{ background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, padding: 16, overflowX: "auto" }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>
+                  Tabel Data ({(selectedDsDetail.rows || []).length} Baris)
+                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                  <thead>
+                    <tr style={{ background: T.surfaceHover, textAlign: "left" }}>
+                      <th style={{ padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>Tahun</th>
+                      <th style={{ padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>Periode</th>
+                      <th style={{ padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>Wilayah</th>
+                      {(selectedDsDetail.fields || []).map(f => (
+                        <th key={f.id} style={{ padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.text }}>
+                          {f.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(selectedDsDetail.rows || []).map(r => (
+                      <tr key={r.id} style={{ borderBottom: `1px solid ${T.border}` }}>
+                        <td style={{ padding: "9px 10px", fontWeight: 700, color: T.text }}>{r.tahun}</td>
+                        <td style={{ padding: "9px 10px", color: T.textSecondary }}>{r.periode || "Tahunan"}</td>
+                        <td style={{ padding: "9px 10px", color: T.textSecondary }}>{r.wilayah_kode || "—"}</td>
+                        {(selectedDsDetail.fields || []).map(f => (
+                          <td key={f.id} style={{ padding: "9px 10px", color: T.text, fontVariantNumeric: "tabular-nums" }}>
+                            {r.data?.[f.nama_field] !== undefined && r.data?.[f.nama_field] !== null
+                              ? (typeof r.data[f.nama_field] === "number" ? r.data[f.nama_field].toLocaleString("id-ID") : String(r.data[f.nama_field]))
+                              : "—"}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div>
+          <div style={{ marginBottom: 16, position: "relative" }}>
+            <Icon name="search" size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: T.textMuted }} />
+            <input
+              value={qDs}
+              onChange={e => setQDs(e.target.value)}
+              placeholder="Cari dataset publik berdasarkan judul atau OPD..."
+              style={{
+                width: "100%", padding: "10px 14px 10px 36px", borderRadius: 10,
+                border: `1.5px solid ${T.border}`, background: T.card, color: T.text,
+                fontSize: 13.5, outline: "none", boxSizing: "border-box",
+              }}
+            />
+          </div>
+
+          {loadingDs ? (
+            <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>Memuat katalog dataset publik...</div>
+          ) : filteredDatasets.length === 0 ? (
+            <div style={{ background: T.card, borderRadius: 12, padding: 36, textAlign: "center", border: `1px solid ${T.border}`, color: T.textMuted }}>
+              Belum ada dataset terbuka yang dipublikasikan.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 12 }}>
+              {filteredDatasets.map(d => (
+                <div
+                  key={d.id}
+                  onClick={() => setSelectedDsId(d.id)}
+                  style={{
+                    background: T.card, borderRadius: 12, padding: 18,
+                    border: `1px solid ${T.border}`, cursor: "pointer",
+                    display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 10,
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 4 }}>{d.nama}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: T.primary, marginBottom: 6 }}>{d.opd_nama}</div>
+                    {d.deskripsi && (
+                      <div style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.45 }}>{d.deskripsi}</div>
+                    )}
+                  </div>
+                  <div style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    paddingTop: 10, borderTop: `1px solid ${T.border}`, fontSize: 11.5, color: T.textMuted,
+                  }}>
+                    <span>
+                      {d.jumlah_baris || 0} baris data
+                      {d.tahun_min ? ` · ${d.tahun_min}${d.tahun_max && d.tahun_max !== d.tahun_min ? `–${d.tahun_max}` : ""}` : ""}
+                    </span>
+                    <span style={{ color: T.primary, fontWeight: 700 }}>Lihat Tabel & Grafik ›</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -359,25 +719,29 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
   const [isEdit, setIsEdit] = useState(false);
   const [form, setForm] = useState({
     id: "", nip: "", name: "", role: "Staf",
-    unit: "", status: "AKTIF", password: ""
+    unit: "", status: "AKTIF", password: "", opd_id: ""
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [bidangList, setBidangList] = useState([]);
+  const [opdList, setOpdList] = useState([]);
+  const [roleList, setRoleList] = useState([]);
 
   useEffect(() => {
-    fetch('/api/bidang').then(r => r.json()).then(d => setBidangList(d)).catch(() => {});
+    fetch('/api/bidang').then(r => r.json()).then(d => setBidangList(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch('/api/bankdata/opd').then(r => r.json()).then(d => setOpdList(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch('/api/roles').then(r => r.json()).then(d => setRoleList(Array.isArray(d) ? d : [])).catch(() => {});
   }, []);
 
   const openAdd = () => {
-    setForm({ id: "", nip: "", name: "", role: "Staf", unit: bidangList[0]?.nama || "", status: "AKTIF", password: "" });
+    setForm({ id: "", nip: "", name: "", role: "Staf", unit: bidangList[0]?.nama || "", status: "AKTIF", password: "", opd_id: "" });
     setErrors({});
     setIsEdit(false);
     setModalOpen(true);
   };
 
   const openEdit = (u) => {
-    setForm({ id: u.id, nip: u.nip, name: u.name, role: u.role, unit: u.unit, status: u.status, password: "" });
+    setForm({ id: u.id, nip: u.nip, name: u.name, role: u.role, unit: u.unit, status: u.status, password: "", opd_id: u.opd_id ? String(u.opd_id) : "" });
     setErrors({});
     setIsEdit(true);
     setModalOpen(true);
@@ -388,6 +752,9 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
     if (!form.nip.trim()) e.nip = "NIP wajib diisi";
     if (!form.name.trim()) e.name = "Nama Lengkap wajib diisi";
     if (!isEdit && !form.password.trim()) e.password = "Password wajib diisi";
+    const roleObj = roleList.find(r => r.nama === form.role);
+    const butuhOpd = roleObj ? Boolean(roleObj.opd_scoped) : (form.role === "Operator Bank Data" || form.role === "Produsen Data");
+    if (butuhOpd && !form.opd_id) e.opd_id = `OPD wajib dipilih untuk peran ${form.role}`;
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -435,6 +802,13 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
   };
 
   const isActive = (s) => s === "AKTIF" || s === "Aktif";
+  const ambilWarnaRole = (roleName) => {
+    const found = roleList.find(r => r.nama === roleName);
+    if (found && found.warna_bg && found.warna_text) {
+      return { bg: found.warna_bg, text: found.warna_text };
+    }
+    return ROLE_COLOR[roleName] || { bg: "#F1F5F9", text: "#475569" };
+  };
 
   return (
     <div style={{ padding: isMobile ? 16 : "28px 36px", fontFamily: T.font, background: T.bg, minHeight: "100%" }}>
@@ -491,7 +865,14 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
                   </div>
                 </div>
                 {/* Role */}
-                <div><Badge label={u.role} colors={ROLE_COLOR[u.role] || { bg: "#F1F5F9", text: "#475569" }} /></div>
+                <div>
+                  <Badge label={u.role} colors={ambilWarnaRole(u.role)} />
+                  {u.opd_nama && (
+                    <div style={{ fontSize: 11, color: T.primary, fontWeight: 600, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      OPD: {u.opd_nama}
+                    </div>
+                  )}
+                </div>
                 {/* Unit */}
                 <div style={{ fontSize: 13, color: T.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.unit}</div>
                 {/* Status */}
@@ -542,7 +923,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
                   <div style={{ fontSize: 14, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.name}</div>
                   <div style={{ fontSize: 12, color: T.textMuted }}>NIP: {u.nip}</div>
                 </div>
-                <Badge label={u.role} colors={ROLE_COLOR[u.role] || { bg: "#F1F5F9", text: "#475569" }} />
+                <Badge label={u.role} colors={ambilWarnaRole(u.role)} />
               </div>
               <div style={{ display: "flex", gap: 8, fontSize: 12, color: T.textSecondary, marginBottom: 12, flexWrap: "wrap" }}>
                 <span style={{ background: T.bg, border: `1px solid ${T.border}`, padding: "3px 10px", borderRadius: 99 }}>{u.unit}</span>
@@ -616,35 +997,70 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
                 <div>
                   <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>Peran <span style={{ color: T.danger }}>*</span></label>
-                  <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
-                    style={{ ...s.inputStyle, cursor: "pointer", appearance: "auto" }}
-                    onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
-                    onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}>
-                    <option>Staf</option><option>Reviewer</option><option>Admin</option>
-                  </select>
+                  <Select
+                    fullWidth
+                    size="lg"
+                    value={form.role}
+                    onChange={v => setForm({ ...form, role: v })}
+                    options={(roleList.length > 0 ? roleList.map(r => ({ value: r.nama, label: r.nama })) : [
+                      { value: "Admin", label: "Admin" },
+                      { value: "Walidata", label: "Walidata" },
+                      { value: "Reviewer", label: "Reviewer" },
+                      { value: "Operator Bank Data", label: "Operator Bank Data" },
+                      { value: "Produsen Data", label: "Produsen Data" },
+                      { value: "Staf", label: "Staf" },
+                    ])}
+                  />
                 </div>
                 <div>
                   <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>Status <span style={{ color: T.danger }}>*</span></label>
-                  <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
-                    style={{ ...s.inputStyle, cursor: "pointer", appearance: "auto" }}
+                  <Select fullWidth size="lg" value={form.status} onChange={v => setForm({ ...form, status: v })} options={["AKTIF", "TUGAS", "NONAKTIF"].map(st => ({ value: st, label: st }))}
                     onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
-                    onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}>
-                    <option value="AKTIF">AKTIF</option><option value="TUGAS">TUGAS</option><option value="NONAKTIF">NONAKTIF</option>
-                  </select>
+                    onBlur={() => {}} />
                 </div>
               </div>
+
+              {/* OPD untuk role yang membutuhkan pemetaan OPD */}
+              {(() => {
+                const rDipilih = roleList.find(r => r.nama === form.role);
+                const butuhOpd = rDipilih ? Boolean(rDipilih.opd_scoped) : (form.role === "Operator Bank Data" || form.role === "Produsen Data");
+                if (!butuhOpd) return null;
+                return (
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>
+                      OPD yang Dikelola (Perangkat Daerah) <span style={{ color: T.danger }}>*</span>
+                    </label>
+                    <Select
+                      fullWidth
+                      size="lg"
+                      value={form.opd_id || ""}
+                      error={!!errors.opd_id}
+                      placeholder="— Pilih OPD —"
+                      onChange={val => {
+                        const found = opdList.find(o => String(o.id) === String(val));
+                        setForm({ ...form, opd_id: val, unit: found?.nama || form.unit });
+                      }}
+                      options={[
+                        { value: "", label: "— Pilih OPD —" },
+                        ...opdList.map(o => ({ value: String(o.id), label: o.nama })),
+                      ]}
+                    />
+                    {errors.opd_id && <div style={{ fontSize: 12, color: T.danger, marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}><Icon name="x" size={12} /> {errors.opd_id}</div>}
+                  </div>
+                );
+              })()}
 
               {/* Unit Kerja */}
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>Unit Kerja <span style={{ color: T.danger }}>*</span></label>
-                <select value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })}
-                  style={{ ...s.inputStyle, cursor: "pointer", appearance: "auto" }}
+                <Select fullWidth size="lg" value={form.unit} placeholder="— Pilih Bidang —" onChange={v => setForm({ ...form, unit: v })} options={[{ value: "", label: "— Pilih Bidang —" }, ...bidangList.map(b => ({ value: b.nama, label: b.nama })), ...(form.unit && !bidangList.some(b => b.nama === form.unit) ? [{ value: form.unit, label: form.unit }] : [])]}
+
                   onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
-                  onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}>
-                  <option value="">— Pilih Bidang —</option>
-                  {bidangList.map(b => <option key={b.id} value={b.nama}>{b.nama}</option>)}
-                  {form.unit && !bidangList.some(b => b.nama === form.unit) && <option value={form.unit}>{form.unit}</option>}
-                </select>
+                  onBlur={() => {}} />
+
+
+
+
               </div>
 
               {/* Password */}

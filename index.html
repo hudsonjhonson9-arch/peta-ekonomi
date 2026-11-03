@@ -41,7 +41,19 @@
       *:focus-visible { outline: 2px solid #2563EB !important; outline-offset: 2px; }
       html[data-theme="dark"] *:focus-visible { outline: #60A5FA !important; }
       /* Umpan balik tekan pada semua tombol. */
-      button { transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease, color .15s ease, transform .1s ease; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      button { transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease, color .15s ease, transform .12s ease, filter .15s ease; }
+      button:hover:not(:disabled) { filter: brightness(1.04); }
+      input[type="file"]::file-selector-button {
+        font-family: inherit; font-weight: 600; font-size: 12px;
+        padding: 7px 14px; border-radius: 8px; border: 1px solid #2563EB;
+        background: #EFF6FF; color: #2563EB; cursor: pointer;
+        margin-right: 10px; transition: all .15s ease;
+      }
+      input[type="file"]::file-selector-button:hover { background: #2563EB; color: #fff; }
+      html[data-theme="dark"] input[type="file"]::file-selector-button {
+        background: rgba(59,130,246,0.15); color: #60A5FA; border-color: #3B82F6;
+      }
       button:active:not(:disabled) { transform: scale(0.97); }
       h1, h2, h3 { text-wrap: balance; }
       /* Tautan "lewati ke konten" — muncul hanya saat difokus keyboard. */

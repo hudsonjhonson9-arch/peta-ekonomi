@@ -44,9 +44,10 @@ export const STATUS_COLOR = {
 };
 
 export const ROLE_COLOR = {
-  Admin:    { bg: "#EDE9FE", text: "#7C3AED", darkBg: "#2E1065", darkText: "#A78BFA" },
-  Reviewer: { bg: "#EFF6FF", text: "#2563EB", darkBg: "#1E3A5F", darkText: "#60A5FA" },
-  Staf:     { bg: "#F0FDF4", text: "#16A34A", darkBg: "#052E16", darkText: "#4ADE80" },
+  Admin:                { bg: "#EDE9FE", text: "#7C3AED", darkBg: "#2E1065", darkText: "#A78BFA" },
+  Reviewer:             { bg: "#EFF6FF", text: "#2563EB", darkBg: "#1E3A5F", darkText: "#60A5FA" },
+  Staf:                 { bg: "#F0FDF4", text: "#16A34A", darkBg: "#052E16", darkText: "#4ADE80" },
+  "Operator Bank Data": { bg: "#ECFEFF", text: "#0E7490", darkBg: "#083344", darkText: "#22D3EE" },
 };
 
 // ═══ Navigasi ══════════════════════════════════════════════════════════════
@@ -87,6 +88,7 @@ export const NAV_GROUPS = [
       { key: "kertas-kerja", label: "Kertas Kerja", icon: "checkCircle" },
       { key: "screening",    label: "Screening RKA", icon: "filter"     },
       { key: "bankdata",     label: "Bank Data",    icon: "chart"       },
+      { key: "spm",          label: "Capaian SPM",  icon: "shield"      },
     ],
   },
   {
@@ -94,7 +96,11 @@ export const NAV_GROUPS = [
     label: "Administrasi",
     icon: "building",
     items: [
-      { key: "pengguna",         label: "Pengguna",      icon: "users",   adminOnly: true },
+      { key: "pengguna",         label: "Pengguna",         icon: "users",    adminOnly: true },
+      { key: "kelola-role",      label: "Kelola Role",      icon: "shield",   adminOnly: true },
+      { key: "master-satudata",  label: "Master Satu Data", icon: "building", adminOnly: true },
+      { key: "kelola-konten",    label: "Kelola Konten",    icon: "world",    adminOnly: true },
+      { key: "monitoring",       label: "Monitoring Sistem",icon: "chart",    adminOnly: true },
       { key: "kategori-dokumen", label: "Jenis Dokumen", icon: "tag",     adminOnly: true },
       { key: "sektor",           label: "Sektor",        icon: "layers",  adminOnly: true },
       { key: "standar-harga",    label: "Standar Harga", icon: "dollar",  adminOnly: true },
@@ -112,7 +118,24 @@ export const NAV_GROUPS = [
 ];
 
 // Kelompok yang punya setidaknya satu item boleh ditampilkan untuk user ini.
-export function navGroupsUntuk(role) {
+export function navGroupsUntuk(role, allowedMenus) {
+  // Jika role memiliki konfigurasi allowed_menus dinamis dari sd_roles
+  if (Array.isArray(allowedMenus) && allowedMenus.length > 0 && role !== "Admin") {
+    const set = new Set(allowedMenus);
+    return NAV_GROUPS
+      .map(g => ({ ...g, items: g.items.filter(i => set.has(i.key)) }))
+      .filter(g => g.items.length > 0);
+  }
+  if (role === "Operator Bank Data") {
+    return [
+      {
+        key: "perencanaan",
+        label: "Bank Data",
+        icon: "chart",
+        items: [{ key: "bankdata", label: "Bank Data", icon: "chart" }],
+      },
+    ];
+  }
   return NAV_GROUPS
     .map(g => ({ ...g, items: g.items.filter(i => !i.adminOnly || role === "Admin") }))
     .filter(g => g.items.length > 0);
@@ -131,11 +154,16 @@ export function grupTerbukaAwal(tersimpan = {}) {
 // jadi menambah halaman baru cukup di satu tempat.
 export const NAV_UTAMA_BOTTOM = ["dashboard", "dokumen", "upload", "pencarian"];
 
+export function navUtamaBottomUntuk(role) {
+  return role === "Operator Bank Data" ? ["bankdata"] : NAV_UTAMA_BOTTOM;
+}
+
 export const NAV_BOTTOM_LABEL = {
   dashboard: "Dashboard",
   dokumen:   "Dokumen",
   upload:    "Upload",
   pencarian: "Cari",
+  bankdata:  "Bank Data",
 };
 
 export const NAV_BOTTOM_ICON = {
@@ -143,6 +171,7 @@ export const NAV_BOTTOM_ICON = {
   dokumen:   "archive",
   upload:    "upload",
   pencarian: "search",
+  bankdata:  "chart",
 };
 
 // ═══ Kertas Kerja (Output per Sub Kegiatan) ═══════════════════════════════

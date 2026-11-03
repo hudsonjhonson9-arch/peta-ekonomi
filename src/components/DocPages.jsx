@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useContext } from "react";
 import * as pdfjsLib from "pdfjs-dist";
-import { Icon, Badge, Geser, GoogleDriveEmbed, isGDriveUrl, formatBytes, extractGDriveFileId, extractGDriveFolderId, gdriveDirectUrl, isImageFile, isOfficeFile, isPdfFile, getUniversalPreviewUrl, Select } from "./ui.jsx";
+import { Icon, Badge, Geser, GoogleDriveEmbed, isGDriveUrl, formatBytes, extractGDriveFileId, extractGDriveFolderId, gdriveDirectUrl, isImageFile, isOfficeFile, isPdfFile, getUniversalPreviewUrl, Select, DatePicker, Button } from "./ui.jsx";
 import { YEARS, STATUS_LIST, STATUS_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
 import { api } from "../hooks.js";
@@ -1554,13 +1554,14 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
               <div key={f.key} style={{ marginBottom: 14 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: T.textSecondary, display: "block", marginBottom: 6 }}>{f.label}</label>
                 {f.type === "select" ? (
-                  <select value={editForm[f.key]} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))}
-                    style={{ width: "100%", padding: "10px 14px", fontSize: 14, borderRadius: T.radius, border: `1.5px solid ${T.border}`, background: T.bg, color: T.text, outline: "none", boxSizing: "border-box" }}
+                  <Select fullWidth size="lg" value={editForm[f.key]} onChange={v => setEditForm(p => ({ ...p, [f.key]: v }))} placeholder={`Pilih ${f.label}`} options={[{ value: "", label: `Pilih ${f.label}` }, ...f.opts.map(o => ({ value: o, label: o }))]}
+
+
                     onFocus={e => e.target.style.borderColor = T.primary}
-                    onBlur={e => e.target.style.borderColor = T.border}>
-                    <option value="">Pilih {f.label}</option>
-                    {f.opts.map(o => <option key={o} value={o}>{o}</option>)}
-                  </select>
+                    onBlur={e => e.target.style.borderColor = T.border} />
+
+
+
                 ) : f.type === "textarea" ? (
                   <textarea value={editForm[f.key]} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))}
                     rows={3}
@@ -1568,8 +1569,10 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
                     onFocus={e => e.target.style.borderColor = T.primary}
                     onBlur={e => e.target.style.borderColor = T.border} />
                 ) : (
-                  <input type={f.type === "date" ? "date" : "text"} value={editForm[f.key]} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))}
-                    style={{ width: "100%", padding: "10px 14px", fontSize: 14, borderRadius: T.radius, border: `1.5px solid ${T.border}`, background: T.bg, color: T.text, outline: "none", boxSizing: "border-box" }}
+                  f.type === "date" ? (
+                    <DatePicker value={editForm[f.key] || ""} onChange={v => setEditForm(p => ({ ...p, [f.key]: v }))} placeholder="Pilih tanggal dokumen..." />
+                  ) : <input type="text" value={editForm[f.key]} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))} style={{ width: "100%", padding: "10px 14px", fontSize: 14, borderRadius: T.radius, border: `1.5px solid ${T.border}`, background: T.bg, color: T.text, outline: "none", boxSizing: "border-box" }}
+
                     onFocus={e => e.target.style.borderColor = T.primary}
                     onBlur={e => e.target.style.borderColor = T.border} />
                 )}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext } from "react";
 import QRCode from "qrcode";
 import { ThemeContext } from "../App.jsx";
-import { Geser } from "./ui.jsx";
+import { Geser, DatePicker, Button } from "./ui.jsx";
 
 const btnBase = {
   display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer",
@@ -98,27 +98,48 @@ export default function ShareModal({ docId, docTitle, api, onClose }) {
           <div style={{ fontSize: 13, fontWeight: 600, color: T.textSecondary, marginBottom: 8 }}>Masa Berlaku</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {DURATIONS.map(d => (
-              <button key={d.value} onClick={() => setDuration(d.value)}
-                style={{ ...btnBase, padding: "8px 14px", fontSize: 13, background: duration === d.value ? T.primary : T.bg, color: duration === d.value ? "#fff" : T.textSecondary, border: `1.5px solid ${duration === d.value ? T.primary : T.border}` }}>
+              <Button
+                key={d.value}
+                size="sm"
+                variant={duration === d.value ? "primary" : "outline"}
+                onClick={() => setDuration(d.value)}
+              >
                 {d.label}
-              </button>
+              </Button>
             ))}
-            <button onClick={() => setDuration("custom")}
-              style={{ ...btnBase, padding: "8px 14px", fontSize: 13, background: duration === "custom" ? T.primary : T.bg, color: duration === "custom" ? "#fff" : T.textSecondary, border: `1.5px solid ${duration === "custom" ? T.primary : T.border}` }}>
+            <Button
+              size="sm"
+              variant={duration === "custom" ? "primary" : "outline"}
+              onClick={() => setDuration("custom")}
+            >
               Kustom
-            </button>
+            </Button>
           </div>
           {duration === "custom" && (
-            <input type="datetime-local" value={customDate} onChange={e => setCustomDate(e.target.value)}
-              style={{ marginTop: 8, width: "100%", padding: "8px 12px", background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 13 }} />
+            <div style={{ marginTop: 10 }}>
+              <DatePicker
+                withTime
+                value={customDate}
+                onChange={setCustomDate}
+                placeholder="Pilih tanggal & waktu kedaluwarsa..."
+              />
+            </div>
           )}
         </div>
 
         {/* Create button */}
-        <button onClick={createShare} disabled={loading}
-          style={{ ...btnBase, padding: "10px 20px", fontSize: 14, background: T.primary, color: "#fff", width: "100%", justifyContent: "center", marginBottom: 20, opacity: loading ? 0.6 : 1 }}>
+        <Button
+          fullWidth
+          size="lg"
+          variant="primary"
+          icon="share"
+          loading={loading}
+          onClick={createShare}
+          disabled={loading}
+          style={{ marginBottom: 20 }}
+        >
           {loading ? "Membuat..." : "Buat Tautan"}
-        </button>
+        </Button>
 
         {/* Active shares list */}
         {shares.length > 0 && (
@@ -132,15 +153,15 @@ export default function ShareModal({ docId, docTitle, api, onClose }) {
                   <div style={{ fontSize: 12, color: T.textSecondary, wordBreak: "break-all", marginBottom: 4 }}>{link}</div>
                   <div style={{ fontSize: 11, color: T.textSecondary, marginBottom: 8 }}>Kadaluarsa: {formatExpiry(s.expires_at)}</div>
                   <div style={{ display: "flex", gap: 6 }}>
-                    <button onClick={() => copyText(link, s.id)} style={{ ...btnBase, padding: "6px 10px", fontSize: 12, background: T.card, color: copied === s.id ? T.primary : T.textSecondary, border: `1px solid ${T.border}` }}>
+                    <Button size="xs" variant={copied === s.id ? "primary" : "outline"} onClick={() => copyText(link, s.id)}>
                       {copied === s.id ? "Tersalin!" : "Copy"}
-                    </button>
-                    <button onClick={() => generateQR(s)} style={{ ...btnBase, padding: "6px 10px", fontSize: 12, background: T.card, color: T.textSecondary, border: `1px solid ${T.border}` }}>
+                    </Button>
+                    <Button size="xs" variant="outline" onClick={() => generateQR(s)}>
                       QR
-                    </button>
-                    <button onClick={() => revokeShare(s.id)} style={{ ...btnBase, padding: "6px 10px", fontSize: 12, background: "rgba(239,68,68,0.1)", color: T.danger, border: `1px solid ${T.danger}33` }}>
+                    </Button>
+                    <Button size="xs" variant="dangerSoft" onClick={() => revokeShare(s.id)}>
                       Hapus
-                    </button>
+                    </Button>
                   </div>
                   {/* QR Display */}
                   {qrImages[s.id] && (
@@ -149,9 +170,9 @@ export default function ShareModal({ docId, docTitle, api, onClose }) {
                       <div style={{ marginTop: 6, fontSize: 12, color: T.textSecondary }}>
                         Kode: <strong style={{ color: T.primary }}>{s.verif_code}</strong>
                       </div>
-                      <button onClick={() => copyText(s.verif_code, `code-${s.id}`)} style={{ ...btnBase, padding: "4px 10px", fontSize: 11, background: T.card, color: copied === `code-${s.id}` ? T.primary : T.textSecondary, border: `1px solid ${T.border}`, marginTop: 4 }}>
+                      <Button size="xs" variant={copied === `code-${s.id}` ? "primary" : "outline"} onClick={() => copyText(s.verif_code, `code-${s.id}`)} style={{ marginTop: 4 }}>
                         {copied === `code-${s.id}` ? "Tersalin!" : "Copy Kode"}
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>

@@ -1,6 +1,6 @@
 import { useState, useContext, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Icon, Modal, CariPilih } from "./ui.jsx";
+import { Icon, Modal, CariPilih, Select, DatePicker } from "./ui.jsx";
 import UploadForm from "./UploadForm.jsx";
 import { PksRingkasan, DeadlineList } from "./PksRingkasan.jsx";
 import { ThemeContext } from "../App.jsx";
@@ -147,7 +147,8 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
           </div>
 
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <select value={tahun ?? ""} onChange={e => {
+            <Select size="sm" minWidth={95} value={tahun ?? ""} onChange={val => { const v = parseInt(val, 10); setTahun(v); try { localStorage.setItem("kk-tahun", String(v)); } catch {} }} options={[...new Set([tahun, ...tahunList].filter(Boolean))].sort((a, b) => b - a).map(y => ({ value: y, label: String(y) }))} />
+            {false && <select value={tahun ?? ""} onChange={e => {
               const v = parseInt(e.target.value, 10);
               setTahun(v);
               try { localStorage.setItem("kk-tahun", String(v)); } catch { /* kuota penuh */ }
@@ -159,7 +160,7 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
               {[...new Set([tahun, ...tahunList].filter(Boolean))].sort((a, b) => b - a).map(y =>
                 <option key={y} value={y}>{y}</option>
               )}
-            </select>
+              </select>}
             {admin && (
               <div style={{ display: "flex", background: T.surfaceHover, borderRadius: 8, padding: 2, border: `1px solid ${T.border}` }}>
                 {[["kerja", "Kertas Kerja"], ["pohon", "Struktur"]].map(([v, l]) => (
@@ -1075,9 +1076,10 @@ function FormOutput({ form, admin, user, sibuk, setSibuk, onTutup, onSelesai, sh
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginTop: 10 }}>
               <label style={wrap}>
                 <span style={lbl(T)}>Frekuensi</span>
-                <select value={b.frekuensi} onChange={e => gantiFrekuensi(i, e.target.value)} style={inp(T)}>
+                <Select fullWidth size="sm" value={b.frekuensi} onChange={v => gantiFrekuensi(i, v)} options={FREKUENSI} />
+                {false && <select value={b.frekuensi} onChange={e => gantiFrekuensi(i, e.target.value)} style={inp(T)}>
                   {FREKUENSI.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                </select>
+                  </select>}
               </label>
               <label style={wrap}>
                 <span style={lbl(T)}>Target per tahun</span>
@@ -1085,11 +1087,12 @@ function FormOutput({ form, admin, user, sibuk, setSibuk, onTutup, onSelesai, sh
               </label>
               <label style={wrap}>
                 <span style={lbl(T)}>Aturan deadline</span>
-                <select value={b.deadlineRule} onChange={e => ubahBaris(i, { deadlineRule: e.target.value })} style={inp(T)}>
+                <Select fullWidth size="sm" value={b.deadlineRule} onChange={v => ubahBaris(i, { deadlineRule: v })} options={DEADLINE_PRESET[b.frekuensi] || []} />
+                {false && <select value={b.deadlineRule} onChange={e => ubahBaris(i, { deadlineRule: e.target.value })} style={inp(T)}>
                   {(DEADLINE_PRESET[b.frekuensi] || []).map(d =>
                     <option key={d.value} value={d.value}>{d.label}</option>
                   )}
-                </select>
+                  </select>}
               </label>
             </div>
 
@@ -1204,14 +1207,15 @@ function FormPeriode({ form, sibuk, setSibuk, onTutup, onSelesai, showToast }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
           <label style={wrap}>
             <span style={lbl(T)}>Deadline</span>
-            <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} style={inp(T)} autoFocus />
+            <DatePicker size="sm" value={deadline} onChange={v => setDeadline(v)} placeholder="Pilih deadline..." />
           </label>
           <label style={wrap}>
             <span style={lbl(T)}>Status periode</span>
-            <select value={isWajib ? "1" : "0"} onChange={e => setIsWajib(e.target.value === "1")} style={inp(T)}>
+            <Select fullWidth size="sm" value={isWajib ? "1" : "0"} onChange={v => setIsWajib(v === "1")} options={[{ value: "1", label: "Wajib" }, { value: "0", label: "Opsional" }]} />
+            {false && <select value={isWajib ? "1" : "0"} onChange={e => setIsWajib(e.target.value === "1")} style={inp(T)}>
               <option value="1">Wajib</option>
               <option value="0">Opsional</option>
-            </select>
+              </select>}
           </label>
         </div>
 

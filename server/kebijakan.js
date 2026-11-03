@@ -4,17 +4,19 @@
 // di-anchor penuh (^...$) supaya tidak ada prefix yang bocor, misalnya /api/docs
 // tidak boleh ikut cocok untuk /api/docs/bulk.
 //
-//NAZIV level:
-//   PUBLIK  tanpa login
-//   LOGIN   staf, reviewer, admin
-//   REVIEW  reviewer dan admin
-//   ADMIN   admin saja
+// NAZIV level:
+//   PUBLIK    tanpa login
+//   LOGIN     staf, reviewer, admin (dan operator hanya untuk allowlist bankdata)
+//   BANKDATA  operator bank data dan admin
+//   REVIEW    reviewer dan admin
+//   ADMIN     admin saja
 //
 // Route yang tidak terdaftar tetap butuh LOGIN, bukan dibuka bebas. Jadi route
 // baru default-nya tertutup dan harus memilih levelnya di sini dengan sadar.
 
 export const PUBLIK = 'publik';
 export const LOGIN = 'login';
+export const BANKDATA = 'bankdata';
 export const REVIEW = 'review';
 export const ADMIN = 'admin';
 
@@ -30,6 +32,13 @@ const ATURAN = [
   t('POST', PUBLIK, '/api/auth/login'),
   t('GET', PUBLIK, '/api/publik'),
   t('GET', PUBLIK, '/api/publik/verify'),
+  t('GET', PUBLIK, '/api/publik/bankdata'),
+  t('GET', PUBLIK, '/api/publik/bankdata/[^/]+'),
+  t('GET', PUBLIK, '/api/publik/spm'),
+  t('GET', PUBLIK, '/api/publik/konten'),
+  t('POST', PUBLIK, '/api/publik/qna'),
+  t('POST', PUBLIK, '/api/publik/visitor'),
+  semua(PUBLIK, '/api/v1(/[^/]+)*'),
   // Upload dokumen butuh login. Integrator server-to-server dengan
   // UPLOAD_API_KEY boleh tanpa session; pengecekannya di luar tabel ini
   // karena bergantung pada env, lihat izinkanLewatiUpload di server/index.js.
@@ -66,34 +75,52 @@ const ATURAN = [
   t('POST', ADMIN, '/api/kertas-kerja/[^/]+/sinkron-wajib'),
 
   // ── Staf: mengisi periode Kertas Kerja ──────────────────────────────────
-  // Mengunggah bukti dukung dan mencari dokumen yang sudah ada bukan
-  // perubahan struktur, jadi levelnya LOGIN — sama seperti PATCH periode di
-  // bawahnya yang tidak terdaftar dan jatuh ke default LOGIN.
-  //
-  // Menautkan dokumen yang sudah dipakai periode lain tetap ditolak server
-  // dengan 409, jadi membuka endpoint ini tidak menciptakan tautan ganda.
   t('POST', LOGIN, '/api/kertas-kerja/periode/[^/]+/tautan'),
   t('GET',  LOGIN, '/api/kertas-kerja/periode/[^/]+/kandidat'),
   t('GET',  LOGIN, '/api/kertas-kerja/jatim'),
 
-  // ── Admin: pengguna dan bank data ───────────────────────────────────────
-  // '(/x)*' dipakai supaya sub-path di semua tingkat ikut tertutup:
-  // /api/users, /api/users/4, /api/bankdata/opd, /api/bankdata/iku/5.
+  // ── Admin: pengguna & kelola role ──────────────────────────────────────
   semua(ADMIN, '/api/users(/[^/]+)*'),
+  t('GET', LOGIN, '/api/roles'),
+  semua(ADMIN, '/api/roles(/[^/]+)*'),
 
-  // Baca bank data boleh untuk semua user yang sudah login. Halaman ini memang
-  // punya tampilan read-only untuk non-admin (BankDataReadOnly di App.jsx),
-  // jadi menutup bacanya jadi admin membuat halaman tersebut tidak pernah
-  // berisi apa-apa — dan sebelum aturan ini ada, bacanya jatuh ke default LOGIN
-  // dan justru bisa dipakai. Tulis tetap admin.
-  //
-  // Methodenya ditulis satu per satu, bukan pakai semua(), karena default-nya
-  // LOGIN: pola umum tanpa PENULISAN eksplisit akan membuka POST/PUT/DELETE.
-  t('GET', LOGIN, '/api/bankdata(/[^/]+)*'),
-  t('POST', ADMIN, '/api/bankdata(/[^/]+)*'),
-  t('PUT', ADMIN, '/api/bankdata(/[^/]+)*'),
-  t('PATCH', ADMIN, '/api/bankdata(/[^/]+)*'),
-  t('DELETE', ADMIN, '/api/bankdata(/[^/]+)*'),
+  // ── Bank Data: verifikasi dataset oleh Reviewer + Admin (mendahului aturan BANKDATA)
+  t('GET',  REVIEW, '/api/bankdata/dataset/verifikasi'),
+  t('POST', REVIEW, '/api/bankdata/dataset/[^/]+/verifikasi'),
+
+  // ── Bank Data: struktur global OPD & Tahun hanya Admin ──────────────────
+  t('POST',   ADMIN, '/api/bankdata/opd(/[^/]+)*'),
+  t('PUT',    ADMIN, '/api/bankdata/opd(/[^/]+)*'),
+  t('DELETE', ADMIN, '/api/bankdata/opd(/[^/]+)*'),
+  t('POST',   ADMIN, '/api/bankdata/tahun(/[^/]+)*'),
+  t('DELETE', ADMIN, '/api/bankdata/tahun(/[^/]+)*'),
+
+  // ── Bank Data: baca untuk semua yang login, tulis untuk Operator + Admin (BANKDATA)
+  t('GET',    LOGIN,    '/api/bankdata(/[^/]+)*'),
+  t('POST',   BANKDATA, '/api/bankdata(/[^/]+)*'),
+  t('PUT',    BANKDATA, '/api/bankdata(/[^/]+)*'),
+  t('PATCH',  BANKDATA, '/api/bankdata(/[^/]+)*'),
+  t('DELETE', BANKDATA, '/api/bankdata(/[^/]+)*'),
+
+  // ── Satu Data: Master Data, Reopen, SPM, Kelola Konten, Monitoring ──────
+  t('GET',    LOGIN,    '/api/satudata/master/ringkasan'),
+  t('POST',   REVIEW,   '/api/satudata/reopen/[^/]+/putuskan'),
+  t('POST',   BANKDATA, '/api/satudata/reopen'),
+  semua(ADMIN, '/api/satudata/master(/[^/]+)*'),
+
+  t('GET',    LOGIN,    '/api/spm'),
+  semua(ADMIN, '/api/spm(/[^/]+)*'),
+
+  t('GET',    LOGIN,    '/api/konten'),
+  semua(ADMIN, '/api/konten(/[^/]+)*'),
+
+  semua(ADMIN, '/api/monitoring(/[^/]+)*'),
+
+  t('GET',    LOGIN,    '/api/roles'),
+  t('GET',    LOGIN,    '/api/roles/permissions/meta'),
+  t('GET',    LOGIN,    '/api/roles/[^/]+'),
+  semua(ADMIN,          '/api/roles(/[^/]+)*'),
+
   t('GET', LOGIN, '/api/standar-harga'),
   // Daftar kode rekening distinct untuk dropdown "Kode rekening" (baca saja).
   t('GET', LOGIN, '/api/standar-harga/rekening'),
@@ -133,4 +160,13 @@ export function kebutuhan(method, path) {
     if (a.pola.test(p)) return a.lvl;
   }
   return LOGIN;
+}
+
+export function jalurOperatorDiizinkan(path) {
+  const p = path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+  if (p === '/api/health' || p.startsWith('/api/auth/')) return true;
+  if (p === '/api/notifications' || p.startsWith('/api/notifications/')) return true;
+  if (p === '/api/bankdata' || p.startsWith('/api/bankdata/')) return true;
+  if (p === '/api/satudata/master/ringkasan' || p === '/api/satudata/reopen') return true;
+  return false;
 }
