@@ -7,7 +7,7 @@ import { POLLING } from "../hooks.js";
 import { Icon, Select, DatePicker, Button, Badge, Geser } from "./ui.jsx";
 import BankData from "./BankData.jsx";
 import BankDataDashboard from "./BankDataDashboard.jsx";
-import GrafikDataset from "./GrafikDataset.jsx";
+import GrafikDataset, { resolveNamaKecamatan } from "./GrafikDataset.jsx";
 
 function BankDataReadOnly() {
   const { T } = useContext(ThemeContext);
@@ -1747,13 +1747,20 @@ function DatasetDetailView({ datasetId, user, canWrite, canVerify, onBack, onRel
           )}
 
           {/* Tabel Data */}
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-              <thead>
-                <tr style={{ background: T.surfaceHover, textAlign: "left" }}>
-                  <th style={{ padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>Tahun</th>
-                  <th style={{ padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>Periode</th>
-                  <th style={{ padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>Wilayah</th>
+          {(() => {
+            const hasKecamatanField = fields.some(
+              f => f.nama_field.toLowerCase().includes("kecamatan") || f.label.toLowerCase().includes("kecamatan")
+            );
+            return (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                  <thead>
+                    <tr style={{ background: T.surfaceHover, textAlign: "left" }}>
+                      <th style={{ padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>Tahun</th>
+                      <th style={{ padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>Periode</th>
+                      {!hasKecamatanField && (
+                        <th style={{ padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>Kecamatan</th>
+                      )}
                   {fields.map(f => (
                     <th key={f.id} style={{ padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.text }}>
                       {f.label}
@@ -1781,14 +1788,23 @@ function DatasetDetailView({ datasetId, user, canWrite, canVerify, onBack, onRel
                         style={{ width: 95, padding: "6px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.inputBg, color: T.text, fontSize: 12 }}
                       />
                     </td>
-                    <td style={{ padding: 6 }}>
-                      <input
-                        value={newRow.wilayah_kode}
-                        onChange={e => setNewRow({ ...newRow, wilayah_kode: e.target.value })}
-                        placeholder="Wilayah"
-                        style={{ width: 110, padding: "6px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.inputBg, color: T.text, fontSize: 12 }}
-                      />
-                    </td>
+                    {!hasKecamatanField && (
+                      <td style={{ padding: 6 }}>
+                        <select
+                          value={newRow.wilayah_kode}
+                          onChange={e => setNewRow({ ...newRow, wilayah_kode: e.target.value })}
+                          style={{ width: 140, padding: "6px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.inputBg, color: T.text, fontSize: 12 }}
+                        >
+                          <option value="53.12">Kab. Sumba Barat</option>
+                          <option value="53.12.15">Kota Waikabubak</option>
+                          <option value="53.12.10">Loli</option>
+                          <option value="53.12.11">Wanokaka</option>
+                          <option value="53.12.12">Lamboya</option>
+                          <option value="53.12.18">Laboya Barat</option>
+                          <option value="53.12.04">Tana Righu</option>
+                        </select>
+                      </td>
+                    )}
                     {fields.map(f => (
                       <td key={f.id} style={{ padding: 6 }}>
                         {f.tipe_data === "tanggal" ? (
@@ -1832,7 +1848,11 @@ function DatasetDetailView({ datasetId, user, canWrite, canVerify, onBack, onRel
                   <tr key={r.id} style={{ borderBottom: `1px solid ${T.border}` }}>
                     <td style={{ padding: "9px 10px", fontWeight: 700, color: T.text }}>{r.tahun}</td>
                     <td style={{ padding: "9px 10px", color: T.textSecondary }}>{r.periode || "Tahunan"}</td>
-                    <td style={{ padding: "9px 10px", color: T.textSecondary }}>{r.wilayah_kode || "—"}</td>
+                    {!hasKecamatanField && (
+                      <td style={{ padding: "9px 10px", color: T.text, fontWeight: 500 }}>
+                        {resolveNamaKecamatan(r.wilayah_kode, r.data) || r.wilayah_kode || "—"}
+                      </td>
+                    )}
                     {fields.map(f => (
                       <td key={f.id} style={{ padding: "9px 10px", color: T.text, fontVariantNumeric: "tabular-nums" }}>
                         {r.data?.[f.nama_field] !== undefined && r.data?.[f.nama_field] !== null
@@ -1860,8 +1880,10 @@ function DatasetDetailView({ datasetId, user, canWrite, canVerify, onBack, onRel
                   </tr>
                 )}
               </tbody>
-            </table>
-          </div>
+                </table>
+              </div>
+            );
+          })()}
         </div>
       )}
 

@@ -4,7 +4,7 @@ import { STATUS_COLOR, ROLE_COLOR } from "../data.js";
 import useResponsive from "../useResponsive.js";
 import { ThemeContext } from "../App.jsx";
 import HighlightText from "./HighlightText.jsx";
-import GrafikDataset from "./GrafikDataset.jsx";
+import GrafikDataset, { resolveNamaKecamatan } from "./GrafikDataset.jsx";
 import { unduhDatasetExcel } from "./BankDataPage.jsx";
 import SpmPage from "./SpmPage.jsx";
 
@@ -612,15 +612,23 @@ export function PortalPublik({ docs, onDownload }) {
               />
 
               <div style={{ background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, padding: 16, overflowX: "auto" }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>
-                  Tabel Data ({(selectedDsDetail.rows || []).length} Baris)
-                </div>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-                  <thead>
-                    <tr style={{ background: T.surfaceHover, textAlign: "left" }}>
-                      <th style={{ padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>Tahun</th>
-                      <th style={{ padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>Periode</th>
-                      <th style={{ padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>Wilayah</th>
+                {(() => {
+                  const hasKecamatanField = (selectedDsDetail.fields || []).some(
+                    f => f.nama_field.toLowerCase().includes("kecamatan") || f.label.toLowerCase().includes("kecamatan")
+                  );
+                  return (
+                    <>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>
+                        Tabel Data ({(selectedDsDetail.rows || []).length} Baris)
+                      </div>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                        <thead>
+                          <tr style={{ background: T.surfaceHover, textAlign: "left" }}>
+                            <th style={{ padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>Tahun</th>
+                            <th style={{ padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>Periode</th>
+                            {!hasKecamatanField && (
+                              <th style={{ padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>Kecamatan</th>
+                            )}
                       {(selectedDsDetail.fields || []).map(f => (
                         <th key={f.id} style={{ padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.text }}>
                           {f.label}
@@ -633,7 +641,11 @@ export function PortalPublik({ docs, onDownload }) {
                       <tr key={r.id} style={{ borderBottom: `1px solid ${T.border}` }}>
                         <td style={{ padding: "9px 10px", fontWeight: 700, color: T.text }}>{r.tahun}</td>
                         <td style={{ padding: "9px 10px", color: T.textSecondary }}>{r.periode || "Tahunan"}</td>
-                        <td style={{ padding: "9px 10px", color: T.textSecondary }}>{r.wilayah_kode || "—"}</td>
+                        {!hasKecamatanField && (
+                          <td style={{ padding: "9px 10px", color: T.text, fontWeight: 500 }}>
+                            {resolveNamaKecamatan(r.wilayah_kode, r.data) || r.wilayah_kode || "—"}
+                          </td>
+                        )}
                         {(selectedDsDetail.fields || []).map(f => (
                           <td key={f.id} style={{ padding: "9px 10px", color: T.text, fontVariantNumeric: "tabular-nums" }}>
                             {r.data?.[f.nama_field] !== undefined && r.data?.[f.nama_field] !== null
@@ -644,7 +656,10 @@ export function PortalPublik({ docs, onDownload }) {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                      </table>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}

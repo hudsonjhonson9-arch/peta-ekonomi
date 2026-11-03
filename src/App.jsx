@@ -202,7 +202,8 @@ export default function App() {
   const siapAdmin = siap && user.role === "Admin";
   // Operator Bank Data hanya boleh mengakses modul Bank Data, jadi jangan
   // mem-polling endpoint arsip dokumen.
-  const siapArsip = siap && user.role !== "Operator Bank Data";
+  const isProdusen = user.role === "Operator Bank Data" || user.role === "Produsen Data";
+  const siapArsip = siap && !isProdusen;
 
   const { data: serverDocs = [], isLoading: docsLoading, isSuccess: docsReady } = useDocs(siapArsip);
   const { data: logsData } = useLogs(siapAdmin);
@@ -292,14 +293,14 @@ export default function App() {
     // menyusul admin dalam 30 detik akan melihat cache milik admin.
     queryClient.clear();
     setUser(loggedUser);
-    if (loggedUser?.role === "Operator Bank Data") {
+    if (loggedUser?.role === "Operator Bank Data" || loggedUser?.role === "Produsen Data") {
       setPage("bankdata");
       sessionStorage.setItem("page", "bankdata");
     }
   };
 
   useEffect(() => {
-    if (user?.role === "Operator Bank Data" && page !== "bankdata") {
+    if ((user?.role === "Operator Bank Data" || user?.role === "Produsen Data") && page !== "bankdata" && page !== "spm" && page !== "akun") {
       setPage("bankdata");
       sessionStorage.setItem("page", "bankdata");
     }
@@ -1139,31 +1140,76 @@ if (!user) {
     return (
       <ThemeContext.Provider value={{ T, isDark, theme, setTheme }}>
         <div style={{ display: "flex", flexDirection: "column", width: "100%", minHeight: "100dvh", background: T.bg }}>
-          {/* Banner Mode Pratinjau Admin */}
+          {/* Banner Mode Pratinjau Admin - UI/UX Pro Max */}
           <div style={{
-            background: "#0F172A", color: "#F8FAFC",
-            padding: "10px 24px", display: "flex", alignItems: "center",
-            justifyContent: "space-between", fontSize: 13, zIndex: 1200,
-            position: "sticky", top: 0, borderBottom: "1px solid #334155",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-            flexShrink: 0, width: "100%", boxSizing: "border-box",
+            background: "rgba(15, 23, 42, 0.94)",
+            color: "#F8FAFC",
+            backdropFilter: "blur(16px)",
+            padding: "8px 24px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            fontSize: 12.5,
+            zIndex: 1200,
+            position: "sticky",
+            top: 0,
+            borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)",
+            flexShrink: 0,
+            width: "100%",
+            boxSizing: "border-box",
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: "#10B981", boxShadow: "0 0 8px #10B981" }} />
-              <span>
-                <b>Mode Pratinjau Portal Publik</b> &bull; Anda masuk sebagai <b>{user.nama || user.name}</b> ({user.role})
-              </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <div style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+                background: "rgba(16, 185, 129, 0.15)",
+                border: "1px solid rgba(52, 211, 153, 0.3)",
+                color: "#34D399",
+                padding: "3px 10px",
+                borderRadius: 99,
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.03em",
+              }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#10B981", boxShadow: "0 0 8px #10B981" }} />
+                <span>Mode Pratinjau Portal Publik</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#94A3B8", fontSize: 12 }}>
+                <span>Masuk sebagai:</span>
+                <span style={{ color: "#F8FAFC", fontWeight: 700 }}>{user.nama || user.name}</span>
+                <span style={{
+                  background: "rgba(255, 255, 255, 0.1)",
+                  padding: "2px 8px",
+                  borderRadius: 6,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "#E2E8F0",
+                }}>
+                  {user.role}
+                </span>
+              </div>
             </div>
             <button
               type="button"
               onClick={() => goPage("dashboard")}
               style={{
-                padding: "6px 16px", background: "#2563EB", color: "#fff",
-                border: "none", borderRadius: 8, fontSize: 12.5, fontWeight: 700,
-                cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "6px 14px",
+                background: "rgba(37, 99, 235, 0.25)",
+                border: "1px solid rgba(96, 165, 250, 0.4)",
+                color: "#93C5FD",
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                transition: "all 0.15s ease",
               }}
             >
-              <Icon name="chevronLeft" size={15} />
+              <Icon name="chevronLeft" size={14} />
               <span>Kembali ke Panel Admin</span>
             </button>
           </div>
@@ -1238,7 +1284,7 @@ if (!user) {
               )}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 14 }}>
-              {pendingCount > 0 && user.role !== "Operator Bank Data" && (
+              {pendingCount > 0 && user.role !== "Operator Bank Data" && user.role !== "Produsen Data" && (
                 <div style={{ position: "relative", cursor: "pointer" }} onClick={() => goPage("dokumen")} title="Dokumen perlu review">
                   <Icon name="layers" size={isMobile ? 17 : 18} style={{ color: "#f59e0b" }} />
                   <span style={{ position: "absolute", top: -5, right: -5, width: 16, height: 16, background: "#f59e0b", borderRadius: 50, fontSize: 9, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>

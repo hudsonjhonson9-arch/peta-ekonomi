@@ -48,6 +48,7 @@ export const ROLE_COLOR = {
   Reviewer:             { bg: "#EFF6FF", text: "#2563EB", darkBg: "#1E3A5F", darkText: "#60A5FA" },
   Staf:                 { bg: "#F0FDF4", text: "#16A34A", darkBg: "#052E16", darkText: "#4ADE80" },
   "Operator Bank Data": { bg: "#ECFEFF", text: "#0E7490", darkBg: "#083344", darkText: "#22D3EE" },
+  "Produsen Data":      { bg: "#ECFEFF", text: "#0E7490", darkBg: "#083344", darkText: "#22D3EE" },
 };
 
 // ═══ Navigasi ══════════════════════════════════════════════════════════════
@@ -87,7 +88,7 @@ export const NAV_GROUPS = [
     items: [
       { key: "kertas-kerja", label: "Kertas Kerja", icon: "checkCircle" },
       { key: "screening",    label: "Screening RKA", icon: "filter"     },
-      { key: "bankdata",     label: "Bank Data",    icon: "chart"       },
+      { key: "bankdata",     label: "Produsen Data", icon: "chart"       },
       { key: "spm",          label: "Capaian SPM",  icon: "shield"      },
     ],
   },
@@ -128,13 +129,17 @@ export function navGroupsUntuk(role, allowedMenus) {
       .map(g => ({ ...g, items: g.items.filter(i => set.has(i.key) || i.selalu) }))
       .filter(g => g.items.length > 0);
   }
-  if (role === "Operator Bank Data") {
+  if (role === "Operator Bank Data" || role === "Produsen Data") {
     return [
       {
         key: "perencanaan",
-        label: "Bank Data",
+        label: "Produsen Data OPD",
         icon: "chart",
-        items: [{ key: "bankdata", label: "Bank Data", icon: "chart" }, { key: "akun", label: "Akun Saya", icon: "users" }],
+        items: [
+          { key: "bankdata", label: "Data Produsen OPD", icon: "chart" },
+          { key: "spm", label: "Capaian SPM", icon: "shield" },
+          { key: "akun", label: "Akun Saya", icon: "users", selalu: true },
+        ],
       },
     ];
   }
@@ -157,7 +162,7 @@ export function grupTerbukaAwal(tersimpan = {}) {
 export const NAV_UTAMA_BOTTOM = ["dashboard", "dokumen", "upload", "pencarian"];
 
 export function navUtamaBottomUntuk(role) {
-  return role === "Operator Bank Data" ? ["bankdata"] : NAV_UTAMA_BOTTOM;
+  return (role === "Operator Bank Data" || role === "Produsen Data") ? ["bankdata", "spm"] : NAV_UTAMA_BOTTOM;
 }
 
 export const NAV_BOTTOM_LABEL = {
@@ -165,7 +170,8 @@ export const NAV_BOTTOM_LABEL = {
   dokumen:   "Dokumen",
   upload:    "Upload",
   pencarian: "Cari",
-  bankdata:  "Bank Data",
+  bankdata:  "Data Produsen",
+  spm:       "SPM",
 };
 
 export const NAV_BOTTOM_ICON = {
@@ -174,6 +180,7 @@ export const NAV_BOTTOM_ICON = {
   upload:    "upload",
   pencarian: "search",
   bankdata:  "chart",
+  spm:       "shield",
 };
 
 // ═══ Kertas Kerja (Output per Sub Kegiatan) ═══════════════════════════════

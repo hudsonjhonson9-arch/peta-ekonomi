@@ -9,6 +9,54 @@ import {
 import { ThemeContext } from "../App.jsx";
 import { Select } from "./ui.jsx";
 
+export const KODE_WILAYAH_KECAMATAN_MAP = {
+  "53.12.04": "Tana Righu",
+  "53.12.10": "Loli",
+  "53.12.11": "Wanokaka",
+  "53.12.12": "Lamboya",
+  "53.12.15": "Kota Waikabubak",
+  "53.12.18": "Laboya Barat",
+  // Varian kode lokal/lama
+  "53.12.01": "Kota Waikabubak",
+  "53.12.02": "Loli",
+  "53.12.03": "Wanokaka",
+  "53.12.05": "Lamboya",
+  "53.12.06": "Laboya Barat",
+  "53.12": "Kab. Sumba Barat",
+};
+
+export function resolveNamaKecamatan(kodeOrNama, rowData = {}) {
+  if (!kodeOrNama) return "Umum";
+  const str = String(kodeOrNama).trim();
+
+  // 1. Cek langsung jika di data row ada field kecamatan / nama_kecamatan / nama_wilayah
+  if (rowData && typeof rowData === "object") {
+    for (const key of Object.keys(rowData)) {
+      const kl = key.toLowerCase();
+      if ((kl === "kecamatan" || kl === "nama_kecamatan" || kl === "nama_wilayah") && rowData[key]) {
+        return String(rowData[key]).trim();
+      }
+    }
+  }
+
+  // 2. Cek dari mapping standar kode BPS Sumba Barat
+  if (KODE_WILAYAH_KECAMATAN_MAP[str]) {
+    return KODE_WILAYAH_KECAMATAN_MAP[str];
+  }
+
+  // 3. Normalisasi jika teks mengandung nama kecamatan Sumba Barat
+  const low = str.toLowerCase();
+  if (low.includes("waikabubak")) return "Kota Waikabubak";
+  if (low.includes("tanarighu") || low.includes("tana righu")) return "Tana Righu";
+  if (low.includes("wanokaka") || low.includes("wanukaka")) return "Wanokaka";
+  if (low.includes("laboya barat") || low.includes("lamboya barat")) return "Laboya Barat";
+  if (low.includes("lamboya") || low.includes("laboya")) return "Lamboya";
+  if (low.includes("loli")) return "Loli";
+  if (low.includes("sumba barat")) return "Kab. Sumba Barat";
+
+  return str;
+}
+
 const PALETTE = [
   "#2563EB", "#0D9488", "#D97706", "#7C3AED",
   "#E11D48", "#059669", "#4F46E5", "#EA580C",
@@ -45,10 +93,16 @@ export default function GrafikDataset({ fields = [], rows = [], satuanDefault = 
       return { chartData: [], seriesList: [] };
     }
 
+    // Bangun pemetaan kode -> nama kecamatan dari baris-baris data
+    const wilayahNamaMap = new Map();
     const wilayahSet = new Set();
     for (const r of rows) {
       if (r.wilayah_kode && String(r.wilayah_kode).trim()) {
-        wilayahSet.add(String(r.wilayah_kode).trim());
+        const rawW = String(r.wilayah_kode).trim();
+        wilayahSet.add(rawW);
+        if (!wilayahNamaMap.has(rawW)) {
+          wilayahNamaMap.set(rawW, resolveNamaKecamatan(rawW, r.data));
+        }
       }
     }
     const multiWilayah = wilayahSet.size > 1;
@@ -60,7 +114,9 @@ export default function GrafikDataset({ fields = [], rows = [], satuanDefault = 
         const labelX = r.periode && r.periode !== "Tahunan"
           ? `${r.tahun} (${r.periode})`
           : String(r.tahun);
-        const key = r.wilayah_kode && multiWilayah ? `${labelX} - ${r.wilayah_kode}` : labelX;
+        const rawW = r.wilayah_kode ? String(r.wilayah_kode).trim() : "";
+        const namaWil = rawW ? (wilayahNamaMap.get(rawW) || resolveNamaKecamatan(rawW, r.data)) : "";
+        const key = rawW && multiWilayah ? `${labelX} - ${namaWil}` : labelX;
         if (!byPeriod.has(key)) {
           byPeriod.set(key, { kategori: key, _tahun: r.tahun });
         }
@@ -109,7 +165,7 @@ export default function GrafikDataset({ fields = [], rows = [], satuanDefault = 
         chartData: Array.from(byPeriod.values()),
         seriesList: wilayahArr.map((w, i) => ({
           key: w,
-          name: w,
+          name: wilayahNamaMap.get(w) || resolveNamaKecamatan(w) || w,
           color: PALETTE[i % PALETTE.length],
         })),
       };
@@ -247,7 +303,7 @@ export default function GrafikDataset({ fields = [], rows = [], satuanDefault = 
                 contentStyle={tooltipStyle}
                 formatter={(val, name) => [
                   `${formatAngka(val)}${satuanDefault ? ` ${satuanDefault}` : ""}`,
-                  name,
+                  resolveNamaKecamatan(name),
                 ]}
               />
               <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
@@ -264,7 +320,7 @@ export default function GrafikDataset({ fields = [], rows = [], satuanDefault = 
                 contentStyle={tooltipStyle}
                 formatter={(val, name) => [
                   `${formatAngka(val)}${satuanDefault ? ` ${satuanDefault}` : ""}`,
-                  name,
+                  resolveNamaKecamatan(name),
                 ]}
               />
               <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
@@ -290,7 +346,7 @@ export default function GrafikDataset({ fields = [], rows = [], satuanDefault = 
                 contentStyle={tooltipStyle}
                 formatter={(val, name) => [
                   `${formatAngka(val)}${satuanDefault ? ` ${satuanDefault}` : ""}`,
-                  name,
+                  resolveNamaKecamatan(name),
                 ]}
               />
               <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
@@ -313,4 +369,3 @@ export default function GrafikDataset({ fields = [], rows = [], satuanDefault = 
     </div>
   );
 }
-
