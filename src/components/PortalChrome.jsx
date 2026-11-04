@@ -67,7 +67,7 @@ export const PORTAL_MENU = [
   { key: "bandingkan", label: "Bandingkan", icon: "filter" },
   { key: "visualisasi", label: "Visualisasi", icon: "chart" },
   { key: "berita", label: "Berita", icon: "world" },
-  { key: "katalog", label: "SK dan kajian", icon: "file" },
+  { key: "katalog", label: "Publikasi Dokumen", icon: "file" },
   { key: "tanya-data", label: "Tanya data", icon: "users" },
 ];
 

@@ -22,6 +22,207 @@ import {
   Legend,
 } from "recharts";
 
+
+// Dokumen Publikasi Resmi BAPPERIDA Kabupaten Sumba Barat
+const DOKUMEN_PUBLIKASI_FALLBACK = [
+  {
+    id: "f-1",
+    judul: "RPJPD Kabupaten Sumba Barat 2025–2045",
+    jenis: "Perencanaan Jangka Panjang",
+    tahun: 2025,
+    nomor: "Perda No. 2 Tahun 2024",
+    instansi: "BAPPERIDA Kab. Sumba Barat",
+    ukuran: "4.2 MB",
+    deskripsi: "Dokumen Rencana Pembangunan Jangka Panjang Daerah (RPJPD) Kabupaten Sumba Barat Tahun 2025–2045 sebagai pedoman visi dan arah kebijakan pembangunan 20 tahun ke depan.",
+    file_url: "https://drive.google.com/file/d/18YU0q-oZw2puQ0bhd5XXFg9muZvQaHMI/view?usp=drivesdk"
+  },
+  {
+    id: "f-2",
+    judul: "Naskah Akademik Rancangan Teknokratik RPJPD 2025–2045",
+    jenis: "Perencanaan Jangka Panjang",
+    tahun: 2025,
+    nomor: "NA-RPJPD/BAPPERIDA/2025",
+    instansi: "BAPPERIDA Kab. Sumba Barat",
+    ukuran: "2.8 MB",
+    deskripsi: "Kajian ilmiah, naskah akademik, dan analisis isu-isu strategis kewilayahan dalam penyusunan RPJPD Kabupaten Sumba Barat 2025–2045.",
+    file_url: "https://drive.google.com/file/d/1K6adMPgvAkOa3ugJ-IEwcbFAaD4R8ekO/view?usp=drivesdk"
+  },
+  {
+    id: "f-3",
+    judul: "RPJMD Kabupaten Sumba Barat 2021–2026",
+    jenis: "Perencanaan Jangka Menengah",
+    tahun: 2021,
+    nomor: "Perda No. 5 Tahun 2021",
+    instansi: "BAPPERIDA Kab. Sumba Barat",
+    ukuran: "8.7 MB",
+    deskripsi: "Rencana Pembangunan Jangka Menengah Daerah Kabupaten Sumba Barat periode 2021–2026 memuat strategi, arah kebijakan, dan program prioritas kepala daerah.",
+    file_url: "https://drive.google.com/file/d/18YU0q-oZw2puQ0bhd5XXFg9muZvQaHMI/view?usp=drivesdk"
+  },
+  {
+    id: "f-4",
+    judul: "Perubahan RPJMD Kabupaten Sumba Barat 2021–2026 (Revisi)",
+    jenis: "Perencanaan Jangka Menengah",
+    tahun: 2023,
+    nomor: "Perda No. 3 Tahun 2023",
+    instansi: "BAPPERIDA Kab. Sumba Barat",
+    ukuran: "5.1 MB",
+    deskripsi: "Penyesuaian target indikator kinerja utama daerah, kerangka pendanaan, dan penyelarasan arah kebijakan nasional pasca pandemi.",
+    file_url: "https://drive.google.com/file/d/18YU0q-oZw2puQ0bhd5XXFg9muZvQaHMI/view?usp=drivesdk"
+  },
+  {
+    id: "f-5",
+    judul: "Rencana Strategis (Renstra) BAPPERIDA 2021–2026",
+    jenis: "Perencanaan Jangka Menengah",
+    tahun: 2021,
+    nomor: "Renstra-BAPPERIDA/2021",
+    instansi: "BAPPERIDA Kab. Sumba Barat",
+    ukuran: "3.4 MB",
+    deskripsi: "Dokumen perencanaan lima tahunan BAPPERIDA dalam menjalankan fungsi perencanaan pembangunan, riset inovasi, dan koordinasi kewilayahan.",
+    file_url: "https://drive.google.com/file/d/1hJ6LqeTwgSt0iUz_sduP-TMZZZfXFc0c/view?usp=drivesdk"
+  },
+  {
+    id: "f-6",
+    judul: "RKPD Kabupaten Sumba Barat Tahun 2026",
+    jenis: "Perencanaan Tahunan (RKPD)",
+    tahun: 2026,
+    nomor: "Perbup No. 18 Tahun 2025",
+    instansi: "BAPPERIDA Kab. Sumba Barat",
+    ukuran: "6.3 MB",
+    deskripsi: "Rencana Kerja Pemerintah Daerah Kabupaten Sumba Barat Tahun 2026 yang mengusung tema percepatan pertumbuhan ekonomi inklusif dan peningkatan mutu pelayanan publik.",
+    file_url: "https://drive.google.com/file/d/1E6CJmUQFv-b9ts91mfB5irmKtukjBJK9/view?usp=drivesdk"
+  },
+  {
+    id: "f-7",
+    judul: "Perubahan RKPD Kabupaten Sumba Barat Tahun 2026",
+    jenis: "Perencanaan Tahunan (RKPD)",
+    tahun: 2026,
+    nomor: "Perbup Perubahan RKPD 2026",
+    instansi: "BAPPERIDA Kab. Sumba Barat",
+    ukuran: "29.9 MB",
+    deskripsi: "Dokumen perubahan RKPD tahun berjalan untuk mengakomodasi pergeseran prioritas kegiatan dan optimalisasi penyerapan anggaran semester II.",
+    file_url: "https://drive.google.com/file/d/1RxfjEmye4KNViahtLynGq4Qr8XMg30QH/view?usp=drivesdk"
+  },
+  {
+    id: "f-8",
+    judul: "Rencana Kerja (Renja) BAPPERIDA Tahun 2026",
+    jenis: "Perencanaan Tahunan (RKPD)",
+    tahun: 2026,
+    nomor: "Renja-01/BAPPERIDA/2026",
+    instansi: "BAPPERIDA Kab. Sumba Barat",
+    ukuran: "5.1 MB",
+    deskripsi: "Rencana operasional kerja tahunan dan target kinerja program internal BAPPERIDA Kabupaten Sumba Barat Tahun Anggaran 2026.",
+    file_url: "https://drive.google.com/file/d/1DGgk0Si-exRUAKcz2Zm_7t5wAi16lxDa/view?usp=drivesdk"
+  },
+  {
+    id: "f-9",
+    judul: "Laporan Kinerja Instansi Pemerintah (LKjIP / LAKIP) BAPPERIDA 2025",
+    jenis: "Evaluasi & Pelaporan",
+    tahun: 2025,
+    nomor: "LKjIP/BAPPERIDA/2025",
+    instansi: "BAPPERIDA Kab. Sumba Barat",
+    ukuran: "5.6 MB",
+    deskripsi: "Laporan pertanggungjawaban akuntabilitas kinerja instansi pemerintah (LKjIP) atas realisasi target sasaran strategis Tahun Anggaran 2025.",
+    file_url: "https://drive.google.com/file/d/1jPB1llI3ITEeuG37ygLFKM_Sp3E0D_Nf/view?usp=drivesdk"
+  },
+  {
+    id: "f-10",
+    judul: "Laporan TKPK & LP2KD (Penanggulangan Kemiskinan Daerah)",
+    jenis: "Evaluasi & Pelaporan",
+    tahun: 2026,
+    nomor: "LP2KD/TKPK/2026",
+    instansi: "Tim Koordinasi Penanggulangan Kemiskinan (TKPK)",
+    ukuran: "2.2 MB",
+    deskripsi: "Laporan monitoring dan evaluasi terpadu percepatan penanggulangan kemiskinan ekstrem di seluruh kecamatan se-Kabupaten Sumba Barat.",
+    file_url: "https://drive.google.com/file/d/1PIKXiuX0hjEvM1WUUCy7T-IxwYxaDao0/view?usp=drivesdk"
+  },
+  {
+    id: "f-11",
+    judul: "Rencana Aksi Tahunan Penanggulangan Kemiskinan 2026",
+    jenis: "Evaluasi & Pelaporan",
+    tahun: 2026,
+    nomor: "RAT-Kemiskinan/2026",
+    instansi: "BAPPERIDA Kab. Sumba Barat",
+    ukuran: "522 KB",
+    deskripsi: "Matriks program kerja intervensi terintegrasi penanggulangan kemiskinan dan stunting tahun 2026 lintas dinas/badan.",
+    file_url: "https://drive.google.com/file/d/11L6npv3cVTCV9V0NvQytpdi4DtiLMjJn/view?usp=drivesdk"
+  },
+  {
+    id: "f-12",
+    judul: "Perhitungan & Analisis Pertumbuhan PDRB Sumba Barat 2025–2026",
+    jenis: "Riset & Inovasi",
+    tahun: 2026,
+    nomor: "Kajian-PDRB/2026",
+    instansi: "Bidang Riset dan Inovasi BAPPERIDA",
+    ukuran: "1.1 MB",
+    deskripsi: "Kajian analisis indikator makro Produk Domestik Regional Bruto (PDRB) atas dasar harga berlaku dan konstan menurut 17 lapangan usaha.",
+    file_url: "https://drive.google.com/file/d/1y22Xh6YTHwdpLHthCK7vCBWt2QChPgHX/view?usp=drivesdk"
+  },
+  {
+    id: "f-13",
+    judul: "Kajian Potensi Pertanian & Pemetaan Spasial GIS Sumba Barat",
+    jenis: "Riset & Inovasi",
+    tahun: 2025,
+    nomor: "Kajian-GIS/BAPPERIDA/2025",
+    instansi: "BAPPERIDA & Tim Ahli",
+    ukuran: "7.2 MB",
+    deskripsi: "Studi komprehensif potensi komoditas pertanian unggulan dan zonasi kesesuaian lahan berbasis Sistem Informasi Geografis (GIS).",
+    file_url: "https://drive.google.com/file/d/1QnNOEFOlixXju-ei1ppftyRHPEtbQwQx/view?usp=drivesdk"
+  },
+  {
+    id: "f-14",
+    judul: "Profil Inovasi Daerah Kabupaten Sumba Barat Tahun 2025",
+    jenis: "Riset & Inovasi",
+    tahun: 2025,
+    nomor: "IGA-SB/2025",
+    instansi: "Bidang Riset dan Inovasi Daerah",
+    ukuran: "2.9 MB",
+    deskripsi: "Katalog inisiatif inovasi daerah dalam ajang Innovative Government Award (IGA) mencakup inovasi pelayanan publik dan tata kelola pemerintahan.",
+    file_url: "https://drive.google.com/file/d/1Nv3vx6OfGE4Y-x2_RXJPw_zGCsFWtNqG/view?usp=drivesdk"
+  },
+  {
+    id: "f-15",
+    judul: "Peraturan Bupati tentang Penyelenggaraan Satu Data Daerah",
+    jenis: "Produk Hukum",
+    tahun: 2025,
+    nomor: "Perbup No. 12 Tahun 2025",
+    instansi: "Bagian Hukum & BAPPERIDA",
+    ukuran: "1.8 MB",
+    deskripsi: "Pedoman tata kelola, standar metadata, dan alur verifikasi data sektoral antar Produsen Data (OPD) dan Walidata Daerah.",
+    file_url: "https://drive.google.com/file/d/1cC3gDGATlHbtjOEl5jSR7I9q0A1SVeFM/view?usp=drivesdk"
+  },
+  {
+    id: "f-16",
+    judul: "Keputusan Bupati tentang Forum Satu Data & Daftar Data Daerah",
+    jenis: "SK Tim Satu Data",
+    tahun: 2025,
+    nomor: "SK Bupati No. 188.45/85/HK/2025",
+    instansi: "BAPPERIDA Kab. Sumba Barat",
+    ukuran: "2.1 MB",
+    deskripsi: "Penetapan Pembina Data, Walidata, Walidata Pendukung, dan Produsen Data beserta target pengumpulan Daftar Data Sektoral OPD.",
+    file_url: "https://drive.google.com/file/d/1cC3gDGATlHbtjOEl5jSR7I9q0A1SVeFM/view?usp=drivesdk"
+  },
+  {
+    id: "f-17",
+    judul: "Peraturan Bupati tentang Kedudukan, SOTK & Tupoksi BAPPERIDA",
+    jenis: "Produk Hukum",
+    tahun: 2022,
+    nomor: "Perbup SOTK BAPPERIDA",
+    instansi: "Pemerintah Kabupaten Sumba Barat",
+    ukuran: "4.3 MB",
+    deskripsi: "Landasan hukum struktur organisasi, tata kerja, rincian tugas pokok dan fungsi Badan Perencanaan Pembangunan, Riset dan Inovasi Daerah.",
+    file_url: "https://drive.google.com/file/d/1cC3gDGATlHbtjOEl5jSR7I9q0A1SVeFM/view?usp=drivesdk"
+  }
+];
+
+function getEmbedDriveUrl(url) {
+  if (!url) return null;
+  const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) {
+    return `https://drive.google.com/file/d/${match[1]}/preview`;
+  }
+  return url;
+}
+
 export default function PortalPublikLengkap({ onLoginClick, user = null }) {
   const { T, isDark } = useContext(ThemeContext);
 
@@ -100,8 +301,10 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
   const [beritaList, setBeritaList] = useState([]);
   const [beritaPopuler, setBeritaPopuler] = useState([]);
   const [beritaDetail, setBeritaDetail] = useState(null);
-  const [katalogList, setKatalogList] = useState([]);
-  const [katalogJenis, setKatalogJenis] = useState("Produk Hukum");
+  const [katalogList, setKatalogList] = useState(DOKUMEN_PUBLIKASI_FALLBACK);
+  const [katalogJenis, setKatalogJenis] = useState("Semua");
+  const [katalogSearch, setKatalogSearch] = useState("");
+  const [previewPublikasi, setPreviewPublikasi] = useState(null);
 
   // Tanya Data & Captcha
   const [captcha, setCaptcha] = useState({ token: "", svg_base64: "", soal: "" });
@@ -171,6 +374,17 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setBeritaPopuler(Array.isArray(d) ? d : []))
       .catch(() => { });
+
+    fetch("/api/portal/katalog", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => {
+        if (Array.isArray(d) && d.length > 0) {
+          setKatalogList(d);
+        } else {
+          setKatalogList(DOKUMEN_PUBLIKASI_FALLBACK);
+        }
+      })
+      .catch(() => setKatalogList(DOKUMEN_PUBLIKASI_FALLBACK));
   }, []);
 
   // Muat data langsung dari database saat komponen dipasang dan berkala tiap 40 detik
@@ -2100,40 +2314,306 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
         </div>
       )}
 
-      {/* ── 8. KATALOG DOKUMEN & SK ── */}
+      {/* ── 8. KATALOG DOKUMEN & PUBLIKASI PERENCANAAN DAERAH ── */}
       {landing && (
-        <div id="bagian-katalog" className="pp-anchor" style={{ maxWidth: 1240, margin: "0 auto", padding: "56px 24px 16px" }}>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, margin: "0 0 6px" }}>
-            Katalog Produk Hukum, SK & Publikasi Kajian
-          </h1>
-          <p style={{ fontSize: 13.5, color: T.textMuted, margin: "0 0 20px" }}>
-            Dokumen regulasi Satu Data, Surat Keputusan Tim Pelaksana, dan laporan kajian pembangunan daerah
-          </p>
+        <div id="bagian-katalog" className="pp-anchor" style={{ maxWidth: 1240, margin: "0 auto", padding: "56px 24px 20px" }}>
+          {/* Header Bagian */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 16, marginBottom: 28 }}>
+            <div style={{ maxWidth: 680 }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 20, background: `${T.primary}15`, color: T.primary, fontSize: 11.5, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10 }}>
+                <Icon name="archive" size={13} />
+                Keterbukaan Informasi Publik
+              </div>
+              <h2 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: T.text, margin: "0 0 8px", lineHeight: 1.25 }}>
+                Dokumen Publikasi & Perencanaan Daerah
+              </h2>
+              <p style={{ fontSize: 14, color: T.textSecondary, margin: 0, lineHeight: 1.6 }}>
+                Akses resmi dokumen perencanaan jangka panjang (RPJPD), jangka menengah (RPJMD), rencana tahunan (RKPD), laporan akuntabilitas kinerja (LKjIP), kajian riset makro, serta produk hukum Kabupaten Sumba Barat.
+              </p>
+            </div>
 
-          <div style={{ display: "flex", gap: 8, borderBottom: `1px solid ${T.border}`, marginBottom: 20 }}>
-            {["Produk Hukum", "SK Tim Satu Data", "Publikasi Kajian"].map((j) => (
-              <button
-                key={j}
-                onClick={() => setKatalogJenis(j)}
-                style={{
-                  padding: "9px 16px",
-                  background: "none",
-                  border: "none",
-                  borderBottom: katalogJenis === j ? `2px solid ${T.primary}` : "2px solid transparent",
-                  color: katalogJenis === j ? T.primary : T.textMuted,
-                  fontWeight: katalogJenis === j ? 700 : 500,
-                  fontSize: 13.5,
-                  cursor: "pointer",
-                }}
-              >
-                {j}
-              </button>
-            ))}
+            {/* Statistik Ringkas */}
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 12, padding: "10px 16px", textAlign: "center", minWidth: 90 }}>
+                <div style={{ fontSize: 20, fontWeight: 800, color: T.primary }}>{katalogList.length}</div>
+                <div style={{ fontSize: 10.5, color: T.textMuted, fontWeight: 600, textTransform: "uppercase" }}>Dokumen</div>
+              </div>
+              <div style={{ background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 12, padding: "10px 16px", textAlign: "center", minWidth: 90 }}>
+                <div style={{ fontSize: 20, fontWeight: 800, color: "#10B981" }}>2025–2045</div>
+                <div style={{ fontSize: 10.5, color: T.textMuted, fontWeight: 600, textTransform: "uppercase" }}>Rentang Waktu</div>
+              </div>
+            </div>
           </div>
 
-          <div style={{ background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 24, boxShadow: T.shadow }}>
-            <div style={{ textAlign: "center", padding: "30px 0", color: T.textMuted, fontSize: 13.5 }}>
-              Dokumen resmi dapat diakses dan diunduh melalui panel publikasi Satu Data BAPPERIDA Sumba Barat.
+          {/* Search & Filter Controls */}
+          <div style={{ background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: "16px 18px", marginBottom: 24, boxShadow: T.shadowSm }}>
+            {/* Input Pencarian */}
+            <div style={{ position: "relative", marginBottom: 14 }}>
+              <input
+                type="text"
+                placeholder="Cari judul dokumen, nomor regulasi (Perda/Perbup/SK), topik, atau instansi..."
+                value={katalogSearch}
+                onChange={(e) => setKatalogSearch(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px 38px 10px 14px",
+                  borderRadius: 9,
+                  border: `1.5px solid ${T.border}`,
+                  fontSize: 13.5,
+                  background: T.inputBg || (isDark ? "#1E293B" : "#F8FAFC"),
+                  color: T.text,
+                  boxSizing: "border-box",
+                  outline: "none",
+                  transition: "border-color 0.15s ease",
+                }}
+              />
+              {katalogSearch ? (
+                <button
+                  type="button"
+                  onClick={() => setKatalogSearch("")}
+                  style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: T.textMuted, cursor: "pointer", display: "flex" }}
+                >
+                  <Icon name="x" size={15} />
+                </button>
+              ) : (
+                <div style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: T.textMuted, pointerEvents: "none", display: "flex" }}>
+                  <Icon name="search" size={16} />
+                </div>
+              )}
+            </div>
+
+            {/* Kategori Tab Filter Pills */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              {[
+                "Semua",
+                "Perencanaan Jangka Panjang",
+                "Perencanaan Jangka Menengah",
+                "Perencanaan Tahunan (RKPD)",
+                "Evaluasi & Pelaporan",
+                "Riset & Inovasi",
+                "Produk Hukum",
+                "SK Tim Satu Data",
+              ].map((kat) => {
+                const count = kat === "Semua"
+                  ? katalogList.length
+                  : katalogList.filter((d) => d.jenis === kat).length;
+                const active = katalogJenis === kat;
+                return (
+                  <button
+                    key={kat}
+                    type="button"
+                    onClick={() => setKatalogJenis(kat)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      border: active ? `1.5px solid ${T.primary}` : `1px solid ${T.border}`,
+                      background: active ? T.primaryLight || `${T.primary}18` : "transparent",
+                      color: active ? T.primary : T.textSecondary,
+                      fontWeight: active ? 700 : 500,
+                      fontSize: 12.5,
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <span>{kat === "Semua" ? "Semua Dokumen" : kat}</span>
+                    <span style={{
+                      fontSize: 10.5,
+                      padding: "1px 6px",
+                      borderRadius: 99,
+                      background: active ? T.primary : (T.surfaceHover || "rgba(0,0,0,0.06)"),
+                      color: active ? "#fff" : T.textMuted,
+                      fontWeight: 700,
+                    }}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Daftar Kartu Dokumen */}
+          {(() => {
+            const filteredDocs = katalogList.filter((doc) => {
+              const matchKat = katalogJenis === "Semua" || doc.jenis === katalogJenis;
+              const q = katalogSearch.trim().toLowerCase();
+              const matchQ =
+                !q ||
+                (doc.judul || "").toLowerCase().includes(q) ||
+                (doc.nomor || "").toLowerCase().includes(q) ||
+                (doc.deskripsi || "").toLowerCase().includes(q) ||
+                (doc.instansi || "").toLowerCase().includes(q) ||
+                (doc.jenis || "").toLowerCase().includes(q);
+              return matchKat && matchQ;
+            });
+
+            if (filteredDocs.length === 0) {
+              return (
+                <div style={{ background: T.cardBg, border: `1px dashed ${T.border}`, borderRadius: 14, padding: "50px 20px", textAlign: "center" }}>
+                  <div style={{ width: 48, height: 48, borderRadius: "50%", background: T.surfaceHover || "rgba(0,0,0,0.05)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", color: T.textMuted }}>
+                    <Icon name="search" size={22} />
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 4 }}>
+                    Dokumen Tidak Ditemukan
+                  </div>
+                  <div style={{ fontSize: 13, color: T.textMuted, maxWidth: 420, margin: "0 auto 16px" }}>
+                    Tidak ada dokumen yang cocok dengan kata kunci "{katalogSearch}". Coba kata kunci lain atau pilih kategori "Semua Dokumen".
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setKatalogSearch(""); setKatalogJenis("Semua"); }}
+                    style={{ padding: "8px 16px", borderRadius: 8, background: T.primary, color: "#fff", border: "none", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    Reset Pencarian
+                  </button>
+                </div>
+              );
+            }
+
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(370px, 1fr))", gap: 16 }}>
+                {filteredDocs.map((doc) => {
+                  const isPerencanaan = (doc.jenis || "").includes("Perencanaan");
+                  const isEvaluasi = (doc.jenis || "").includes("Evaluasi");
+                  const isRiset = (doc.jenis || "").includes("Riset");
+                  const isHukum = (doc.jenis || "").includes("Hukum") || (doc.jenis || "").includes("SK");
+
+                  const badgeColor = isPerencanaan ? "#2563EB" : isEvaluasi ? "#D97706" : isRiset ? "#059669" : isHukum ? "#7C3AED" : T.primary;
+                  const badgeBg = isPerencanaan ? "#EFF6FF" : isEvaluasi ? "#FEF3C7" : isRiset ? "#ECFDF5" : isHukum ? "#F5F3FF" : `${T.primary}15`;
+
+                  return (
+                    <div
+                      key={doc.id || doc.judul}
+                      style={{
+                        background: T.cardBg,
+                        border: `1px solid ${T.border}`,
+                        borderRadius: 14,
+                        padding: "18px 20px",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "space-between",
+                        boxShadow: T.shadowSm,
+                        transition: "all 0.2s ease",
+                        position: "relative",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = T.primary;
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                        e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.06)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = T.border;
+                        e.currentTarget.style.transform = "none";
+                        e.currentTarget.style.boxShadow = T.shadowSm;
+                      }}
+                    >
+                      <div>
+                        {/* Baris Badge & Metadata */}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: badgeBg, color: badgeColor }}>
+                            {doc.jenis || "Dokumen Resmi"}
+                          </span>
+                          <span style={{ fontSize: 11.5, fontWeight: 600, color: T.textMuted }}>
+                            {doc.tahun ? `Tahun ${doc.tahun}` : "Resmi"}
+                          </span>
+                        </div>
+
+                        {/* Judul Dokumen */}
+                        <h3 style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 6px", lineHeight: 1.4 }}>
+                          {doc.judul}
+                        </h3>
+
+                        {/* Nomor Dokumen / Regulasi */}
+                        {doc.nomor && (
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, color: T.textSecondary, fontFamily: "monospace", background: T.surfaceHover || "rgba(0,0,0,0.03)", padding: "2px 7px", borderRadius: 4, marginBottom: 8 }}>
+                            <Icon name="file" size={11} />
+                            <span>{doc.nomor}</span>
+                          </div>
+                        )}
+
+                        {/* Deskripsi Singkat */}
+                        {doc.deskripsi && (
+                          <p style={{ fontSize: 12.5, color: T.textSecondary, margin: "0 0 14px", lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                            {doc.deskripsi}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Footer Kartu & Tombol Aksi */}
+                      <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 12, marginTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                        <div style={{ fontSize: 11.5, color: T.textMuted, display: "flex", alignItems: "center", gap: 5 }}>
+                          <Icon name="building" size={12} />
+                          <span title={doc.instansi || "BAPPERIDA"}>
+                            {doc.instansi ? (doc.instansi.length > 25 ? doc.instansi.substring(0, 25) + "..." : doc.instansi) : "BAPPERIDA Kab. Sumba Barat"}
+                          </span>
+                        </div>
+
+                        <div style={{ display: "flex", gap: 6 }}>
+                          {doc.file_url && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewPublikasi(doc)}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 5,
+                                padding: "6px 11px",
+                                borderRadius: 7,
+                                background: T.surfaceHover || "rgba(0,0,0,0.04)",
+                                color: T.text,
+                                border: `1px solid ${T.border}`,
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                transition: "all 0.12s ease",
+                              }}
+                            >
+                              <Icon name="eye" size={13} />
+                              <span>Lihat</span>
+                            </button>
+                          )}
+                          <a
+                            href={doc.file_url || "#"}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download={!doc.file_url?.includes("drive.google.com")}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 5,
+                              padding: "6px 12px",
+                              borderRadius: 7,
+                              background: T.primary,
+                              color: "#fff",
+                              textDecoration: "none",
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              boxShadow: "0 1px 2px rgba(37,99,235,0.2)",
+                            }}
+                          >
+                            <Icon name="download" size={13} />
+                            <span>Unduh</span>
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+          {/* Kotak Informasi Hukum & Keterbukaan */}
+          <div style={{ marginTop: 24, background: `${T.primary}08`, border: `1px solid ${T.primary}25`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <div style={{ color: T.primary, marginTop: 2 }}>
+              <Icon name="shield" size={18} />
+            </div>
+            <div style={{ fontSize: 12.5, color: T.textSecondary, lineHeight: 1.6 }}>
+              Seluruh dokumen publikasi, rencana pembangunan, dan produk hukum yang dipublikasikan di halaman ini merupakan salinan resmi pemerintah daerah sesuai amanat <b>Undang-Undang No. 14 Tahun 2008 tentang Keterbukaan Informasi Publik (KIP)</b>. Untuk permohonan salinan cetak atau informasi data lebih lanjut, Anda dapat menggunakan layanan <b>Tanya Data</b> di bawah ini.
             </div>
           </div>
         </div>
@@ -2291,6 +2771,140 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
       )}
 
       {/* ── FOOTER PORTAL SATU DATA ── */}
+      
+      {/* ── MODAL PRATINJAU DOKUMEN PUBLIKASI ── */}
+      {previewPublikasi && (
+        <div
+          onClick={() => setPreviewPublikasi(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.72)",
+            backdropFilter: "blur(4px)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: isMobile ? 12 : 24,
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: T.cardBg,
+              borderRadius: 16,
+              width: "100%",
+              maxWidth: 960,
+              height: isMobile ? "92vh" : "88vh",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              boxShadow: "0 25px 50px -12px rgba(0,0,0,0.35)",
+              border: `1px solid ${T.border}`,
+            }}
+          >
+            {/* Header Modal */}
+            <div style={{ padding: "14px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: `${T.primary}18`, color: T.primary }}>
+                    {previewPublikasi.jenis || "Dokumen Publikasi"}
+                  </span>
+                  {previewPublikasi.nomor && (
+                    <span style={{ fontSize: 11.5, color: T.textMuted, fontFamily: "monospace" }}>
+                      {previewPublikasi.nomor}
+                    </span>
+                  )}
+                </div>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={previewPublikasi.judul}>
+                  {previewPublikasi.judul}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewPublikasi(null)}
+                style={{ background: T.surfaceHover || "rgba(0,0,0,0.06)", border: "none", borderRadius: 8, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", color: T.textSecondary, cursor: "pointer" }}
+              >
+                <Icon name="x" size={16} />
+              </button>
+            </div>
+
+            {/* Viewer Area (Iframe atau Google Drive Embed) */}
+            <div style={{ flex: 1, background: isDark ? "#0F172A" : "#F1F5F9", position: "relative" }}>
+              {previewPublikasi.file_url ? (
+                <iframe
+                  src={getEmbedDriveUrl(previewPublikasi.file_url)}
+                  title={previewPublikasi.judul}
+                  width="100%"
+                  height="100%"
+                  style={{ border: "none", position: "absolute", inset: 0 }}
+                  allow="autoplay"
+                />
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", padding: 30, textAlign: "center", color: T.textMuted }}>
+                  <Icon name="file" size={40} style={{ marginBottom: 12, opacity: 0.5 }} />
+                  <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 6 }}>
+                    Tautan Pratinjau Belum Tersedia
+                  </div>
+                  <div style={{ fontSize: 13, maxWidth: 360 }}>
+                    Dokumen ini dapat diminta secara resmi melalui bagian Layanan Tanya Data di Portal Publik.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Modal */}
+            <div style={{ padding: "12px 20px", borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", background: T.cardBg }}>
+              <div style={{ fontSize: 12, color: T.textMuted }}>
+                Penerbit: <b>{previewPublikasi.instansi || "BAPPERIDA Kabupaten Sumba Barat"}</b>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {previewPublikasi.file_url && (
+                  <a
+                    href={previewPublikasi.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "7px 14px",
+                      borderRadius: 8,
+                      background: T.surfaceHover || "rgba(0,0,0,0.06)",
+                      color: T.text,
+                      textDecoration: "none",
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      border: `1px solid ${T.border}`,
+                    }}
+                  >
+                    <Icon name="externalLink" size={13} />
+                    <span>Buka di Tab Baru</span>
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPreviewPublikasi(null)}
+                  style={{
+                    padding: "7px 16px",
+                    borderRadius: 8,
+                    background: T.primary,
+                    color: "#fff",
+                    border: "none",
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <footer
         style={{
           borderTop: `1px solid ${T.border}`,

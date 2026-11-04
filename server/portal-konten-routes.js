@@ -233,21 +233,21 @@ export function daftarkanRutePortalKonten(app, pool, queryDB) {
 
   // ── 4. Katalog Dokumen Publik (Produk Hukum, SK Tim, Publikasi Kajian) ───
   app.get('/api/portal/katalog', async (req, res) => {
-    const { jenis, q } = req.query; // 'Produk Hukum', 'SK Tim Satu Data', 'Publikasi Kajian'
+    const { jenis, q } = req.query; // 'Perencanaan Jangka Panjang', 'Produk Hukum', 'SK Tim Satu Data', 'Publikasi Kajian', etc.
 
     try {
-      let sql = `SELECT * FROM sd_konten_publikasi WHERE 1=1`;
+      let sql = `SELECT * FROM sd_konten_publikasi WHERE tampil_publik = TRUE`;
       const params = [];
       let idx = 1;
 
-      if (jenis) {
+      if (jenis && jenis !== 'Semua') {
         sql += ` AND jenis = $${idx}`;
         params.push(jenis);
         idx++;
       }
 
       if (q && q.trim()) {
-        sql += ` AND (judul ILIKE $${idx} OR nomor ILIKE $${idx} OR deskripsi ILIKE $${idx})`;
+        sql += ` AND (judul ILIKE $${idx} OR nomor ILIKE $${idx} OR deskripsi ILIKE $${idx} OR instansi ILIKE $${idx})`;
         params.push(`%${q.trim()}%`);
         idx++;
       }
