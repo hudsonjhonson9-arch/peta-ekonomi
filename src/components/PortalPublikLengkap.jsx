@@ -1,6 +1,7 @@
 import { useState, useEffect, useContext, useMemo, useRef, useCallback } from "react";
 import { ThemeContext } from "../App.jsx";
 import { Icon, Badge } from "./ui.jsx";
+import { Select } from "./customControls.jsx";
 import * as XLSX from "xlsx";
 import SumbaBaratMap from "./SumbaBaratMap.jsx";
 import GrafikDataset from "./GrafikDataset.jsx";
@@ -61,8 +62,36 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
   // Bandingkan Indikator
   const [opsiIndikator, setOpsiIndikator] = useState([]);
   const [selectedIndikators, setSelectedIndikators] = useState([]);
+  const [pilihanBandingkan, setPilihanBandingkan] = useState("");
   const [hasilBandingkan, setHasilBandingkan] = useState([]);
   const [loadingBandingkan, setLoadingBandingkan] = useState(false);
+
+  const optionsBandingkan = useMemo(() => {
+    return opsiIndikator.map((ds) => ({
+      group: `${ds.nama} (${ds.opd_nama})`,
+      options: (ds.numeric_fields || []).map((f) => ({
+        value: `${ds.id}:${f.nama}:${ds.nama} - ${f.label}`,
+        label: `${ds.nama} — ${f.label}`,
+        sub: `Produsen: ${ds.opd_nama || "BAPPERIDA"} • Satuan: ${ds.satuan || "Angka"}`,
+      })),
+    }));
+  }, [opsiIndikator]);
+
+  const tambahIndikatorBandingkan = useCallback((val) => {
+    const target = val || pilihanBandingkan;
+    if (!target) return;
+    const parts = target.split(":");
+    if (parts.length >= 3) {
+      const dsId = parts[0];
+      const fName = parts[1];
+      const label = parts.slice(2).join(":");
+      setSelectedIndikators((prev) => {
+        if (prev.some((s) => s.dataset_id === dsId && s.field_name === fName)) return prev;
+        return [...prev, { dataset_id: dsId, field_name: fName, label }];
+      });
+    }
+    setPilihanBandingkan("");
+  }, [pilihanBandingkan]);
 
   // Visualisasi Makro
   const [visualisasiData, setVisualisasiData] = useState(null);
@@ -548,102 +577,68 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
                 <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.textMuted, marginBottom: 4 }}>
                   Produsen Data (OPD)
                 </label>
-                <select
+                <Select
+                  fullWidth
+                  searchable
                   value={filterOpd}
-                  onChange={(e) => setFilterOpd(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "8px 12px",
-                    border: `1px solid ${T.border}`,
-                    borderRadius: 8,
-                    fontSize: 13,
-                    background: T.inputBg || T.cardBg,
-                    color: T.text,
-                  }}
-                >
-                  <option value="">Semua Perangkat Daerah</option>
-                  {listOpd.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.nama}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Semua Perangkat Daerah"
+                  onChange={(val) => setFilterOpd(val)}
+                  options={[
+                    { value: "", label: "Semua Perangkat Daerah" },
+                    ...listOpd.map((o) => ({ value: String(o.id), label: o.nama, sub: o.singkatan })),
+                  ]}
+                />
               </div>
 
               <div>
                 <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.textMuted, marginBottom: 4 }}>
                   Topik Pembangunan
                 </label>
-                <select
+                <Select
+                  fullWidth
+                  searchable
                   value={filterTopik}
-                  onChange={(e) => setFilterTopik(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "8px 12px",
-                    border: `1px solid ${T.border}`,
-                    borderRadius: 8,
-                    fontSize: 13,
-                    background: T.inputBg || T.cardBg,
-                    color: T.text,
-                  }}
-                >
-                  <option value="">Semua Topik</option>
-                  {listTopik.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.nama_topik}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Semua Topik"
+                  onChange={(val) => setFilterTopik(val)}
+                  options={[
+                    { value: "", label: "Semua Topik" },
+                    ...listTopik.map((t) => ({ value: String(t.id), label: t.nama_topik })),
+                  ]}
+                />
               </div>
 
               <div>
                 <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.textMuted, marginBottom: 4 }}>
                   Urusan Pemerintahan
                 </label>
-                <select
+                <Select
+                  fullWidth
+                  searchable
                   value={filterUrusan}
-                  onChange={(e) => setFilterUrusan(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "8px 12px",
-                    border: `1px solid ${T.border}`,
-                    borderRadius: 8,
-                    fontSize: 13,
-                    background: T.inputBg || T.cardBg,
-                    color: T.text,
-                  }}
-                >
-                  <option value="">Semua Urusan</option>
-                  {listUrusan.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.kode_urusan} {u.nama_urusan}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Semua Urusan"
+                  onChange={(val) => setFilterUrusan(val)}
+                  options={[
+                    { value: "", label: "Semua Urusan" },
+                    ...listUrusan.map((u) => ({ value: String(u.id), label: `${u.kode_urusan} ${u.nama_urusan}` })),
+                  ]}
+                />
               </div>
 
               <div>
                 <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.textMuted, marginBottom: 4 }}>
                   Urutkan
                 </label>
-                <select
+                <Select
+                  fullWidth
                   value={sortOrder}
-                  onChange={(e) => setSortOrder(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "8px 12px",
-                    border: `1px solid ${T.border}`,
-                    borderRadius: 8,
-                    fontSize: 13,
-                    background: T.inputBg || T.cardBg,
-                    color: T.text,
-                  }}
-                >
-                  <option value="terbaru">Terbaru Diverifikasi</option>
-                  <option value="populer">Paling Sering Dilihat</option>
-                  <option value="nama-asc">Nama Indikator (A-Z)</option>
-                  <option value="nama-desc">Nama Indikator (Z-A)</option>
-                </select>
+                  onChange={(val) => setSortOrder(val)}
+                  options={[
+                    { value: "terbaru", label: "Terbaru Diverifikasi" },
+                    { value: "populer", label: "Paling Sering Dilihat" },
+                    { value: "nama-asc", label: "Nama Indikator (A-Z)" },
+                    { value: "nama-desc", label: "Nama Indikator (Z-A)" },
+                  ]}
+                />
               </div>
             </div>
           </div>
@@ -1059,26 +1054,18 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
                   marginBottom: 24,
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <label style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Pilih Indikator / Kolom:</label>
-                  <select
-                    value={selectedChartField}
-                    onChange={(e) => setSelectedChartField(e.target.value)}
-                    style={{
-                      padding: "8px 12px",
-                      borderRadius: 8,
-                      border: `1px solid ${T.border}`,
-                      background: T.inputBg || T.cardBg,
-                      color: T.text,
-                      fontSize: 13,
-                    }}
-                  >
-                    {(datasetDetail.fields || []).map((f) => (
-                      <option key={f.id} value={f.nama_field}>
-                        {f.label || f.nama_field}
-                      </option>
-                    ))}
-                  </select>
+                  <div style={{ minWidth: 240 }}>
+                    <Select
+                      value={selectedChartField}
+                      onChange={(val) => setSelectedChartField(val)}
+                      options={(datasetDetail.fields || []).map((f) => ({
+                        value: f.nama_field,
+                        label: f.label || f.nama_field,
+                      }))}
+                    />
+                  </div>
                 </div>
 
                 <div style={{ display: "flex", gap: 6 }}>
@@ -1816,52 +1803,38 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
             </div>
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
-              <select
-                id="select-ds-bandingkan"
-                style={{
-                  padding: "9px 14px",
-                  borderRadius: 8,
-                  border: `1px solid ${T.border}`,
-                  fontSize: 13,
-                  background: T.inputBg || T.cardBg,
-                  color: T.text,
-                  minWidth: 320,
-                }}
-              >
-                <option value="">-- Pilih Indikator --</option>
-                {opsiIndikator.map((ds) => (
-                  <optgroup key={ds.id} label={`${ds.nama} (${ds.opd_nama})`}>
-                    {(ds.numeric_fields || []).map((f) => (
-                      <option key={`${ds.id}:${f.nama}`} value={`${ds.id}:${f.nama}:${ds.nama} - ${f.label}`}>
-                        {ds.nama} — {f.label} ({ds.satuan || ""})
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
+              <div style={{ minWidth: 320, flex: "1 1 340px", maxWidth: 640 }}>
+                <Select
+                  fullWidth
+                  searchable
+                  value={pilihanBandingkan}
+                  placeholder="— Cari dan pilih indikator data —"
+                  onChange={(val) => setPilihanBandingkan(val)}
+                  options={optionsBandingkan}
+                />
+              </div>
 
               <button
-                onClick={() => {
-                  const el = document.getElementById("select-ds-bandingkan");
-                  if (el && el.value) {
-                    const [dsId, fName, label] = el.value.split(":");
-                    if (!selectedIndikators.some((s) => s.dataset_id === dsId && s.field_name === fName)) {
-                      setSelectedIndikators([...selectedIndikators, { dataset_id: dsId, field_name: fName, label }]);
-                    }
-                  }
-                }}
+                type="button"
+                onClick={() => tambahIndikatorBandingkan()}
+                disabled={!pilihanBandingkan}
                 style={{
-                  padding: "9px 16px",
-                  background: T.primary,
-                  color: "#fff",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "9px 18px",
+                  background: pilihanBandingkan ? T.primary : T.surfaceHover || "#E2E8F0",
+                  color: pilihanBandingkan ? "#fff" : T.textMuted,
                   border: "none",
-                  borderRadius: 8,
+                  borderRadius: 10,
                   fontSize: 13,
                   fontWeight: 600,
-                  cursor: "pointer",
+                  cursor: pilihanBandingkan ? "pointer" : "default",
+                  transition: "all 0.15s ease",
                 }}
               >
-                + Tambah Indikator
+                <Icon name="plus" size={14} />
+                <span>Tambah Indikator</span>
               </button>
             </div>
 
