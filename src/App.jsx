@@ -137,6 +137,25 @@ export default function App() {
     }
   };
   const [page,      setPage]      = useState(bacaHalamanAwal);
+  const [currentTab, setCurrentTab] = useState(() => {
+    try {
+      const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
+      return hp.get("tab") || "";
+    } catch {
+      return "";
+    }
+  });
+
+  useEffect(() => {
+    const syncTab = () => {
+      try {
+        const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
+        setCurrentTab(hp.get("tab") || "");
+      } catch (_) {}
+    };
+    window.addEventListener("hashchange", syncTab);
+    return () => window.removeEventListener("hashchange", syncTab);
+  }, []);
   const [docs,      setDocs]      = useState([]);
   const [users,     setUsers]     = useState([]);
   const [logs,      setLogs]      = useState([]);
@@ -352,7 +371,7 @@ export default function App() {
     }, ...l]);
   };
 
-  const goPage = (p, pushState = true) => {
+  const goPage = (p, pushState = true, tab = null) => {
     setPage(p);
     setViewDoc(null);
     setPendingDocId(null);
@@ -360,10 +379,20 @@ export default function App() {
       sessionStorage.setItem("page", p);
       localStorage.setItem("active_page", p);
     } catch (_) {}
+    const chosenTab = tab || localStorage.getItem(`${p}_tab`);
+    if (tab) {
+      try {
+        localStorage.setItem(`${p}_tab`, tab);
+      } catch (_) {}
+      setCurrentTab(tab);
+    } else {
+      setCurrentTab(chosenTab || "");
+    }
     if (pushState) {
       const savedTab = localStorage.getItem(`${p}_tab`);
       const targetHash = savedTab ? `${p}?tab=${savedTab}` : p;
       history.pushState({ page: p }, "", `#${targetHash}`);
+      window.dispatchEvent(new Event("hashchange"));
     }
   };
 
@@ -1212,7 +1241,8 @@ if (!user) {
         {!isMobile && (
           <Sidebar
             active={viewDoc ? "dokumen" : page}
-            onNav={(p) => { goPage(p); }}
+            activeTab={currentTab}
+            onNav={(p, tab) => { goPage(p, true, tab); }}
             user={user}
             onLogout={handleLogout}
             onCiutkan={toggleCiut}
@@ -1357,7 +1387,7 @@ if (!user) {
               <PanduanPengguna />
             )}
             {page === "bankdata" && (
-              <BankDataPage user={user} showToast={showToast} />
+              <BankDataPage user={user} showToast={showToast} initialTab={currentTab || undefined} />
             )}
             {page === "kertas-kerja" && (
               <KertasKerja

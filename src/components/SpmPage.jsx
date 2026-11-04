@@ -49,6 +49,7 @@ export default function SpmPage({ user, showToast, readOnly = false }) {
       localStorage.setItem("spm_tab", t);
       const base = (window.location.hash || "#spm").split("?")[0] || "#spm";
       history.replaceState(null, "", `${base}?tab=${t}`);
+      window.dispatchEvent(new Event("hashchange"));
     } catch (_) {}
   };
 

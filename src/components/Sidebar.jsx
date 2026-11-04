@@ -24,6 +24,21 @@ function muatGrupTerbuka() {
   }
 }
 
+const KUNCI_SUB = "sidebarSubmenuTerbuka";
+
+function muatSubBuka() {
+  try {
+    const v = JSON.parse(localStorage.getItem(KUNCI_SUB) || "null");
+    return v && typeof v === "object" && !Array.isArray(v) ? v : { bankdata: true, spm: true };
+  } catch {
+    return { bankdata: true, spm: true };
+  }
+}
+
+function simpanSubBuka(v) {
+  try { localStorage.setItem(KUNCI_SUB, JSON.stringify(v)); } catch (_) {}
+}
+
 function simpanGrupTerbuka(v) {
   try { localStorage.setItem(KUNCI_GRUP, JSON.stringify(v)); } catch { /* kuota penuh */ }
 }
@@ -92,7 +107,7 @@ function RecentActivity({ logs = [] }) {
   );
 }
 
-export default function Sidebar({ active, onNav, user, onLogout, onCiutkan, lebar = 220, onLebar, mobileOpen, logs }) {
+export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCiutkan, lebar = 220, onLebar, mobileOpen, logs }) {
   const { T, theme, setTheme } = useContext(ThemeContext);
   const isMobileOv = mobileOpen !== undefined;
   // Pegangan lebar di tepi kanan: seret untuk mengubah lebar, klik ganda
@@ -114,6 +129,27 @@ export default function Sidebar({ active, onNav, user, onLogout, onCiutkan, leba
     [user.role, allowedMenusKey, user?.opd_id, user?.is_bapperida]
   );
   const [grupBuka, setGrupBuka] = useState(() => grupTerbukaAwal(muatGrupTerbuka()));
+  const [subBuka, setSubBuka] = useState(muatSubBuka);
+
+  // Jika active berubah ke halaman yang punya submenu, buka otomatis submenunya
+  useEffect(() => {
+    if (active) {
+      setSubBuka(prev => {
+        if (prev[active]) return prev;
+        const next = { ...prev, [active]: true };
+        simpanSubBuka(next);
+        return next;
+      });
+    }
+  }, [active]);
+
+  const toggleSub = (itemKey) => {
+    setSubBuka(prev => {
+      const next = { ...prev, [itemKey]: !prev[itemKey] };
+      simpanSubBuka(next);
+      return next;
+    });
+  };
 
   // Halaman aktif selalu terlihat: kelompoknya dibuka otomatis. Tanpa ini,
   // lipatan yang ditutup manual lalu pindah halaman akan membuat item aktif
@@ -241,6 +277,192 @@ export default function Sidebar({ active, onNav, user, onLogout, onCiutkan, leba
               )}
               {buka && g.items.map(n => {
                 const isActive = active === n.key;
+                const hasChildren = Array.isArray(n.children) && n.children.length > 0;
+                const isSubOpen = !modeIcon && hasChildren && !!subBuka[n.key];
+
+                if (hasChildren && !modeIcon) {
+                  return (
+                    <div key={n.key} style={{ marginBottom: 2 }}>
+                      {/* Baris Menu Induk (Parent) */}
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        background: isActive ? (isSubOpen ? `${T.primary}12` : T.sidebarHover) : "none",
+                        borderLeft: isActive ? `3px solid ${T.primary}` : "3px solid transparent",
+                        transition: "all 0.15s ease",
+                      }}>
+                        <button
+                          onClick={() => {
+                            if (!isSubOpen) {
+                              setSubBuka(prev => {
+                                const next = { ...prev, [n.key]: true };
+                                simpanSubBuka(next);
+                                return next;
+                              });
+                            }
+                            const targetTab = (isActive && activeTab) ? activeTab : (n.children[0]?.tab || null);
+                            onNav(n.key, targetTab);
+                          }}
+                          title={n.label}
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            padding: "8px 6px 8px 16px",
+                            background: "none",
+                            border: "none",
+                            color: isActive ? T.sidebarTextActive : T.sidebarText,
+                            cursor: "pointer",
+                            fontSize: 12.8,
+                            fontWeight: isActive ? 600 : 400,
+                            textAlign: "left",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          <Icon
+                            name={n.icon}
+                            size={17}
+                            style={{
+                              flexShrink: 0,
+                              color: isActive ? T.primary : "inherit",
+                            }}
+                          />
+                          <span style={{
+                            flex: 1,
+                            minWidth: 0,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}>
+                            {n.label}
+                          </span>
+                        </button>
+
+                        {/* Tombol Chevron Expand/Collapse */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSub(n.key);
+                          }}
+                          aria-expanded={isSubOpen}
+                          title={isSubOpen ? `Tutup sub-menu ${n.label}` : `Buka sub-menu ${n.label}`}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            padding: "8px 14px 8px 6px",
+                            cursor: "pointer",
+                            color: isSubOpen ? (isActive ? T.primary : T.sidebarTextActive) : T.textMuted,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <Icon
+                            name="chevronRight"
+                            size={13}
+                            style={{
+                              transform: isSubOpen ? "rotate(90deg)" : "rotate(0deg)",
+                              transition: "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                            }}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Sub-menu accordion list */}
+                      {isSubOpen && (
+                        <div style={{
+                          position: "relative",
+                          marginLeft: 26,
+                          paddingLeft: 10,
+                          borderLeft: `1.5px solid ${isActive ? `${T.primary}45` : "rgba(255,255,255,0.12)"}`,
+                          marginTop: 2,
+                          marginBottom: 4,
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 2,
+                        }}>
+                          {n.children.map(child => {
+                            const isChildActive = isActive && (
+                              activeTab ? activeTab === child.tab : (
+                                (localStorage.getItem(`${n.key}_tab`) || n.children[0]?.tab) === child.tab
+                              )
+                            );
+                            return (
+                              <button
+                                key={child.tab || child.label}
+                                onClick={() => onNav(n.key, child.tab)}
+                                title={child.label}
+                                style={{
+                                  width: "100%",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  padding: "6px 10px",
+                                  borderRadius: 6,
+                                  background: isChildActive ? (T.sidebarHover || "rgba(255,255,255,0.08)") : "transparent",
+                                  border: "none",
+                                  color: isChildActive ? (T.sidebarTextActive || "#fff") : (T.textMuted || "rgba(255,255,255,0.7)"),
+                                  cursor: "pointer",
+                                  fontSize: 12,
+                                  fontWeight: isChildActive ? 600 : 400,
+                                  textAlign: "left",
+                                  fontFamily: "inherit",
+                                  transition: "all 0.12s ease",
+                                }}
+                                onMouseEnter={e => {
+                                  if (!isChildActive) {
+                                    e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                                    e.currentTarget.style.color = "#fff";
+                                  }
+                                }}
+                                onMouseLeave={e => {
+                                  if (!isChildActive) {
+                                    e.currentTarget.style.background = "transparent";
+                                    e.currentTarget.style.color = T.textMuted || "rgba(255,255,255,0.7)";
+                                  }
+                                }}
+                              >
+                                <span style={{
+                                  width: 5,
+                                  height: 5,
+                                  borderRadius: "50%",
+                                  background: isChildActive ? (T.primary || "#3b82f6") : "rgba(255,255,255,0.3)",
+                                  flexShrink: 0,
+                                  transition: "all 0.15s",
+                                  transform: isChildActive ? "scale(1.3)" : "scale(1)",
+                                  boxShadow: isChildActive ? `0 0 6px ${T.primary}` : "none",
+                                }} />
+                                <span style={{
+                                  flex: 1,
+                                  minWidth: 0,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}>
+                                  {child.label}
+                                </span>
+                                {child.badge !== undefined && child.badge > 0 && (
+                                  <span style={{
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    padding: "1px 6px",
+                                    borderRadius: 99,
+                                    background: "#EF4444",
+                                    color: "#fff",
+                                  }}>
+                                    {child.badge}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
                 return (
                   <button
                     key={n.key}

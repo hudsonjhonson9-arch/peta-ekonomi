@@ -72,7 +72,7 @@ export function unduhTemplateDatasetExcel(dataset, fields = []) {
   XLSX.writeFile(wb, `Template_${safeName}.xlsx`);
 }
 
-export default function BankDataPage({ user, showToast }) {
+export default function BankDataPage({ user, showToast, initialTab }) {
   const { T } = useContext(ThemeContext);
   const { isMobile } = useResponsive();
   const queryClient = useQueryClient();
@@ -101,6 +101,7 @@ export default function BankDataPage({ user, showToast }) {
       localStorage.setItem("bankdata_tab", t);
       const base = (window.location.hash || "#bankdata").split("?")[0] || "#bankdata";
       history.replaceState(null, "", `${base}?tab=${t}`);
+      window.dispatchEvent(new Event("hashchange"));
     } catch (_) {}
   };
 
@@ -111,12 +112,20 @@ export default function BankDataPage({ user, showToast }) {
         const t = hp.get("tab");
         if (t && ["dataset", "verifikasi", "pemutakhiran", "template", "kinerja"].includes(t)) {
           setTabState(t);
+          if (t !== "dataset") setSelectedId(null);
         }
       } catch (_) {}
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+
+  useEffect(() => {
+    if (initialTab && ["dataset", "verifikasi", "pemutakhiran", "template", "kinerja"].includes(initialTab)) {
+      setTabState(initialTab);
+      if (initialTab !== "dataset") setSelectedId(null);
+    }
+  }, [initialTab]);
   const [selectedId, setSelectedIdState] = useState(() => {
     try {
       const s = sessionStorage.getItem("bankdata_selected_dataset_id");

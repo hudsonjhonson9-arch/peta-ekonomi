@@ -77,6 +77,25 @@ export function isOpdBapperidaFrontend(user) {
   );
 }
 
+export const BANKDATA_CHILDREN = [
+  { key: "bankdata", tab: "dataset", label: "Dataset Satu Data", icon: "chart" },
+  { key: "bankdata", tab: "kinerja", label: "Indikator Kinerja", icon: "layers" },
+  { key: "bankdata", tab: "verifikasi", label: "Verifikasi Dataset", icon: "checkCircle", walidataOnly: true },
+];
+
+export const SPM_CHILDREN = [
+  { key: "spm", tab: "dashboard", label: "Dashboard SPM", icon: "chart" },
+  { key: "spm", tab: "capaian", label: "Capaian per Bidang", icon: "layers" },
+  { key: "spm", tab: "referensi", label: "Matriks & Referensi", icon: "file" },
+  { key: "spm", tab: "dokumen", label: "Dokumen Pendukung", icon: "folder" },
+];
+
+export function filterItemChildren(children, role) {
+  if (!Array.isArray(children)) return undefined;
+  const canVerify = role === "Admin" || role === "Walidata" || role === "Reviewer";
+  return children.filter(c => !c.walidataOnly || canVerify);
+}
+
 export const NAV_GROUPS = [
   {
     key: "utama",
@@ -104,8 +123,8 @@ export const NAV_GROUPS = [
     items: [
       { key: "kertas-kerja", label: "Kertas Kerja", icon: "checkCircle" },
       { key: "screening", label: "Screening RKA", icon: "filter" },
-      { key: "bankdata", label: "Bank Data", icon: "chart" },
-      { key: "spm", label: "Capaian SPM", icon: "shield" },
+      { key: "bankdata", label: "Bank Data", icon: "chart", children: BANKDATA_CHILDREN },
+      { key: "spm", label: "Capaian SPM", icon: "shield", children: SPM_CHILDREN },
     ],
   },
   {
@@ -160,8 +179,8 @@ export function navGroupsUntuk(role, allowedMenus, user) {
         label: "Satu Data Sumba Barat",
         icon: "chart",
         items: [
-          { key: "bankdata", label: "Bank Data", icon: "chart" },
-          { key: "spm", label: "Capaian SPM", icon: "shield" },
+          { key: "bankdata", label: "Bank Data", icon: "chart", children: filterItemChildren(BANKDATA_CHILDREN, role) },
+          { key: "spm", label: "Capaian SPM", icon: "shield", children: filterItemChildren(SPM_CHILDREN, role) },
           { key: "publik", label: "Portal Publik", icon: "world" },
         ],
       },
@@ -180,7 +199,7 @@ export function navGroupsUntuk(role, allowedMenus, user) {
   if (Array.isArray(allowedMenus) && allowedMenus.length > 0 && role !== "Admin") {
     const set = new Set(allowedMenus);
     return NAV_GROUPS
-      .map(g => ({ ...g, items: g.items.filter(i => set.has(i.key) || i.selalu) }))
+      .map(g => ({ ...g, items: g.items.filter(i => set.has(i.key) || i.selalu).map(i => ({ ...i, children: filterItemChildren(i.children, role) })) }))
       .filter(g => g.items.length > 0);
   }
   if (role === "Operator Bank Data" || role === "Produsen Data") {
@@ -199,15 +218,15 @@ export function navGroupsUntuk(role, allowedMenus, user) {
         label: "Perencanaan",
         icon: "chart",
         items: [
-          { key: "bankdata", label: "Bank Data", icon: "chart" },
-          { key: "spm", label: "Capaian SPM", icon: "shield" },
+          { key: "bankdata", label: "Bank Data", icon: "chart", children: filterItemChildren(BANKDATA_CHILDREN, role) },
+          { key: "spm", label: "Capaian SPM", icon: "shield", children: filterItemChildren(SPM_CHILDREN, role) },
           { key: "akun", label: "Akun Saya", icon: "users", selalu: true },
         ],
       },
     ];
   }
   return NAV_GROUPS
-    .map(g => ({ ...g, items: g.items.filter(i => !i.adminOnly || role === "Admin" || role === "Walidata") }))
+    .map(g => ({ ...g, items: g.items.filter(i => !i.adminOnly || role === "Admin" || role === "Walidata").map(i => ({ ...i, children: filterItemChildren(i.children, role) })) }))
     .filter(g => g.items.length > 0);
 }
 
