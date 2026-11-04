@@ -155,6 +155,10 @@ export const NAV_GROUPS = [
       { key: "dokumen", label: "Dokumen", icon: "archive" },
       { key: "kertas-kerja", label: "Kertas Kerja", icon: "checkCircle", children: KERTAS_KERJA_CHILDREN },
       { key: "screening", label: "Screening RKA", icon: "filter" },
+      { key: "standar-harga", label: "Standar Harga", icon: "dollar", adminOnly: true },
+      { key: "kategori-dokumen", label: "Jenis Dokumen", icon: "tag", adminOnly: true },
+      { key: "sektor", label: "Sektor", icon: "layers", adminOnly: true },
+      { key: "audit", label: "Audit Trail", icon: "history", adminOnly: true },
     ],
   },
   {
@@ -180,10 +184,6 @@ export const NAV_GROUPS = [
     items: [
       { key: "pengguna", label: "Pengguna", icon: "users", adminOnly: true },
       { key: "kelola-role", label: "Kelola Role", icon: "shield", adminOnly: true },
-      { key: "standar-harga", label: "Standar Harga", icon: "dollar", adminOnly: true },
-      { key: "kategori-dokumen", label: "Jenis Dokumen", icon: "tag", adminOnly: true },
-      { key: "sektor", label: "Sektor", icon: "layers", adminOnly: true },
-      { key: "audit", label: "Audit Trail", icon: "history", adminOnly: true },
     ],
   },
   {
