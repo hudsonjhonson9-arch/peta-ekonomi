@@ -1,4 +1,5 @@
 import { useState, useEffect, useContext, useMemo, useRef, useCallback } from "react";
+import useResponsive from "../useResponsive.js";
 import { ThemeContext } from "../App.jsx";
 import { Icon, Badge } from "./ui.jsx";
 import { Select } from "./customControls.jsx";
@@ -225,6 +226,7 @@ function getEmbedDriveUrl(url) {
 
 export default function PortalPublikLengkap({ onLoginClick, user = null }) {
   const { T, isDark } = useContext(ThemeContext);
+  const { isMobile } = useResponsive();
 
   // Sub-navigasi portal: 'beranda' | 'dataset' | 'detail' | 'jelajah' | 'bandingkan' | 'visualisasi' | 'berita' | 'berita-detail' | 'katalog' | 'tanya-data'
   const [subPage, setSubPage] = useState("beranda");
