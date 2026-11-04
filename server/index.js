@@ -992,10 +992,62 @@ app.patch('/api/docs/:id/status', async (req, res) => {
 // ── Edit Dokumen ────────────────────────────────────────────────────────────
 app.put('/api/docs/:id', async (req, res) => {
   const { id } = req.params;
-  const { judul, kategori, tipe, bidang, desc, tags, nomor, tanggal, tahun, fileType } = req.body;
-  const salahLabel = validasiLabelFileTipe(fileType);
+  const {
+    judul, title,
+    kategori, type,
+    tipe, sector,
+    bidang, desc, tags,
+    nomor, nomor_dokumen, nomorDokumen,
+    tanggal, tanggal_dokumen, tanggalDokumen,
+    fileType, file_type
+  } = req.body;
+
+  const docTitle = (title !== undefined && title !== null) ? title : judul;
+  let docType = type;
+  let docSector = sector;
+  if (!docType && !docSector) {
+    docType = tipe;
+    docSector = kategori;
+  }
+
+  const docFileType = (fileType !== undefined && fileType !== null) ? fileType : file_type;
+  const salahLabel = validasiLabelFileTipe(docFileType);
   if (salahLabel)
     return res.status(400).json({ error: salahLabel });
+
+  function parseTanggalKeIsoServer(val) {
+    if (!val || typeof val !== 'string') return null;
+    val = val.trim();
+    const mIso = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (mIso) return `${mIso[1]}-${mIso[2]}-${mIso[3]}`;
+    const bulanMap = {
+      jan: '01', feb: '02', mar: '03', apr: '04', mei: '05', may: '05',
+      jun: '06', jul: '07', agu: '08', ags: '08', aug: '08', sep: '09',
+      okt: '10', oct: '10', nov: '11', des: '12', dec: '12'
+    };
+    const mIndo = val.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+    if (mIndo) {
+      const d = mIndo[1].padStart(2, '0');
+      const bKey = mIndo[2].slice(0, 3).toLowerCase();
+      const m = bulanMap[bKey];
+      if (m) return `${mIndo[3]}-${m}-${d}`;
+    }
+    const parsed = new Date(val);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().slice(0, 10);
+    }
+    return null;
+  }
+
+  const rawDate = tanggal !== undefined ? tanggal : (tanggalDokumen !== undefined ? tanggalDokumen : tanggal_dokumen);
+  const tanggalIso = parseTanggalKeIsoServer(rawDate);
+
+  const docNomor = (nomor !== undefined && nomor !== null)
+    ? nomor
+    : (nomorDokumen !== undefined ? nomorDokumen : nomor_dokumen);
+
+  const tagsString = Array.isArray(tags) ? tags.join(', ') : (tags || null);
+
   try {
     const result = await pool.query(
       `UPDATE bapperida_dokumen
@@ -1009,16 +1061,63 @@ app.put('/api/docs/:id', async (req, res) => {
            nomor_dokumen = COALESCE($7, nomor_dokumen),
            tanggal_dokumen = COALESCE($8::date, tanggal_dokumen),
            tanggal = COALESCE($8::date, tanggal)
-       WHERE id = $9 RETURNING *`,
-      [judul, kategori, tipe, bidang, desc, tags, nomor, tanggal || null, id, fileType || null]
+       WHERE id = $9 RETURNING id`,
+      [docTitle || null, docType || null, docSector || null, bidang || null, desc || null, tagsString, docNomor || null, tanggalIso || null, id, docFileType || null]
     );
     if (!result.rows.length)
       return res.status(404).json({ error: 'Dokumen tidak ditemukan' });
+
     await pool.query(
       `INSERT INTO audit_logs (user_name, action, doc_title) VALUES ($1, $2, $3)`,
-      [req.body.user || 'Admin', 'Edit dokumen', judul || result.rows[0].judul]
+      [req.body.user || 'Admin', 'Edit dokumen', docTitle || 'Dokumen #' + id]
     );
-    res.json({ message: 'Dokumen berhasil diperbarui', doc: result.rows[0] });
+
+    const updated = await queryDB(`
+      SELECT
+        id,
+        judul                               AS title,
+        kategori                            AS type,
+        tipe                                AS sector,
+        file_type                           AS "fileType",
+        TO_CHAR(tanggal, 'YYYY')            AS year,
+        status,
+        COALESCE(uploader_id, '')           AS "uploaderId",
+        COALESCE(
+          (SELECT up.username FROM user_list up
+            WHERE up."NIP" = bapperida_dokumen.uploader_id LIMIT 1),
+          uploader_id, ''
+        )                                   AS uploader,
+        COALESCE("desc", '')                AS "desc",
+        COALESCE(tags, '')                  AS "tagsRaw",
+        COALESCE(nomor_dokumen, '')         AS "nomorDokumen",
+        TO_CHAR(tanggal_dokumen, 'DD Mon YYYY') AS "tanggalDokumen",
+        COALESCE(versi, 1)                  AS versi,
+        COALESCE(reviewed_by, '—')        AS "reviewedBy",
+        COALESCE(review_note, '')          AS "reviewNote",
+        ukuran                              AS size,
+        COALESCE(pages, 0)                  AS pages,
+        TO_CHAR(tanggal, 'DD Mon YYYY')     AS "uploadDate",
+        url,
+        files,
+        icon_data,
+        COALESCE(publik, false)             AS publik,
+        COALESCE(bidang, '')                AS bidang,
+        index_status                        AS "indexStatus"
+      FROM bapperida_dokumen
+      WHERE id = $1
+    `, [id]);
+
+    if (!updated.length) {
+      return res.json({ message: 'Dokumen berhasil diperbarui' });
+    }
+
+    const row = updated[0];
+    let filesArr = [];
+    if (row.files) { try { filesArr = JSON.parse(row.files); } catch (_) { filesArr = []; } }
+    const tagsArr = row.tagsRaw ? row.tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : [];
+    const formattedDoc = { ...row, files: filesArr, tags: tagsArr };
+
+    res.json({ message: 'Dokumen berhasil diperbarui', doc: formattedDoc });
   } catch (err) {
     console.error('Edit doc error:', err);
     res.status(500).json({ error: 'Gagal memperbarui dokumen' });

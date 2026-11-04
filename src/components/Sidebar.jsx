@@ -69,7 +69,7 @@ function RecentActivity({ logs = [] }) {
   };
 
   return (
-    <div style={{ padding: "4px 12px", borderTop: `1px solid ${T.border}` }}>
+    <div style={{ padding: "4px 8px 0" }}>
       <button
         onClick={() => setBuka(v => !v)}
         aria-expanded={buka}
@@ -77,10 +77,10 @@ function RecentActivity({ logs = [] }) {
         style={{
           width: "100%",
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "6px 4px",
+          padding: "8px 10px",
           background: "none", border: "none", cursor: "pointer",
-          fontSize: 10, fontWeight: 700, color: T.textMuted,
-          textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "inherit",
+          fontSize: 11.5, fontWeight: 600, color: T.textMuted,
+          fontFamily: "inherit",
         }}
       >
         <span>Aktivitas</span>
@@ -173,6 +173,24 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
     });
   }, [active, groups, grupBuka, isBapperida]);
 
+  // Petunjuk ada menu di bawah: scrollbar disembunyikan, jadi tanpa ini item
+  // paling bawah (mis. Audit Trail) tidak terlihat dan tidak ketahuan ada.
+  const navRef = useRef(null);
+  const [adaBawah, setAdaBawah] = useState(false);
+  const cekScroll = () => {
+    const el = navRef.current;
+    if (!el) return;
+    setAdaBawah(el.scrollHeight - el.scrollTop - el.clientHeight > 4);
+  };
+  useEffect(() => {
+    cekScroll();
+    const el = navRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(cekScroll);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [groups, grupBuka, subBuka, modeIcon, lebar]);
+
   const lipat = g => {
     setGrupBuka(prev => {
       const next = { ...prev, [g.key]: !prev[g.key] };
@@ -185,6 +203,20 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
     seretRef.current = null;
     setSeret(false);
     document.body.style.userSelect = "";
+  };
+
+  // Tombol kecil berlatar tonal (tanpa garis) untuk blok footer (tema & keluar).
+  const tombolFooter = {
+    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+    flex: 1, minWidth: 0,
+    background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 8,
+    color: T.textMuted, cursor: "pointer",
+    fontSize: 12, fontWeight: 600, padding: "6px 8px", fontFamily: "inherit",
+    transition: "background 0.15s, color 0.15s",
+  };
+  const hoverFooter = {
+    onMouseEnter: e => { e.currentTarget.style.background = "rgba(255,255,255,0.13)"; e.currentTarget.style.color = "#fff"; },
+    onMouseLeave: e => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; e.currentTarget.style.color = T.textMuted; },
   };
 
   return (
@@ -208,8 +240,7 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
     }}>
       {/* Logo */}
       <div style={{
-        padding: modeIcon ? "18px 12px" : "18px 16px",
-        borderBottom: "1px solid " + T.border,
+        padding: modeIcon ? "18px 12px 10px" : "18px 16px 10px",
         display: "flex", alignItems: "center", gap: 10,
       }}>
         <img src="/icon.svg" alt="" width={36} height={36} style={{ flexShrink: 0, borderRadius: 10 }} />
@@ -224,21 +255,25 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
       {/* Tombol ciutkan/lebarkan — tepat di bawah logo */}
       {onCiutkan && (
         <div style={{
-          padding: "7px 12px", borderBottom: "1px solid " + T.border,
-          display: "flex", justifyContent: modeIcon ? "center" : "flex-end",
+          padding: "8px 8px 0",
+          display: "flex", justifyContent: modeIcon ? "center" : "flex-start",
         }}>
           <button
             onClick={onCiutkan}
             title={modeIcon ? "Lebarkan sidebar" : "Ciutkan sidebar"}
             aria-label={modeIcon ? "Lebarkan sidebar" : "Ciutkan sidebar"}
             style={{
-              display: "flex", alignItems: "center", gap: 7,
-              background: "none", border: `1px solid ${T.border}`,
-              borderRadius: 7, color: T.textMuted,
+              display: "flex", alignItems: "center", gap: 8,
+              width: modeIcon ? undefined : "100%",
+              background: "none", border: "none",
+              borderRadius: 8, color: T.textMuted,
               cursor: "pointer", fontSize: 12, fontWeight: 600,
               padding: modeIcon ? "6px 7px" : "6px 10px",
               fontFamily: "inherit",
+              transition: "background 0.15s, color 0.15s",
             }}
+            onMouseEnter={e => { e.currentTarget.style.background = T.sidebarHover; e.currentTarget.style.color = "#fff"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = T.textMuted; }}
           >
             <Icon name="chevronRight" size={14} style={modeIcon ? undefined : { transform: "rotate(180deg)" }} />
             {!modeIcon && "Ciutkan"}
@@ -247,7 +282,8 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
       )}
 
       {/* Nav — kelompok yang bisa dilipat */}
-      <nav className="sidebar-nav" style={{ flex: 1, padding: "6px 0 14px", overflowY: "auto", overflowX: "hidden", scrollbarWidth: "none", msOverflowStyle: "none" }}>
+      <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
+      <nav ref={navRef} onScroll={cekScroll} className="sidebar-nav" style={{ flex: 1, minHeight: 0, padding: "6px 0 14px", overflowY: "auto", overflowX: "hidden", scrollbarWidth: "none", msOverflowStyle: "none" }}>
         {groups.map((g, i) => {
           // Saat sidebar dikecilkan hanya ikon yang muat, jadi semua kelompok
           // dibuka tanpa perlu menampilkan judulnya.
@@ -255,9 +291,9 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
           return (
             <div key={g.key} style={{
               marginBottom: 2,
-              // Mode ikon: judul kelompok disembunyikan, jadi tiap kelompok
-              // dipisah garis tipis agar batasnya tetap terlihat.
-              ...(modeIcon && i > 0 ? { borderTop: `1px solid ${T.border}`, marginTop: 8, paddingTop: 4 } : {}),
+              // Mode ikon: judul kelompok disembunyikan, jadi kelompok
+              // dipisah jarak saja (tanpa garis).
+              ...(modeIcon && i > 0 ? { marginTop: 12 } : {}),
             }}>
               {!modeIcon && (
                 <button
@@ -267,13 +303,11 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
                   style={{
                     width: "100%",
                     display: "flex", alignItems: "center", gap: 8,
-                    padding: "7px 16px 4px",
+                    padding: i === 0 ? "6px 18px 4px" : "12px 18px 4px",
                     background: "none", border: "none",
-                    borderLeft: "3px solid transparent",
                     cursor: "pointer",
                     color: T.textMuted, textAlign: "left",
-                    fontSize: 10, fontWeight: 700,
-                    textTransform: "uppercase", letterSpacing: 0.7,
+                    fontSize: 11.5, fontWeight: 600, letterSpacing: 0.1,
                     fontFamily: "inherit",
                   }}
                 >
@@ -292,13 +326,17 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
                   return (
                     <div key={n.key} style={{ marginBottom: 2 }}>
                       {/* Baris Menu Induk (Parent) */}
-                      <div style={{
-                        display: "flex",
-                        alignItems: "center",
-                        background: isActive ? (isSubOpen ? `${T.primary}12` : T.sidebarHover) : "none",
-                        borderLeft: isActive ? `3px solid ${T.primary}` : "3px solid transparent",
-                        transition: "all 0.15s ease",
-                      }}>
+                      <div
+                        onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = T.sidebarHover; }}
+                        onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          margin: "1px 8px",
+                          borderRadius: 8,
+                          background: isActive ? `${T.primary}26` : "transparent",
+                          transition: "background 0.15s ease",
+                        }}>
                         <button
                           onClick={() => {
                             if (!isSubOpen) {
@@ -318,7 +356,7 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
                             display: "flex",
                             alignItems: "center",
                             gap: 10,
-                            padding: "8px 6px 8px 16px",
+                            padding: "7px 6px 7px 10px",
                             background: "none",
                             border: "none",
                             color: isActive ? T.sidebarTextActive : T.sidebarText,
@@ -359,7 +397,7 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
                           style={{
                             background: "none",
                             border: "none",
-                            padding: "8px 14px 8px 6px",
+                            padding: "7px 10px 7px 6px",
                             cursor: "pointer",
                             color: isSubOpen ? (isActive ? T.primary : T.sidebarTextActive) : T.textMuted,
                             display: "flex",
@@ -382,9 +420,9 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
                       {isSubOpen && (
                         <div style={{
                           position: "relative",
-                          marginLeft: 26,
-                          paddingLeft: 10,
-                          borderLeft: `1.5px solid ${isActive ? `${T.primary}45` : "rgba(255,255,255,0.12)"}`,
+                          marginLeft: 8,
+                          marginRight: 8,
+                          paddingLeft: 27,
                           marginTop: 2,
                           marginBottom: 4,
                           display: "flex",
@@ -409,7 +447,7 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
                                   gap: 8,
                                   padding: "6px 10px",
                                   borderRadius: 6,
-                                  background: isChildActive ? (T.sidebarHover || "rgba(255,255,255,0.08)") : "transparent",
+                                  background: isChildActive ? `${T.primary}26` : "transparent",
                                   border: "none",
                                   color: isChildActive ? (T.sidebarTextActive || "#fff") : (T.textMuted || "rgba(255,255,255,0.7)"),
                                   cursor: "pointer",
@@ -432,16 +470,6 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
                                   }
                                 }}
                               >
-                                <span style={{
-                                  width: 5,
-                                  height: 5,
-                                  borderRadius: "50%",
-                                  background: isChildActive ? (T.primary || "#3b82f6") : "rgba(255,255,255,0.3)",
-                                  flexShrink: 0,
-                                  transition: "all 0.15s",
-                                  transform: isChildActive ? "scale(1.3)" : "scale(1)",
-                                  boxShadow: isChildActive ? `0 0 6px ${T.primary}` : "none",
-                                }} />
                                 <span style={{
                                   flex: 1,
                                   minWidth: 0,
@@ -477,23 +505,27 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
                     onClick={() => onNav(n.key)}
                     title={n.label}
                     style={{
-                      width: "100%",
+                      width: "calc(100% - 16px)",
                       display: "flex",
                       alignItems: "center",
                       gap: 10,
-                      padding: modeIcon ? "9px 0" : "8px 16px",
+                      padding: modeIcon ? "9px 0" : "7px 10px",
+                      margin: "1px 8px",
+                      borderRadius: 8,
                       justifyContent: modeIcon ? "center" : "flex-start",
-                      background: isActive ? T.sidebarHover : "none",
+                      background: isActive ? `${T.primary}26` : "transparent",
                       border: "none",
-                      borderLeft: isActive ? "3px solid " + T.primary : "3px solid transparent",
                       color: isActive ? T.sidebarTextActive : T.sidebarText,
                       cursor: "pointer",
                       fontSize: 12.8,
                       fontWeight: isActive ? 600 : 400,
-                      transition: "all 0.15s",
+                      fontFamily: "inherit",
+                      transition: "background 0.15s",
                     }}
+                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = T.sidebarHover; }}
+                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
                   >
-                    <Icon name={n.icon} size={17} style={{ flexShrink: 0 }} />
+                    <Icon name={n.icon} size={17} style={{ flexShrink: 0, color: isActive ? T.primary : "inherit" }} />
                     {!modeIcon && (
                       <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>
                         {n.label}
@@ -506,64 +538,62 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
           );
         })}
       </nav>
+      {/* Pudar di tepi bawah: tanda masih ada menu lain kalau di-scroll */}
+      <div aria-hidden="true" style={{
+        position: "absolute", left: 0, right: 0, bottom: 0, height: 40,
+        pointerEvents: "none",
+        background: `linear-gradient(to top, ${T.sidebarBg}, ${T.sidebarBg}00)`,
+        opacity: adaBawah ? 1 : 0,
+        transition: "opacity 0.2s",
+      }} />
+      </div>
 
       {/* Recent activity (default disembunyikan / di-hide) */}
       {!modeIcon && <RecentActivity logs={logs} />}
 
-      {/* Theme toggle */}
-      <div style={{ padding: modeIcon ? "4px 0" : "4px 16px", borderTop: "1px solid " + T.border }}>
-        <button
-          onClick={() => setTheme(theme === "light" ? "dark" : theme === "dark" ? "system" : "light")}
-          title={modeIcon ? (theme === "dark" ? "Gelap" : theme === "light" ? "Terang" : "Sistem") : undefined}
-          style={{
-            display: "flex", alignItems: "center", gap: 8,
-            background: "none", border: "none",
-            color: T.textMuted, cursor: "pointer", fontSize: 13,
-            padding: "8px 0", width: "100%",
-            justifyContent: modeIcon ? "center" : "flex-start",
-          }}
-        >
-          <Icon name={theme === "dark" ? "moon" : theme === "light" ? "sun" : "monitor"} size={16} />
-          {!modeIcon && (theme === "dark" ? "Gelap" : theme === "light" ? "Terang" : "Sistem")}
-        </button>
-      </div>
-
-      {/* User info + logout */}
+      {/* Footer: profil, lalu pintasan tema & keluar sebaris */}
       <div style={{
-        padding: modeIcon ? "12px 0" : "12px 16px",
-        borderTop: "1px solid " + T.border,
+        margin: "4px 8px 8px",
+        padding: modeIcon ? "8px 6px" : "8px",
+        borderRadius: 12,
+        background: "rgba(255,255,255,0.05)",
+        display: "flex", flexDirection: "column", gap: 8,
       }}>
         {!modeIcon && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
             <div style={{
-              width: 32, height: 32, background: T.primary,
+              width: 30, height: 30, background: T.primary,
               borderRadius: 50, display: "flex", alignItems: "center",
-              justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0,
+              justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0,
             }}>
               {user.name[0]}
             </div>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600 }}>{user.name}</div>
-              <div style={{ fontSize: 10, color: T.textMuted }}>{user.role}</div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div title={user.name} style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name}</div>
+              <div style={{ fontSize: 10.5, color: T.textMuted, marginTop: 1, textTransform: "capitalize" }}>{user.role}</div>
             </div>
           </div>
         )}
-        <button
-          onClick={onLogout}
-          title={modeIcon ? "Keluar" : undefined}
-          style={{
-            display: "flex", alignItems: "center", gap: 8,
-            background: "none", border: "none",
-            color: T.textMuted,
-            cursor: "pointer", fontSize: 12,
-            padding: "4px 0",
-            width: "100%",
-            justifyContent: modeIcon ? "center" : "flex-start",
-          }}
-        >
-          <Icon name="logout" size={15} />
-          {!modeIcon && "Keluar"}
-        </button>
+        <div style={{ display: "flex", flexDirection: modeIcon ? "column" : "row", gap: 6 }}>
+          <button
+            onClick={() => setTheme(theme === "light" ? "dark" : theme === "dark" ? "system" : "light")}
+            title={theme === "dark" ? "Tema: Gelap" : theme === "light" ? "Tema: Terang" : "Tema: Sistem"}
+            style={tombolFooter}
+            {...hoverFooter}
+          >
+            <Icon name={theme === "dark" ? "moon" : theme === "light" ? "sun" : "monitor"} size={15} />
+            {!modeIcon && (theme === "dark" ? "Gelap" : theme === "light" ? "Terang" : "Sistem")}
+          </button>
+          <button
+            onClick={onLogout}
+            title="Keluar"
+            style={tombolFooter}
+            {...hoverFooter}
+          >
+            <Icon name="logout" size={15} />
+            {!modeIcon && "Keluar"}
+          </button>
+        </div>
       </div>
 
       {/* Pegangan lebar sidebar (hanya desktop, saat tidak dilipat) */}

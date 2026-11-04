@@ -3,6 +3,7 @@ import { LIGHT, DARK, getTheme, isDarkTheme } from "./theme.js";
 import { useDocs, useUsers, useLogs, useCategories, useSectors, useBidang, api } from './hooks.js';
 import { queryClient } from './main.jsx';
 import useResponsive from './useResponsive.js';
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import LoginPage from "./components/LoginPage.jsx";
 import Sidebar, { LEBAR_ICON } from "./components/Sidebar.jsx";
 import BottomNav from "./components/BottomNav.jsx";
@@ -754,7 +755,27 @@ export default function App() {
     try {
       const res = await api(`/api/docs/${doc.id}`, "PUT", { ...updates, user: user.name });
       if (res.doc) {
-        setDocs(d => d.map(x => x.id === doc.id ? { ...x, ...res.doc } : x));
+        const formatted = {
+          ...res.doc,
+          title: res.doc.title || res.doc.judul || doc.title,
+          type: res.doc.type || res.doc.kategori || doc.type,
+          sector: res.doc.sector || res.doc.tipe || doc.sector,
+          fileType: res.doc.fileType || res.doc.file_type || doc.fileType,
+          nomorDokumen: res.doc.nomorDokumen || res.doc.nomor_dokumen || doc.nomorDokumen || "",
+          tanggalDokumen: res.doc.tanggalDokumen || res.doc.tanggal_dokumen || doc.tanggalDokumen || "",
+          tags: Array.isArray(res.doc.tags)
+            ? res.doc.tags
+            : (typeof res.doc.tags === "string" && res.doc.tags
+                ? res.doc.tags.split(",").map(t => t.trim()).filter(Boolean)
+                : (Array.isArray(doc.tags) ? doc.tags : [])),
+          files: Array.isArray(res.doc.files)
+            ? res.doc.files
+            : (typeof res.doc.files === "string" && res.doc.files.startsWith("[")
+                ? (() => { try { return JSON.parse(res.doc.files); } catch (_) { return []; } })()
+                : (Array.isArray(doc.files) ? doc.files : [])),
+        };
+        setDocs(d => d.map(x => x.id === doc.id ? { ...x, ...formatted } : x));
+        setViewDoc(prev => (prev && prev.id === doc.id ? { ...prev, ...formatted } : prev));
       }
       queryClient.invalidateQueries({ queryKey: ['docs'] });
       showToast("Dokumen berhasil diperbarui.");
@@ -1320,6 +1341,7 @@ export default function App() {
               position:sticky anak (mis. kartu DetailSub di ScreeningRKA)
               sehingga sticky tidak pernah aktif — biarkan window yang scroll. */}
           <div style={{ flex: 1, padding: isMobile ? "10px 14px 14px" : "14px 24px 24px" }}>
+            <ErrorBoundary key={page + (viewDoc ? String(viewDoc.id) : '')}>
             {(![
               "dokumen", "upload", "pencarian", "publik", "panduan",
               "bankdata", "kertas-kerja", "screening", "standar-harga", "pengguna",
@@ -1442,6 +1464,7 @@ export default function App() {
             {page === "pengaturan-website" && user.role === "Admin" && (
               <PengaturanWebsitePage />
             )}
+            </ErrorBoundary>
           </div>
 
           {/* FAB: + hanya di halaman Dokumen & Pencarian */}

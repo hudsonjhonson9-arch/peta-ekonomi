@@ -39,21 +39,31 @@ export function Select({
   const { flatOptions, groups } = useMemo(() => {
     const flat = [];
     const grps = [];
+    const safeStr = (v) => {
+      if (v == null) return "";
+      if (typeof v === "object") return String(v.nama || v.name || v.nama_bidang || v.value || "");
+      return String(v);
+    };
     for (const item of options) {
       if (item && typeof item === "object" && Array.isArray(item.options)) {
-        const gOpts = item.options.map(o =>
-          o && typeof o === "object"
-            ? { value: o.value ?? o.id ?? "", label: String(o.label ?? o.value ?? ""), sub: o.sub, group: item.group }
-            : { value: o, label: String(o), group: item.group }
-        );
+        const gOpts = item.options.map(o => {
+          if (o && typeof o === "object") {
+            const v = o.value ?? o.id ?? "";
+            const l = safeStr(o.label ?? o.value ?? "");
+            return { value: v, label: l, sub: o.sub, group: item.group };
+          }
+          return { value: o, label: safeStr(o), group: item.group };
+        });
         grps.push({ group: item.group, options: gOpts });
         flat.push(...gOpts);
       } else if (item && typeof item === "object") {
-        const norm = { value: item.value ?? item.id ?? "", label: String(item.label ?? item.value ?? ""), sub: item.sub };
+        const v = item.value ?? item.id ?? "";
+        const l = safeStr(item.label ?? item.value ?? "");
+        const norm = { value: v, label: l, sub: item.sub };
         flat.push(norm);
         grps.push({ group: null, options: [norm] });
       } else {
-        const norm = { value: item, label: String(item ?? "") };
+        const norm = { value: item, label: safeStr(item ?? "") };
         flat.push(norm);
         grps.push({ group: null, options: [norm] });
       }
@@ -112,7 +122,9 @@ export function Select({
   }, [buka, bisaCari]);
 
   const aktif = flatOptions.find(o => String(o.value) === String(value));
-  const tampilLabel = aktif ? aktif.label : (value !== "" && value != null ? String(value) : placeholder);
+  const tampilLabel = aktif
+    ? (typeof aktif.label === "object" ? (aktif.label?.nama || aktif.label?.name || String(aktif.value)) : aktif.label)
+    : (value !== "" && value != null ? (typeof value === "object" ? (value?.nama || value?.name || "") : String(value)) : placeholder);
   const isPlaceholder = !aktif && (value === "" || value == null);
 
   const pilihOpsi = val => {
@@ -354,14 +366,14 @@ function OptionRow({ o, on, isHover, onSelect, onHover, T, fSize }) {
     >
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
-          title={o.label}
+          title={typeof o.label === "object" ? (o.label?.nama || o.label?.name || "") : String(o.label || "")}
           style={{
             whiteSpace: "normal",
             wordBreak: "break-word",
             lineHeight: 1.35,
           }}
         >
-          {o.label}
+          {typeof o.label === "object" ? (o.label?.nama || o.label?.name || "") : String(o.label || "")}
         </div>
         {o.sub && (
           <div style={{ fontSize: 11, color: T.textMuted, marginTop: 1, whiteSpace: "normal", wordBreak: "break-word" }}>
@@ -385,14 +397,44 @@ const HARI_PENDEK = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
 function parseTanggal(val) {
   if (!val || typeof val !== "string") return null;
   const m = val.trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}))?/);
-  if (!m) return null;
-  return {
-    year: parseInt(m[1], 10),
-    month: parseInt(m[2], 10) - 1,
-    day: parseInt(m[3], 10),
-    hour: m[4] != null ? parseInt(m[4], 10) : 9,
-    minute: m[5] != null ? parseInt(m[5], 10) : 0,
+  if (m) {
+    return {
+      year: parseInt(m[1], 10),
+      month: parseInt(m[2], 10) - 1,
+      day: parseInt(m[3], 10),
+      hour: m[4] != null ? parseInt(m[4], 10) : 9,
+      minute: m[5] != null ? parseInt(m[5], 10) : 0,
+    };
+  }
+  const bulanMap = {
+    jan: 0, feb: 1, mar: 2, apr: 3, mei: 4, may: 4,
+    jun: 5, jul: 6, agu: 7, ags: 7, aug: 7, sep: 8, okt: 9,
+    oct: 9, nov: 10, des: 11, dec: 11
   };
+  const mIndo = val.trim().match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})(?:[T\s](\d{2}):(\d{2}))?/);
+  if (mIndo) {
+    const bKey = mIndo[2].slice(0, 3).toLowerCase();
+    if (bulanMap[bKey] !== undefined) {
+      return {
+        year: parseInt(mIndo[3], 10),
+        month: bulanMap[bKey],
+        day: parseInt(mIndo[1], 10),
+        hour: mIndo[4] != null ? parseInt(mIndo[4], 10) : 9,
+        minute: mIndo[5] != null ? parseInt(mIndo[5], 10) : 0,
+      };
+    }
+  }
+  const d = new Date(val);
+  if (!isNaN(d.getTime())) {
+    return {
+      year: d.getFullYear(),
+      month: d.getMonth(),
+      day: d.getDate(),
+      hour: d.getHours() || 9,
+      minute: d.getMinutes() || 0,
+    };
+  }
+  return null;
 }
 
 function formatIsoDate(y, m, d, withTime = false, hh = 0, mm = 0) {

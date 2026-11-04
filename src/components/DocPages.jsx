@@ -1043,6 +1043,17 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
   const { isMobile } = useResponsive();
   const cardStyle = useMemo(() => makeCardStyle(T), [T]);
   const btnBase = useMemo(() => makeBtnBase(T), [T]);
+
+  if (!doc) {
+    return (
+      <div style={{ padding: 40, textAlign: "center", fontFamily: T.font, background: T.bg, minHeight: "100%" }}>
+        <p style={{ color: T.textSecondary, fontSize: 14, marginBottom: 16 }}>Dokumen tidak ditemukan atau sedang dimuat...</p>
+        <button onClick={onBack} style={{ ...btnBase, padding: "8px 16px", background: T.card, border: `1.5px solid ${T.border}`, color: T.primary }}>
+          Kembali ke Daftar
+        </button>
+      </div>
+    );
+  }
   const [catatan, setCatatan] = useState("");
   const [showEmbed, setShowEmbed] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -1248,15 +1259,23 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
           </div>
         </div>
         <p style={{ fontSize: 14, color: T.textSecondary, lineHeight: 1.7, margin: 0 }}>{doc.desc}</p>
-        {doc.tags.length > 0 && (
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 14 }}>
-            {doc.tags.map(t => (
-              <span key={t} style={{ fontSize: 11, fontWeight: 500, color: T.primary, background: T.primaryLight, padding: "4px 10px", borderRadius: 99 }}>
-                {t}
-              </span>
-            ))}
-          </div>
-        )}
+        {(() => {
+          const listTags = Array.isArray(doc.tags)
+            ? doc.tags
+            : (typeof doc.tags === "string" && doc.tags.trim()
+                ? doc.tags.split(",").map(t => t.trim()).filter(Boolean)
+                : []);
+          if (listTags.length === 0) return null;
+          return (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 14 }}>
+              {listTags.map(t => (
+                <span key={t} style={{ fontSize: 11, fontWeight: 500, color: T.primary, background: T.primaryLight, padding: "4px 10px", borderRadius: 99 }}>
+                  {t}
+                </span>
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Action Bar */}
@@ -1302,7 +1321,34 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
           {canEdit && (
             <>
               <button onClick={() => {
-                setEditForm({ judul: doc.title || doc.judul, kategori: doc.sector || doc.kategori, tipe: doc.type || doc.tipe, bidang: doc.bidang || "", desc: doc.desc || "", tags: Array.isArray(doc.tags) ? doc.tags.join(", ") : (doc.tags || ""), nomor: doc.nomorDokumen || "", tanggal: doc.tanggalDokumen || "", fileType: doc.fileType || "" });
+                let tglIso = "";
+                if (doc.tanggal) {
+                  try {
+                    const d = new Date(doc.tanggal);
+                    if (!isNaN(d.getTime())) tglIso = d.toISOString().slice(0, 10);
+                  } catch (_) {}
+                }
+                if (!tglIso && doc.tanggalDokumen) {
+                  if (/^\d{4}-\d{2}-\d{2}/.test(doc.tanggalDokumen)) {
+                    tglIso = doc.tanggalDokumen.slice(0, 10);
+                  } else {
+                    try {
+                      const d = new Date(doc.tanggalDokumen);
+                      if (!isNaN(d.getTime())) tglIso = d.toISOString().slice(0, 10);
+                    } catch (_) {}
+                  }
+                }
+                setEditForm({
+                  title: doc.title || doc.judul || "",
+                  sector: doc.sector || doc.tipe || "",
+                  type: doc.type || doc.kategori || "",
+                  bidang: doc.bidang || "",
+                  desc: doc.desc || "",
+                  tags: Array.isArray(doc.tags) ? doc.tags.join(", ") : (doc.tags || ""),
+                  nomor: doc.nomorDokumen || doc.nomor_dokumen || "",
+                  tanggal: tglIso || doc.tanggalDokumen || "",
+                  fileType: doc.fileType || doc.file_type || ""
+                });
                 setEditing(true);
               }} style={{ ...btnBase, padding: "10px 16px", fontSize: 13, background: T.card, color: T.textSecondary, border: `1.5px solid ${T.border}` }}
                 onMouseEnter={e => { e.currentTarget.style.background = T.surfaceHover; }}
@@ -1541,11 +1587,11 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
           <Geser style={{ background: T.card, borderRadius: T.radiusLg, border: `1px solid ${T.border}`, boxShadow: "0 20px 60px rgba(15,23,42,0.2)", width: "100%", maxWidth: 440, padding: isMobile ? 20 : 28, fontFamily: T.font }}>
             <h3 data-pegang style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: "0 0 20px", cursor: "grab", userSelect: "none" }}>Edit Dokumen</h3>
             {[
-              { key: "judul", label: "Judul Dokumen", type: "text" },
-              { key: "kategori", label: "Sektor", type: "select", opts: sectors.map(s => s.nama || s.name || s) },
-              { key: "tipe", label: "Jenis Dokumen", type: "select", opts: categories.map(c => c.nama || c.name || c) },
+              { key: "title", label: "Judul Dokumen", type: "text" },
+              { key: "sector", label: "Sektor", type: "select", opts: (sectors || []).map(s => (typeof s === "string" ? s : (s?.nama || s?.name || ""))).filter(Boolean) },
+              { key: "type", label: "Jenis Dokumen", type: "select", opts: (categories || []).map(c => (typeof c === "string" ? c : (c?.nama || c?.name || ""))).filter(Boolean) },
               { key: "fileType", label: "Tipe File", type: "select", opts: ["PDF", "Word", "Excel", "PowerPoint", "Lainnya"] },
-              { key: "bidang", label: "Bidang", type: "select", opts: ["Umum", ...bidangs.map(b => b.nama || b.name || b)] },
+              { key: "bidang", label: "Bidang", type: "select", opts: ["Umum", ...(bidangs || []).map(b => (typeof b === "string" ? b : (b?.nama || b?.nama_bidang || b?.name || ""))).filter(Boolean)] },
               { key: "nomor", label: "Nomor Dokumen", type: "text" },
               { key: "tanggal", label: "Tanggal Dokumen", type: "date" },
               { key: "desc", label: "Deskripsi", type: "textarea" },
@@ -1554,25 +1600,17 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
               <div key={f.key} style={{ marginBottom: 14 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: T.textSecondary, display: "block", marginBottom: 6 }}>{f.label}</label>
                 {f.type === "select" ? (
-                  <Select fullWidth size="lg" value={editForm[f.key]} onChange={v => setEditForm(p => ({ ...p, [f.key]: v }))} placeholder={`Pilih ${f.label}`} options={[{ value: "", label: `Pilih ${f.label}` }, ...f.opts.map(o => ({ value: o, label: o }))]}
-
-
-                    onFocus={e => e.target.style.borderColor = T.primary}
-                    onBlur={e => e.target.style.borderColor = T.border} />
-
-
-
+                  <Select fullWidth size="lg" value={editForm[f.key] || ""} onChange={v => setEditForm(p => ({ ...p, [f.key]: v }))} placeholder={`Pilih ${f.label}`} options={[{ value: "", label: `Pilih ${f.label}` }, ...(f.opts || []).map(o => ({ value: o, label: o }))]} />
                 ) : f.type === "textarea" ? (
-                  <textarea value={editForm[f.key]} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))}
+                  <textarea value={editForm[f.key] || ""} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))}
                     rows={3}
                     style={{ width: "100%", padding: "10px 14px", fontSize: 14, borderRadius: T.radius, border: `1.5px solid ${T.border}`, background: T.bg, color: T.text, outline: "none", boxSizing: "border-box", resize: "vertical" }}
                     onFocus={e => e.target.style.borderColor = T.primary}
                     onBlur={e => e.target.style.borderColor = T.border} />
+                ) : f.type === "date" ? (
+                  <DatePicker value={editForm[f.key] || ""} onChange={v => setEditForm(p => ({ ...p, [f.key]: v }))} placeholder="Pilih tanggal dokumen..." />
                 ) : (
-                  f.type === "date" ? (
-                    <DatePicker value={editForm[f.key] || ""} onChange={v => setEditForm(p => ({ ...p, [f.key]: v }))} placeholder="Pilih tanggal dokumen..." />
-                  ) : <input type="text" value={editForm[f.key]} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))} style={{ width: "100%", padding: "10px 14px", fontSize: 14, borderRadius: T.radius, border: `1.5px solid ${T.border}`, background: T.bg, color: T.text, outline: "none", boxSizing: "border-box" }}
-
+                  <input type="text" value={editForm[f.key] || ""} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))} style={{ width: "100%", padding: "10px 14px", fontSize: 14, borderRadius: T.radius, border: `1.5px solid ${T.border}`, background: T.bg, color: T.text, outline: "none", boxSizing: "border-box" }}
                     onFocus={e => e.target.style.borderColor = T.primary}
                     onBlur={e => e.target.style.borderColor = T.border} />
                 )}
