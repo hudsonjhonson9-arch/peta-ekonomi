@@ -1418,6 +1418,14 @@ export function DocDetail({ doc, onBack, onApprove, onReject, onDownload, onPrev
                   Pratinjau via Google Docs Viewer — memerlukan URL file yang dapat diakses publik.
                 </div>
               )}
+              {canEmbed && (
+                <div style={{ padding: "8px 14px", fontSize: 11, color: T.textMuted, borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+                  <span>Pratinjau Google Drive. Jika pratinjau kosong karena pembatasan akses akun, buka langsung di tab baru.</span>
+                  <a href={active.url || doc.url} target="_blank" rel="noopener noreferrer" style={{ color: T.primary, textDecoration: "none", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    Buka Dokumen ↗
+                  </a>
+                </div>
+              )}
             </div>
           )}
 

@@ -1301,7 +1301,11 @@ app.get('/api/docs/:id/versions', async (req, res) => {
   try {
     const doc = await pool.query(
       `SELECT COALESCE(versi,1) AS versi, url, ukuran, COALESCE(pages,0) AS pages,
-              COALESCE(uploader_id,'') AS uploader_id, COALESCE(uploader_name,'') AS uploader_name
+              COALESCE(uploader_id,'') AS uploader_id,
+              COALESCE(
+                (SELECT up.username FROM user_list up WHERE up."NIP" = bapperida_dokumen.uploader_id LIMIT 1),
+                uploader_id, ''
+              ) AS uploader_name
        FROM bapperida_dokumen WHERE id = $1`, [id]
     );
     if (!doc.rows.length) return res.status(404).json({ error: 'Dokumen tidak ditemukan' });
@@ -1341,7 +1345,11 @@ app.post('/api/docs/:id/versions', async (req, res) => {
 
     // Get current active version
     const cur = await client.query(
-      `SELECT versi, url, ukuran, pages, uploader_id, uploader_name
+      `SELECT versi, url, ukuran, pages, uploader_id,
+              COALESCE(
+                (SELECT up.username FROM user_list up WHERE up."NIP" = bapperida_dokumen.uploader_id LIMIT 1),
+                uploader_id, ''
+              ) AS uploader_name
        FROM bapperida_dokumen WHERE id = $1 FOR UPDATE`, [id]
     );
     if (!cur.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Dokumen tidak ditemukan' }); }
@@ -1423,7 +1431,12 @@ app.post('/api/docs/:id/versions/:no/restore', async (req, res) => {
 
     // Snapshot current active before overwrite
     const c = await client.query(
-      `SELECT versi, url, ukuran, pages, uploader_id, uploader_name FROM bapperida_dokumen WHERE id=$1`, [id]
+      `SELECT versi, url, ukuran, pages, uploader_id,
+              COALESCE(
+                (SELECT up.username FROM user_list up WHERE up."NIP" = bapperida_dokumen.uploader_id LIMIT 1),
+                uploader_id, ''
+              ) AS uploader_name
+       FROM bapperida_dokumen WHERE id=$1`, [id]
     );
     const cc = c.rows[0];
     await client.query(
