@@ -307,55 +307,8 @@ export default function MonitoringPage({ showToast, initialTab }) {
       </div>
 
       {/* Tabs */}
-      <style>{`
-        .sd-tabs-no-scrollbar::-webkit-scrollbar {
-          display: none !important;
-          width: 0 !important;
-          height: 0 !important;
-        }
-      `}</style>
-      <div
-        className="sd-tabs-no-scrollbar"
-        onWheel={e => { if (e.deltaY !== 0) e.currentTarget.scrollLeft += e.deltaY; }}
-        style={{ display: "flex", gap: 6, flexWrap: "nowrap", overflowX: "auto", scrollbarWidth: "none", msOverflowStyle: "none", marginBottom: 16 }}
-      >
-        {[
-          { key: "api_token",     label: `API Token & Integrasi (${apiTokens.length})`, icon: "shield" },
-          { key: "qna",           label: "Pertanyaan Q&A & FAQ",          icon: "file",    badge: pendingQna },
-          { key: "visitor",       label: `Data Pengunjung (${visitors.length})`, icon: "users" },
-          { key: "query_builder", label: "Query Builder & Ekspor",        icon: "filter" },
-          { key: "activity",      label: "Activity Log & Metrik",         icon: "history" },
-          { key: "page_visits",   label: "Kunjungan Halaman (Page Visits)", icon: "world" },
-          { key: "health",        label: "Kesehatan Server",              icon: "server" },
-        ].map(t => {
-          const active = tab === t.key;
-          return (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              style={{
-                display: "flex", alignItems: "center", gap: 7, flexShrink: 0, whiteSpace: "nowrap",
-                padding: "8px 14px", borderRadius: 9,
-                border: active ? `1.5px solid ${T.primary}` : `1px solid ${T.border}`,
-                background: active ? `${T.primary}15` : T.card,
-                color: active ? T.primary : T.textSecondary,
-                fontSize: 13, fontWeight: active ? 700 : 600,
-                cursor: "pointer", fontFamily: "inherit",
-              }}
-            >
-              <Icon name={t.icon} size={14} />
-              <span>{t.label}</span>
-              {t.badge > 0 && (
-                <span style={{ background: "#DC2626", color: "#fff", borderRadius: 20, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>
-                  {t.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
 
-      {isLoading ? (
+{isLoading ? (
         <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>Memuat data monitoring...</div>
       ) : (
         <>

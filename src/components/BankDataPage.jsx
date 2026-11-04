@@ -238,60 +238,7 @@ export default function BankDataPage({ user, showToast, initialTab }) {
         </div>
       )}
 
-      {/* Navigasi Mode Bank Data */}
-      <div style={{
-        display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20,
-        borderBottom: `1px solid ${T.border}`, paddingBottom: 12,
-      }}>
-        {[
-          { id: "dataset", label: "Dataset Satu Data", icon: "chart", count: datasetList.length },
-          { id: "kinerja", label: "Indikator Kinerja (IKU / IKK & Sektoral)", icon: "layers" },
-          ...(canVerify ? [{
-            id: "verifikasi",
-            label: "Verifikasi Dataset",
-            icon: "checkCircle",
-            badge: pendingVerifCount,
-          }] : []),
-        ].map(t => {
-          const active = tab === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => { setTab(t.id); setSelectedId(null); }}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 8,
-                padding: "9px 16px", borderRadius: 10,
-                border: active ? `1.5px solid ${T.primary}` : `1px solid ${T.border}`,
-                background: active ? T.primaryLight : T.card,
-                color: active ? T.primary : T.textSecondary,
-                fontWeight: active ? 700 : 600, fontSize: 13, cursor: "pointer",
-              }}
-            >
-              <Icon name={t.icon} size={15} />
-              <span>{t.label}</span>
-              {t.count !== undefined && (
-                <span style={{
-                  fontSize: 11, padding: "1px 7px", borderRadius: 99,
-                  background: active ? T.primary : T.surfaceHover,
-                  color: active ? "#fff" : T.textMuted, fontWeight: 700,
-                }}>
-                  {t.count}
-                </span>
-              )}
-              {t.badge > 0 && (
-                <span style={{
-                  fontSize: 11, padding: "1px 7px", borderRadius: 99,
-                  background: "#DC2626", color: "#fff", fontWeight: 700,
-                }}>
-                  {t.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {tab === "kinerja" ? (
+{tab === "kinerja" ? (
         canWrite ? <BankData user={user} showToast={showToast} /> : <BankDataReadOnly />
       ) : selectedId ? (
         <DatasetDetailView

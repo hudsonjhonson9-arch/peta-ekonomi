@@ -351,47 +351,8 @@ export default function SpmPage({ user, showToast, readOnly = false }) {
         </div>
       </div>
 
-      {/* Tabs + Global Filter */}
-      <style>{`
-        .sd-tabs-no-scrollbar::-webkit-scrollbar {
-          display: none !important;
-          width: 0 !important;
-          height: 0 !important;
-        }
-      `}</style>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
-        <div
-          className="sd-tabs-no-scrollbar"
-          onWheel={e => { if (e.deltaY !== 0) e.currentTarget.scrollLeft += e.deltaY; }}
-          style={{ display: "flex", gap: 6, flexWrap: "nowrap", overflowX: "auto", scrollbarWidth: "none", msOverflowStyle: "none", maxWidth: "100%" }}
-        >
-          {[
-            { key: "dashboard", label: "Dashboard & Peta Kecamatan", icon: "chart" },
-            { key: "capaian",   label: "Tabel Capaian SPM",          icon: "layers" },
-            { key: "referensi", label: "6 Urusan & 29 Layanan",      icon: "folder" },
-            { key: "dokumen",   label: `Dokumen SPM (${dokumens.length})`, icon: "file" },
-          ].map(t => {
-            const active = tab === t.key;
-            return (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 7, flexShrink: 0, whiteSpace: "nowrap",
-                  padding: "8px 14px", borderRadius: 9,
-                  border: active ? `1.5px solid ${T.primary}` : `1px solid ${T.border}`,
-                  background: active ? `${T.primary}15` : T.card,
-                  color: active ? T.primary : T.textSecondary,
-                  fontSize: 13, fontWeight: active ? 700 : 600,
-                  cursor: "pointer", fontFamily: "inherit",
-                }}
-              >
-                <Icon name={t.icon} size={14} />
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
+      {/* Global Filter */}
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
 
         <div style={{ display: "flex", gap: 8, flexWrap: isMobile ? "wrap" : "nowrap", alignItems: "center" }}>
           <Select

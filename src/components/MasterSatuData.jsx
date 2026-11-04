@@ -253,65 +253,7 @@ export default function MasterSatuData({ user, showToast, initialTab = "opd" }) 
         </Button>
       </div>
 
-      {/* Sub-Navigation Pills (Scrollable horizontally with hidden scrollbar) */}
-      <style>{`
-        .sd-tabs-no-scrollbar::-webkit-scrollbar {
-          display: none !important;
-          width: 0 !important;
-          height: 0 !important;
-        }
-      `}</style>
-      <div
-        className="sd-tabs-no-scrollbar"
-        onWheel={e => {
-          if (e.deltaY !== 0) {
-            e.currentTarget.scrollLeft += e.deltaY;
-          }
-        }}
-        style={{
-          display: "flex", gap: 6, flexWrap: "nowrap", overflowX: "auto",
-          scrollbarWidth: "none", msOverflowStyle: "none", WebkitOverflowScrolling: "touch",
-          paddingBottom: 10, marginBottom: 16,
-          borderBottom: `1px solid ${T.border}`,
-        }}
-      >
-        {TABS.map(t => {
-          const active = tab === t.key;
-          return (
-            <button
-              key={t.key}
-              onClick={e => {
-                setTab(t.key);
-                setSearchQ("");
-                setFilterParent("SEMUA");
-                e.currentTarget.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
-              }}
-              style={{
-                display: "flex", alignItems: "center", gap: 7, flexShrink: 0,
-                padding: "8px 13px", borderRadius: 9,
-                border: active ? `1.5px solid ${T.primary}` : `1px solid ${T.border}`,
-                background: active ? `${T.primary}15` : T.card,
-                color: active ? T.primary : T.textSecondary,
-                fontSize: 12.5, fontWeight: active ? 700 : 600,
-                cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit",
-              }}
-            >
-              <Icon name={t.icon} size={14} />
-              <span>{t.label}</span>
-              {t.key === "reopen" && pendingReopenCount > 0 && (
-                <span style={{
-                  background: "#DC2626", color: "#fff", borderRadius: 20,
-                  padding: "1px 7px", fontSize: 10, fontWeight: 700,
-                }}>
-                  {pendingReopenCount}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Filter Bar */}
+{/* Filter Bar */}
       <div style={{
         display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center",
         marginBottom: 14, background: T.card, padding: 12, borderRadius: 12,

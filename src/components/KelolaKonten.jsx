@@ -174,48 +174,7 @@ export default function KelolaKonten({ showToast, initialTab }) {
         </Button>
       </div>
 
-      {/* Tabs */}
-      <style>{`
-        .sd-tabs-no-scrollbar::-webkit-scrollbar {
-          display: none !important;
-          width: 0 !important;
-          height: 0 !important;
-        }
-      `}</style>
-      <div
-        className="sd-tabs-no-scrollbar"
-        onWheel={e => { if (e.deltaY !== 0) e.currentTarget.scrollLeft += e.deltaY; }}
-        style={{ display: "flex", gap: 6, flexWrap: "nowrap", overflowX: "auto", scrollbarWidth: "none", msOverflowStyle: "none", marginBottom: 16 }}
-      >
-        {[
-          { key: "berita",    label: `Berita & Artikel (${beritas.length})`,                 icon: "file" },
-          { key: "publikasi", label: `Publikasi, Produk Hukum & SK (${publikasis.length})`, icon: "archive" },
-          { key: "tautan",    label: `Video & Portal Lain (${tautans.length})`,             icon: "world" },
-          { key: "changelog", label: `Changelog Aplikasi (${changelogs.length})`,           icon: "history" },
-        ].map(t => {
-          const active = tab === t.key;
-          return (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              style={{
-                display: "flex", alignItems: "center", gap: 7, flexShrink: 0, whiteSpace: "nowrap",
-                padding: "8px 14px", borderRadius: 9,
-                border: active ? `1.5px solid ${T.primary}` : `1px solid ${T.border}`,
-                background: active ? `${T.primary}15` : T.card,
-                color: active ? T.primary : T.textSecondary,
-                fontSize: 13, fontWeight: active ? 700 : 600,
-                cursor: "pointer", fontFamily: "inherit",
-              }}
-            >
-              <Icon name={t.icon} size={14} />
-              {t.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Main Content */}
+{/* Main Content */}
       <div style={{ background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, overflow: "hidden" }}>
         {isLoading ? (
           <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>Memuat data konten...</div>

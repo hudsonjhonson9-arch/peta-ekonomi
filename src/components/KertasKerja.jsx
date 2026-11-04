@@ -195,19 +195,7 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
                 <option key={y} value={y}>{y}</option>
               )}
               </select>}
-            {admin && (
-              <div style={{ display: "flex", background: T.surfaceHover, borderRadius: 8, padding: 2, border: `1px solid ${T.border}` }}>
-                {[["kerja", "Kertas Kerja"], ["pohon", "Struktur"]].map(([v, l]) => (
-                  <button key={v} onClick={() => setTab(v)} style={{
-                    padding: "5px 10px", fontSize: 11.5, fontWeight: 600, fontFamily: "inherit",
-                    border: "none", borderRadius: 6, cursor: "pointer",
-                    background: tab === v ? T.primary : "transparent",
-                    color: tab === v ? "#fff" : T.textSecondary,
-                  }}>{l}</button>
-                ))}
-              </div>
-            )}
-          </div>
+</div>
         </div>
       </div>
 
