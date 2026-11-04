@@ -398,83 +398,86 @@ export default function AkunPage({ user, onUpdateUser }) {
         </div>
       )}
 
-      {/* ── 2. BARIS UTAMA: DATA PEGAWAI (KIRI) & GANTI KATA SANDI (KANAN) [TINGGI SAMA] ── */}
+      {/* ── 2. BARIS UTAMA: DATA PEGAWAI (KIRI) & GANTI KATA SANDI (KANAN) [KOMPAK & TINGGI SAMA] ── */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-          gap: 18,
+          gap: 14,
           alignItems: "stretch",
         }}
       >
-        {/* ── CARD KIRI: DATA PEGAWAI & PROFIL ── */}
-        <div style={{ ...kartuStyle, display: "flex", flexDirection: "column", height: "100%", boxSizing: "border-box" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, paddingBottom: 12, borderBottom: `1px solid ${T.border}` }}>
+        {/* ── CARD KIRI: DATA PEGAWAI & PROFIL (ULTRA COMPACT) ── */}
+        <div style={{ ...kartuStyle, padding: isMobile ? "12px 14px" : "14px 18px", display: "flex", flexDirection: "column", height: "100%", boxSizing: "border-box" }}>
+          {/* Header */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${T.border}` }}>
             <div
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
+                width: 28,
+                height: 28,
+                borderRadius: 7,
                 background: T.primaryLight,
                 color: T.primary,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
+                flexShrink: 0,
               }}
             >
-              <Icon name="users" size={18} />
+              <Icon name="users" size={15} />
             </div>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Data Pegawai & Profil</div>
-              <div style={{ fontSize: 11.5, color: T.textMuted }}>Identitas kepegawaian dan kontak kedinasan Anda</div>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text, lineHeight: 1.2 }}>Data Pegawai & Profil</div>
+              <div style={{ fontSize: 11, color: T.textMuted }}>Identitas kepegawaian & kontak kedinasan</div>
             </div>
           </div>
 
-          {/* Sub-A: Data Kepegawaian Terkunci (Grid 2x2 Kompak) */}
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
-              Identitas Kepegawaian (Terkunci)
+          {/* Sub-A: Identitas Kepegawaian (Terkunci) - Strip Ringkas */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "4px 10px",
+              padding: "6px 10px",
+              background: T.surfaceHover || "rgba(0,0,0,0.02)",
+              borderRadius: 8,
+              border: `1px solid ${T.border}`,
+              marginBottom: 10,
+              fontSize: 11.5,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", overflow: "hidden" }}>
+              <span style={{ color: T.textMuted, fontSize: 10.5 }}>NIP:</span>
+              <span style={{ fontWeight: 700, fontFamily: "monospace", color: T.text, fontSize: 11 }}>{profil.nip || "—"}</span>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {dataTerkunci.map((d, i) => (
-                <div
-                  key={i}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 8,
-                    background: T.surfaceHover || "rgba(0,0,0,0.02)",
-                    border: `1px solid ${T.border}`,
-                  }}
-                >
-                  <div style={{ fontSize: 10.5, color: T.textMuted, fontWeight: 600 }}>{d.label}</div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: T.text,
-                      marginTop: 2,
-                      fontFamily: d.mono ? "monospace" : "inherit",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                    title={d.val}
-                  >
-                    {d.val}
-                  </div>
-                </div>
-              ))}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", overflow: "hidden" }}>
+              <span style={{ color: T.textMuted, fontSize: 10.5 }}>Role:</span>
+              <span style={{ fontWeight: 700, color: T.primary, background: T.primaryLight, padding: "1px 6px", borderRadius: 4, fontSize: 10.5 }}>
+                {profil.role || "—"}
+              </span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", overflow: "hidden" }}>
+              <span style={{ color: T.textMuted, fontSize: 10.5 }}>Unit:</span>
+              <span style={{ fontWeight: 600, color: T.text, fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={profil.bidang}>
+                {profil.bidang || "Sekretariat"}
+              </span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", overflow: "hidden" }}>
+              <span style={{ color: T.textMuted, fontSize: 10.5 }}>OPD:</span>
+              <span style={{ fontWeight: 600, color: T.text, fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={profil.opd_nama}>
+                {profil.opd_nama || "BAPPERIDA"}
+              </span>
             </div>
           </div>
 
-          {/* Sub-B: Form Informasi Kontak & Gelar */}
-          <form onSubmit={handleSimpanProfil} style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
+          {/* Sub-B: Form Kontak & Gelar (Kompak) */}
+          <form onSubmit={handleSimpanProfil} style={{ display: "flex", flexDirection: "column", gap: 9, flex: 1 }}>
             <div>
-              <label style={labelStyle}>
+              <label style={{ ...labelStyle, fontSize: 11.5, marginBottom: 3 }}>
                 Nama Lengkap Beserta Gelar <span style={{ color: "#DC2626" }}>*</span>
               </label>
               <input
-                style={inputStyle}
+                style={{ ...inputStyle, padding: "6px 10px", fontSize: 12, height: 32 }}
                 required
                 value={profil.nama}
                 onChange={(e) => setProfil({ ...profil, nama: e.target.value })}
@@ -482,32 +485,32 @@ export default function AkunPage({ user, onUpdateUser }) {
               />
             </div>
 
-            <div>
-              <label style={labelStyle}>Jabatan Kedinasan</label>
-              <input
-                style={inputStyle}
-                value={profil.jabatan}
-                onChange={(e) => setProfil({ ...profil, jabatan: e.target.value })}
-                placeholder="Contoh: Pranata Komputer Ahli Pertama"
-              />
+            {/* Baris 2-Kolom: Jabatan & Nomor WhatsApp */}
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
+              <div>
+                <label style={{ ...labelStyle, fontSize: 11.5, marginBottom: 3 }}>Jabatan Kedinasan</label>
+                <input
+                  style={{ ...inputStyle, padding: "6px 10px", fontSize: 12, height: 32 }}
+                  value={profil.jabatan}
+                  onChange={(e) => setProfil({ ...profil, jabatan: e.target.value })}
+                  placeholder="Pranata Komputer"
+                />
+              </div>
+
+              <div>
+                <label style={{ ...labelStyle, fontSize: 11.5, marginBottom: 3 }}>Nomor WhatsApp / HP</label>
+                <input
+                  style={{ ...inputStyle, padding: "6px 10px", fontSize: 12, height: 32 }}
+                  inputMode="tel"
+                  value={profil.nomorhp}
+                  onChange={(e) => setProfil({ ...profil, nomorhp: e.target.value })}
+                  placeholder="082237174435"
+                />
+              </div>
             </div>
 
-            <div>
-              <label style={labelStyle}>Nomor WhatsApp / HP</label>
-              <input
-                style={inputStyle}
-                inputMode="tel"
-                value={profil.nomorhp}
-                onChange={(e) => setProfil({ ...profil, nomorhp: e.target.value })}
-                placeholder="Contoh: 082237174435"
-              />
-              <span style={{ fontSize: 11, color: T.textMuted, marginTop: 4, display: "block" }}>
-                Digunakan untuk verifikasi keamanan dan pemulihan akun
-              </span>
-            </div>
-
-            {/* Tombol Simpan (Pinned to bottom of card) */}
-            <div style={{ marginTop: "auto", paddingTop: 14, borderTop: `1px solid ${T.border}` }}>
+            {/* Tombol Simpan Profil (Menempel Rapi di Bawah) */}
+            <div style={{ marginTop: "auto", paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
               <button
                 type="submit"
                 disabled={loadingProfil}
@@ -515,59 +518,64 @@ export default function AkunPage({ user, onUpdateUser }) {
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: 8,
+                  gap: 6,
                   width: "100%",
-                  padding: "10px 20px",
-                  borderRadius: 10,
+                  height: 34,
+                  padding: "0 14px",
+                  borderRadius: 8,
                   background: T.primary,
                   color: "#fff",
                   border: "none",
-                  fontSize: 13,
+                  fontSize: 12.5,
                   fontWeight: 700,
                   cursor: loadingProfil ? "not-allowed" : "pointer",
                   opacity: loadingProfil ? 0.7 : 1,
-                  boxShadow: "0 1px 3px rgba(37,99,235,0.3)",
+                  boxShadow: "0 1px 2px rgba(37,99,235,0.25)",
                   transition: "all 0.15s ease",
                 }}
               >
-                <Icon name={loadingProfil ? "loader" : "checkCircle"} size={15} />
-                <span>{loadingProfil ? "Menyimpan Data..." : "Simpan Perubahan Profil"}</span>
+                <Icon name={loadingProfil ? "loader" : "checkCircle"} size={14} />
+                <span>{loadingProfil ? "Menyimpan..." : "Simpan Perubahan Profil"}</span>
               </button>
             </div>
           </form>
         </div>
 
-        {/* ── CARD KANAN: GANTI KATA SANDI ── */}
-        <div style={{ ...kartuStyle, display: "flex", flexDirection: "column", height: "100%", boxSizing: "border-box" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, paddingBottom: 12, borderBottom: `1px solid ${T.border}` }}>
+        {/* ── CARD KANAN: GANTI KATA SANDI (ULTRA COMPACT) ── */}
+        <div style={{ ...kartuStyle, padding: isMobile ? "12px 14px" : "14px 18px", display: "flex", flexDirection: "column", height: "100%", boxSizing: "border-box" }}>
+          {/* Header */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${T.border}` }}>
             <div
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
+                width: 28,
+                height: 28,
+                borderRadius: 7,
                 background: T.primaryLight,
                 color: T.primary,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
+                flexShrink: 0,
               }}
             >
-              <Icon name="key" size={18} />
+              <Icon name="key" size={15} />
             </div>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Ganti Kata Sandi</div>
-              <div style={{ fontSize: 11.5, color: T.textMuted }}>Perbarui kata sandi akun secara berkala</div>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text, lineHeight: 1.2 }}>Ganti Kata Sandi</div>
+              <div style={{ fontSize: 11, color: T.textMuted }}>Perbarui kata sandi akun secara berkala</div>
             </div>
           </div>
 
-          <form onSubmit={handleGantiPassword} style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
+          <form onSubmit={handleGantiPassword} style={{ display: "flex", flexDirection: "column", gap: 9, flex: 1 }}>
             {/* Sandi Saat Ini */}
             <div>
-              <label style={labelStyle}>Kata Sandi Saat Ini <span style={{ color: "#DC2626" }}>*</span></label>
+              <label style={{ ...labelStyle, fontSize: 11.5, marginBottom: 3 }}>
+                Kata Sandi Saat Ini <span style={{ color: "#DC2626" }}>*</span>
+              </label>
               <div style={{ position: "relative" }}>
                 <input
                   type={showPassLama ? "text" : "password"}
-                  style={{ ...inputStyle, paddingRight: 40 }}
+                  style={{ ...inputStyle, padding: "6px 34px 6px 10px", fontSize: 12, height: 32 }}
                   value={passwordLama}
                   onChange={(e) => setPasswordLama(e.target.value)}
                   placeholder="Masukkan kata sandi saat ini"
@@ -579,7 +587,7 @@ export default function AkunPage({ user, onUpdateUser }) {
                   onClick={() => setShowPassLama(!showPassLama)}
                   style={{
                     position: "absolute",
-                    right: 10,
+                    right: 8,
                     top: "50%",
                     transform: "translateY(-50%)",
                     background: "none",
@@ -589,129 +597,115 @@ export default function AkunPage({ user, onUpdateUser }) {
                     display: "flex",
                   }}
                 >
-                  <Icon name={showPassLama ? "eyeOff" : "eye"} size={16} />
+                  <Icon name={showPassLama ? "eyeOff" : "eye"} size={14} />
                 </button>
               </div>
             </div>
 
-            {/* Sandi Baru */}
-            <div>
-              <label style={labelStyle}>Kata Sandi Baru <span style={{ color: "#DC2626" }}>*</span></label>
-              <div style={{ position: "relative" }}>
-                <input
-                  type={showPassBaru ? "text" : "password"}
-                  style={{ ...inputStyle, paddingRight: 40 }}
-                  value={passwordBaru}
-                  onChange={(e) => setPasswordBaru(e.target.value)}
-                  placeholder="Minimal 6 karakter"
-                  autoComplete="new-password"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassBaru(!showPassBaru)}
-                  style={{
-                    position: "absolute",
-                    right: 10,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "none",
-                    border: "none",
-                    color: T.textMuted,
-                    cursor: "pointer",
-                    display: "flex",
-                  }}
-                >
-                  <Icon name={showPassBaru ? "eyeOff" : "eye"} size={16} />
-                </button>
+            {/* Baris 2-Kolom: Sandi Baru & Konfirmasi Sandi */}
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
+              <div>
+                <label style={{ ...labelStyle, fontSize: 11.5, marginBottom: 3 }}>
+                  Kata Sandi Baru <span style={{ color: "#DC2626" }}>*</span>
+                </label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    type={showPassBaru ? "text" : "password"}
+                    style={{ ...inputStyle, padding: "6px 34px 6px 10px", fontSize: 12, height: 32 }}
+                    value={passwordBaru}
+                    onChange={(e) => setPasswordBaru(e.target.value)}
+                    placeholder="Min. 6 karakter"
+                    autoComplete="new-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassBaru(!showPassBaru)}
+                    style={{
+                      position: "absolute",
+                      right: 8,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "none",
+                      border: "none",
+                      color: T.textMuted,
+                      cursor: "pointer",
+                      display: "flex",
+                    }}
+                  >
+                    <Icon name={showPassBaru ? "eyeOff" : "eye"} size={14} />
+                  </button>
+                </div>
               </div>
 
-              {/* Indikator Kekuatan Sandi */}
-              {passwordBaru && (
-                <div style={{ marginTop: 8, background: T.surfaceHover || "rgba(0,0,0,0.02)", padding: 8, borderRadius: 8, border: `1px solid ${T.border}` }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-                    <span style={{ fontSize: 11, color: T.textSecondary }}>Kekuatan Sandi:</span>
-                    <span style={{ fontSize: 11.5, fontWeight: 700, color: kekuatan.tone }}>{kekuatan.label}</span>
-                  </div>
-                  <div style={{ display: "flex", gap: 4, height: 4, marginBottom: 6 }}>
+              <div>
+                <label style={{ ...labelStyle, fontSize: 11.5, marginBottom: 3 }}>
+                  Ulangi Sandi Baru <span style={{ color: "#DC2626" }}>*</span>
+                </label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    type={showPassKonf ? "text" : "password"}
+                    style={{
+                      ...inputStyle,
+                      padding: "6px 34px 6px 10px",
+                      fontSize: 12,
+                      height: 32,
+                      borderColor: isMatch ? "#16A34A" : isMismatch ? "#DC2626" : T.border,
+                    }}
+                    value={konfirmasiPassword}
+                    onChange={(e) => setKonfirmasiPassword(e.target.value)}
+                    placeholder="Ulangi sandi"
+                    autoComplete="new-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassKonf(!showPassKonf)}
+                    style={{
+                      position: "absolute",
+                      right: 8,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "none",
+                      border: "none",
+                      color: T.textMuted,
+                      cursor: "pointer",
+                      display: "flex",
+                    }}
+                  >
+                    <Icon name={showPassKonf ? "eyeOff" : "eye"} size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Indikator Kekuatan Sandi (Super Kompak 1 Baris) */}
+            {passwordBaru && (
+              <div style={{ padding: "5px 8px", background: T.surfaceHover || "rgba(0,0,0,0.02)", borderRadius: 6, border: `1px solid ${T.border}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 10.5, color: T.textSecondary }}>
+                    Kekuatan: <strong style={{ color: kekuatan.tone }}>{kekuatan.label}</strong>
+                    {isMismatch && <span style={{ color: "#DC2626", marginLeft: 6 }}>&bull; Belum cocok</span>}
+                    {isMatch && <span style={{ color: "#16A34A", marginLeft: 6 }}>&bull; Cocok</span>}
+                  </span>
+                  <div style={{ display: "flex", gap: 3, width: 70, height: 4 }}>
                     {[1, 2, 3, 4].map((n) => (
                       <div
                         key={n}
                         style={{
                           flex: 1,
-                          borderRadius: 4,
+                          borderRadius: 2,
                           background: n <= kekuatan.skor ? kekuatan.tone : T.border,
-                          transition: "background 0.2s ease",
                         }}
                       />
                     ))}
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3 }}>
-                    {kriteria.map((k) => (
-                      <span
-                        key={k.teks}
-                        style={{
-                          fontSize: 10.5,
-                          color: k.ok ? "#16A34A" : T.textMuted,
-                          fontWeight: k.ok ? 600 : 400,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 3,
-                        }}
-                      >
-                        <Icon name={k.ok ? "check" : "file"} size={9} style={{ opacity: k.ok ? 1 : 0.4 }} />
-                        {k.teks}
-                      </span>
-                    ))}
-                  </div>
                 </div>
-              )}
-            </div>
-
-            {/* Konfirmasi Sandi Baru */}
-            <div>
-              <label style={labelStyle}>Ulangi Kata Sandi Baru <span style={{ color: "#DC2626" }}>*</span></label>
-              <div style={{ position: "relative" }}>
-                <input
-                  type={showPassKonf ? "text" : "password"}
-                  style={{
-                    ...inputStyle,
-                    paddingRight: 40,
-                    borderColor: isMatch ? "#16A34A" : isMismatch ? "#DC2626" : T.border,
-                  }}
-                  value={konfirmasiPassword}
-                  onChange={(e) => setKonfirmasiPassword(e.target.value)}
-                  placeholder="Ketik ulang kata sandi baru"
-                  autoComplete="new-password"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassKonf(!showPassKonf)}
-                  style={{
-                    position: "absolute",
-                    right: 10,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "none",
-                    border: "none",
-                    color: T.textMuted,
-                    cursor: "pointer",
-                    display: "flex",
-                  }}
-                >
-                  <Icon name={showPassKonf ? "eyeOff" : "eye"} size={16} />
-                </button>
               </div>
-              {isMismatch && (
-                <span style={{ fontSize: 11, color: "#DC2626", fontWeight: 600, marginTop: 4, display: "block" }}>
-                  Kata sandi konfirmasi belum cocok.
-                </span>
-              )}
-            </div>
+            )}
 
-            {/* Tombol Simpan Sandi (Pinned to bottom of card) */}
-            <div style={{ marginTop: "auto", paddingTop: 14, borderTop: `1px solid ${T.border}` }}>
+            {/* Tombol Simpan Sandi (Menempel Rapi di Bawah) */}
+            <div style={{ marginTop: "auto", paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
               <button
                 type="submit"
                 disabled={loadingPass || isMismatch}
@@ -719,23 +713,24 @@ export default function AkunPage({ user, onUpdateUser }) {
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: 8,
+                  gap: 6,
                   width: "100%",
-                  padding: "10px 20px",
-                  borderRadius: 10,
+                  height: 34,
+                  padding: "0 14px",
+                  borderRadius: 8,
                   background: isDark ? "#2563EB" : T.primary,
                   color: "#fff",
                   border: "none",
-                  fontSize: 13,
+                  fontSize: 12.5,
                   fontWeight: 700,
                   cursor: loadingPass || isMismatch ? "not-allowed" : "pointer",
                   opacity: loadingPass || isMismatch ? 0.7 : 1,
-                  boxShadow: "0 1px 3px rgba(37,99,235,0.3)",
+                  boxShadow: "0 1px 2px rgba(37,99,235,0.25)",
                   transition: "all 0.15s ease",
                 }}
               >
-                <Icon name={loadingPass ? "loader" : "shield"} size={15} />
-                <span>{loadingPass ? "Memperbarui Sandi..." : "Perbarui Kata Sandi"}</span>
+                <Icon name={loadingPass ? "loader" : "shield"} size={14} />
+                <span>{loadingPass ? "Memperbarui..." : "Perbarui Kata Sandi"}</span>
               </button>
             </div>
           </form>
