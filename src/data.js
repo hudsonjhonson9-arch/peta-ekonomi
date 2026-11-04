@@ -68,12 +68,25 @@ export function isOpdBapperidaFrontend(user) {
   if (user.is_bapperida === true) return true;
   const r = (user.role || "").toLowerCase();
   if (r === "admin" || r === "walidata") return true;
+  const instansi = String(user.instansi_id || user.instansi || "").toLowerCase();
+  if (instansi.includes("bapperida") || instansi.includes("bappeda")) return true;
   const opdNama = String(user.opd_nama || user.instansi || user.unit || "").toLowerCase();
   const opdId = String(user.opd_id || "");
   return (
     opdNama.includes("bapperida") ||
     opdNama.includes("bappeda") ||
-    opdId === "9"
+    opdId === "9" ||
+    opdNama.includes("sekretariat") ||
+    opdNama.includes("ppepd") ||
+    opdNama.includes("perencanaan") ||
+    opdNama.includes("infrastruktur") ||
+    opdNama.includes("kewilayahan") ||
+    opdNama.includes("perekonomian") ||
+    opdNama.includes("sumber daya alam") ||
+    opdNama.includes("pemerintahan") ||
+    opdNama.includes("pembangunan manusia") ||
+    opdNama.includes("riset") ||
+    opdNama.includes("inovasi")
   );
 }
 

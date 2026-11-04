@@ -751,7 +751,9 @@ function ambilInisial(name = "") {
 
 function resolveOpdDanBidang(u) {
   const isBapp = isOpdBapperidaFrontend(u);
-  let opd = u.opd_nama ? u.opd_nama.trim() : (isBapp ? "BAPPERIDA Kab. Sumba Barat" : "Pemerintah Kab. Sumba Barat");
+  let opd = (u.opd_nama && u.opd_nama !== "Pemerintah Kab. Sumba Barat")
+    ? u.opd_nama.trim()
+    : (isBapp ? "Badan Perencanaan Pembangunan, Riset dan Inovasi Daerah (BAPPERIDA)" : (u.opd_nama || "Pemerintah Kab. Sumba Barat"));
   let bidang = (u.unit && u.unit !== "—" && u.unit !== "-") ? u.unit.trim() : "";
 
   // Hindari duplikasi jika unit/bidang persis sama dengan OPD atau memuat nama OPD
@@ -760,7 +762,7 @@ function resolveOpdDanBidang(u) {
     const oLower = opd.toLowerCase();
     if (bLower === oLower || (bLower.includes("bapperida") && oLower.includes("bapperida"))) {
       if (bLower.includes("bidang") || bLower.includes("sekretariat")) {
-        opd = isBapp ? "BAPPERIDA Kab. Sumba Barat" : opd;
+        opd = isBapp ? "Badan Perencanaan Pembangunan, Riset dan Inovasi Daerah (BAPPERIDA)" : opd;
       } else {
         bidang = "";
       }
@@ -806,7 +808,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
   }, []);
 
   const openAdd = () => {
-    setForm({ id: "", nip: "", name: "", role: "Staf", unit: bidangList[0]?.nama || "", status: "AKTIF", password: "", opd_id: "" });
+    setForm({ id: "", nip: "", name: "", role: "Staf", unit: bidangList[0]?.nama || "", status: "AKTIF", password: "", opd_id: "9" });
     setErrors({});
     setIsEdit(false);
     setShowPassword(false);
@@ -822,7 +824,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
       unit: u.unit || "",
       status: u.status || "AKTIF",
       password: "",
-      opd_id: u.opd_id ? String(u.opd_id) : ""
+      opd_id: u.opd_id ? String(u.opd_id) : "9"
     });
     setErrors({});
     setIsEdit(true);
@@ -1320,7 +1322,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
                           color: isBapp ? (isDark ? "#C4B5FD" : "#7C3AED") : (isDark ? "#67E8F9" : "#0891B2"),
                           letterSpacing: "0.02em"
                         }}>
-                          {isBapp ? "BAPPERIDA" : "OPD Luar"}
+                          {isBapp ? "Internal BAPPERIDA" : "OPD Luar"}
                         </span>
                       </div>
 
@@ -1590,7 +1592,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
                       background: isBapp ? (isDark ? "#2E1065" : "#F5F3FF") : (isDark ? "#083344" : "#ECFEFF"),
                       color: isBapp ? (isDark ? "#C4B5FD" : "#7C3AED") : (isDark ? "#67E8F9" : "#0891B2"),
                     }}>
-                      {isBapp ? "BAPPERIDA" : "OPD Luar"}
+                      {isBapp ? "Internal BAPPERIDA" : "OPD Luar"}
                     </span>
                     <span style={{
                       display: "inline-flex", alignItems: "center", gap: 5,

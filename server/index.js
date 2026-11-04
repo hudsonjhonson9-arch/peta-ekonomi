@@ -174,22 +174,26 @@ app.use(async (req, res, next) => {
       u = cached.row;
     } else {
       const { rows } = await pool.query(
-        `SELECT c.nip, c.role, c.opd_id, o.nama AS opd_nama, u.id, u.username, u.bidang, u."Status",
+        `SELECT c.nip, c.role, COALESCE(c.opd_id, 9) AS opd_id,
+                COALESCE(o.nama, 'Badan Perencanaan Pembangunan, Riset dan Inovasi Daerah (BAPPERIDA)') AS opd_nama,
+                u.id, u.username, u.bidang, u."Status",
                 r.nama AS role_nama, r.base_level AS role_base_level, r.opd_scoped AS role_opd_scoped,
                 r.allowed_menus AS role_allowed_menus, r.permissions AS role_permissions,
                 r.warna_bg AS role_warna_bg, r.warna_text AS role_warna_text
            FROM user_credentials c
            LEFT JOIN user_list u ON u."NIP" = c.nip
-           LEFT JOIN bank_data_opd o ON o.id = c.opd_id
+           LEFT JOIN bank_data_opd o ON o.id = COALESCE(c.opd_id, 9)
            LEFT JOIN sd_roles r ON LOWER(r.nama) = LOWER(c.role)
           WHERE c.nip = $1`,
         [muatan.sub]
       ).catch(async () => {
         return pool.query(
-          `SELECT c.nip, c.role, c.opd_id, o.nama AS opd_nama, u.id, u.username, u.bidang, u."Status"
+          `SELECT c.nip, c.role, COALESCE(c.opd_id, 9) AS opd_id,
+                  COALESCE(o.nama, 'Badan Perencanaan Pembangunan, Riset dan Inovasi Daerah (BAPPERIDA)') AS opd_nama,
+                  u.id, u.username, u.bidang, u."Status"
              FROM user_credentials c
              LEFT JOIN user_list u ON u."NIP" = c.nip
-             LEFT JOIN bank_data_opd o ON o.id = c.opd_id
+             LEFT JOIN bank_data_opd o ON o.id = COALESCE(c.opd_id, 9)
             WHERE c.nip = $1`,
           [muatan.sub]
         );
@@ -583,17 +587,18 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     // Ambil hash, role, dan profil role dinamis dari user_credentials + sd_roles
     const credResult = await pool.query(
-      `SELECT c.password_hash, c.role, c.opd_id, o.nama AS opd_nama,
+      `SELECT c.password_hash, c.role, COALESCE(c.opd_id, 9) AS opd_id,
+              COALESCE(o.nama, 'Badan Perencanaan Pembangunan, Riset dan Inovasi Daerah (BAPPERIDA)') AS opd_nama,
               r.nama AS role_nama, r.base_level AS role_base_level, r.opd_scoped AS role_opd_scoped,
               r.allowed_menus AS role_allowed_menus, r.permissions AS role_permissions,
               r.warna_bg AS role_warna_bg, r.warna_text AS role_warna_text
          FROM user_credentials c
-         LEFT JOIN bank_data_opd o ON o.id = c.opd_id
+         LEFT JOIN bank_data_opd o ON o.id = COALESCE(c.opd_id, 9)
          LEFT JOIN sd_roles r ON LOWER(r.nama) = LOWER(c.role)
         WHERE c.nip = $1`, [nip]
     ).catch(async () =>
       pool.query(
-        'SELECT c.password_hash, c.role, c.opd_id, o.nama AS opd_nama FROM user_credentials c LEFT JOIN bank_data_opd o ON o.id = c.opd_id WHERE c.nip = $1', [nip]
+        "SELECT c.password_hash, c.role, COALESCE(c.opd_id, 9) AS opd_id, COALESCE(o.nama, 'Badan Perencanaan Pembangunan, Riset dan Inovasi Daerah (BAPPERIDA)') AS opd_nama FROM user_credentials c LEFT JOIN bank_data_opd o ON o.id = COALESCE(c.opd_id, 9) WHERE c.nip = $1", [nip]
       )
     );
     if (!credResult.rows.length)
@@ -1517,13 +1522,16 @@ app.get('/api/users', async (_, res) => {
              u.bidang    AS unit,
              u."Status"  AS status,
              u."NIP"     AS nip,
-             c.role      AS cred_role, c.opd_id AS opd_id, o.nama AS opd_nama,
+             u.instansi_id,
+             c.role      AS cred_role,
+             COALESCE(c.opd_id, 9) AS opd_id,
+             COALESCE(o.nama, 'Badan Perencanaan Pembangunan, Riset dan Inovasi Daerah (BAPPERIDA)') AS opd_nama,
              r.nama      AS role_nama, r.opd_scoped AS role_opd_scoped,
              r.warna_bg  AS warna_bg, r.warna_text AS warna_text,
              TO_CHAR(c.last_login, 'DD Mon YYYY, HH24:MI') AS "lastLogin"
       FROM user_list u
       LEFT JOIN user_credentials c ON u."NIP" = c.nip
-      LEFT JOIN bank_data_opd o ON o.id = c.opd_id
+      LEFT JOIN bank_data_opd o ON o.id = COALESCE(c.opd_id, 9)
       LEFT JOIN sd_roles r ON LOWER(r.nama) = LOWER(c.role)
       ORDER BY u.no ASC
     `);
@@ -1538,8 +1546,9 @@ app.get('/api/users', async (_, res) => {
       unit: u.unit || '—',
       status: u.status || 'Aktif',
       nip: u.nip,
-      opd_id: u.opd_id ?? null,
-      opd_nama: u.opd_nama ?? null,
+      opd_id: u.opd_id ?? 9,
+      opd_nama: u.opd_nama || 'Badan Perencanaan Pembangunan, Riset dan Inovasi Daerah (BAPPERIDA)',
+      is_bapperida: String(u.opd_id ?? 9) === '9' || String(u.instansi_id || '').toLowerCase().includes('bapperida'),
       lastLogin: u.lastLogin || '—'
     }));
     
@@ -1559,7 +1568,7 @@ app.post('/api/users', async (req, res) => {
     const roleRow = await pool.query('SELECT nama, base_level, opd_scoped FROM sd_roles WHERE LOWER(nama) = LOWER($1)', [String(role).trim()]).catch(() => ({ rows: [] }));
     const rd = roleRow.rows[0];
     const butuhOpd = rd ? Boolean(rd.opd_scoped) : (role === 'Operator Bank Data' || role === 'Produsen Data');
-    const opdVal = (butuhOpd || opd_id) ? (opd_id ? Number(opd_id) : null) : null;
+    const opdVal = opd_id ? Number(opd_id) : (butuhOpd ? null : 9);
     if (butuhOpd && !opdVal) {
       return res.status(400).json({ error: `OPD wajib dipilih untuk akun dengan role ${role}` });
     }
@@ -1603,7 +1612,7 @@ app.put('/api/users/:id', async (req, res) => {
     const roleRow = await pool.query('SELECT nama, base_level, opd_scoped FROM sd_roles WHERE LOWER(nama) = LOWER($1)', [String(role).trim()]).catch(() => ({ rows: [] }));
     const rd = roleRow.rows[0];
     const butuhOpd = rd ? Boolean(rd.opd_scoped) : (role === 'Operator Bank Data' || role === 'Produsen Data');
-    const opdVal = (butuhOpd || opd_id) ? (opd_id ? Number(opd_id) : null) : null;
+    const opdVal = opd_id ? Number(opd_id) : (butuhOpd ? null : 9);
     if (butuhOpd && !opdVal) {
       return res.status(400).json({ error: `OPD wajib dipilih untuk akun dengan role ${role}` });
     }
