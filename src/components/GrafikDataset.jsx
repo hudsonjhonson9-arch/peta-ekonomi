@@ -7,7 +7,7 @@ import {
   CartesianGrid, XAxis, YAxis, Tooltip, Legend,
 } from "recharts";
 import { ThemeContext } from "../App.jsx";
-import { Select } from "./ui.jsx";
+import { Select, Icon } from "./ui.jsx";
 
 export const KODE_WILAYAH_KECAMATAN_MAP = {
   "53.12.04": "Tana Righu",
