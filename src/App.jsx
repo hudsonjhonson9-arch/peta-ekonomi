@@ -2,18 +2,18 @@ import { useState, useEffect, useMemo, useRef, createContext, useContext } from 
 import { LIGHT, DARK, getTheme, isDarkTheme } from "./theme.js";
 import { useDocs, useUsers, useLogs, useCategories, useSectors, useBidang, api } from './hooks.js';
 import { queryClient } from './main.jsx';
-import useResponsive    from './useResponsive.js';
-import LoginPage        from "./components/LoginPage.jsx";
+import useResponsive from './useResponsive.js';
+import LoginPage from "./components/LoginPage.jsx";
 import Sidebar, { LEBAR_ICON } from "./components/Sidebar.jsx";
-import BottomNav        from "./components/BottomNav.jsx";
-import Dashboard        from "./components/Dashboard.jsx";
+import BottomNav from "./components/BottomNav.jsx";
+import Dashboard from "./components/Dashboard.jsx";
 import { DocList, DocDetail } from "./components/DocPages.jsx";
 import { pesanError } from "./components/PksAdmin.jsx";
 import { idDokumenValid } from "../server/tautan-periode.js";
-import UploadForm       from "./components/UploadForm.jsx";
+import UploadForm from "./components/UploadForm.jsx";
 import NotificationDropdown from "./components/NotificationDropdown.jsx";
 import PublicShare from "./components/PublicShare.jsx";
-import * as pdfjsLib    from "pdfjs-dist";
+import * as pdfjsLib from "pdfjs-dist";
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
 
 // ponytail: count PDF pages from File object
@@ -52,11 +52,11 @@ async function extractPdfText(file, onProgress) {
   }
 }
 import { Pencarian, PortalPublik, ManajemenPengguna, AuditTrail, ManajemenKategoriDokumen, ManajemenSektor } from "./components/Pages.jsx";
-import PanduanPengguna   from "./components/PanduanPengguna.jsx";
-import BankDataPage      from "./components/BankDataPage.jsx";
+import PanduanPengguna from "./components/PanduanPengguna.jsx";
+import BankDataPage from "./components/BankDataPage.jsx";
 import KertasKerja from "./components/KertasKerja.jsx";
 import ScreeningRKA from "./components/ScreeningRKA.jsx";
-import SbuSshAdmin   from "./components/SbuSshAdmin.jsx";
+import SbuSshAdmin from "./components/SbuSshAdmin.jsx";
 import MasterSatuData from "./components/MasterSatuData.jsx";
 import SpmPage from "./components/SpmPage.jsx";
 import KelolaKonten from "./components/KelolaKonten.jsx";
@@ -67,11 +67,11 @@ import PengaturanWebsitePage from "./components/PengaturanWebsitePage.jsx";
 import PortalPublikLengkap from "./components/PortalPublikLengkap.jsx";
 import DokumentasiApiPage from "./components/DokumentasiApiPage.jsx";
 import { isOpdBapperidaFrontend } from "./data.js";
-import { Icon, Toast }  from "./components/ui.jsx";
+import { Icon, Toast } from "./components/ui.jsx";
 import { ROLE_COLOR } from "./data.js";
 import { Badge } from "./components/ui.jsx";
 
-const ThemeContext = createContext({ T: LIGHT, isDark: false, theme: "system", setTheme: () => {} });
+const ThemeContext = createContext({ T: LIGHT, isDark: false, theme: "system", setTheme: () => { } });
 export { ThemeContext };
 
 function ProfileMenu({ user, onLogout, onBukaAkun }) {
@@ -114,11 +114,11 @@ export default function App() {
   // localStorage hanya petunjuk tampilan supaya tidak berkedip saat refresh.
   // Nilainya tidak dipercaya untuk hak akses: server yang memutuskan, dan
   // role di sini dicocokkan ulang dengan /api/auth/me di bawah.
-  const [user,      setUser]      = useState(() => {
+  const [user, setUser] = useState(() => {
     const saved = localStorage.getItem("user");
     return saved ? JSON.parse(saved) : null;
   });
-  const [cekSesi,   setCekSesi]   = useState(true);
+  const [cekSesi, setCekSesi] = useState(true);
   const bacaHalamanAwal = () => {
     try {
       const hash = (window.location.hash || "").replace(/^#\/?/, "").split("?")[0].trim();
@@ -136,7 +136,7 @@ export default function App() {
       return "dashboard";
     }
   };
-  const [page,      setPage]      = useState(bacaHalamanAwal);
+  const [page, setPage] = useState(bacaHalamanAwal);
   const [currentTab, setCurrentTab] = useState(() => {
     try {
       const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
@@ -151,18 +151,18 @@ export default function App() {
       try {
         const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
         setCurrentTab(hp.get("tab") || "");
-      } catch (_) {}
+      } catch (_) { }
     };
     window.addEventListener("hashchange", syncTab);
     return () => window.removeEventListener("hashchange", syncTab);
   }, []);
-  const [docs,      setDocs]      = useState([]);
-  const [users,     setUsers]     = useState([]);
-  const [logs,      setLogs]      = useState([]);
+  const [docs, setDocs] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [logs, setLogs] = useState([]);
   const [categories, setCategories] = useState([]);
   const [sectors, setSectors] = useState([]);
   const [bidangs, setBidangs] = useState([]);
-  const [viewDoc,   setViewDoc]   = useState(null);
+  const [viewDoc, setViewDoc] = useState(null);
   // Dokumen yang dibuka dibaca dari hash (#dokumen/ID) supaya tetap terbuka setelah refresh
   const [pendingDocId, setPendingDocId] = useState(() => { const m = window.location.hash.match(/^#dokumen\/(\d+)/); return m ? m[1] : null; });
   // Halaman publik tautan berbagi dibaca sekali saat mount (hash ditimpa oleh routing internal)
@@ -201,7 +201,7 @@ export default function App() {
     const kembali = lebarSebelumCiut.current;
     return kembali && kembali > LEBAR_ICON ? kembali : 220;
   });
-  const [toast,     setToast]     = useState("");
+  const [toast, setToast] = useState("");
   const [theme, setThemeState] = useState(() => localStorage.getItem("theme") || "system");
   const T = useMemo(() => getTheme(theme), [theme]);
   const isDark = useMemo(() => isDarkTheme(theme), [theme]);
@@ -318,14 +318,14 @@ export default function App() {
     // menyusul admin dalam 30 detik akan melihat cache milik admin.
     queryClient.clear();
     setUser(loggedUser);
-    
+
     // Setiap role yang login langsung diarahkan ke Dashboard adaptif
     const target = "dashboard";
     setPage(target);
     try {
       sessionStorage.setItem("page", target);
       localStorage.setItem("active_page", target);
-    } catch (_) {}
+    } catch (_) { }
     window.location.hash = `#${target}`;
   };
 
@@ -337,7 +337,7 @@ export default function App() {
       try {
         sessionStorage.setItem("page", "dashboard");
         localStorage.setItem("active_page", "dashboard");
-      } catch (_) {}
+      } catch (_) { }
       window.location.hash = "#dashboard";
     }
   }, [user, page]);
@@ -346,7 +346,7 @@ export default function App() {
     // Server harus ikut melepas cookie; menghapus localStorage saja
     // meninggalkan cookie hidup sampai kedaluwarsa.
     try { await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }); }
-    catch (_) {}
+    catch (_) { }
     localStorage.removeItem("user");
     sessionStorage.removeItem("page");
     queryClient.clear();
@@ -378,12 +378,12 @@ export default function App() {
     try {
       sessionStorage.setItem("page", p);
       localStorage.setItem("active_page", p);
-    } catch (_) {}
+    } catch (_) { }
     const chosenTab = tab || localStorage.getItem(`${p}_tab`);
     if (tab) {
       try {
         localStorage.setItem(`${p}_tab`, tab);
-      } catch (_) {}
+      } catch (_) { }
       setCurrentTab(tab);
     } else {
       setCurrentTab(chosenTab || "");
@@ -402,7 +402,7 @@ export default function App() {
     try {
       sessionStorage.setItem("page", "dokumen");
       localStorage.setItem("active_page", "dokumen");
-    } catch (_) {}
+    } catch (_) { }
     history.pushState({ page: "dokumen", docId: d.id }, "", `#dokumen/${d.id}`);
   };
 
@@ -418,7 +418,7 @@ export default function App() {
     try {
       sessionStorage.setItem("page", "dokumen");
       localStorage.setItem("active_page", "dokumen");
-    } catch (_) {}
+    } catch (_) { }
     history.pushState({ page: "dokumen", docId: id }, "", `#dokumen/${id}`);
   };
 
@@ -435,7 +435,7 @@ export default function App() {
       try {
         sessionStorage.setItem("page", p);
         localStorage.setItem("active_page", p);
-      } catch (_) {}
+      } catch (_) { }
       if (e.state?.docId) setPendingDocId(String(e.state.docId));
       else { setViewDoc(null); setPendingDocId(null); }
     };
@@ -470,7 +470,7 @@ export default function App() {
       try {
         localStorage.setItem("active_page", hash);
         sessionStorage.setItem("page", hash);
-      } catch (_) {}
+      } catch (_) { }
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
@@ -486,7 +486,7 @@ export default function App() {
     try {
       localStorage.setItem("active_page", p);
       sessionStorage.setItem("page", p);
-    } catch (_) {}
+    } catch (_) { }
 
     const curHash = window.location.hash || "";
     const curBase = curHash.replace(/^#\/?/, "").split("?")[0].trim();
@@ -509,7 +509,7 @@ export default function App() {
       try {
         localStorage.setItem("active_page", page);
         sessionStorage.setItem("page", page);
-      } catch (_) {}
+      } catch (_) { }
     }
   }, [page, publicParams]);
 
@@ -861,25 +861,25 @@ export default function App() {
           });
 
           result = await gasPost({
-            action:   "direct",
-            file:     base64,
+            action: "direct",
+            file: base64,
             filename: fobj.name,
             mimeType: fobj.type,
-            title:    fileTitle,
-            type:     form.type,
-            sector:   form.sector,
-            year:     form.year,
+            title: fileTitle,
+            type: form.type,
+            sector: form.sector,
+            year: form.year,
             uploader: user.name,
-            bidang:   form.bidang || "",
-            pages:    pageCount,
-            desc:     form.desc || "",
-            tags:     form.tags || "",
+            bidang: form.bidang || "",
+            pages: pageCount,
+            desc: form.desc || "",
+            tags: form.tags || "",
             uploader_id: user.nip || "",
             nomor_dokumen: form.nomor_dokumen || "",
             tanggal_dokumen: form.tanggal_dokumen || "",
             fileType: form.fileType || "",
             folderId: groupMode ? folderId : undefined,
-            group:    groupMode,
+            group: groupMode,
             // Dibawa sampai ke POST /api/docs di server, supaya dokumen dan
             // tautan ke periodeya tersimpan dalam satu transaksi.
             kertas_kerja_periode_id: uploadOpts.periodeId ?? "",
@@ -887,7 +887,7 @@ export default function App() {
         } else {
           // ── Resumable mode (chunked, file > 30MB) ─────────────────────────
           var initResult = await gasPost({
-            action:   "initiate",
+            action: "initiate",
             filename: fobj.name,
             mimeType: fobj.type || "application/octet-stream",
             fileSize: fobj.size,
@@ -924,14 +924,14 @@ export default function App() {
             for (var attempt = 0; attempt < 3 && !chunkResult; attempt++) {
               try {
                 chunkResult = await gasPost({
-                  action:      "chunk",
-                  uploadUrl:   uploadUrl,
+                  action: "chunk",
+                  uploadUrl: uploadUrl,
                   chunkBase64: chunkB64,
-                  start:       start,
-                  end:         end,
-                  totalSize:   total,
-                  filename:    fobj.name,
-                  mimeType:    fobj.type || "application/octet-stream",
+                  start: start,
+                  end: end,
+                  totalSize: total,
+                  filename: fobj.name,
+                  mimeType: fobj.type || "application/octet-stream",
                 });
               } catch (_) {
                 if (attempt === 2) throw _;
@@ -952,17 +952,17 @@ export default function App() {
           if (!driveFileId) throw new Error("Gagal mendapatkan file ID dari Drive");
 
           result = await gasPost({
-            action:   "finalize",
-            fileId:   driveFileId,
-            title:    fileTitle,
-            type:     form.type,
-            sector:   form.sector,
-            year:     form.year,
+            action: "finalize",
+            fileId: driveFileId,
+            title: fileTitle,
+            type: form.type,
+            sector: form.sector,
+            year: form.year,
             uploader: user.name,
-            bidang:   form.bidang || "",
-            pages:    pageCount,
-            desc:     form.desc || "",
-            tags:     form.tags || "",
+            bidang: form.bidang || "",
+            pages: pageCount,
+            desc: form.desc || "",
+            tags: form.tags || "",
             uploader_id: user.nip || "",
             nomor_dokumen: form.nomor_dokumen || "",
             tanggal_dokumen: form.tanggal_dokumen || "",
@@ -1031,22 +1031,22 @@ export default function App() {
         }
 
         allDocs.push({
-          id:         result.docId ? Number(result.docId) : Date.now() + fi,
-          title:      fileTitle,
-          type:       form.type,
-          sector:     form.sector,
-          year:       form.year,
-          status:     "Menunggu Review",
-          uploader:   user.name,
+          id: result.docId ? Number(result.docId) : Date.now() + fi,
+          title: fileTitle,
+          type: form.type,
+          sector: form.sector,
+          year: form.year,
+          status: "Menunggu Review",
+          uploader: user.name,
           reviewedBy: "—",
-          size:       result.size || "—",
-          pages:      pageCount,
+          size: result.size || "—",
+          pages: pageCount,
           uploadDate: new Date().toLocaleDateString("id-ID"),
-          desc:       form.desc || "—",
-          tags:       form.tags ? form.tags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [],
-          url:        result.fileUrl || "",
-          publik:     false,
-          bidang:     form.bidang || "",
+          desc: form.desc || "—",
+          tags: form.tags ? form.tags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [],
+          url: result.fileUrl || "",
+          publik: false,
+          bidang: form.bidang || "",
         });
 
         // Auto-index PDF content in background (non-blocking)
@@ -1068,17 +1068,17 @@ export default function App() {
 
       if (groupMode) {
         var reg = await gasPost({
-          action:    "registerFolder",
-          title:     form.title,
-          type:      form.type,
-          sector:    form.sector,
-          year:      form.year,
-          uploader:  user.name,
-          bidang:    form.bidang || "",
+          action: "registerFolder",
+          title: form.title,
+          type: form.type,
+          sector: form.sector,
+          year: form.year,
+          uploader: user.name,
+          bidang: form.bidang || "",
           folderUrl: folderUrl,
-          files:     groupFiles,
-          desc:      form.desc || "",
-          tags:      form.tags || "",
+          files: groupFiles,
+          desc: form.desc || "",
+          tags: form.tags || "",
           uploader_id: user.nip || "",
           nomor_dokumen: form.nomor_dokumen || "",
           tanggal_dokumen: form.tanggal_dokumen || "",
@@ -1117,23 +1117,23 @@ export default function App() {
         var folderDoc = {
           // Sama seperti file tunggal: pakai id baris server kalau GAS
           // melaporkannya, supaya tidak terhitung sebagai dokumen kedua.
-          id:         reg.docId ? Number(reg.docId) : Date.now(),
-          title:      form.title,
-          type:       form.type,
-          sector:     form.sector,
-          year:       form.year,
-          status:     "Menunggu Review",
-          uploader:   user.name,
+          id: reg.docId ? Number(reg.docId) : Date.now(),
+          title: form.title,
+          type: form.type,
+          sector: form.sector,
+          year: form.year,
+          status: "Menunggu Review",
+          uploader: user.name,
           reviewedBy: "—",
-          size:       reg.ukuran || "—",
-          pages:      0,
+          size: reg.ukuran || "—",
+          pages: 0,
           uploadDate: new Date().toLocaleDateString("id-ID"),
-          desc:       form.desc || "—",
-          tags:       form.tags ? form.tags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [],
-          url:        reg.url || folderUrl,
-          publik:     false,
-          bidang:     form.bidang || "",
-          files:      groupFiles,
+          desc: form.desc || "—",
+          tags: form.tags ? form.tags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [],
+          url: reg.url || folderUrl,
+          publik: false,
+          bidang: form.bidang || "",
+          files: groupFiles,
         };
         // Folder multi-file memakai id lokal, bukan id baris bapperida_dokumen,
         // jadi tidak bisa ditautkan otomatis ke satu periode.
@@ -1168,49 +1168,49 @@ export default function App() {
     );
   }
 
-// ── Not logged in (Pengunjung Publik vs Login Petugas) ──────────────────────
-if (!user) {
-  if (cekSesi) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", fontFamily: "sans-serif", background: "#f8fafc" }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, border: "3px solid #E2E8F0", borderTopColor: "#2563EB", borderRadius: "50%", animation: "adSpin .8s linear infinite" }} />
-          <style>{`@keyframes adSpin { to { transform: rotate(360deg); } }`}</style>
+  // ── Not logged in (Pengunjung Publik vs Login Petugas) ──────────────────────
+  if (!user) {
+    if (cekSesi) {
+      return (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", fontFamily: "sans-serif", background: "#f8fafc" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 36, height: 36, border: "3px solid #E2E8F0", borderTopColor: "#2563EB", borderRadius: "50%", animation: "adSpin .8s linear infinite" }} />
+            <style>{`@keyframes adSpin { to { transform: rotate(360deg); } }`}</style>
+          </div>
         </div>
-      </div>
-    );
-  }
-  const h = (window.location.hash || "").replace(/^#\/?/, "").toLowerCase().split("?")[0].trim();
-  const isLogin = page === "login" || h === "login" || h.startsWith("login");
-  
-  // Jika pengunjung secara eksplisit meminta halaman login petugas:
-  if (isLogin) {
+      );
+    }
+    const h = (window.location.hash || "").replace(/^#\/?/, "").toLowerCase().split("?")[0].trim();
+    const isLogin = page === "login" || h === "login" || h.startsWith("login");
+
+    // Jika pengunjung secara eksplisit meminta halaman login petugas:
+    if (isLogin) {
+      return (
+        <ThemeContext.Provider value={{ T, isDark, theme, setTheme }}>
+          <LoginPage
+            onLogin={handleLogin}
+            onBackToPublic={() => {
+              setPage("publik");
+              window.location.hash = "#publik";
+            }}
+          />
+        </ThemeContext.Provider>
+      );
+    }
+
+    // DEFAULT UTAMA: Siapapun yang mengakses domain (arsipdigital.mindcloud.my.id, root /, #, #publik, #portal)
+    // langsung disajikan PORTAL PUBLIK LENGKAP Satu Data Sumba Barat!
     return (
       <ThemeContext.Provider value={{ T, isDark, theme, setTheme }}>
-        <LoginPage
-          onLogin={handleLogin}
-          onBackToPublic={() => {
-            setPage("publik");
-            window.location.hash = "#publik";
+        <PortalPublikLengkap
+          onLoginClick={() => {
+            setPage("login");
+            window.location.hash = "#login";
           }}
         />
       </ThemeContext.Provider>
     );
   }
-
-  // DEFAULT UTAMA: Siapapun yang mengakses domain (arsipdigital.mindcloud.my.id, root /, #, #publik, #portal)
-  // langsung disajikan PORTAL PUBLIK LENGKAP Satu Data Sumba Barat!
-  return (
-    <ThemeContext.Provider value={{ T, isDark, theme, setTheme }}>
-      <PortalPublikLengkap
-        onLoginClick={() => {
-          setPage("login");
-          window.location.hash = "#login";
-        }}
-      />
-    </ThemeContext.Provider>
-  );
-}
 
   // ── Khusus Halaman Portal Publik saat Login (Mode Penuh / Standalone) ──────
   if (page === "publik") {
@@ -1270,7 +1270,7 @@ if (!user) {
                   {page === "pencarian" && "Pencarian"}
                   {page === "publik" && "Portal Publik"}
                   {page === "pengguna" && "Pengguna"}
-                   {page === "kategori-dokumen" && "Jenis Dokumen"}
+                  {page === "kategori-dokumen" && "Jenis Dokumen"}
                   {page === "sektor" && "Sektor"}
                   {page === "audit" && "Audit Trail"}
                   {page === "panduan" && "Panduan Pengguna"}
@@ -1325,8 +1325,8 @@ if (!user) {
               "kelola-konten", "monitoring", "kelola-role", "akun", "pengaturan-website",
               "dokumentasi-api"
             ].includes(page) || page === "dashboard") && !viewDoc && (
-              <Dashboard user={user} docs={docs} onNav={goPage} onView={openDoc} sectors={sectors} categories={categories} />
-            )}
+                <Dashboard user={user} docs={docs} onNav={goPage} onView={openDoc} sectors={sectors} categories={categories} />
+              )}
             {/* Proteksi Akses: Modul Perencanaan & Dokumen Khusus Internal BAPPERIDA */}
             {!isBapperida && ["dokumen", "upload", "kertas-kerja", "screening", "standar-harga"].includes(page) && (
               <div style={{ padding: "40px 24px", maxWidth: 640, margin: "40px auto", textAlign: "center", background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, boxShadow: T.shadowMd }}>

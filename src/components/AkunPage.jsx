@@ -436,7 +436,7 @@ export default function AkunPage({ user, onUpdateUser }) {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: isMobile ? "1fr" : "185px 1fr",
+              gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
               gap: 12,
               flex: 1,
             }}
@@ -447,9 +447,10 @@ export default function AkunPage({ user, onUpdateUser }) {
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "space-between",
-                padding: "10px 12px",
+                padding: "12px 14px",
                 background: T.surfaceHover || "rgba(0,0,0,0.02)",
-                borderRadius: 9,
+                borderRadius: 10,
+                boxSizing: "border-box",
                 border: `1px solid ${T.border}`,
                 gap: 8,
               }}
@@ -494,13 +495,13 @@ export default function AkunPage({ user, onUpdateUser }) {
             </div>
 
             {/* SEBELAH KANAN: Form Nama, Jabatan, Nomor WA & Tombol Simpan */}
-            <form onSubmit={handleSimpanProfil} style={{ display: "flex", flexDirection: "column", gap: 8, justifyContent: "space-between" }}>
+            <form onSubmit={handleSimpanProfil} style={{ display: "flex", flexDirection: "column", gap: 8, justifyContent: "space-between", width: "100%", boxSizing: "border-box" }}>
               <div>
                 <label style={{ ...labelStyle, fontSize: 11.5, marginBottom: 3 }}>
                   Nama Lengkap Beserta Gelar <span style={{ color: "#DC2626" }}>*</span>
                 </label>
                 <input
-                  style={{ ...inputStyle, padding: "6px 10px", fontSize: 12, height: 32 }}
+                  style={{ ...inputStyle, padding: "6px 10px", fontSize: 12, height: 32, width: "100%", boxSizing: "border-box" }}
                   required
                   value={profil.nama}
                   onChange={(e) => setProfil({ ...profil, nama: e.target.value })}
@@ -511,7 +512,7 @@ export default function AkunPage({ user, onUpdateUser }) {
               <div>
                 <label style={{ ...labelStyle, fontSize: 11.5, marginBottom: 3 }}>Jabatan Kedinasan</label>
                 <input
-                  style={{ ...inputStyle, padding: "6px 10px", fontSize: 12, height: 32 }}
+                  style={{ ...inputStyle, padding: "6px 10px", fontSize: 12, height: 32, width: "100%", boxSizing: "border-box" }}
                   value={profil.jabatan}
                   onChange={(e) => setProfil({ ...profil, jabatan: e.target.value })}
                   placeholder="Contoh: Pranata Komputer Ahli Pertama"
@@ -521,7 +522,7 @@ export default function AkunPage({ user, onUpdateUser }) {
               <div>
                 <label style={{ ...labelStyle, fontSize: 11.5, marginBottom: 3 }}>Nomor WhatsApp / HP</label>
                 <input
-                  style={{ ...inputStyle, padding: "6px 10px", fontSize: 12, height: 32 }}
+                  style={{ ...inputStyle, padding: "6px 10px", fontSize: 12, height: 32, width: "100%", boxSizing: "border-box" }}
                   inputMode="tel"
                   value={profil.nomorhp}
                   onChange={(e) => setProfil({ ...profil, nomorhp: e.target.value })}
