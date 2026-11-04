@@ -115,6 +115,9 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
   const [beritaPopuler, setBeritaPopuler] = useState([]);
   const [beritaDetail, setBeritaDetail] = useState(null);
   const [katalogList, setKatalogList] = useState([]);
+  const [katalogJenis, setKatalogJenis] = useState("Semua");
+  const [katalogSearch, setKatalogSearch] = useState("");
+  const [previewPublikasi, setPreviewPublikasi] = useState(null);
 
 
   const kategoriOpsi = useMemo(() => {
