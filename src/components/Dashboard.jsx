@@ -1,8 +1,8 @@
-import { useContext, useState, useMemo } from "react";
+import { useContext, useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Icon, Badge, Button } from "./ui.jsx";
 import { Select } from "./customControls.jsx";
-import { STATUS_COLOR, ROLE_COLOR } from "../data.js";
+import { STATUS_COLOR, ROLE_COLOR, isOpdBapperidaFrontend } from "../data.js";
 import useResponsive from "../useResponsive.js";
 import BankDataDashboard from "./BankDataDashboard.jsx";
 import { PksRingkasan, DeadlineList } from "./PksRingkasan.jsx";
@@ -514,15 +514,10 @@ function LeaderboardOpdWidget({ walidataData, masterData, user, T, isMobile, onN
   );
 }
 
-// ── 3. Antrean Verifikasi & Tindak Lanjut Khusus Reviewer & Admin ────────────
-function AntreanTugasReviewer({ walidataData, docs, onNav, onView, T, isMobile }) {
-  const antrianVerval = walidataData?.antrian_verifikasi || [];
-  const reopenMenunggu = walidataData?.reopen_menunggu || [];
-  const pendingDocs = docs.filter((d) => d.status !== "Diarsipkan" && d.status !== "Ditolak").slice(0, 4);
-
-  if (antrianVerval.length === 0 && reopenMenunggu.length === 0 && pendingDocs.length === 0) {
-    return null;
-  }
+// ── 3.a Antrean Telaah Dokumen Perencanaan Khusus Arsip Digital ────────────
+function AntreanTelaahDokumen({ docs, onNav, onView, T, isMobile }) {
+  const pendingDocs = docs.filter((d) => d.status !== "Diarsipkan" && d.status !== "Ditolak").slice(0, 6);
+  if (pendingDocs.length === 0) return null;
 
   return (
     <div style={{ background: T.card, borderRadius: 14, border: `1px solid ${T.border}`, padding: isMobile ? 16 : 20, marginBottom: 24 }}>
@@ -532,11 +527,73 @@ function AntreanTugasReviewer({ walidataData, docs, onNav, onView, T, isMobile }
             <Icon name="bell" size={15} style={{ color: "#D97706" }} />
           </div>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Antrean Tugas Membutuhkan Verifikasi</div>
-            <div style={{ fontSize: 11.5, color: T.textMuted }}>Prioritas aksi untuk mempercepat layanan arsip & satu data</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Antrean Telaah Dokumen Perencanaan</div>
+            <div style={{ fontSize: 11.5, color: T.textMuted }}>Dokumen masuk yang memerlukan telaah dan verifikasi pejabat penelaah</div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <button
+          onClick={() => onNav("dokumen")}
+          style={{ fontSize: 12, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
+        >
+          Lihat Semua Dokumen →
+        </button>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 10 }}>
+        {pendingDocs.map((d) => (
+          <div
+            key={d.id}
+            style={{
+              background: T.bgAlt,
+              padding: "10px 14px",
+              borderRadius: 10,
+              border: `1px solid ${T.border}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+            }}
+          >
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {d.title}
+              </div>
+              <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
+                {d.type} · {d.year} · Pengunggah: {d.uploader} {d.bidang ? `(Bidang ${d.bidang})` : ""}
+              </div>
+            </div>
+            <button
+              onClick={() => (onView ? onView(d) : onNav("dokumen"))}
+              style={{ padding: "5px 12px", borderRadius: 6, background: T.primary, color: "#fff", border: "none", fontSize: 11.5, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}
+            >
+              Telaah →
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── 3.b Antrean Verifikasi Dataset Khusus Satu Data ──────────────────────────
+function AntreanVervalDataset({ walidataData, onNav, T, isMobile }) {
+  const antrianVerval = walidataData?.antrian_verifikasi || [];
+  const reopenMenunggu = walidataData?.reopen_menunggu || [];
+  if (antrianVerval.length === 0 && reopenMenunggu.length === 0) return null;
+
+  return (
+    <div style={{ background: T.card, borderRadius: 14, border: `1px solid ${T.border}`, padding: isMobile ? 16 : 20, marginBottom: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: "#EDE9FE", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="database" size={15} style={{ color: "#7C3AED" }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Antrean Verifikasi Dataset Satu Data</div>
+            <div style={{ fontSize: 11.5, color: T.textMuted }}>Dataset statistik sektoral dan permohonan buka kunci dari Produsen Data OPD</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {antrianVerval.length > 0 && (
             <span style={{ background: "#FEF3C7", color: "#B45309", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>
               {antrianVerval.length} Dataset Baru
@@ -547,313 +604,84 @@ function AntreanTugasReviewer({ walidataData, docs, onNav, onView, T, isMobile }
               {reopenMenunggu.length} Buka Kunci
             </span>
           )}
-        </div>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 14 }}>
-        {/* Kolom 1: Dataset Satu Data Menunggu Verval */}
-        <div style={{ background: T.bgAlt, borderRadius: 10, padding: 14, border: `1px solid ${T.border}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: T.text }}>Dataset Satu Data ({antrianVerval.length})</span>
-            <button
-              onClick={() => onNav("bankdata")}
-              style={{ fontSize: 11, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
-            >
-              Verval di Bank Data →
-            </button>
-          </div>
-
-          {antrianVerval.length === 0 ? (
-            <div style={{ fontSize: 12, color: T.textMuted, padding: "12px 0", textAlign: "center" }}>
-              Tidak ada dataset yang menunggu verifikasi saat ini.
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {antrianVerval.slice(0, 3).map((item) => (
-                <div
-                  key={item.id}
-                  style={{
-                    background: T.card,
-                    padding: "9px 12px",
-                    borderRadius: 8,
-                    border: `1px solid ${T.border}`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 10,
-                  }}
-                >
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {item.nama}
-                    </div>
-                    <div style={{ fontSize: 10.5, color: T.textMuted }}>
-                      {item.opd_nama} · {item.baris_count || 0} baris data
-                    </div>
-                  </div>
-                  <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "#FEF3C7", color: "#B45309", fontWeight: 700, whiteSpace: "nowrap" }}>
-                    {item.status === "perlu_perbaikan" ? "Perbaikan" : "Diajukan"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Kolom 2: Dokumen Arsip Menunggu Telaah */}
-        <div style={{ background: T.bgAlt, borderRadius: 10, padding: 14, border: `1px solid ${T.border}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: T.text }}>Dokumen Perencanaan ({pendingDocs.length})</span>
-            <button
-              onClick={() => onNav("dokumen")}
-              style={{ fontSize: 11, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
-            >
-              Lihat di Dokumen →
-            </button>
-          </div>
-
-          {pendingDocs.length === 0 ? (
-            <div style={{ fontSize: 12, color: T.textMuted, padding: "12px 0", textAlign: "center" }}>
-              Semua dokumen perencanaan telah diarsipkan atau ditindaklanjuti.
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {pendingDocs.map((d) => (
-                <div
-                  key={d.id}
-                  style={{
-                    background: T.card,
-                    padding: "9px 12px",
-                    borderRadius: 8,
-                    border: `1px solid ${T.border}`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 10,
-                  }}
-                >
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {d.title}
-                    </div>
-                    <div style={{ fontSize: 10.5, color: T.textMuted }}>
-                      {d.type} · {d.year} · {d.uploader}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => onView && onView(d)}
-                    style={{ fontSize: 11, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 700, whiteSpace: "nowrap" }}
-                  >
-                    Telaah →
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── 3.b Widget Khusus Produsen Data (OPD) ───────────────────────────────────
-function WidgetProdusenData({ produsenData, opdNama, onNav, T, isMobile }) {
-  const datasets = produsenData?.datasets || [];
-  const perluPerbaikan = datasets.filter((d) => d.status === "perlu_perbaikan");
-  const diajukan = datasets.filter((d) => d.status === "diajukan");
-  const draft = datasets.filter((d) => d.status === "draft");
-  const jadwalMendekati = produsenData?.jadwal_mendekati || [];
-
-  return (
-    <div style={{ marginBottom: 24, display: "flex", flexDirection: "column", gap: 14 }}>
-      {/* Alert Jika Ada Dataset Perlu Perbaikan */}
-      {perluPerbaikan.length > 0 && (
-        <div
-          style={{
-            background: "#FEF2F2",
-            border: "1px solid #FECACA",
-            borderRadius: 12,
-            padding: "14px 18px",
-            display: "flex",
-            flexDirection: isMobile ? "column" : "row",
-            alignItems: isMobile ? "flex-start" : "center",
-            justifyContent: "space-between",
-            gap: 12,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: "#FEE2E2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
-              <Icon name="alert" size={16} style={{ color: "#DC2626" }} />
-            </div>
-            <div>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: "#991B1B" }}>
-                Perhatian: {perluPerbaikan.length} Dataset Memerlukan Perbaikan
-              </div>
-              <div style={{ fontSize: 12, color: "#B91C1C", marginTop: 2 }}>
-                Walidata mengembalikan dataset <b>{perluPerbaikan[0]?.nama}</b> dengan catatan: &quot;
-                {perluPerbaikan[0]?.catatan_verifikasi || "Periksa kembali kelengkapan baris data"}
-                &quot;{perluPerbaikan.length > 1 && ` (+${perluPerbaikan.length - 1} lainnya)`}
-              </div>
-            </div>
-          </div>
           <button
-            onClick={() => onNav("bankdata")}
-            style={{
-              padding: "7px 14px",
-              background: "#DC2626",
-              color: "#fff",
-              border: "none",
-              borderRadius: 8,
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
+            onClick={() => onNav("bankdata", "verifikasi")}
+            style={{ fontSize: 12, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
           >
-            Perbaiki di Bank Data →
+            Verval di Bank Data →
           </button>
         </div>
-      )}
+      </div>
 
-      {/* Grid 2 Kolom: Status Pengajuan & Jadwal Pemutakhiran */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 14 }}>
-        {/* Kolom 1: Status Pengajuan Terkini */}
-        <div style={{ background: T.card, borderRadius: 14, border: `1px solid ${T.border}`, padding: 18 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Icon name="database" size={15} style={{ color: T.primary }} />
-              <span style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>Pengajuan Dataset OPD</span>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 10 }}>
+        {antrianVerval.slice(0, 4).map((item) => (
+          <div
+            key={item.id}
+            style={{
+              background: T.bgAlt,
+              padding: "10px 14px",
+              borderRadius: 10,
+              border: `1px solid ${T.border}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+            }}
+          >
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {item.nama}
+              </div>
+              <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
+                {item.opd_nama} · {item.baris_count || 0} baris data
+              </div>
             </div>
             <button
-              onClick={() => onNav("bankdata")}
-              style={{ fontSize: 11.5, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
+              onClick={() => onNav("bankdata", "verifikasi")}
+              style={{ padding: "5px 12px", borderRadius: 6, background: "#7C3AED", color: "#fff", border: "none", fontSize: 11.5, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}
             >
-              Kelola di Bank Data →
+              Verval →
             </button>
           </div>
+        ))}
 
-          {diajukan.length === 0 && draft.length === 0 && perluPerbaikan.length === 0 ? (
-            <div style={{ fontSize: 12, color: T.textMuted, padding: "16px 0", textAlign: "center" }}>
-              Semua dataset OPD telah disetujui atau belum ada pengajuan baru.
+        {reopenMenunggu.slice(0, 2).map((item) => (
+          <div
+            key={item.id}
+            style={{
+              background: T.bgAlt,
+              padding: "10px 14px",
+              borderRadius: 10,
+              border: `1px solid ${T.border}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+            }}
+          >
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                Buka Kunci: {item.dataset_nama}
+              </div>
+              <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
+                {item.opd_nama} · {item.alasan}
+              </div>
             </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {[...perluPerbaikan, ...diajukan, ...draft].slice(0, 4).map((d) => (
-                <div
-                  key={d.id}
-                  style={{
-                    background: T.bgAlt,
-                    padding: "9px 12px",
-                    borderRadius: 8,
-                    border: `1px solid ${T.border}`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 10,
-                  }}
-                >
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {d.nama}
-                    </div>
-                    <div style={{ fontSize: 10.5, color: T.textMuted }}>
-                      {d.baris_count || 0} baris data · Frekuensi: {d.frekuensi || "Tahunan"}
-                    </div>
-                  </div>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      padding: "2px 7px",
-                      borderRadius: 4,
-                      fontWeight: 700,
-                      background:
-                        d.status === "disetujui"
-                          ? "#DCFCE7"
-                          : d.status === "diajukan"
-                          ? "#FEF3C7"
-                          : d.status === "perlu_perbaikan"
-                          ? "#FEE2E2"
-                          : "#F1F5F9",
-                      color:
-                        d.status === "disetujui"
-                          ? "#15803D"
-                          : d.status === "diajukan"
-                          ? "#B45309"
-                          : d.status === "perlu_perbaikan"
-                          ? "#B91C1C"
-                          : "#475569",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {d.status === "disetujui"
-                      ? "Disetujui"
-                      : d.status === "diajukan"
-                      ? "Menunggu Verval"
-                      : d.status === "perlu_perbaikan"
-                      ? "Perlu Perbaikan"
-                      : "Draf"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Kolom 2: Jadwal Pemutakhiran Data */}
-        <div style={{ background: T.card, borderRadius: 14, border: `1px solid ${T.border}`, padding: 18 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Icon name="calendar" size={15} style={{ color: "#D97706" }} />
-              <span style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>Jadwal Pemutakhiran Terdekat</span>
-            </div>
-            <span style={{ fontSize: 11, color: T.textMuted }}>Target Pembaruan</span>
+            <button
+              onClick={() => onNav("bankdata", "verifikasi")}
+              style={{ padding: "5px 12px", borderRadius: 6, background: "#2563EB", color: "#fff", border: "none", fontSize: 11.5, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}
+            >
+              Tinjau →
+            </button>
           </div>
-
-          {jadwalMendekati.length === 0 ? (
-            <div style={{ fontSize: 12, color: T.textMuted, padding: "16px 0", textAlign: "center" }}>
-              Tidak ada tenggat jadwal pemutakhiran khusus dalam waktu dekat.
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {jadwalMendekati.map((jm) => (
-                <div
-                  key={jm.id}
-                  style={{
-                    background: T.bgAlt,
-                    padding: "9px 12px",
-                    borderRadius: 8,
-                    border: `1px solid ${T.border}`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 10,
-                  }}
-                >
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {jm.nama}
-                    </div>
-                    <div style={{ fontSize: 10.5, color: T.textMuted }}>
-                      Frekuensi: {jm.frekuensi || "Tahunan"}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: "#D97706" }}>
-                      {jm.jadwal_pemutakhiran || jm.jadwal_pemutakhiran_akhir || "Sesuai Jadwal"}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        ))}
       </div>
     </div>
   );
 }
 
-// ── 4. Main Component: Dashboard (Adaptive Role-Based) ──────────────────────
-export default function Dashboard({ user = null, docs = [], onNav, onView, sectors = [], categories = [] }) {
+// ── 4. Main Component: Dashboard (Decoupled: Arsip Digital & Satu Data) ─────
+export default function Dashboard({ user = null, docs = [], onNav, onView, sectors = [], categories = [], activePage = "dashboard-arsip" }) {
   const { isMobile } = useResponsive();
   const { T } = useContext(ThemeContext);
 
@@ -863,10 +691,25 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
   const isAdmin = role === "Admin" || role === "Walidata" || baseLevel === "Admin";
   const isReviewer = role === "Reviewer" || baseLevel === "Reviewer";
   const isStaf = role === "Staf" || baseLevel === "Staf";
+  const isBapperida = isOpdBapperidaFrontend(user);
   const userName = user?.name || user?.nama || "Pengguna";
   const opdNama = user?.opd_nama || "";
   const opdId = user?.opd_id || null;
   const bidang = user?.bidang || "";
+
+  // Mode Aktif: "arsip" (Dashboard Arsip Digital) vs "satudata" (Dashboard Satu Data)
+  const initialMode = !isBapperida ? "satudata" : (activePage === "dashboard-satudata" ? "satudata" : "arsip");
+  const [activeMode, setActiveMode] = useState(initialMode);
+
+  useEffect(() => {
+    if (!isBapperida) {
+      setActiveMode("satudata");
+    } else if (activePage === "dashboard-satudata") {
+      setActiveMode("satudata");
+    } else if (activePage === "dashboard-arsip" || activePage === "dashboard") {
+      setActiveMode("arsip");
+    }
+  }, [activePage, isBapperida]);
 
   // 1. Data Walidata (Leaderboard OPD & Antrean Verval)
   const { data: walidataData } = useQuery({
@@ -897,7 +740,7 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
     refetchInterval: 60000,
   });
 
-  // Metrik dokumen global
+  // Metrik dokumen global (Arsip Digital)
   const archived = docs.filter((d) => d.status === "Diarsipkan").length;
   const pending = docs.filter((d) => d.status !== "Diarsipkan" && d.status !== "Ditolak").length;
   const rejected = docs.filter((d) => d.status === "Ditolak").length;
@@ -944,8 +787,26 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
     return [...source].sort((a, b) => b.id - a.id).slice(0, 5);
   }, [docs, docsBidang, isStaf, filterDokumenStaf]);
 
-  // Kartu KPI yang disesuaikan dengan Role Pengguna
-  const cardsKpi = useMemo(() => {
+  // Kartu KPI Khusus Arsip Digital
+  const cardsKpiArsip = useMemo(() => {
+    if (isStaf) {
+      return [
+        { label: `Dokumen Bidang ${bidang || "Saya"}`, value: docsBidang.length, color: "#2563EB", icon: "archive", hint: `Total dokumen bidang ${bidang || "staf"}` },
+        { label: "Telah Diarsipkan", value: archivedBidang, color: "#16A34A", icon: "check", hint: "Selesai ditelaah & sah" },
+        { label: "Menunggu Review", value: pendingBidang, color: "#f57f17", icon: "clock", hint: "Dalam proses review" },
+        { label: "Perlu Revisi / Ditolak", value: rejectedBidang, color: "#DC2626", icon: "x", hint: "Harus diperbaiki staf" },
+      ];
+    }
+    return [
+      { label: "Total Dokumen Perencanaan", value: docs.length, color: "#2563EB", icon: "archive", hint: `${archived} dokumen diarsipkan` },
+      { label: "Dokumen Diarsipkan (Sah)", value: archived, color: "#16A34A", icon: "check", hint: "Selesai proses verifikasi" },
+      { label: "Menunggu Review / Telaah", value: pending, color: "#f57f17", icon: "clock", hint: "Perlu ditelaah reviewer" },
+      { label: "Perlu Revisi / Ditolak", value: rejected, color: "#DC2626", icon: "x", hint: "Perlu perbaikan pengunggah" },
+    ];
+  }, [isStaf, bidang, docsBidang.length, archivedBidang, pendingBidang, rejectedBidang, docs.length, archived, pending, rejected]);
+
+  // Kartu KPI Khusus Satu Data
+  const cardsKpiSatuData = useMemo(() => {
     if (isProdusen) {
       return [
         { label: `Dataset ${opdNama || "OPD Saya"}`, value: opdDatasets.length, color: "#2563EB", icon: "database", hint: "Total statistik sektoral" },
@@ -954,42 +815,17 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
         { label: "Draf / Perlu Revisi", value: opdDraft, color: "#DC2626", icon: "edit", hint: "Butuh tindak lanjut OPD" },
       ];
     }
-
-    if (isReviewer) {
-      const antrianCount = walidataData?.antrian_verifikasi?.length || 0;
-      const reopenCount = walidataData?.reopen_menunggu?.length || 0;
-      return [
-        { label: "Dataset Menunggu Verval", value: antrianCount, color: "#f57f17", icon: "database", hint: "Perlu diverifikasi" },
-        { label: "Permintaan Buka Kunci", value: reopenCount, color: "#7C3AED", icon: "lock", hint: "Pengajuan reopen OPD" },
-        { label: "Dokumen Menunggu Telaah", value: pending, color: "#2563EB", icon: "bell", hint: "Arsip perlu review" },
-        { label: "Dokumen Diarsipkan", value: archived, color: "#16A34A", icon: "archive", hint: "Telah sah diverifikasi" },
-      ];
-    }
-
-    if (isStaf) {
-      return [
-        { label: `Dokumen Bidang ${bidang || "Saya"}`, value: docsBidang.length, color: "#2563EB", icon: "archive", hint: `Total dokumen ${bidang || "staf"}` },
-        { label: "Telah Diarsipkan", value: archivedBidang, color: "#16A34A", icon: "check", hint: "Selesai ditelaah" },
-        { label: "Menunggu Proses Review", value: pendingBidang, color: "#f57f17", icon: "clock", hint: "Dalam proses review" },
-        { label: "Perlu Revisi / Ditolak", value: rejectedBidang, color: "#DC2626", icon: "x", hint: "Harus diperbaiki staf" },
-      ];
-    }
-
-    // Default: Admin & Walidata (Pengelola Sistem)
     const antrianCount = walidataData?.antrian_verifikasi?.length || 0;
     const totalDatasets = walidataData?.statistik_status?.reduce((acc, c) => acc + Number(c.count), 0) || (masterData?.datasets?.length || 0);
+    const approvedDatasets = walidataData?.statistik_status?.find((s) => s.status === "disetujui")?.count || 0;
 
     return [
-      { label: "Total Dokumen Arsip", value: docs.length, color: "#2563EB", icon: "archive", hint: `${archived} diarsipkan` },
-      { label: "Dataset Terbit (Satu Data)", value: totalDatasets, color: "#16A34A", icon: "database", hint: "Statistik sektoral" },
-      { label: "Antrean Verval Dataset", value: antrianCount, color: "#f57f17", icon: "bell", hint: "Perlu diverifikasi" },
+      { label: "Total Dataset Sektoral", value: totalDatasets, color: "#2563EB", icon: "database", hint: "Statistik sektoral daerah" },
+      { label: "Dataset Disetujui (Publik)", value: approvedDatasets, color: "#16A34A", icon: "check", hint: "Tayang di Portal Publik" },
+      { label: "Antrean Verval Walidata", value: antrianCount, color: "#f57f17", icon: "bell", hint: "Perlu diverifikasi" },
       { label: "Rata-rata Capaian SPM", value: spmAverage, color: "#7C3AED", icon: "chart", hint: "Standar pelayanan minimal" },
     ];
-  }, [
-    isProdusen, isReviewer, isStaf, opdNama, opdDatasets.length, opdDisetujui, opdMenunggu, opdDraft,
-    walidataData, pending, archived, docs.length, spmAverage, bidang,
-    docsBidang.length, archivedBidang, pendingBidang, rejectedBidang, masterData?.datasets?.length,
-  ]);
+  }, [isProdusen, opdNama, opdDatasets.length, opdDisetujui, opdMenunggu, opdDraft, walidataData, masterData?.datasets?.length, spmAverage]);
 
   const roleStyle = ROLE_COLOR[role] || ROLE_COLOR.Admin;
 
@@ -1006,6 +842,70 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
           boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
         }}
       >
+        {/* Tab Switcher Mode Dashboard untuk BAPPERIDA */}
+        {isBapperida && (
+          <div
+            style={{
+              display: "inline-flex",
+              gap: 6,
+              background: T.bgAlt,
+              padding: 4,
+              borderRadius: 10,
+              border: `1px solid ${T.border}`,
+              marginBottom: 16,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setActiveMode("arsip");
+                if (onNav) onNav("dashboard-arsip");
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+                padding: "7px 14px",
+                borderRadius: 7,
+                border: "none",
+                background: activeMode === "arsip" ? T.primary : "transparent",
+                color: activeMode === "arsip" ? "#fff" : T.textSecondary,
+                fontWeight: activeMode === "arsip" ? 700 : 500,
+                fontSize: 12.5,
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <Icon name="archive" size={14} />
+              <span>Dashboard Arsip Digital</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveMode("satudata");
+                if (onNav) onNav("dashboard-satudata");
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+                padding: "7px 14px",
+                borderRadius: 7,
+                border: "none",
+                background: activeMode === "satudata" ? T.primary : "transparent",
+                color: activeMode === "satudata" ? "#fff" : T.textSecondary,
+                fontWeight: activeMode === "satudata" ? 700 : 500,
+                fontSize: 12.5,
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <Icon name="chart" size={14} />
+              <span>Dashboard Satu Data</span>
+            </button>
+          </div>
+        )}
+
         {/* Baris Atas: Informasi Pengguna & Role */}
         <div
           style={{
@@ -1089,16 +989,14 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
               )}
             </div>
             <div style={{ fontSize: 12.5, color: T.textMuted, marginTop: 3 }}>
-              {role === "Admin" && "Panel Pengendali Walidata & Administrator Arsip Digital Satu Data Kabupaten Sumba Barat."}
-              {role === "Walidata" && "Pusat Koordinasi Satu Data & Verifikasi Dataset Statistik Sektoral Kabupaten Sumba Barat."}
-              {role === "Reviewer" && "Pusat Verifikasi Dokumen Perencanaan Pembangunan & Validasi Dataset Statistik Sektoral."}
-              {isStaf && `Penyusunan Kertas Kerja dan Pengelolaan Dokumen Perencanaan Bidang ${bidang || "Bapperida"}.`}
-              {isProdusen && `Produsen Data Sektoral Perangkat Daerah: ${opdNama || "Kabupaten Sumba Barat"}. Mengelola pemutakhiran dataset sektoral dan capaian indikator daerah.`}
+              {activeMode === "arsip"
+                ? "Pusat Pengelolaan Dokumen Perencanaan Pembangunan Daerah, Matriks Kertas Kerja, dan Screening RKA BAPPERIDA."
+                : "Pusat Koordinasi Satu Data Daerah, Verifikasi Data Statistik Sektoral, Ketercapaian Target SK Bupati, dan Capaian SPM."}
             </div>
           </div>
         </div>
 
-        {/* Baris Bawah: Shortcut Tombol Aksi Cepat Sesuai Role (Lebar Penuh) */}
+        {/* Baris Bawah: Shortcut Tombol Aksi Cepat Sesuai Mode */}
         <div
           style={{
             display: "flex",
@@ -1111,7 +1009,7 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
         >
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: T.textSecondary, flexShrink: 0 }}>
             <Icon name="zap" size={14} style={{ color: T.primary }} />
-            <span>Aksi Cepat</span>
+            <span>Aksi Cepat ({activeMode === "arsip" ? "Arsip Digital" : "Satu Data"})</span>
           </div>
 
           <div
@@ -1124,7 +1022,25 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
               justifyContent: isMobile ? "flex-start" : "flex-end",
             }}
           >
-            {isProdusen ? (
+            {activeMode === "arsip" ? (
+              <>
+                <Button size="sm" variant="primary" icon="upload" onClick={() => onNav("upload")}>
+                  Unggah Dokumen
+                </Button>
+                <Button size="sm" variant="secondary" icon="checkCircle" onClick={() => onNav("kertas-kerja", "kerja")}>
+                  Matriks Kertas Kerja
+                </Button>
+                <Button size="sm" variant="secondary" icon="layers" onClick={() => onNav("kertas-kerja", "pohon")}>
+                  Pohon Cascading
+                </Button>
+                <Button size="sm" variant="secondary" icon="filter" onClick={() => onNav("screening")}>
+                  Screening RKA
+                </Button>
+                <Button size="sm" variant="secondary" icon="search" onClick={() => onNav("dokumen")}>
+                  Cari Dokumen
+                </Button>
+              </>
+            ) : isProdusen ? (
               <>
                 <Button size="sm" variant="primary" icon="database" onClick={() => onNav("bankdata")}>
                   Kelola Dataset OPD
@@ -1139,49 +1055,19 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
                   Akun Saya
                 </Button>
               </>
-            ) : isReviewer ? (
-              <>
-                <Button size="sm" variant="primary" icon="database" onClick={() => onNav("bankdata")}>
-                  Verval Dataset
-                </Button>
-                <Button size="sm" variant="secondary" icon="archive" onClick={() => onNav("dokumen")}>
-                  Telaah Dokumen
-                </Button>
-                <Button size="sm" variant="secondary" icon="checkCircle" onClick={() => onNav("kertas-kerja")}>
-                  Kertas Kerja
-                </Button>
-                <Button size="sm" variant="secondary" icon="filter" onClick={() => onNav("screening")}>
-                  Screening RKA
-                </Button>
-              </>
-            ) : isStaf ? (
-              <>
-                <Button size="sm" variant="primary" icon="upload" onClick={() => onNav("upload")}>
-                  Unggah Dokumen
-                </Button>
-                <Button size="sm" variant="secondary" icon="checkCircle" onClick={() => onNav("kertas-kerja")}>
-                  Kertas Kerja
-                </Button>
-                <Button size="sm" variant="secondary" icon="search" onClick={() => onNav("pencarian")}>
-                  Cari Dokumen
-                </Button>
-                <Button size="sm" variant="secondary" icon="chart" onClick={() => onNav("bankdata")}>
-                  Bank Data
-                </Button>
-              </>
             ) : (
               <>
                 <Button size="sm" variant="primary" icon="database" onClick={() => onNav("bankdata")}>
-                  Verval Bank Data
+                  Kelola Bank Data
                 </Button>
-                <Button size="sm" variant="secondary" icon="upload" onClick={() => onNav("upload")}>
-                  Unggah Dokumen
+                <Button size="sm" variant="secondary" icon="shield" onClick={() => onNav("spm")}>
+                  Capaian SPM
                 </Button>
                 <Button size="sm" variant="secondary" icon="building" onClick={() => onNav("master-satudata")}>
-                  Master Data
+                  Master Satu Data
                 </Button>
                 <Button size="sm" variant="secondary" icon="chart" onClick={() => onNav("monitoring")}>
-                  Monitoring
+                  Monitoring Sistem
                 </Button>
                 <Button size="sm" variant="secondary" icon="world" onClick={() => onNav("publik")}>
                   Portal Publik
@@ -1192,7 +1078,7 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
         </div>
       </div>
 
-      {/* ── 2. Kartu Metrik KPI Berbasis Role ─────────────────────────────── */}
+      {/* ── 2. Kartu Metrik KPI Sesuai Mode ───────────────────────────────── */}
       <div
         style={{
           display: "grid",
@@ -1201,7 +1087,7 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
           marginBottom: 24,
         }}
       >
-        {cardsKpi.map((s, i) => (
+        {(activeMode === "arsip" ? cardsKpiArsip : cardsKpiSatuData).map((s, i) => (
           <div
             key={i}
             style={{
@@ -1245,246 +1131,266 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
         ))}
       </div>
 
-      {/* ── 3. Antrean Verifikasi & Tindak Lanjut (Reviewer & Admin) ───────── */}
-      {(isReviewer || isAdmin) && (
-        <AntreanTugasReviewer
-          walidataData={walidataData}
-          docs={docs}
-          onNav={onNav}
-          onView={onView}
-          T={T}
-          isMobile={isMobile}
-        />
-      )}
+      {/* ═══════════════════════════════════════════════════════════════════════
+          MODE 1: DASHBOARD ARSIP DIGITAL
+      ═══════════════════════════════════════════════════════════════════════ */}
+      {activeMode === "arsip" && (
+        <>
+          {/* Antrean Telaah Dokumen Perencanaan (Reviewer & Admin) */}
+          {(isReviewer || isAdmin) && (
+            <AntreanTelaahDokumen
+              docs={docs}
+              onNav={onNav}
+              onView={onView}
+              T={T}
+              isMobile={isMobile}
+            />
+          )}
 
-      {/* ── 3.b Widget Antrean & Status Khusus Produsen Data (OPD) ────────── */}
-      {isProdusen && (
-        <WidgetProdusenData
-          produsenData={produsenData}
-          opdNama={opdNama}
-          onNav={onNav}
-          T={T}
-          isMobile={isMobile}
-        />
-      )}
+          {/* Kertas Kerja Perencanaan (Hanya Internal Bapperida) */}
+          <InfoKertasKerja T={T} onNav={onNav} />
 
-      {/* ── 4. LEADERBOARD PERINGKAT KETERISIAN & TARGET SK PER OPD ────────── */}
-      <LeaderboardOpdWidget
-        walidataData={walidataData}
-        masterData={masterData}
-        user={user}
-        T={T}
-        isMobile={isMobile}
-        onNav={onNav}
-      />
-
-      {/* ── 5. Kertas Kerja Perencanaan (Hanya Internal Bapperida) ────────── */}
-      {!isProdusen && (
-        <InfoKertasKerja T={T} onNav={onNav} />
-      )}
-
-      {/* ── 6. Katalog Bank Data Interaktif ───────────────────────────────── */}
-      <BankDataDashboard />
-
-      {/* ── 7. Daftar Dataset Sektoral OPD (Produsen) atau Dokumen Terbaru (Staf/Admin) ── */}
-      {isProdusen ? (
-        <div style={{ background: T.card, borderRadius: 14, padding: isMobile ? 16 : 20, border: `1px solid ${T.border}`, marginTop: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>
-                Daftar Dataset Sektoral {opdNama || "OPD Saya"}
+          {/* Daftar Dokumen Perencanaan Terbaru */}
+          <div style={{ background: T.card, borderRadius: 14, padding: isMobile ? 16 : 20, border: `1px solid ${T.border}`, marginTop: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>
+                  {isStaf && filterDokumenStaf === "bidang" ? `Dokumen Terbaru Bidang ${bidang || "Saya"}` : "Dokumen Perencanaan Terbaru"}
+                </div>
+                {isStaf && bidang && (
+                  <div style={{ display: "flex", gap: 4, background: T.bgAlt, padding: 2, borderRadius: 6 }}>
+                    <button
+                      onClick={() => setFilterDokumenStaf("bidang")}
+                      style={{
+                        padding: "3px 8px",
+                        borderRadius: 5,
+                        fontSize: 10.5,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        border: "none",
+                        background: filterDokumenStaf === "bidang" ? T.card : "transparent",
+                        color: filterDokumenStaf === "bidang" ? T.primary : T.textSecondary,
+                      }}
+                    >
+                      Bidang Saya
+                    </button>
+                    <button
+                      onClick={() => setFilterDokumenStaf("semua")}
+                      style={{
+                        padding: "3px 8px",
+                        borderRadius: 5,
+                        fontSize: 10.5,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        border: "none",
+                        background: filterDokumenStaf === "semua" ? T.card : "transparent",
+                        color: filterDokumenStaf === "semua" ? T.primary : T.textSecondary,
+                      }}
+                    >
+                      Semua
+                    </button>
+                  </div>
+                )}
               </div>
-              <span style={{ fontSize: 11, background: T.bgAlt, color: T.textMuted, padding: "2px 8px", borderRadius: 99, fontWeight: 600 }}>
-                {opdDatasets.length} Dataset
-              </span>
-            </div>
-            <button
-              onClick={() => onNav("bankdata")}
-              style={{ fontSize: 12, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
-            >
-              Kelola di Bank Data →
-            </button>
-          </div>
-
-          {opdDatasets.length === 0 ? (
-            <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontSize: 12.5 }}>
-              Belum ada dataset yang terdaftar untuk {opdNama || "OPD Anda"}. Klik tombol <b>Kelola Dataset OPD</b> untuk mulai membuat dataset baru.
-            </div>
-          ) : (
-            opdDatasets.slice(0, 6).map((d, i) => (
-              <div
-                key={d.id || i}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "10px 0",
-                  borderBottom: i < Math.min(opdDatasets.length, 6) - 1 ? `1px solid ${T.border}` : "none",
-                }}
+              <button
+                onClick={() => onNav("dokumen")}
+                style={{ fontSize: 12, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
               >
+                Lihat semua dokumen →
+              </button>
+            </div>
+
+            {recentDocs.length === 0 ? (
+              <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontSize: 12.5 }}>
+                Belum ada arsip dokumen yang tersedia. Klik tombol <b>Unggah Dokumen</b> untuk menambahkan dokumen baru.
+              </div>
+            ) : (
+              recentDocs.map((d, i) => (
                 <div
+                  key={d.id}
                   style={{
-                    width: 36,
-                    height: 36,
-                    background: T.primaryLight,
-                    borderRadius: 8,
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
+                    gap: 12,
+                    padding: "10px 0",
+                    borderBottom: i < recentDocs.length - 1 ? `1px solid ${T.border}` : "none",
                   }}
                 >
-                  <Icon name="database" size={16} style={{ color: T.primary }} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {d.nama}
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      background: T.primaryLight,
+                      borderRadius: 8,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Icon name="file" size={16} style={{ color: T.primary }} />
                   </div>
-                  <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
-                    {d.baris_count || 0} Baris Data · Frekuensi: {d.frekuensi || "Tahunan"} · {d.status === "disetujui" ? "Publik (Terverifikasi)" : d.status === "diajukan" ? "Menunggu Verifikasi Walidata" : d.status === "perlu_perbaikan" ? "Perlu Revisi" : "Draf"}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {d.title}
+                    </div>
+                    <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
+                      {d.type} · {d.year} · {d.uploader} {d.bidang ? `(Bidang ${d.bidang})` : ""}
+                    </div>
                   </div>
+                  <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
+                  <button
+                    onClick={() => onView && onView(d)}
+                    style={{ fontSize: 11, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}
+                  >
+                    Lihat →
+                  </button>
                 </div>
-                <span
-                  style={{
-                    fontSize: 10.5,
-                    padding: "3px 8px",
-                    borderRadius: 6,
-                    fontWeight: 700,
-                    background:
-                      d.status === "disetujui"
-                        ? "#DCFCE7"
-                        : d.status === "diajukan"
-                        ? "#FEF3C7"
-                        : d.status === "perlu_perbaikan"
-                        ? "#FEE2E2"
-                        : "#F1F5F9",
-                    color:
-                      d.status === "disetujui"
-                        ? "#15803D"
-                        : d.status === "diajukan"
-                        ? "#B45309"
-                        : d.status === "perlu_perbaikan"
-                        ? "#B91C1C"
-                        : "#475569",
-                  }}
-                >
-                  {d.status === "disetujui"
-                    ? "Disetujui"
-                    : d.status === "diajukan"
-                    ? "Diajukan"
-                    : d.status === "perlu_perbaikan"
-                    ? "Perlu Perbaikan"
-                    : "Draf"}
+              ))
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          MODE 2: DASHBOARD SATU DATA
+      ═══════════════════════════════════════════════════════════════════════ */}
+      {activeMode === "satudata" && (
+        <>
+          {/* Antrean Verval Dataset Satu Data & Buka Kunci (Reviewer & Admin/Walidata) */}
+          {(isReviewer || isAdmin) && (
+            <AntreanVervalDataset
+              walidataData={walidataData}
+              onNav={onNav}
+              T={T}
+              isMobile={isMobile}
+            />
+          )}
+
+          {/* Widget Antrean & Status Khusus Produsen Data (OPD) */}
+          {isProdusen && (
+            <WidgetProdusenData
+              produsenData={produsenData}
+              opdNama={opdNama}
+              onNav={onNav}
+              T={T}
+              isMobile={isMobile}
+            />
+          )}
+
+          {/* LEADERBOARD PERINGKAT KETERISIAN & TARGET SK PER OPD */}
+          <LeaderboardOpdWidget
+            walidataData={walidataData}
+            masterData={masterData}
+            user={user}
+            T={T}
+            isMobile={isMobile}
+            onNav={onNav}
+          />
+
+          {/* Katalog Bank Data Interaktif */}
+          <BankDataDashboard />
+
+          {/* Daftar Dataset Sektoral OPD (Produsen) atau Semua Dataset Terbaru */}
+          <div style={{ background: T.card, borderRadius: 14, padding: isMobile ? 16 : 20, border: `1px solid ${T.border}`, marginTop: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>
+                  {isProdusen ? `Daftar Dataset Sektoral ${opdNama || "OPD Saya"}` : "Daftar Dataset Sektoral Daerah (Satu Data)"}
+                </div>
+                <span style={{ fontSize: 11, background: T.bgAlt, color: T.textMuted, padding: "2px 8px", borderRadius: 99, fontWeight: 600 }}>
+                  {isProdusen ? opdDatasets.length : (masterData?.datasets?.length || 0)} Dataset
                 </span>
-                <button
-                  onClick={() => onNav("bankdata")}
-                  style={{ fontSize: 11, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}
-                >
-                  Buka →
-                </button>
               </div>
-            ))
-          )}
-        </div>
-      ) : (
-        <div style={{ background: T.card, borderRadius: 14, padding: isMobile ? 16 : 20, border: `1px solid ${T.border}`, marginTop: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>
-                {isStaf && filterDokumenStaf === "bidang" ? `Dokumen Terbaru Bidang ${bidang || "Saya"}` : "Dokumen Perencanaan Terbaru"}
-              </div>
-              {isStaf && bidang && (
-                <div style={{ display: "flex", gap: 4, background: T.bgAlt, padding: 2, borderRadius: 6 }}>
-                  <button
-                    onClick={() => setFilterDokumenStaf("bidang")}
-                    style={{
-                      padding: "3px 8px",
-                      borderRadius: 5,
-                      fontSize: 10.5,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      border: "none",
-                      background: filterDokumenStaf === "bidang" ? T.card : "transparent",
-                      color: filterDokumenStaf === "bidang" ? T.primary : T.textSecondary,
-                    }}
-                  >
-                    Bidang Saya
-                  </button>
-                  <button
-                    onClick={() => setFilterDokumenStaf("semua")}
-                    style={{
-                      padding: "3px 8px",
-                      borderRadius: 5,
-                      fontSize: 10.5,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      border: "none",
-                      background: filterDokumenStaf === "semua" ? T.card : "transparent",
-                      color: filterDokumenStaf === "semua" ? T.primary : T.textSecondary,
-                    }}
-                  >
-                    Semua
-                  </button>
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => onNav("dokumen")}
-              style={{ fontSize: 12, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
-            >
-              Lihat semua →
-            </button>
-          </div>
-
-          {recentDocs.length === 0 ? (
-            <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontSize: 12.5 }}>
-              Belum ada arsip dokumen yang tersedia.
-            </div>
-          ) : (
-            recentDocs.map((d, i) => (
-              <div
-                key={d.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "10px 0",
-                  borderBottom: i < recentDocs.length - 1 ? `1px solid ${T.border}` : "none",
-                }}
+              <button
+                onClick={() => onNav("bankdata")}
+                style={{ fontSize: 12, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
               >
+                Kelola di Bank Data →
+              </button>
+            </div>
+
+            {(isProdusen ? opdDatasets : (masterData?.datasets || [])).length === 0 ? (
+              <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontSize: 12.5 }}>
+                Belum ada dataset yang terdaftar. Klik tombol <b>Kelola di Bank Data</b> untuk mulai menambahkan dataset baru.
+              </div>
+            ) : (
+              (isProdusen ? opdDatasets : (masterData?.datasets || [])).slice(0, 6).map((d, i) => (
                 <div
+                  key={d.id || i}
                   style={{
-                    width: 36,
-                    height: 36,
-                    background: T.primaryLight,
-                    borderRadius: 8,
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
+                    gap: 12,
+                    padding: "10px 0",
+                    borderBottom: i < 5 ? `1px solid ${T.border}` : "none",
                   }}
                 >
-                  <Icon name="file" size={16} style={{ color: T.primary }} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {d.title}
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      background: T.primaryLight,
+                      borderRadius: 8,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Icon name="database" size={16} style={{ color: T.primary }} />
                   </div>
-                  <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
-                    {d.type} · {d.year} · {d.uploader} {d.bidang ? `(Bidang ${d.bidang})` : ""}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {d.nama}
+                    </div>
+                    <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
+                      {d.opd_nama ? `${d.opd_nama} · ` : ""}{d.baris_count || 0} Baris Data · Frekuensi: {d.frekuensi || "Tahunan"}
+                    </div>
                   </div>
+                  <span
+                    style={{
+                      fontSize: 10.5,
+                      padding: "3px 8px",
+                      borderRadius: 6,
+                      fontWeight: 700,
+                      background:
+                        d.status === "disetujui"
+                          ? "#DCFCE7"
+                          : d.status === "diajukan"
+                          ? "#FEF3C7"
+                          : d.status === "perlu_perbaikan"
+                          ? "#FEE2E2"
+                          : "#F1F5F9",
+                      color:
+                        d.status === "disetujui"
+                          ? "#15803D"
+                          : d.status === "diajukan"
+                          ? "#B45309"
+                          : d.status === "perlu_perbaikan"
+                          ? "#B91C1C"
+                          : "#475569",
+                    }}
+                  >
+                    {d.status === "disetujui"
+                      ? "Disetujui"
+                      : d.status === "diajukan"
+                      ? "Diajukan"
+                      : d.status === "perlu_perbaikan"
+                      ? "Perlu Perbaikan"
+                      : "Draf"}
+                  </span>
+                  <button
+                    onClick={() => onNav("bankdata")}
+                    style={{ fontSize: 11, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}
+                  >
+                    Buka →
+                  </button>
                 </div>
-                <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
-                <button
-                  onClick={() => onView && onView(d)}
-                  style={{ fontSize: 11, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}
-                >
-                  Lihat →
-                </button>
-              </div>
-            ))
-          )}
-        </div>
+              ))
+            )}
+          </div>
+        </>
       )}
     </div>
   );

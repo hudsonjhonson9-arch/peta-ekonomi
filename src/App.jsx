@@ -331,7 +331,7 @@ export default function App() {
 
   useEffect(() => {
     const isProdusen = user?.role === "Operator Bank Data" || user?.role === "Produsen Data";
-    const allowed = ["dashboard", "bankdata", "spm", "akun", "publik", "dokumentasi-api"];
+    const allowed = ["dashboard", "dashboard-arsip", "dashboard-satudata", "bankdata", "spm", "akun", "publik", "dokumentasi-api"];
     if (isProdusen && page && !allowed.includes(page)) {
       setPage("dashboard");
       try {
@@ -1263,7 +1263,9 @@ export default function App() {
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               {isMobile && (
                 <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>
-                  {page === "dashboard" && "Dashboard"}
+                  {page === "dashboard" && (isBapperida ? "Dashboard Arsip Digital" : "Dashboard Satu Data")}
+                  {page === "dashboard-arsip" && "Dashboard Arsip Digital"}
+                  {page === "dashboard-satudata" && "Dashboard Satu Data"}
                   {page === "dokumen" && !viewDoc && "Dokumen"}
                   {page === "dokumen" && viewDoc && "Detail Dokumen"}
                   {page === "upload" && "Upload Dokumen"}
@@ -1324,8 +1326,8 @@ export default function App() {
               "kategori-dokumen", "sektor", "audit", "spm", "master-satudata",
               "kelola-konten", "monitoring", "kelola-role", "akun", "pengaturan-website",
               "dokumentasi-api"
-            ].includes(page) || page === "dashboard") && !viewDoc && (
-                <Dashboard user={user} docs={docs} onNav={goPage} onView={openDoc} sectors={sectors} categories={categories} />
+            ].includes(page) || page === "dashboard" || page === "dashboard-arsip" || page === "dashboard-satudata") && !viewDoc && (
+                <Dashboard user={user} docs={docs} onNav={goPage} onView={openDoc} sectors={sectors} categories={categories} activePage={page} />
               )}
             {/* Proteksi Akses: Modul Perencanaan & Dokumen Khusus Internal BAPPERIDA */}
             {!isBapperida && ["dokumen", "upload", "kertas-kerja", "screening", "standar-harga"].includes(page) && (

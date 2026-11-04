@@ -231,28 +231,50 @@ export function daftarkanRutePortalKonten(app, pool, queryDB) {
     }
   });
 
-  // ── 4. Katalog Dokumen Publik (Produk Hukum, SK Tim, Publikasi Kajian) ───
+  // ── 4. Katalog Dokumen Publik (Sumber Resmi: bapperida_dokumen WHERE publik = TRUE) ───
   app.get('/api/portal/katalog', async (req, res) => {
-    const { jenis, q } = req.query; // 'Perencanaan Jangka Panjang', 'Produk Hukum', 'SK Tim Satu Data', 'Publikasi Kajian', etc.
+    const { jenis, q } = req.query;
 
     try {
-      let sql = `SELECT * FROM sd_konten_publikasi WHERE tampil_publik = TRUE`;
+      let sql = `
+        SELECT 
+          id,
+          judul,
+          COALESCE(kategori, tipe, 'Dokumen Perencanaan') AS jenis,
+          kategori,
+          tipe,
+          COALESCE(EXTRACT(YEAR FROM COALESCE(tanggal_dokumen, tanggal))::int, 2025) AS tahun,
+          COALESCE(nomor_dokumen, '') AS nomor,
+          CASE 
+            WHEN bidang IS NOT NULL AND TRIM(bidang) != '' THEN 'BAPPERIDA (' || TRIM(bidang) || ')'
+            ELSE 'BAPPERIDA Kab. Sumba Barat'
+          END AS instansi,
+          url AS file_url,
+          COALESCE(ukuran, 'PDF') AS file_size,
+          COALESCE(NULLIF("desc", ''), tipe, 'Dokumen Publikasi Resmi BAPPERIDA') AS deskripsi,
+          publik AS tampil_publik,
+          tags,
+          TO_CHAR(tanggal, 'YYYY-MM-DD') AS tanggal,
+          created_at
+        FROM bapperida_dokumen
+        WHERE publik = TRUE
+      `;
       const params = [];
       let idx = 1;
 
       if (jenis && jenis !== 'Semua') {
-        sql += ` AND jenis = $${idx}`;
+        sql += ` AND (kategori ILIKE $${idx} OR tipe ILIKE $${idx})`;
         params.push(jenis);
         idx++;
       }
 
       if (q && q.trim()) {
-        sql += ` AND (judul ILIKE $${idx} OR nomor ILIKE $${idx} OR deskripsi ILIKE $${idx} OR instansi ILIKE $${idx})`;
+        sql += ` AND (judul ILIKE $${idx} OR COALESCE(nomor_dokumen, '') ILIKE $${idx} OR COALESCE("desc", '') ILIKE $${idx} OR COALESCE(bidang, '') ILIKE $${idx} OR COALESCE(tags, '') ILIKE $${idx})`;
         params.push(`%${q.trim()}%`);
         idx++;
       }
 
-      sql += ` ORDER BY tahun DESC, id DESC`;
+      sql += ` ORDER BY COALESCE(EXTRACT(YEAR FROM COALESCE(tanggal_dokumen, tanggal))::int, 2025) DESC, id DESC`;
       const rows = await queryDB(sql, params);
       res.json(rows);
     } catch (err) {

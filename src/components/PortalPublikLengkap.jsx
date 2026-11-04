@@ -24,196 +24,7 @@ import {
 } from "recharts";
 
 
-// Dokumen Publikasi Resmi BAPPERIDA Kabupaten Sumba Barat
-const DOKUMEN_PUBLIKASI_FALLBACK = [
-  {
-    id: "f-1",
-    judul: "RPJPD Kabupaten Sumba Barat 2025–2045",
-    jenis: "Perencanaan Jangka Panjang",
-    tahun: 2025,
-    nomor: "Perda No. 2 Tahun 2024",
-    instansi: "BAPPERIDA Kab. Sumba Barat",
-    ukuran: "4.2 MB",
-    deskripsi: "Dokumen Rencana Pembangunan Jangka Panjang Daerah (RPJPD) Kabupaten Sumba Barat Tahun 2025–2045 sebagai pedoman visi dan arah kebijakan pembangunan 20 tahun ke depan.",
-    file_url: "https://drive.google.com/file/d/18YU0q-oZw2puQ0bhd5XXFg9muZvQaHMI/view?usp=drivesdk"
-  },
-  {
-    id: "f-2",
-    judul: "Naskah Akademik Rancangan Teknokratik RPJPD 2025–2045",
-    jenis: "Perencanaan Jangka Panjang",
-    tahun: 2025,
-    nomor: "NA-RPJPD/BAPPERIDA/2025",
-    instansi: "BAPPERIDA Kab. Sumba Barat",
-    ukuran: "2.8 MB",
-    deskripsi: "Kajian ilmiah, naskah akademik, dan analisis isu-isu strategis kewilayahan dalam penyusunan RPJPD Kabupaten Sumba Barat 2025–2045.",
-    file_url: "https://drive.google.com/file/d/1K6adMPgvAkOa3ugJ-IEwcbFAaD4R8ekO/view?usp=drivesdk"
-  },
-  {
-    id: "f-3",
-    judul: "RPJMD Kabupaten Sumba Barat 2021–2026",
-    jenis: "Perencanaan Jangka Menengah",
-    tahun: 2021,
-    nomor: "Perda No. 5 Tahun 2021",
-    instansi: "BAPPERIDA Kab. Sumba Barat",
-    ukuran: "8.7 MB",
-    deskripsi: "Rencana Pembangunan Jangka Menengah Daerah Kabupaten Sumba Barat periode 2021–2026 memuat strategi, arah kebijakan, dan program prioritas kepala daerah.",
-    file_url: "https://drive.google.com/file/d/18YU0q-oZw2puQ0bhd5XXFg9muZvQaHMI/view?usp=drivesdk"
-  },
-  {
-    id: "f-4",
-    judul: "Perubahan RPJMD Kabupaten Sumba Barat 2021–2026 (Revisi)",
-    jenis: "Perencanaan Jangka Menengah",
-    tahun: 2023,
-    nomor: "Perda No. 3 Tahun 2023",
-    instansi: "BAPPERIDA Kab. Sumba Barat",
-    ukuran: "5.1 MB",
-    deskripsi: "Penyesuaian target indikator kinerja utama daerah, kerangka pendanaan, dan penyelarasan arah kebijakan nasional pasca pandemi.",
-    file_url: "https://drive.google.com/file/d/18YU0q-oZw2puQ0bhd5XXFg9muZvQaHMI/view?usp=drivesdk"
-  },
-  {
-    id: "f-5",
-    judul: "Rencana Strategis (Renstra) BAPPERIDA 2021–2026",
-    jenis: "Perencanaan Jangka Menengah",
-    tahun: 2021,
-    nomor: "Renstra-BAPPERIDA/2021",
-    instansi: "BAPPERIDA Kab. Sumba Barat",
-    ukuran: "3.4 MB",
-    deskripsi: "Dokumen perencanaan lima tahunan BAPPERIDA dalam menjalankan fungsi perencanaan pembangunan, riset inovasi, dan koordinasi kewilayahan.",
-    file_url: "https://drive.google.com/file/d/1hJ6LqeTwgSt0iUz_sduP-TMZZZfXFc0c/view?usp=drivesdk"
-  },
-  {
-    id: "f-6",
-    judul: "RKPD Kabupaten Sumba Barat Tahun 2026",
-    jenis: "Perencanaan Tahunan (RKPD)",
-    tahun: 2026,
-    nomor: "Perbup No. 18 Tahun 2025",
-    instansi: "BAPPERIDA Kab. Sumba Barat",
-    ukuran: "6.3 MB",
-    deskripsi: "Rencana Kerja Pemerintah Daerah Kabupaten Sumba Barat Tahun 2026 yang mengusung tema percepatan pertumbuhan ekonomi inklusif dan peningkatan mutu pelayanan publik.",
-    file_url: "https://drive.google.com/file/d/1E6CJmUQFv-b9ts91mfB5irmKtukjBJK9/view?usp=drivesdk"
-  },
-  {
-    id: "f-7",
-    judul: "Perubahan RKPD Kabupaten Sumba Barat Tahun 2026",
-    jenis: "Perencanaan Tahunan (RKPD)",
-    tahun: 2026,
-    nomor: "Perbup Perubahan RKPD 2026",
-    instansi: "BAPPERIDA Kab. Sumba Barat",
-    ukuran: "29.9 MB",
-    deskripsi: "Dokumen perubahan RKPD tahun berjalan untuk mengakomodasi pergeseran prioritas kegiatan dan optimalisasi penyerapan anggaran semester II.",
-    file_url: "https://drive.google.com/file/d/1RxfjEmye4KNViahtLynGq4Qr8XMg30QH/view?usp=drivesdk"
-  },
-  {
-    id: "f-8",
-    judul: "Rencana Kerja (Renja) BAPPERIDA Tahun 2026",
-    jenis: "Perencanaan Tahunan (RKPD)",
-    tahun: 2026,
-    nomor: "Renja-01/BAPPERIDA/2026",
-    instansi: "BAPPERIDA Kab. Sumba Barat",
-    ukuran: "5.1 MB",
-    deskripsi: "Rencana operasional kerja tahunan dan target kinerja program internal BAPPERIDA Kabupaten Sumba Barat Tahun Anggaran 2026.",
-    file_url: "https://drive.google.com/file/d/1DGgk0Si-exRUAKcz2Zm_7t5wAi16lxDa/view?usp=drivesdk"
-  },
-  {
-    id: "f-9",
-    judul: "Laporan Kinerja Instansi Pemerintah (LKjIP / LAKIP) BAPPERIDA 2025",
-    jenis: "Evaluasi & Pelaporan",
-    tahun: 2025,
-    nomor: "LKjIP/BAPPERIDA/2025",
-    instansi: "BAPPERIDA Kab. Sumba Barat",
-    ukuran: "5.6 MB",
-    deskripsi: "Laporan pertanggungjawaban akuntabilitas kinerja instansi pemerintah (LKjIP) atas realisasi target sasaran strategis Tahun Anggaran 2025.",
-    file_url: "https://drive.google.com/file/d/1jPB1llI3ITEeuG37ygLFKM_Sp3E0D_Nf/view?usp=drivesdk"
-  },
-  {
-    id: "f-10",
-    judul: "Laporan TKPK & LP2KD (Penanggulangan Kemiskinan Daerah)",
-    jenis: "Evaluasi & Pelaporan",
-    tahun: 2026,
-    nomor: "LP2KD/TKPK/2026",
-    instansi: "Tim Koordinasi Penanggulangan Kemiskinan (TKPK)",
-    ukuran: "2.2 MB",
-    deskripsi: "Laporan monitoring dan evaluasi terpadu percepatan penanggulangan kemiskinan ekstrem di seluruh kecamatan se-Kabupaten Sumba Barat.",
-    file_url: "https://drive.google.com/file/d/1PIKXiuX0hjEvM1WUUCy7T-IxwYxaDao0/view?usp=drivesdk"
-  },
-  {
-    id: "f-11",
-    judul: "Rencana Aksi Tahunan Penanggulangan Kemiskinan 2026",
-    jenis: "Evaluasi & Pelaporan",
-    tahun: 2026,
-    nomor: "RAT-Kemiskinan/2026",
-    instansi: "BAPPERIDA Kab. Sumba Barat",
-    ukuran: "522 KB",
-    deskripsi: "Matriks program kerja intervensi terintegrasi penanggulangan kemiskinan dan stunting tahun 2026 lintas dinas/badan.",
-    file_url: "https://drive.google.com/file/d/11L6npv3cVTCV9V0NvQytpdi4DtiLMjJn/view?usp=drivesdk"
-  },
-  {
-    id: "f-12",
-    judul: "Perhitungan & Analisis Pertumbuhan PDRB Sumba Barat 2025–2026",
-    jenis: "Riset & Inovasi",
-    tahun: 2026,
-    nomor: "Kajian-PDRB/2026",
-    instansi: "Bidang Riset dan Inovasi BAPPERIDA",
-    ukuran: "1.1 MB",
-    deskripsi: "Kajian analisis indikator makro Produk Domestik Regional Bruto (PDRB) atas dasar harga berlaku dan konstan menurut 17 lapangan usaha.",
-    file_url: "https://drive.google.com/file/d/1y22Xh6YTHwdpLHthCK7vCBWt2QChPgHX/view?usp=drivesdk"
-  },
-  {
-    id: "f-13",
-    judul: "Kajian Potensi Pertanian & Pemetaan Spasial GIS Sumba Barat",
-    jenis: "Riset & Inovasi",
-    tahun: 2025,
-    nomor: "Kajian-GIS/BAPPERIDA/2025",
-    instansi: "BAPPERIDA & Tim Ahli",
-    ukuran: "7.2 MB",
-    deskripsi: "Studi komprehensif potensi komoditas pertanian unggulan dan zonasi kesesuaian lahan berbasis Sistem Informasi Geografis (GIS).",
-    file_url: "https://drive.google.com/file/d/1QnNOEFOlixXju-ei1ppftyRHPEtbQwQx/view?usp=drivesdk"
-  },
-  {
-    id: "f-14",
-    judul: "Profil Inovasi Daerah Kabupaten Sumba Barat Tahun 2025",
-    jenis: "Riset & Inovasi",
-    tahun: 2025,
-    nomor: "IGA-SB/2025",
-    instansi: "Bidang Riset dan Inovasi Daerah",
-    ukuran: "2.9 MB",
-    deskripsi: "Katalog inisiatif inovasi daerah dalam ajang Innovative Government Award (IGA) mencakup inovasi pelayanan publik dan tata kelola pemerintahan.",
-    file_url: "https://drive.google.com/file/d/1Nv3vx6OfGE4Y-x2_RXJPw_zGCsFWtNqG/view?usp=drivesdk"
-  },
-  {
-    id: "f-15",
-    judul: "Peraturan Bupati tentang Penyelenggaraan Satu Data Daerah",
-    jenis: "Produk Hukum",
-    tahun: 2025,
-    nomor: "Perbup No. 12 Tahun 2025",
-    instansi: "Bagian Hukum & BAPPERIDA",
-    ukuran: "1.8 MB",
-    deskripsi: "Pedoman tata kelola, standar metadata, dan alur verifikasi data sektoral antar Produsen Data (OPD) dan Walidata Daerah.",
-    file_url: "https://drive.google.com/file/d/1cC3gDGATlHbtjOEl5jSR7I9q0A1SVeFM/view?usp=drivesdk"
-  },
-  {
-    id: "f-16",
-    judul: "Keputusan Bupati tentang Forum Satu Data & Daftar Data Daerah",
-    jenis: "SK Tim Satu Data",
-    tahun: 2025,
-    nomor: "SK Bupati No. 188.45/85/HK/2025",
-    instansi: "BAPPERIDA Kab. Sumba Barat",
-    ukuran: "2.1 MB",
-    deskripsi: "Penetapan Pembina Data, Walidata, Walidata Pendukung, dan Produsen Data beserta target pengumpulan Daftar Data Sektoral OPD.",
-    file_url: "https://drive.google.com/file/d/1cC3gDGATlHbtjOEl5jSR7I9q0A1SVeFM/view?usp=drivesdk"
-  },
-  {
-    id: "f-17",
-    judul: "Peraturan Bupati tentang Kedudukan, SOTK & Tupoksi BAPPERIDA",
-    jenis: "Produk Hukum",
-    tahun: 2022,
-    nomor: "Perbup SOTK BAPPERIDA",
-    instansi: "Pemerintah Kabupaten Sumba Barat",
-    ukuran: "4.3 MB",
-    deskripsi: "Landasan hukum struktur organisasi, tata kerja, rincian tugas pokok dan fungsi Badan Perencanaan Pembangunan, Riset dan Inovasi Daerah.",
-    file_url: "https://drive.google.com/file/d/1cC3gDGATlHbtjOEl5jSR7I9q0A1SVeFM/view?usp=drivesdk"
-  }
-];
+// Dokumen publikasi resmi dimuat secara dinamis dari tabel bapperida_dokumen WHERE publik = TRUE.
 
 function getEmbedDriveUrl(url) {
   if (!url) return null;
@@ -303,10 +114,19 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
   const [beritaList, setBeritaList] = useState([]);
   const [beritaPopuler, setBeritaPopuler] = useState([]);
   const [beritaDetail, setBeritaDetail] = useState(null);
-  const [katalogList, setKatalogList] = useState(DOKUMEN_PUBLIKASI_FALLBACK);
-  const [katalogJenis, setKatalogJenis] = useState("Semua");
-  const [katalogSearch, setKatalogSearch] = useState("");
-  const [previewPublikasi, setPreviewPublikasi] = useState(null);
+  const [katalogList, setKatalogList] = useState([]);
+
+
+  const kategoriOpsi = useMemo(() => {
+    const cats = new Set();
+    katalogList.forEach((d) => {
+      if (d.kategori) cats.add(d.kategori);
+      else if (d.jenis) cats.add(d.jenis);
+      else if (d.tipe) cats.add(d.tipe);
+    });
+    return ["Semua", ...Array.from(cats)];
+  }, [katalogList]);
+
 
   // Tanya Data & Captcha
   const [captcha, setCaptcha] = useState({ token: "", svg_base64: "", soal: "" });
@@ -380,13 +200,14 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
     fetch("/api/portal/katalog", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => {
-        if (Array.isArray(d) && d.length > 0) {
+        if (Array.isArray(d)) {
           setKatalogList(d);
-        } else {
-          setKatalogList(DOKUMEN_PUBLIKASI_FALLBACK);
         }
       })
-      .catch(() => setKatalogList(DOKUMEN_PUBLIKASI_FALLBACK));
+      .catch((err) => {
+        console.error("Katalog publikasi load error:", err);
+        setKatalogList([]);
+      });
   }, []);
 
   // Muat data langsung dari database saat komponen dipasang dan berkala tiap 40 detik
@@ -2341,7 +2162,15 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
                 <div style={{ fontSize: 10.5, color: T.textMuted, fontWeight: 600, textTransform: "uppercase" }}>Dokumen</div>
               </div>
               <div style={{ background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 12, padding: "10px 16px", textAlign: "center", minWidth: 90 }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: "#10B981" }}>2025–2045</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: "#10B981" }}>
+                  {(() => {
+                    const years = katalogList.map(d => Number(d.tahun)).filter(y => y > 1900 && y < 2100);
+                    if (!years.length) return "2025";
+                    const min = Math.min(...years);
+                    const max = Math.max(...years);
+                    return min === max ? String(min) : `${min}–${max}`;
+                  })()}
+                </div>
                 <div style={{ fontSize: 10.5, color: T.textMuted, fontWeight: 600, textTransform: "uppercase" }}>Rentang Waktu</div>
               </div>
             </div>
@@ -2386,19 +2215,10 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
 
             {/* Kategori Tab Filter Pills */}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-              {[
-                "Semua",
-                "Perencanaan Jangka Panjang",
-                "Perencanaan Jangka Menengah",
-                "Perencanaan Tahunan (RKPD)",
-                "Evaluasi & Pelaporan",
-                "Riset & Inovasi",
-                "Produk Hukum",
-                "SK Tim Satu Data",
-              ].map((kat) => {
+              {kategoriOpsi.map((kat) => {
                 const count = kat === "Semua"
                   ? katalogList.length
-                  : katalogList.filter((d) => d.jenis === kat).length;
+                  : katalogList.filter((d) => d.jenis === kat || d.kategori === kat || d.tipe === kat).length;
                 const active = katalogJenis === kat;
                 return (
                   <button
@@ -2440,7 +2260,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
           {/* Daftar Kartu Dokumen */}
           {(() => {
             const filteredDocs = katalogList.filter((doc) => {
-              const matchKat = katalogJenis === "Semua" || doc.jenis === katalogJenis;
+              const matchKat = katalogJenis === "Semua" || doc.jenis === katalogJenis || doc.kategori === katalogJenis || doc.tipe === katalogJenis;
               const q = katalogSearch.trim().toLowerCase();
               const matchQ =
                 !q ||
@@ -2448,7 +2268,9 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
                 (doc.nomor || "").toLowerCase().includes(q) ||
                 (doc.deskripsi || "").toLowerCase().includes(q) ||
                 (doc.instansi || "").toLowerCase().includes(q) ||
-                (doc.jenis || "").toLowerCase().includes(q);
+                (doc.jenis || "").toLowerCase().includes(q) ||
+                (doc.kategori || "").toLowerCase().includes(q) ||
+                (doc.tipe || "").toLowerCase().includes(q);
               return matchKat && matchQ;
             });
 

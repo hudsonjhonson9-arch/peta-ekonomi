@@ -147,33 +147,30 @@ export function filterItemChildren(children, role) {
 
 export const NAV_GROUPS = [
   {
-    key: "utama",
-    label: "Utama",
-    icon: "home",
-    items: [
-      { key: "dashboard", label: "Dashboard", icon: "home" },
-    ],
-  },
-  {
     key: "arsip",
     label: "Arsip Digital",
     icon: "archive",
     items: [
+      { key: "dashboard-arsip", label: "Dashboard Arsip", icon: "home" },
       { key: "dokumen", label: "Dokumen", icon: "archive" },
-      { key: "upload", label: "Upload Dokumen", icon: "upload" },
-      { key: "pencarian", label: "Pencarian", icon: "search" },
-      { key: "publik", label: "Portal Publik", icon: "world" },
+      { key: "kertas-kerja", label: "Kertas Kerja", icon: "checkCircle", children: KERTAS_KERJA_CHILDREN },
+      { key: "screening", label: "Screening RKA", icon: "filter" },
     ],
   },
   {
-    key: "perencanaan",
-    label: "Perencanaan",
-    icon: "checkCircle",
+    key: "satudata",
+    label: "Satu Data",
+    icon: "chart",
     items: [
-      { key: "kertas-kerja", label: "Kertas Kerja", icon: "checkCircle", children: KERTAS_KERJA_CHILDREN },
-      { key: "screening", label: "Screening RKA", icon: "filter" },
-      { key: "bankdata", label: "Bank Data", icon: "chart", children: BANKDATA_CHILDREN },
+      { key: "dashboard-satudata", label: "Dashboard Satu Data", icon: "chart" },
+      { key: "bankdata", label: "Bank Data", icon: "database", children: BANKDATA_CHILDREN },
       { key: "spm", label: "Capaian SPM", icon: "shield", children: SPM_CHILDREN },
+      { key: "master-satudata", label: "Master Satu Data", icon: "building", adminOnly: true, children: MASTER_SATUDATA_CHILDREN },
+      { key: "kelola-konten", label: "Kelola Konten", icon: "world", adminOnly: true, children: KELOLA_KONTEN_CHILDREN },
+      { key: "monitoring", label: "Monitoring Sistem", icon: "activity", adminOnly: true, children: MONITORING_CHILDREN },
+      { key: "pengaturan-website", label: "Pengaturan Website", icon: "settings", adminOnly: true },
+      { key: "dokumentasi-api", label: "Dokumentasi API", icon: "code" },
+      { key: "publik", label: "Portal Publik", icon: "world" },
     ],
   },
   {
@@ -183,13 +180,9 @@ export const NAV_GROUPS = [
     items: [
       { key: "pengguna", label: "Pengguna", icon: "users", adminOnly: true },
       { key: "kelola-role", label: "Kelola Role", icon: "shield", adminOnly: true },
-      { key: "master-satudata", label: "Master Satu Data", icon: "building", adminOnly: true, children: MASTER_SATUDATA_CHILDREN },
-      { key: "kelola-konten", label: "Kelola Konten", icon: "world", adminOnly: true, children: KELOLA_KONTEN_CHILDREN },
-      { key: "monitoring", label: "Monitoring Sistem", icon: "chart", adminOnly: true, children: MONITORING_CHILDREN },
-      { key: "pengaturan-website", label: "Pengaturan Website", icon: "settings", adminOnly: true },
+      { key: "standar-harga", label: "Standar Harga", icon: "dollar", adminOnly: true },
       { key: "kategori-dokumen", label: "Jenis Dokumen", icon: "tag", adminOnly: true },
       { key: "sektor", label: "Sektor", icon: "layers", adminOnly: true },
-      { key: "standar-harga", label: "Standar Harga", icon: "dollar", adminOnly: true },
       { key: "audit", label: "Audit Trail", icon: "history", adminOnly: true },
     ],
   },
@@ -198,7 +191,6 @@ export const NAV_GROUPS = [
     label: "Referensi",
     icon: "file",
     items: [
-      { key: "dokumentasi-api", label: "Dokumentasi API", icon: "world" },
       { key: "panduan", label: "Panduan", icon: "file" },
       { key: "akun", label: "Akun Saya", icon: "users", selalu: true },
     ],
@@ -210,34 +202,28 @@ export function navGroupsUntuk(role, allowedMenus, user) {
   const isBapperida = isOpdBapperidaFrontend(user);
 
   // Jika pengguna berasal dari OPD lain di Kabupaten Sumba Barat (selain BAPPERIDA / Admin / Walidata):
-  // Akses dokumen perencanaan, screening RKA, dan kertas kerja DIBATASI (hanya untuk BAPPERIDA).
-  // Pengguna OPD lain hanya dapat mengakses Dashboard OPD, Bank Data, SPM, Dokumentasi API, Portal Publik, dan Akun.
+  // Akses dokumen perencanaan, screening RKA, dan kertas kerja DIBATASI (hanya untuk internal BAPPERIDA).
+  // Pengguna OPD lain hanya mengakses modul Satu Data dan Referensi Akun.
   if (user && !isBapperida) {
     return [
       {
-        key: "utama",
-        label: "Utama",
-        icon: "home",
-        items: [
-          { key: "dashboard", label: "Dashboard", icon: "home" },
-          { key: "dokumentasi-api", label: "Dokumentasi API", icon: "world" },
-        ],
-      },
-      {
         key: "satudata",
-        label: "Satu Data Sumba Barat",
+        label: "Satu Data",
         icon: "chart",
         items: [
-          { key: "bankdata", label: "Bank Data", icon: "chart", children: filterItemChildren(BANKDATA_CHILDREN, role) },
+          { key: "dashboard-satudata", label: "Dashboard", icon: "home" },
+          { key: "bankdata", label: "Bank Data", icon: "database", children: filterItemChildren(BANKDATA_CHILDREN, role) },
           { key: "spm", label: "Capaian SPM", icon: "shield", children: filterItemChildren(SPM_CHILDREN, role) },
+          { key: "dokumentasi-api", label: "Dokumentasi API", icon: "code" },
           { key: "publik", label: "Portal Publik", icon: "world" },
         ],
       },
       {
         key: "referensi",
-        label: "Pengguna",
-        icon: "users",
+        label: "Referensi",
+        icon: "file",
         items: [
+          { key: "panduan", label: "Panduan", icon: "file" },
           { key: "akun", label: "Akun Saya", icon: "users", selalu: true },
         ],
       },
@@ -248,34 +234,46 @@ export function navGroupsUntuk(role, allowedMenus, user) {
   if (Array.isArray(allowedMenus) && allowedMenus.length > 0 && role !== "Admin") {
     const set = new Set(allowedMenus);
     return NAV_GROUPS
-      .map(g => ({ ...g, items: g.items.filter(i => set.has(i.key) || i.selalu).map(i => ({ ...i, children: filterItemChildren(i.children, role) })) }))
+      .map(g => ({
+        ...g,
+        items: g.items
+          .filter(i => set.has(i.key) || (i.key.startsWith("dashboard") && set.has("dashboard")) || i.selalu)
+          .map(i => ({ ...i, children: filterItemChildren(i.children, role) }))
+      }))
       .filter(g => g.items.length > 0);
   }
   if (role === "Operator Bank Data" || role === "Produsen Data") {
     return [
       {
-        key: "utama",
-        label: "Utama",
-        icon: "home",
+        key: "satudata",
+        label: "Satu Data",
+        icon: "chart",
         items: [
-          { key: "dashboard", label: "Dashboard", icon: "home" },
-          { key: "dokumentasi-api", label: "Dokumentasi API", icon: "world" },
+          { key: "dashboard-satudata", label: "Dashboard", icon: "home" },
+          { key: "bankdata", label: "Bank Data", icon: "database", children: filterItemChildren(BANKDATA_CHILDREN, role) },
+          { key: "spm", label: "Capaian SPM", icon: "shield", children: filterItemChildren(SPM_CHILDREN, role) },
+          { key: "dokumentasi-api", label: "Dokumentasi API", icon: "code" },
+          { key: "publik", label: "Portal Publik", icon: "world" },
         ],
       },
       {
-        key: "perencanaan",
-        label: "Perencanaan",
-        icon: "chart",
+        key: "referensi",
+        label: "Referensi",
+        icon: "file",
         items: [
-          { key: "bankdata", label: "Bank Data", icon: "chart", children: filterItemChildren(BANKDATA_CHILDREN, role) },
-          { key: "spm", label: "Capaian SPM", icon: "shield", children: filterItemChildren(SPM_CHILDREN, role) },
+          { key: "panduan", label: "Panduan", icon: "file" },
           { key: "akun", label: "Akun Saya", icon: "users", selalu: true },
         ],
       },
     ];
   }
   return NAV_GROUPS
-    .map(g => ({ ...g, items: g.items.filter(i => !i.adminOnly || role === "Admin" || role === "Walidata").map(i => ({ ...i, children: filterItemChildren(i.children, role) })) }))
+    .map(g => ({
+      ...g,
+      items: g.items
+        .filter(i => !i.adminOnly || role === "Admin" || role === "Walidata")
+        .map(i => ({ ...i, children: filterItemChildren(i.children, role) }))
+    }))
     .filter(g => g.items.length > 0);
 }
 
@@ -301,6 +299,8 @@ export function navUtamaBottomUntuk(role, user) {
 
 export const NAV_BOTTOM_LABEL = {
   dashboard: "Dashboard",
+  "dashboard-arsip": "Arsip",
+  "dashboard-satudata": "Satu Data",
   dokumen: "Dokumen",
   upload: "Upload",
   pencarian: "Cari",

@@ -1,6 +1,6 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./ui.jsx";
-import { ROLE_COLOR, navGroupsUntuk, grupTerbukaAwal } from "../data.js";
+import { ROLE_COLOR, navGroupsUntuk, grupTerbukaAwal, isOpdBapperidaFrontend } from "../data.js";
 import { Badge } from "./ui.jsx";
 import { ThemeContext } from "../App.jsx";
 
@@ -108,6 +108,14 @@ function RecentActivity({ logs = [] }) {
 }
 
 export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCiutkan, lebar = 220, onLebar, mobileOpen, logs }) {
+  const isBapperida = isOpdBapperidaFrontend(user);
+  const isItemActive = (key) => {
+    if (active === key) return true;
+    if (active === "dashboard") {
+      return isBapperida ? key === "dashboard-arsip" : key === "dashboard-satudata";
+    }
+    return false;
+  };
   const { T, theme, setTheme } = useContext(ThemeContext);
   const isMobileOv = mobileOpen !== undefined;
   // Pegangan lebar di tepi kanan: seret untuk mengubah lebar, klik ganda
@@ -155,7 +163,7 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
   // lipatan yang ditutup manual lalu pindah halaman akan membuat item aktif
   // tidak terlihat di sidebar.
   useEffect(() => {
-    const grupAktif = groups.find(g => g.items.some(i => i.key === active));
+    const grupAktif = groups.find(g => g.items.some(i => isItemActive(i.key)));
     if (!grupAktif || grupBuka[grupAktif.key]) return;
     setGrupBuka(prev => {
       if (prev[grupAktif.key]) return prev;
@@ -163,7 +171,7 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
       simpanGrupTerbuka(next);
       return next;
     });
-  }, [active, groups, grupBuka]);
+  }, [active, groups, grupBuka, isBapperida]);
 
   const lipat = g => {
     setGrupBuka(prev => {
@@ -276,7 +284,7 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
                 </button>
               )}
               {buka && g.items.map(n => {
-                const isActive = active === n.key;
+                const isActive = isItemActive(n.key);
                 const hasChildren = Array.isArray(n.children) && n.children.length > 0;
                 const isSubOpen = !modeIcon && hasChildren && !!subBuka[n.key];
 
