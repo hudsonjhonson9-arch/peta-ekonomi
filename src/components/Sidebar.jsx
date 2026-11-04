@@ -29,9 +29,9 @@ const KUNCI_SUB = "sidebarSubmenuTerbuka";
 function muatSubBuka() {
   try {
     const v = JSON.parse(localStorage.getItem(KUNCI_SUB) || "null");
-    return v && typeof v === "object" && !Array.isArray(v) ? v : { bankdata: true, spm: true };
+    return v && typeof v === "object" && !Array.isArray(v) ? v : { bankdata: true, spm: true, "kertas-kerja": true, "master-satudata": true, "kelola-konten": true, monitoring: true };
   } catch {
-    return { bankdata: true, spm: true };
+    return { bankdata: true, spm: true, "kertas-kerja": true, "master-satudata": true, "kelola-konten": true, monitoring: true };
   }
 }
 

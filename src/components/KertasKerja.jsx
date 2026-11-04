@@ -22,11 +22,45 @@ import { judulDokumenPeriode } from "../../server/tautan-periode.js";
 // onUnggahPeriode dipakai dialog unggah: form-nya UploadForm yang sama dengan
 // halaman Upload Dokumen, jadi GAS + Google Drive tidak punya dua implementasi.
 // kategori/sektor/bidang diteruskan karena select di UploadForm membutuhkannya.
-export default function KertasKerja({ user, showToast, categories = [], sectors = [], bidangs = [], onUnggahPeriode, onBukaDokumen }) {
+export default function KertasKerja({ user, showToast, categories = [], sectors = [], bidangs = [], onUnggahPeriode, onBukaDokumen, initialTab }) {
   const { T } = useContext(ThemeContext);
   const qc = useQueryClient();
   const [tahun, setTahun]             = useState(null);
-  const [tab, setTab]                 = useState("kerja"); // kerja | pohon
+  const [tab, setTabState] = useState(() => {
+    try {
+      const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
+      const t = hp.get("tab");
+      if (t && ["kerja", "pohon"].includes(t)) return t;
+      return localStorage.getItem("kertas-kerja_tab") || initialTab || "kerja";
+    } catch {
+      return initialTab || "kerja";
+    }
+  });
+  const setTab = (t) => {
+    setTabState(t);
+    try {
+      localStorage.setItem("kertas-kerja_tab", t);
+      const base = (window.location.hash || "#kertas-kerja").split("?")[0] || "#kertas-kerja";
+      history.replaceState(null, "", `${base}?tab=${t}`);
+      window.dispatchEvent(new Event("hashchange"));
+    } catch (_) {}
+  };
+  useEffect(() => {
+    const onHash = () => {
+      try {
+        const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
+        const t = hp.get("tab");
+        if (t && ["kerja", "pohon"].includes(t)) setTabState(t);
+      } catch (_) {}
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  useEffect(() => {
+    if (initialTab && ["kerja", "pohon"].includes(initialTab)) {
+      setTabState(initialTab);
+    }
+  }, [initialTab]);
   const [q, setQ]                     = useState("");
   const [hanyaTerlambat, setHanyaTerlambat] = useState(false);
   const [buka, setBuka]               = useState(() => muatBuka("kk-buka"));

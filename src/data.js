@@ -90,6 +90,42 @@ export const SPM_CHILDREN = [
   { key: "spm", tab: "dokumen", label: "Dokumen Pendukung", icon: "folder" },
 ];
 
+export const KERTAS_KERJA_CHILDREN = [
+  { key: "kertas-kerja", tab: "kerja", label: "Matriks Kertas Kerja", icon: "checkCircle" },
+  { key: "kertas-kerja", tab: "pohon", label: "Pohon Cascading", icon: "layers" },
+];
+
+export const MASTER_SATUDATA_CHILDREN = [
+  { key: "master-satudata", tab: "opd", label: "Pengaturan OPD", icon: "building" },
+  { key: "master-satudata", tab: "urusan", label: "Urusan", icon: "layers" },
+  { key: "master-satudata", tab: "bidang_urusan", label: "Bidang Urusan", icon: "folder" },
+  { key: "master-satudata", tab: "hak_akses", label: "Hak Akses Urusan", icon: "shield" },
+  { key: "master-satudata", tab: "topik", label: "Topik", icon: "tag" },
+  { key: "master-satudata", tab: "sub_topik", label: "Sub Topik", icon: "file" },
+  { key: "master-satudata", tab: "satuan", label: "Satuan", icon: "tag" },
+  { key: "master-satudata", tab: "daftar_data", label: "Daftar Data (SK)", icon: "checkCircle" },
+  { key: "master-satudata", tab: "template_field", label: "Template Field", icon: "layers" },
+  { key: "master-satudata", tab: "wilayah", label: "Wilayah", icon: "world" },
+  { key: "master-satudata", tab: "reopen", label: "Permintaan Reopen", icon: "clock" },
+];
+
+export const KELOLA_KONTEN_CHILDREN = [
+  { key: "kelola-konten", tab: "berita", label: "Berita & Artikel", icon: "file" },
+  { key: "kelola-konten", tab: "publikasi", label: "Publikasi, SK & Hukum", icon: "archive" },
+  { key: "kelola-konten", tab: "tautan", label: "Video & Portal Eksternal", icon: "world" },
+  { key: "kelola-konten", tab: "changelog", label: "Changelog Aplikasi", icon: "history" },
+];
+
+export const MONITORING_CHILDREN = [
+  { key: "monitoring", tab: "api_token", label: "Token API SDPDN", icon: "shield" },
+  { key: "monitoring", tab: "health", label: "Kesehatan & Scheduler", icon: "server" },
+  { key: "monitoring", tab: "visitor", label: "Data Pengunjung", icon: "users" },
+  { key: "monitoring", tab: "page_visits", label: "Kunjungan Halaman", icon: "world" },
+  { key: "monitoring", tab: "activity", label: "Log Aktivitas & Metrik", icon: "history" },
+  { key: "monitoring", tab: "qna", label: "Pertanyaan Q&A & FAQ", icon: "file" },
+  { key: "monitoring", tab: "query_builder", label: "Query Builder & Ekspor", icon: "filter" },
+];
+
 export function filterItemChildren(children, role) {
   if (!Array.isArray(children)) return undefined;
   const canVerify = role === "Admin" || role === "Walidata" || role === "Reviewer";
@@ -121,7 +157,7 @@ export const NAV_GROUPS = [
     label: "Perencanaan",
     icon: "checkCircle",
     items: [
-      { key: "kertas-kerja", label: "Kertas Kerja", icon: "checkCircle" },
+      { key: "kertas-kerja", label: "Kertas Kerja", icon: "checkCircle", children: KERTAS_KERJA_CHILDREN },
       { key: "screening", label: "Screening RKA", icon: "filter" },
       { key: "bankdata", label: "Bank Data", icon: "chart", children: BANKDATA_CHILDREN },
       { key: "spm", label: "Capaian SPM", icon: "shield", children: SPM_CHILDREN },
@@ -134,9 +170,9 @@ export const NAV_GROUPS = [
     items: [
       { key: "pengguna", label: "Pengguna", icon: "users", adminOnly: true },
       { key: "kelola-role", label: "Kelola Role", icon: "shield", adminOnly: true },
-      { key: "master-satudata", label: "Master Satu Data", icon: "building", adminOnly: true },
-      { key: "kelola-konten", label: "Kelola Konten", icon: "world", adminOnly: true },
-      { key: "monitoring", label: "Monitoring Sistem", icon: "chart", adminOnly: true },
+      { key: "master-satudata", label: "Master Satu Data", icon: "building", adminOnly: true, children: MASTER_SATUDATA_CHILDREN },
+      { key: "kelola-konten", label: "Kelola Konten", icon: "world", adminOnly: true, children: KELOLA_KONTEN_CHILDREN },
+      { key: "monitoring", label: "Monitoring Sistem", icon: "chart", adminOnly: true, children: MONITORING_CHILDREN },
       { key: "pengaturan-website", label: "Pengaturan Website", icon: "settings", adminOnly: true },
       { key: "kategori-dokumen", label: "Jenis Dokumen", icon: "tag", adminOnly: true },
       { key: "sektor", label: "Sektor", icon: "layers", adminOnly: true },

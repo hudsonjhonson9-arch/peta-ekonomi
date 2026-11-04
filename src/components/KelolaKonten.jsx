@@ -4,7 +4,7 @@ import { ThemeContext } from "../App.jsx";
 import useResponsive from "../useResponsive.js";
 import { Icon, Select, DatePicker, Button, Badge, Geser } from "./ui.jsx";
 
-export default function KelolaKonten({ showToast }) {
+export default function KelolaKonten({ showToast, initialTab }) {
   const { T } = useContext(ThemeContext);
   const { isMobile } = useResponsive();
   const queryClient = useQueryClient();
@@ -13,8 +13,8 @@ export default function KelolaKonten({ showToast }) {
     try {
       const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
       const urlTab = hp.get("tab");
-      if (urlTab && ["berita", "rilis"].includes(urlTab)) return urlTab;
-      return localStorage.getItem("konten_tab") || "berita";
+      if (urlTab && ["berita", "publikasi", "tautan", "changelog", "rilis"].includes(urlTab)) return urlTab;
+      return localStorage.getItem("konten_tab") || initialTab || "berita";
     } catch {
       return "berita";
     }
@@ -25,6 +25,7 @@ export default function KelolaKonten({ showToast }) {
       localStorage.setItem("konten_tab", t);
       const base = (window.location.hash || "#kelola-konten").split("?")[0] || "#kelola-konten";
       history.replaceState(null, "", `${base}?tab=${t}`);
+      window.dispatchEvent(new Event("hashchange"));
     } catch (_) {}
   };
 
@@ -33,7 +34,7 @@ export default function KelolaKonten({ showToast }) {
       try {
         const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
         const urlTab = hp.get("tab");
-        if (urlTab && ["berita", "rilis"].includes(urlTab)) {
+        if (urlTab && ["berita", "publikasi", "tautan", "changelog", "rilis"].includes(urlTab)) {
           setTabState(urlTab);
         }
       } catch (_) {}
@@ -41,6 +42,12 @@ export default function KelolaKonten({ showToast }) {
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+
+  useEffect(() => {
+    if (initialTab && ["berita", "publikasi", "tautan", "changelog", "rilis"].includes(initialTab)) {
+      setTabState(initialTab);
+    }
+  }, [initialTab]);
   const [modal, setModal] = useState(null); // { mode: 'add'|'edit', type, item }
   const [form, setForm] = useState({});
   const [busy, setBusy] = useState(false);

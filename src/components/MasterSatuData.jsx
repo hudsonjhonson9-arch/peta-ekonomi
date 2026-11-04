@@ -48,6 +48,7 @@ export default function MasterSatuData({ user, showToast, initialTab = "opd" }) 
       localStorage.setItem("master_satudata_tab", t);
       const base = (window.location.hash || "#master-satudata").split("?")[0] || "#master-satudata";
       history.replaceState(null, "", `${base}?tab=${t}`);
+      window.dispatchEvent(new Event("hashchange"));
     } catch (_) {}
   };
 
@@ -64,6 +65,12 @@ export default function MasterSatuData({ user, showToast, initialTab = "opd" }) 
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+
+  useEffect(() => {
+    if (initialTab && TABS.some(t => t.key === initialTab)) {
+      setTabState(initialTab);
+    }
+  }, [initialTab]);
   const [searchQ, setSearchQ] = useState("");
   const [filterParent, setFilterParent] = useState("SEMUA");
   const [modal, setModal] = useState(null); // { mode: 'add'|'edit'|'decide', type, item }

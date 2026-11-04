@@ -1398,6 +1398,7 @@ if (!user) {
                 bidangs={bidangs}
                 onUnggahPeriode={handleUnggahPeriode}
                 onBukaDokumen={bukaDokumenId}
+                initialTab={currentTab || undefined}
               />
             )}
             {page === "screening" && (
@@ -1419,16 +1420,16 @@ if (!user) {
               <AuditTrail logs={logs} />
             )}
             {page === "spm" && (
-              <SpmPage user={user} showToast={showToast} />
+              <SpmPage user={user} showToast={showToast} initialTab={currentTab || undefined} />
             )}
             {page === "master-satudata" && user.role === "Admin" && (
-              <MasterSatuData user={user} showToast={showToast} />
+              <MasterSatuData user={user} showToast={showToast} initialTab={currentTab || undefined} />
             )}
             {page === "kelola-konten" && user.role === "Admin" && (
-              <KelolaKonten showToast={showToast} />
+              <KelolaKonten showToast={showToast} initialTab={currentTab || undefined} />
             )}
             {page === "monitoring" && user.role === "Admin" && (
-              <MonitoringPage showToast={showToast} />
+              <MonitoringPage showToast={showToast} initialTab={currentTab || undefined} />
             )}
             {page === "kelola-role" && user.role === "Admin" && (
               <KelolaRolePage showToast={showToast} />

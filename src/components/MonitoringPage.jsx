@@ -5,7 +5,7 @@ import { ThemeContext } from "../App.jsx";
 import useResponsive from "../useResponsive.js";
 import { Icon, Select, DatePicker, Button, Badge, Geser } from "./ui.jsx";
 
-export default function MonitoringPage({ showToast }) {
+export default function MonitoringPage({ showToast, initialTab }) {
   const { T } = useContext(ThemeContext);
   const { isMobile } = useResponsive();
   const queryClient = useQueryClient();
@@ -15,7 +15,7 @@ export default function MonitoringPage({ showToast }) {
       const hp = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
       const urlTab = hp.get("tab");
       if (urlTab && ["api_token", "qna", "visitor", "query_builder", "activity", "page_visits", "health"].includes(urlTab)) return urlTab;
-      return localStorage.getItem("monitoring_tab") || "api_token";
+      return localStorage.getItem("monitoring_tab") || initialTab || "api_token";
     } catch {
       return "api_token";
     }
@@ -26,6 +26,7 @@ export default function MonitoringPage({ showToast }) {
       localStorage.setItem("monitoring_tab", t);
       const base = (window.location.hash || "#monitoring").split("?")[0] || "#monitoring";
       history.replaceState(null, "", `${base}?tab=${t}`);
+      window.dispatchEvent(new Event("hashchange"));
     } catch (_) {}
   };
 
@@ -42,6 +43,12 @@ export default function MonitoringPage({ showToast }) {
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+
+  useEffect(() => {
+    if (initialTab && ["api_token", "qna", "visitor", "query_builder", "activity", "page_visits", "health"].includes(initialTab)) {
+      setTabState(initialTab);
+    }
+  }, [initialTab]);
 
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
