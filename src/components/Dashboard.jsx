@@ -161,6 +161,13 @@ function LeaderboardOpdWidget({ walidataData, masterData, user, T, isMobile, onN
     return Math.round(sum / valid.length);
   }, [rows]);
 
+  const userOpdRank = useMemo(() => {
+    if (!user?.opd_id) return null;
+    const idx = rows.findIndex((r) => Number(r.id) === Number(user.opd_id));
+    if (idx === -1) return null;
+    return { rank: idx + 1, row: rows[idx] };
+  }, [rows, user?.opd_id]);
+
   return (
     <div style={{ background: T.card, borderRadius: 14, border: `1px solid ${T.border}`, padding: isMobile ? 16 : 20, marginBottom: 24, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
       {/* Header Widget */}
@@ -222,6 +229,34 @@ function LeaderboardOpdWidget({ walidataData, masterData, user, T, isMobile, onN
           </button>
         </div>
       </div>
+
+      {/* Banner Khusus Posisi OPD Pengguna */}
+      {userOpdRank && (
+        <div
+          style={{
+            background: T.isDark ? "#1E293B" : "#EFF6FF",
+            border: `1px solid ${T.isDark ? "#334155" : "#BFDBFE"}`,
+            borderRadius: 10,
+            padding: "10px 14px",
+            marginBottom: 14,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
+            <Icon name="award" size={16} style={{ color: "#2563EB" }} />
+            <span style={{ color: T.text }}>
+              Peringkat OPD Anda: <b>{userOpdRank.row.nama}</b> berada di posisi <b>#{userOpdRank.rank}</b> dari {rows.length} OPD
+            </span>
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#2563EB" }}>
+            Ketercapaian: {userOpdRank.row.persentase_sk}% ({userOpdRank.row.disetujui_sk} disetujui / target {userOpdRank.row.target_sk} SK)
+          </div>
+        </div>
+      )}
 
       {/* Bar Pencarian */}
       <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14 }}>
@@ -621,12 +656,213 @@ function AntreanTugasReviewer({ walidataData, docs, onNav, onView, T, isMobile }
   );
 }
 
+// ── 3.b Widget Khusus Produsen Data (OPD) ───────────────────────────────────
+function WidgetProdusenData({ produsenData, opdNama, onNav, T, isMobile }) {
+  const datasets = produsenData?.datasets || [];
+  const perluPerbaikan = datasets.filter((d) => d.status === "perlu_perbaikan");
+  const diajukan = datasets.filter((d) => d.status === "diajukan");
+  const draft = datasets.filter((d) => d.status === "draft");
+  const jadwalMendekati = produsenData?.jadwal_mendekati || [];
+
+  return (
+    <div style={{ marginBottom: 24, display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* Alert Jika Ada Dataset Perlu Perbaikan */}
+      {perluPerbaikan.length > 0 && (
+        <div
+          style={{
+            background: "#FEF2F2",
+            border: "1px solid #FECACA",
+            borderRadius: 12,
+            padding: "14px 18px",
+            display: "flex",
+            flexDirection: isMobile ? "column" : "row",
+            alignItems: isMobile ? "flex-start" : "center",
+            justifyContent: "space-between",
+            gap: 12,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: "#FEE2E2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+              <Icon name="alert" size={16} style={{ color: "#DC2626" }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: "#991B1B" }}>
+                Perhatian: {perluPerbaikan.length} Dataset Memerlukan Perbaikan
+              </div>
+              <div style={{ fontSize: 12, color: "#B91C1C", marginTop: 2 }}>
+                Walidata mengembalikan dataset <b>{perluPerbaikan[0]?.nama}</b> dengan catatan: &quot;
+                {perluPerbaikan[0]?.catatan_verifikasi || "Periksa kembali kelengkapan baris data"}
+                &quot;{perluPerbaikan.length > 1 && ` (+${perluPerbaikan.length - 1} lainnya)`}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => onNav("bankdata")}
+            style={{
+              padding: "7px 14px",
+              background: "#DC2626",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Perbaiki di Bank Data →
+          </button>
+        </div>
+      )}
+
+      {/* Grid 2 Kolom: Status Pengajuan & Jadwal Pemutakhiran */}
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 14 }}>
+        {/* Kolom 1: Status Pengajuan Terkini */}
+        <div style={{ background: T.card, borderRadius: 14, border: `1px solid ${T.border}`, padding: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Icon name="database" size={15} style={{ color: T.primary }} />
+              <span style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>Pengajuan Dataset OPD</span>
+            </div>
+            <button
+              onClick={() => onNav("bankdata")}
+              style={{ fontSize: 11.5, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
+            >
+              Kelola di Bank Data →
+            </button>
+          </div>
+
+          {diajukan.length === 0 && draft.length === 0 && perluPerbaikan.length === 0 ? (
+            <div style={{ fontSize: 12, color: T.textMuted, padding: "16px 0", textAlign: "center" }}>
+              Semua dataset OPD telah disetujui atau belum ada pengajuan baru.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[...perluPerbaikan, ...diajukan, ...draft].slice(0, 4).map((d) => (
+                <div
+                  key={d.id}
+                  style={{
+                    background: T.bgAlt,
+                    padding: "9px 12px",
+                    borderRadius: 8,
+                    border: `1px solid ${T.border}`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {d.nama}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: T.textMuted }}>
+                      {d.baris_count || 0} baris data · Frekuensi: {d.frekuensi || "Tahunan"}
+                    </div>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      padding: "2px 7px",
+                      borderRadius: 4,
+                      fontWeight: 700,
+                      background:
+                        d.status === "disetujui"
+                          ? "#DCFCE7"
+                          : d.status === "diajukan"
+                          ? "#FEF3C7"
+                          : d.status === "perlu_perbaikan"
+                          ? "#FEE2E2"
+                          : "#F1F5F9",
+                      color:
+                        d.status === "disetujui"
+                          ? "#15803D"
+                          : d.status === "diajukan"
+                          ? "#B45309"
+                          : d.status === "perlu_perbaikan"
+                          ? "#B91C1C"
+                          : "#475569",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {d.status === "disetujui"
+                      ? "Disetujui"
+                      : d.status === "diajukan"
+                      ? "Menunggu Verval"
+                      : d.status === "perlu_perbaikan"
+                      ? "Perlu Perbaikan"
+                      : "Draf"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Kolom 2: Jadwal Pemutakhiran Data */}
+        <div style={{ background: T.card, borderRadius: 14, border: `1px solid ${T.border}`, padding: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Icon name="calendar" size={15} style={{ color: "#D97706" }} />
+              <span style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>Jadwal Pemutakhiran Terdekat</span>
+            </div>
+            <span style={{ fontSize: 11, color: T.textMuted }}>Target Pembaruan</span>
+          </div>
+
+          {jadwalMendekati.length === 0 ? (
+            <div style={{ fontSize: 12, color: T.textMuted, padding: "16px 0", textAlign: "center" }}>
+              Tidak ada tenggat jadwal pemutakhiran khusus dalam waktu dekat.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {jadwalMendekati.map((jm) => (
+                <div
+                  key={jm.id}
+                  style={{
+                    background: T.bgAlt,
+                    padding: "9px 12px",
+                    borderRadius: 8,
+                    border: `1px solid ${T.border}`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {jm.nama}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: T.textMuted }}>
+                      Frekuensi: {jm.frekuensi || "Tahunan"}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: "#D97706" }}>
+                      {jm.jadwal_pemutakhiran || jm.jadwal_pemutakhiran_akhir || "Sesuai Jadwal"}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 4. Main Component: Dashboard (Adaptive Role-Based) ──────────────────────
 export default function Dashboard({ user = null, docs = [], onNav, onView, sectors = [], categories = [] }) {
   const { isMobile } = useResponsive();
   const { T } = useContext(ThemeContext);
 
   const role = user?.role || "Admin";
+  const baseLevel = user?.base_level || (role === "Walidata" ? "Admin" : (role === "Produsen Data" ? "Operator Bank Data" : role));
+  const isProdusen = role === "Operator Bank Data" || role === "Produsen Data" || baseLevel === "Operator Bank Data";
+  const isAdmin = role === "Admin" || role === "Walidata" || baseLevel === "Admin";
+  const isReviewer = role === "Reviewer" || baseLevel === "Reviewer";
+  const isStaf = role === "Staf" || baseLevel === "Staf";
   const userName = user?.name || user?.nama || "Pengguna";
   const opdNama = user?.opd_nama || "";
   const opdId = user?.opd_id || null;
@@ -646,7 +882,7 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
     refetchInterval: 30000,
   });
 
-  // 3. Data Khusus Produsen Data (Jika Role Operator Bank Data)
+  // 3. Data Khusus Produsen Data (Jika Role Operator Bank Data / Produsen Data)
   const { data: produsenData } = useQuery({
     queryKey: ["dashboard-produsen", opdId],
     queryFn: () => fetch("/api/dashboard/produsen", { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : {})),
@@ -704,42 +940,42 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
   // Filter dokumen terbaru (staf bisa beralih antara Bidang Saya & Semua)
   const [filterDokumenStaf, setFilterDokumenStaf] = useState("bidang");
   const recentDocs = useMemo(() => {
-    const source = (role === "Staf" && filterDokumenStaf === "bidang") ? docsBidang : docs;
+    const source = (isStaf && filterDokumenStaf === "bidang") ? docsBidang : docs;
     return [...source].sort((a, b) => b.id - a.id).slice(0, 5);
-  }, [docs, docsBidang, role, filterDokumenStaf]);
+  }, [docs, docsBidang, isStaf, filterDokumenStaf]);
 
   // Kartu KPI yang disesuaikan dengan Role Pengguna
   const cardsKpi = useMemo(() => {
-    if (role === "Operator Bank Data") {
+    if (isProdusen) {
       return [
-        { label: `Dataset ${opdNama || "OPD Saya"}`, value: opdDatasets.length, color: "#2563EB", icon: "database" },
-        { label: "Dataset Disetujui (Publik)", value: opdDisetujui, color: "#16A34A", icon: "check" },
-        { label: "Menunggu Verval Walidata", value: opdMenunggu, color: "#f57f17", icon: "clock" },
-        { label: "Draf / Perlu Revisi", value: opdDraft, color: "#DC2626", icon: "edit" },
+        { label: `Dataset ${opdNama || "OPD Saya"}`, value: opdDatasets.length, color: "#2563EB", icon: "database", hint: "Total statistik sektoral" },
+        { label: "Dataset Disetujui (Publik)", value: opdDisetujui, color: "#16A34A", icon: "check", hint: "Telah tayang di Portal Publik" },
+        { label: "Menunggu Verval Walidata", value: opdMenunggu, color: "#f57f17", icon: "clock", hint: "Sedang ditelaah Walidata" },
+        { label: "Draf / Perlu Revisi", value: opdDraft, color: "#DC2626", icon: "edit", hint: "Butuh tindak lanjut OPD" },
       ];
     }
 
-    if (role === "Reviewer") {
+    if (isReviewer) {
       const antrianCount = walidataData?.antrian_verifikasi?.length || 0;
       const reopenCount = walidataData?.reopen_menunggu?.length || 0;
       return [
-        { label: "Dataset Menunggu Verval", value: antrianCount, color: "#f57f17", icon: "database" },
-        { label: "Permintaan Buka Kunci", value: reopenCount, color: "#7C3AED", icon: "lock" },
-        { label: "Dokumen Menunggu Telaah", value: pending, color: "#2563EB", icon: "bell" },
-        { label: "Dokumen Diarsipkan", value: archived, color: "#16A34A", icon: "archive" },
+        { label: "Dataset Menunggu Verval", value: antrianCount, color: "#f57f17", icon: "database", hint: "Perlu diverifikasi" },
+        { label: "Permintaan Buka Kunci", value: reopenCount, color: "#7C3AED", icon: "lock", hint: "Pengajuan reopen OPD" },
+        { label: "Dokumen Menunggu Telaah", value: pending, color: "#2563EB", icon: "bell", hint: "Arsip perlu review" },
+        { label: "Dokumen Diarsipkan", value: archived, color: "#16A34A", icon: "archive", hint: "Telah sah diverifikasi" },
       ];
     }
 
-    if (role === "Staf") {
+    if (isStaf) {
       return [
-        { label: `Dokumen Bidang ${bidang || "Saya"}`, value: docsBidang.length, color: "#2563EB", icon: "archive" },
-        { label: "Telah Diarsipkan", value: archivedBidang, color: "#16A34A", icon: "check" },
-        { label: "Menunggu Proses Review", value: pendingBidang, color: "#f57f17", icon: "clock" },
-        { label: "Perlu Revisi / Ditolak", value: rejectedBidang, color: "#DC2626", icon: "x" },
+        { label: `Dokumen Bidang ${bidang || "Saya"}`, value: docsBidang.length, color: "#2563EB", icon: "archive", hint: `Total dokumen ${bidang || "staf"}` },
+        { label: "Telah Diarsipkan", value: archivedBidang, color: "#16A34A", icon: "check", hint: "Selesai ditelaah" },
+        { label: "Menunggu Proses Review", value: pendingBidang, color: "#f57f17", icon: "clock", hint: "Dalam proses review" },
+        { label: "Perlu Revisi / Ditolak", value: rejectedBidang, color: "#DC2626", icon: "x", hint: "Harus diperbaiki staf" },
       ];
     }
 
-    // Default: Admin (Walidata & Pengelola Sistem)
+    // Default: Admin & Walidata (Pengelola Sistem)
     const antrianCount = walidataData?.antrian_verifikasi?.length || 0;
     const totalDatasets = walidataData?.statistik_status?.reduce((acc, c) => acc + Number(c.count), 0) || (masterData?.datasets?.length || 0);
 
@@ -750,7 +986,7 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
       { label: "Rata-rata Capaian SPM", value: spmAverage, color: "#7C3AED", icon: "chart", hint: "Standar pelayanan minimal" },
     ];
   }, [
-    role, opdNama, opdDatasets.length, opdDisetujui, opdMenunggu, opdDraft,
+    isProdusen, isReviewer, isStaf, opdNama, opdDatasets.length, opdDisetujui, opdMenunggu, opdDraft,
     walidataData, pending, archived, docs.length, spmAverage, bidang,
     docsBidang.length, archivedBidang, pendingBidang, rejectedBidang, masterData?.datasets?.length,
   ]);
@@ -850,25 +1086,32 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
             </div>
             <div style={{ fontSize: 12.5, color: T.textMuted, marginTop: 3 }}>
               {role === "Admin" && "Panel Pengendali Walidata & Administrator Arsip Digital Satu Data Kabupaten Sumba Barat."}
+              {role === "Walidata" && "Pusat Koordinasi Satu Data & Verifikasi Dataset Statistik Sektoral Kabupaten Sumba Barat."}
               {role === "Reviewer" && "Pusat Verifikasi Dokumen Perencanaan Pembangunan & Validasi Dataset Statistik Sektoral."}
-              {role === "Staf" && `Penyusunan Kertas Kerja dan Pengelolaan Dokumen Perencanaan Bidang ${bidang || "Bapperida"}.`}
-              {role === "Operator Bank Data" && `Produsen Data Sektoral Perangkat Daerah: ${opdNama || "Kabupaten Sumba Barat"}.`}
+              {isStaf && `Penyusunan Kertas Kerja dan Pengelolaan Dokumen Perencanaan Bidang ${bidang || "Bapperida"}.`}
+              {isProdusen && `Produsen Data Sektoral Perangkat Daerah: ${opdNama || "Kabupaten Sumba Barat"}. Mengelola pemutakhiran dataset sektoral dan capaian indikator daerah.`}
             </div>
           </div>
         </div>
 
         {/* Shortcut Tombol Aksi Cepat Sesuai Role */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", width: isMobile ? "100%" : "auto" }}>
-          {role === "Operator Bank Data" ? (
+          {isProdusen ? (
             <>
-              <Button size="sm" variant="primary" icon="plus" onClick={() => onNav("bankdata")}>
-                Input Dataset OPD
+              <Button size="sm" variant="primary" icon="database" onClick={() => onNav("bankdata")}>
+                Kelola Dataset OPD
+              </Button>
+              <Button size="sm" variant="secondary" icon="shield" onClick={() => onNav("spm")}>
+                Capaian SPM
               </Button>
               <Button size="sm" variant="secondary" icon="world" onClick={() => onNav("publik")}>
                 Portal Publik
               </Button>
+              <Button size="sm" variant="secondary" icon="users" onClick={() => onNav("akun")}>
+                Akun Saya
+              </Button>
             </>
-          ) : role === "Reviewer" ? (
+          ) : isReviewer ? (
             <>
               <Button size="sm" variant="primary" icon="database" onClick={() => onNav("bankdata")}>
                 Verval Dataset
@@ -876,8 +1119,14 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
               <Button size="sm" variant="secondary" icon="archive" onClick={() => onNav("dokumen")}>
                 Telaah Dokumen
               </Button>
+              <Button size="sm" variant="secondary" icon="checkCircle" onClick={() => onNav("kertas-kerja")}>
+                Kertas Kerja
+              </Button>
+              <Button size="sm" variant="secondary" icon="filter" onClick={() => onNav("screening")}>
+                Screening RKA
+              </Button>
             </>
-          ) : role === "Staf" ? (
+          ) : isStaf ? (
             <>
               <Button size="sm" variant="primary" icon="upload" onClick={() => onNav("upload")}>
                 Unggah Dokumen
@@ -885,14 +1134,26 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
               <Button size="sm" variant="secondary" icon="checkCircle" onClick={() => onNav("kertas-kerja")}>
                 Kertas Kerja
               </Button>
+              <Button size="sm" variant="secondary" icon="search" onClick={() => onNav("pencarian")}>
+                Cari Dokumen
+              </Button>
+              <Button size="sm" variant="secondary" icon="chart" onClick={() => onNav("bankdata")}>
+                Bank Data
+              </Button>
             </>
           ) : (
             <>
-              <Button size="sm" variant="primary" icon="upload" onClick={() => onNav("upload")}>
+              <Button size="sm" variant="primary" icon="database" onClick={() => onNav("bankdata")}>
+                Verval Bank Data
+              </Button>
+              <Button size="sm" variant="secondary" icon="upload" onClick={() => onNav("upload")}>
                 Unggah Dokumen
               </Button>
               <Button size="sm" variant="secondary" icon="building" onClick={() => onNav("master-satudata")}>
                 Master Data
+              </Button>
+              <Button size="sm" variant="secondary" icon="chart" onClick={() => onNav("monitoring")}>
+                Monitoring
               </Button>
               <Button size="sm" variant="secondary" icon="world" onClick={() => onNav("publik")}>
                 Portal Publik
@@ -956,12 +1217,23 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
       </div>
 
       {/* ── 3. Antrean Verifikasi & Tindak Lanjut (Reviewer & Admin) ───────── */}
-      {(role === "Reviewer" || role === "Admin") && (
+      {(isReviewer || isAdmin) && (
         <AntreanTugasReviewer
           walidataData={walidataData}
           docs={docs}
           onNav={onNav}
           onView={onView}
+          T={T}
+          isMobile={isMobile}
+        />
+      )}
+
+      {/* ── 3.b Widget Antrean & Status Khusus Produsen Data (OPD) ────────── */}
+      {isProdusen && (
+        <WidgetProdusenData
+          produsenData={produsenData}
+          opdNama={opdNama}
+          onNav={onNav}
           T={T}
           isMobile={isMobile}
         />
@@ -977,113 +1249,214 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
         onNav={onNav}
       />
 
-      {/* ── 5. Kertas Kerja Perencanaan ───────────────────────────────────── */}
-      {role !== "Operator Bank Data" && (
+      {/* ── 5. Kertas Kerja Perencanaan (Hanya Internal Bapperida) ────────── */}
+      {!isProdusen && (
         <InfoKertasKerja T={T} onNav={onNav} />
       )}
 
       {/* ── 6. Katalog Bank Data Interaktif ───────────────────────────────── */}
       <BankDataDashboard />
 
-      {/* ── 7. Dokumen Terbaru ────────────────────────────────────────────── */}
-      <div style={{ background: T.card, borderRadius: 14, padding: isMobile ? 16 : 20, border: `1px solid ${T.border}`, marginTop: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>
-              {role === "Staf" && filterDokumenStaf === "bidang" ? `Dokumen Terbaru Bidang ${bidang || "Saya"}` : "Dokumen Perencanaan Terbaru"}
-            </div>
-            {role === "Staf" && bidang && (
-              <div style={{ display: "flex", gap: 4, background: T.bgAlt, padding: 2, borderRadius: 6 }}>
-                <button
-                  onClick={() => setFilterDokumenStaf("bidang")}
-                  style={{
-                    padding: "3px 8px",
-                    borderRadius: 5,
-                    fontSize: 10.5,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    border: "none",
-                    background: filterDokumenStaf === "bidang" ? T.card : "transparent",
-                    color: filterDokumenStaf === "bidang" ? T.primary : T.textSecondary,
-                  }}
-                >
-                  Bidang Saya
-                </button>
-                <button
-                  onClick={() => setFilterDokumenStaf("semua")}
-                  style={{
-                    padding: "3px 8px",
-                    borderRadius: 5,
-                    fontSize: 10.5,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    border: "none",
-                    background: filterDokumenStaf === "semua" ? T.card : "transparent",
-                    color: filterDokumenStaf === "semua" ? T.primary : T.textSecondary,
-                  }}
-                >
-                  Semua
-                </button>
+      {/* ── 7. Daftar Dataset Sektoral OPD (Produsen) atau Dokumen Terbaru (Staf/Admin) ── */}
+      {isProdusen ? (
+        <div style={{ background: T.card, borderRadius: 14, padding: isMobile ? 16 : 20, border: `1px solid ${T.border}`, marginTop: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>
+                Daftar Dataset Sektoral {opdNama || "OPD Saya"}
               </div>
-            )}
-          </div>
-          <button
-            onClick={() => onNav("dokumen")}
-            style={{ fontSize: 12, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
-          >
-            Lihat semua →
-          </button>
-        </div>
-
-        {recentDocs.length === 0 ? (
-          <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontSize: 12.5 }}>
-            Belum ada arsip dokumen yang tersedia.
-          </div>
-        ) : (
-          recentDocs.map((d, i) => (
-            <div
-              key={d.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "10px 0",
-                borderBottom: i < recentDocs.length - 1 ? `1px solid ${T.border}` : "none",
-              }}
+              <span style={{ fontSize: 11, background: T.bgAlt, color: T.textMuted, padding: "2px 8px", borderRadius: 99, fontWeight: 600 }}>
+                {opdDatasets.length} Dataset
+              </span>
+            </div>
+            <button
+              onClick={() => onNav("bankdata")}
+              style={{ fontSize: 12, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
             >
+              Kelola di Bank Data →
+            </button>
+          </div>
+
+          {opdDatasets.length === 0 ? (
+            <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontSize: 12.5 }}>
+              Belum ada dataset yang terdaftar untuk {opdNama || "OPD Anda"}. Klik tombol <b>Kelola Dataset OPD</b> untuk mulai membuat dataset baru.
+            </div>
+          ) : (
+            opdDatasets.slice(0, 6).map((d, i) => (
               <div
+                key={d.id || i}
                 style={{
-                  width: 36,
-                  height: 36,
-                  background: T.primaryLight,
-                  borderRadius: 8,
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
+                  gap: 12,
+                  padding: "10px 0",
+                  borderBottom: i < Math.min(opdDatasets.length, 6) - 1 ? `1px solid ${T.border}` : "none",
                 }}
               >
-                <Icon name="file" size={16} style={{ color: T.primary }} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {d.title}
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    background: T.primaryLight,
+                    borderRadius: 8,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <Icon name="database" size={16} style={{ color: T.primary }} />
                 </div>
-                <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
-                  {d.type} · {d.year} · {d.uploader} {d.bidang ? `(Bidang ${d.bidang})` : ""}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {d.nama}
+                  </div>
+                  <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
+                    {d.baris_count || 0} Baris Data · Frekuensi: {d.frekuensi || "Tahunan"} · {d.status === "disetujui" ? "Publik (Terverifikasi)" : d.status === "diajukan" ? "Menunggu Verifikasi Walidata" : d.status === "perlu_perbaikan" ? "Perlu Revisi" : "Draf"}
+                  </div>
                 </div>
+                <span
+                  style={{
+                    fontSize: 10.5,
+                    padding: "3px 8px",
+                    borderRadius: 6,
+                    fontWeight: 700,
+                    background:
+                      d.status === "disetujui"
+                        ? "#DCFCE7"
+                        : d.status === "diajukan"
+                        ? "#FEF3C7"
+                        : d.status === "perlu_perbaikan"
+                        ? "#FEE2E2"
+                        : "#F1F5F9",
+                    color:
+                      d.status === "disetujui"
+                        ? "#15803D"
+                        : d.status === "diajukan"
+                        ? "#B45309"
+                        : d.status === "perlu_perbaikan"
+                        ? "#B91C1C"
+                        : "#475569",
+                  }}
+                >
+                  {d.status === "disetujui"
+                    ? "Disetujui"
+                    : d.status === "diajukan"
+                    ? "Diajukan"
+                    : d.status === "perlu_perbaikan"
+                    ? "Perlu Perbaikan"
+                    : "Draf"}
+                </span>
+                <button
+                  onClick={() => onNav("bankdata")}
+                  style={{ fontSize: 11, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}
+                >
+                  Buka →
+                </button>
               </div>
-              <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
-              <button
-                onClick={() => onView && onView(d)}
-                style={{ fontSize: 11, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}
-              >
-                Lihat →
-              </button>
+            ))
+          )}
+        </div>
+      ) : (
+        <div style={{ background: T.card, borderRadius: 14, padding: isMobile ? 16 : 20, border: `1px solid ${T.border}`, marginTop: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>
+                {isStaf && filterDokumenStaf === "bidang" ? `Dokumen Terbaru Bidang ${bidang || "Saya"}` : "Dokumen Perencanaan Terbaru"}
+              </div>
+              {isStaf && bidang && (
+                <div style={{ display: "flex", gap: 4, background: T.bgAlt, padding: 2, borderRadius: 6 }}>
+                  <button
+                    onClick={() => setFilterDokumenStaf("bidang")}
+                    style={{
+                      padding: "3px 8px",
+                      borderRadius: 5,
+                      fontSize: 10.5,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      border: "none",
+                      background: filterDokumenStaf === "bidang" ? T.card : "transparent",
+                      color: filterDokumenStaf === "bidang" ? T.primary : T.textSecondary,
+                    }}
+                  >
+                    Bidang Saya
+                  </button>
+                  <button
+                    onClick={() => setFilterDokumenStaf("semua")}
+                    style={{
+                      padding: "3px 8px",
+                      borderRadius: 5,
+                      fontSize: 10.5,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      border: "none",
+                      background: filterDokumenStaf === "semua" ? T.card : "transparent",
+                      color: filterDokumenStaf === "semua" ? T.primary : T.textSecondary,
+                    }}
+                  >
+                    Semua
+                  </button>
+                </div>
+              )}
             </div>
-          ))
-        )}
-      </div>
+            <button
+              onClick={() => onNav("dokumen")}
+              style={{ fontSize: 12, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
+            >
+              Lihat semua →
+            </button>
+          </div>
+
+          {recentDocs.length === 0 ? (
+            <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontSize: 12.5 }}>
+              Belum ada arsip dokumen yang tersedia.
+            </div>
+          ) : (
+            recentDocs.map((d, i) => (
+              <div
+                key={d.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "10px 0",
+                  borderBottom: i < recentDocs.length - 1 ? `1px solid ${T.border}` : "none",
+                }}
+              >
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    background: T.primaryLight,
+                    borderRadius: 8,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <Icon name="file" size={16} style={{ color: T.primary }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {d.title}
+                  </div>
+                  <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
+                    {d.type} · {d.year} · {d.uploader} {d.bidang ? `(Bidang ${d.bidang})` : ""}
+                  </div>
+                </div>
+                <Badge label={d.status} colors={STATUS_COLOR[d.status]} />
+                <button
+                  onClick={() => onView && onView(d)}
+                  style={{ fontSize: 11, color: T.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}
+                >
+                  Lihat →
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }

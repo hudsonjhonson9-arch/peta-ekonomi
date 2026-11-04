@@ -45,6 +45,7 @@ export const STATUS_COLOR = {
 
 export const ROLE_COLOR = {
   Admin: { bg: "#EDE9FE", text: "#7C3AED", darkBg: "#2E1065", darkText: "#A78BFA" },
+  Walidata: { bg: "#FEF3C7", text: "#D97706", darkBg: "#451A03", darkText: "#FBBF24" },
   Reviewer: { bg: "#EFF6FF", text: "#2563EB", darkBg: "#1E3A5F", darkText: "#60A5FA" },
   Staf: { bg: "#F0FDF4", text: "#16A34A", darkBg: "#052E16", darkText: "#4ADE80" },
   "Operator Bank Data": { bg: "#ECFEFF", text: "#0E7490", darkBg: "#083344", darkText: "#22D3EE" },
@@ -132,6 +133,14 @@ export function navGroupsUntuk(role, allowedMenus) {
   if (role === "Operator Bank Data" || role === "Produsen Data") {
     return [
       {
+        key: "utama",
+        label: "Utama",
+        icon: "home",
+        items: [
+          { key: "dashboard", label: "Dashboard", icon: "home" },
+        ],
+      },
+      {
         key: "perencanaan",
         label: "Perencanaan",
         icon: "chart",
@@ -144,7 +153,7 @@ export function navGroupsUntuk(role, allowedMenus) {
     ];
   }
   return NAV_GROUPS
-    .map(g => ({ ...g, items: g.items.filter(i => !i.adminOnly || role === "Admin") }))
+    .map(g => ({ ...g, items: g.items.filter(i => !i.adminOnly || role === "Admin" || role === "Walidata") }))
     .filter(g => g.items.length > 0);
 }
 
@@ -162,7 +171,7 @@ export function grupTerbukaAwal(tersimpan = {}) {
 export const NAV_UTAMA_BOTTOM = ["dashboard", "dokumen", "upload", "pencarian"];
 
 export function navUtamaBottomUntuk(role) {
-  return (role === "Operator Bank Data" || role === "Produsen Data") ? ["bankdata", "spm"] : NAV_UTAMA_BOTTOM;
+  return (role === "Operator Bank Data" || role === "Produsen Data") ? ["dashboard", "bankdata", "spm"] : NAV_UTAMA_BOTTOM;
 }
 
 export const NAV_BOTTOM_LABEL = {

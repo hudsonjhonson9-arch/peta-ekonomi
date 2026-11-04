@@ -121,9 +121,14 @@ export default function App() {
     try {
       const hash = (window.location.hash || "").replace(/^#\/?/, "").split("?")[0].trim();
       if (/^dokumen\/\d+/.test(hash)) return "dokumen";
+      // Hash "login" hanya berlaku ketika belum login. Jika sudah terotentikasi, buka dashboard
+      if (hash === "login") {
+        const saved = localStorage.getItem("user");
+        return saved ? "dashboard" : "login";
+      }
       if (hash && hash !== "konten-utama") return hash;
       const tersimpan = localStorage.getItem("active_page") || sessionStorage.getItem("page");
-      if (tersimpan) return tersimpan;
+      if (tersimpan && tersimpan !== "login") return tersimpan;
       return "dashboard";
     } catch {
       return "dashboard";
@@ -276,8 +281,9 @@ export default function App() {
       localStorage.removeItem("user");
       queryClient.clear();
       setUser(null);
-      setPage("dashboard");
+      setPage("login");
       setViewDoc(null);
+      window.location.hash = "#login";
     };
     window.addEventListener("arsip:sesi-berakhir", keluar);
     return () => window.removeEventListener("arsip:sesi-berakhir", keluar);
@@ -290,16 +296,27 @@ export default function App() {
     // menyusul admin dalam 30 detik akan melihat cache milik admin.
     queryClient.clear();
     setUser(loggedUser);
-    if (loggedUser?.role === "Operator Bank Data" || loggedUser?.role === "Produsen Data") {
-      setPage("bankdata");
-      sessionStorage.setItem("page", "bankdata");
-    }
+    
+    // Setiap role yang login langsung diarahkan ke Dashboard adaptif
+    const target = "dashboard";
+    setPage(target);
+    try {
+      sessionStorage.setItem("page", target);
+      localStorage.setItem("active_page", target);
+    } catch (_) {}
+    window.location.hash = `#${target}`;
   };
 
   useEffect(() => {
-    if ((user?.role === "Operator Bank Data" || user?.role === "Produsen Data") && page !== "bankdata" && page !== "spm" && page !== "akun") {
-      setPage("bankdata");
-      sessionStorage.setItem("page", "bankdata");
+    const isProdusen = user?.role === "Operator Bank Data" || user?.role === "Produsen Data";
+    const allowed = ["dashboard", "bankdata", "spm", "akun", "publik"];
+    if (isProdusen && page && !allowed.includes(page)) {
+      setPage("dashboard");
+      try {
+        sessionStorage.setItem("page", "dashboard");
+        localStorage.setItem("active_page", "dashboard");
+      } catch (_) {}
+      window.location.hash = "#dashboard";
     }
   }, [user, page]);
 
@@ -312,8 +329,9 @@ export default function App() {
     sessionStorage.removeItem("page");
     queryClient.clear();
     setUser(null);
-    setPage("dashboard");
+    setPage("login");
     setViewDoc(null);
+    window.location.hash = "#login";
   };
 
   const showToast = msg => {
@@ -397,8 +415,23 @@ export default function App() {
   useEffect(() => {
     const onHash = () => {
       const hash = (window.location.hash || "").replace(/^#\/?/, "").split("?")[0].trim();
-      if (!hash || hash === "konten-utama") return;
+      if (hash === "konten-utama") return;
       if (/^dokumen\/\d+/.test(hash)) return;
+      if (hash === "login") {
+        if (user) {
+          goPage("dashboard", false);
+          window.location.hash = "#dashboard";
+        } else {
+          setPage("login");
+          setViewDoc(null);
+          setPendingDocId(null);
+        }
+        return;
+      }
+      if (!hash) {
+        setPage(user ? "dashboard" : "publik");
+        return;
+      }
       setPage(hash);
       setViewDoc(null);
       setPendingDocId(null);
@@ -409,7 +442,7 @@ export default function App() {
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, []);
+  }, [user]);
 
   // push initial state on mount (mempertahankan sub-menu dan query params saat refresh)
   useEffect(() => {
@@ -425,7 +458,10 @@ export default function App() {
 
     const curHash = window.location.hash || "";
     const curBase = curHash.replace(/^#\/?/, "").split("?")[0].trim();
-    if (curBase === p && curHash) {
+    if (curBase === "login" && user) {
+      window.location.hash = "#dashboard";
+      history.replaceState({ page: "dashboard" }, "", "#dashboard");
+    } else if (curBase === p && curHash) {
       // Pertahankan seluruh parameter query dan sub-menu saat refresh
       history.replaceState({ page: p }, "", curHash);
     } else {
@@ -1102,16 +1138,27 @@ export default function App() {
 
 // ── Not logged in (Pengunjung Publik vs Login Petugas) ──────────────────────
 if (!user) {
-  if (cekSesi) return null;
-  const h = (window.location.hash || "").replace(/^#\/?/, "").toLowerCase();
+  if (cekSesi) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", fontFamily: "sans-serif", background: "#f8fafc" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 36, height: 36, border: "3px solid #E2E8F0", borderTopColor: "#2563EB", borderRadius: "50%", animation: "adSpin .8s linear infinite" }} />
+          <style>{`@keyframes adSpin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      </div>
+    );
+  }
+  const h = (window.location.hash || "").replace(/^#\/?/, "").toLowerCase().split("?")[0].trim();
+  const isLogin = page === "login" || h === "login" || h.startsWith("login");
   
   // Jika pengunjung secara eksplisit meminta halaman login petugas:
-  if (h === "login" || h.startsWith("login")) {
+  if (isLogin) {
     return (
       <ThemeContext.Provider value={{ T, isDark, theme, setTheme }}>
         <LoginPage
           onLogin={handleLogin}
           onBackToPublic={() => {
+            setPage("publik");
             window.location.hash = "#publik";
           }}
         />
@@ -1125,6 +1172,7 @@ if (!user) {
     <ThemeContext.Provider value={{ T, isDark, theme, setTheme }}>
       <PortalPublikLengkap
         onLoginClick={() => {
+          setPage("login");
           window.location.hash = "#login";
         }}
       />
@@ -1236,7 +1284,12 @@ if (!user) {
               position:sticky anak (mis. kartu DetailSub di ScreeningRKA)
               sehingga sticky tidak pernah aktif — biarkan window yang scroll. */}
           <div style={{ flex: 1, padding: isMobile ? "10px 14px 14px" : "14px 24px 24px" }}>
-            {page === "dashboard" && !viewDoc && (
+            {(![
+              "dokumen", "upload", "pencarian", "publik", "panduan",
+              "bankdata", "kertas-kerja", "screening", "standar-harga", "pengguna",
+              "kategori-dokumen", "sektor", "audit", "spm", "master-satudata",
+              "kelola-konten", "monitoring", "kelola-role", "akun", "pengaturan-website"
+            ].includes(page) || page === "dashboard") && !viewDoc && (
               <Dashboard user={user} docs={docs} onNav={goPage} onView={openDoc} sectors={sectors} categories={categories} />
             )}
             {page === "dokumen" && !viewDoc && (
