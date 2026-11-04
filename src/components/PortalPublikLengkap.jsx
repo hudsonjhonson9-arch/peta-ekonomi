@@ -127,7 +127,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: `/portal/${subPage}`, referrer: document.referrer }),
-    }).catch(() => {});
+    }).catch(() => { });
   }, [subPage]);
 
   // Fungsi sinkronisasi data langsung dari PostgreSQL database dengan cooldown 5 detik
@@ -140,37 +140,37 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
     fetch("/api/portal/ringkasan", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setRingkasan(d))
-      .catch(() => {});
+      .catch(() => { });
 
     fetch("/api/portal/jelajah/urusan", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setListUrusan(Array.isArray(d) ? d : []))
-      .catch(() => {});
+      .catch(() => { });
 
     fetch("/api/portal/jelajah/topik", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setListTopik(Array.isArray(d) ? d : []))
-      .catch(() => {});
+      .catch(() => { });
 
     fetch("/api/portal/jelajah/organisasi", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setListOpd(Array.isArray(d) ? d : []))
-      .catch(() => {});
+      .catch(() => { });
 
     fetch("/api/portal/leaderboard-opd", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setLeaderboardOpd(Array.isArray(d) ? d : []))
-      .catch(() => {});
+      .catch(() => { });
 
     fetch("/api/portal/berita?limit=6", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : { data: [] }))
       .then((d) => setBeritaList(d.data || []))
-      .catch(() => {});
+      .catch(() => { });
 
     fetch("/api/portal/berita/populer", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setBeritaPopuler(Array.isArray(d) ? d : []))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Muat data langsung dari database saat komponen dipasang dan berkala tiap 40 detik
@@ -204,7 +204,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
         setDatasetList(d.data || []);
         setDatasetMeta(d.meta || {});
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, [landing, searchQ, filterOpd, filterTopik, filterUrusan, sortOrder]);
 
@@ -347,7 +347,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
     window.scrollTo({ top: 0 });
     try {
       history.replaceState(null, "", `#publik/dataset/${id}`);
-    } catch (_) {}
+    } catch (_) { }
     fetch(`/api/portal/dataset/${id}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -357,7 +357,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
           setSelectedChartField(firstNumeric?.nama_field || d.fields?.[0]?.nama_field || "");
         }
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   };
 
@@ -403,7 +403,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
       fetch("/api/portal/bandingkan/indikator")
         .then((r) => (r.ok ? r.json() : []))
         .then((d) => setOpsiIndikator(Array.isArray(d) ? d : []))
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [landing, opsiIndikator.length]);
 
@@ -418,7 +418,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
     })
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setHasilBandingkan(Array.isArray(d) ? d : []))
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoadingBandingkan(false));
   };
 
@@ -428,7 +428,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
       fetch("/api/portal/visualisasi")
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => d && setVisualisasiData(d))
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [landing, visualisasiData]);
 
@@ -437,7 +437,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
     fetch("/api/portal/captcha")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setCaptcha(d))
-      .catch(() => {});
+      .catch(() => { });
   };
 
   useEffect(() => {
@@ -1163,7 +1163,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
                   subtitle={`Kabupaten Sumba Barat — Berdasarkan indikator ${selectedChartField || 'utama'}`}
                   items={mapItemsDetail}
                   height={440}
-                  onSelectKecamatan={() => {}}
+                  onSelectKecamatan={() => { }}
                 />
               </div>
             </div>

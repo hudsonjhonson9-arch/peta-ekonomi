@@ -39,6 +39,7 @@ const ATURAN = [
   t('POST', PUBLIK, '/api/publik/qna'),
   t('POST', PUBLIK, '/api/publik/visitor'),
   semua(PUBLIK, '/api/v1(/[^/]+)*'),
+  semua(PUBLIK, '/api/documentation(/[^/]+)*'),
   // Upload dokumen butuh login. Integrator server-to-server dengan
   // UPLOAD_API_KEY boleh tanpa session; pengecekannya di luar tabel ini
   // karena bergantung pada env, lihat izinkanLewatiUpload di server/index.js.
@@ -183,10 +184,28 @@ export function kebutuhan(method, path) {
 export function jalurOperatorDiizinkan(path) {
   const p = path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
   if (p === '/api/health' || p.startsWith('/api/auth/')) return true;
-  // Akun sendiri (profil, ganti password) dan portal publik selalu boleh.
+  // Akun sendiri (profil, ganti password), portal publik, dan dokumentasi API selalu boleh.
   if (p.startsWith('/api/akun/') || p === '/api/akun' || p.startsWith('/api/portal/')) return true;
+  if (p.startsWith('/api/documentation') || p === '/api/documentation') return true;
+  if (p.startsWith('/api/v1/') || p === '/api/v1') return true;
   if (p === '/api/notifications' || p.startsWith('/api/notifications/')) return true;
   if (p === '/api/bankdata' || p.startsWith('/api/bankdata/')) return true;
+  if (p === '/api/spm' || p.startsWith('/api/spm/')) return true;
+  if (p.startsWith('/api/dashboard/produsen')) return true;
   if (p === '/api/satudata/master/ringkasan' || p === '/api/satudata/reopen') return true;
+  return false;
+}
+
+// Modul operasional perencanaan yang KHUSUS untuk internal BAPPERIDA Sumba Barat.
+// Pengguna dari OPD lain di Kabupaten Sumba Barat TIDAK diperkenankan mengakses
+// modul Dokumen, Screening RKA, Standar Harga, Draft Rincian, Kertas Kerja, dan PKS.
+export function jalurKhususBapperida(path) {
+  const p = path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+  if (p === '/api/docs' || p.startsWith('/api/docs/')) return true;
+  if (p === '/api/screening' || p.startsWith('/api/screening/')) return true;
+  if (p === '/api/standar-harga' || p.startsWith('/api/standar-harga/')) return true;
+  if (p === '/api/draft-rincian' || p.startsWith('/api/draft-rincian/')) return true;
+  if (p === '/api/kertas-kerja' || p.startsWith('/api/kertas-kerja/')) return true;
+  if (p === '/api/pks' || p.startsWith('/api/pks/')) return true;
   return false;
 }

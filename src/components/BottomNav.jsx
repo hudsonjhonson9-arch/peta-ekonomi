@@ -8,8 +8,8 @@ export default function BottomNav({ active, onNav, user }) {
   const [open, setOpen] = useState(false);
   // Sheet "Lainnya" memakai kelompok yang sama dengan Sidebar, jadi nama dan
   // urutannya tidak bisa berbeda antara desktop dan mobile.
-  const navUtama = navUtamaBottomUntuk(user.role);
-  const groups = navGroupsUntuk(user.role);
+  const navUtama = navUtamaBottomUntuk(user.role, user);
+  const groups = navGroupsUntuk(user.role, user.allowed_menus, user);
   const moreGroups = groups
     .map(g => ({ ...g, items: g.items.filter(i => !navUtama.includes(i.key)) }))
     .filter(g => g.items.length > 0);

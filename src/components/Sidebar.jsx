@@ -110,8 +110,8 @@ export default function Sidebar({ active, onNav, user, onLogout, onCiutkan, leba
   // itu referensinya baru tiap render dan effect berjalan terus.
   const allowedMenusKey = Array.isArray(user.allowed_menus) ? user.allowed_menus.join(",") : "";
   const groups = useMemo(
-    () => navGroupsUntuk(user.role, user.allowed_menus),
-    [user.role, allowedMenusKey]
+    () => navGroupsUntuk(user.role, user.allowed_menus, user),
+    [user.role, allowedMenusKey, user?.opd_id, user?.is_bapperida]
   );
   const [grupBuka, setGrupBuka] = useState(() => grupTerbukaAwal(muatGrupTerbuka()));
 

@@ -20,7 +20,9 @@ import {
   periksaKonfigurasiSession, periksaPemisahanSecret,
   bacaCookie, pasangCookie, lepasCookie, PANJANG_MINIMUM,
 } from './session.js';
-import { kebutuhan, PUBLIK, LOGIN, BANKDATA, REVIEW, ADMIN, jalurOperatorDiizinkan } from './kebijakan.js';
+import { kebutuhan, PUBLIK, LOGIN, BANKDATA, REVIEW, ADMIN, jalurOperatorDiizinkan, jalurKhususBapperida } from './kebijakan.js';
+import { daftarkanRuteSdpdn } from './sdpdn-routes.js';
+import { inisialisasiScheduler } from './scheduler.js';
 import {
   opdTerbatas, opdMilik, isOpdBapperida, bolehEditStatus, bolehVerifikasi,
   validasiMetadataDataset, validasiDaftarField, validasiSatuBaris,
@@ -139,6 +141,7 @@ const bangunProfilPengguna = (u) => {
     warna_text: u.role_warna_text || null,
     opd_id: u.opd_id ?? null,
     opd_nama: u.opd_nama ?? null,
+    is_bapperida: isOpdBapperida(u),
   };
 };
 
@@ -201,6 +204,15 @@ app.use(async (req, res, next) => {
 
     req.pengguna = bangunProfilPengguna(u);
     const baseRole = req.pengguna.base_level || normalisasiRole(req.pengguna.role);
+
+    // Pembatasan Akses OPD: Dokumen, Screening RKA, dan Kertas Kerja khusus untuk internal BAPPERIDA Sumba Barat
+    const isBapperida = isOpdBapperida(req.pengguna);
+    if (!isBapperida && jalurKhususBapperida(path)) {
+      return res.status(403).json({
+        error: 'Akses terbatas: Modul Dokumen Perencanaan, Screening RKA, dan Kertas Kerja khusus untuk internal BAPPERIDA Kabupaten Sumba Barat.',
+        restricted: true,
+      });
+    }
 
     if (req.pengguna.role === R_BANKDATA && (!req.pengguna.allowed_menus?.length || (req.pengguna.allowed_menus.length === 1 && req.pengguna.allowed_menus[0] === 'bankdata')) && !jalurOperatorDiizinkan(path)) {
       return res.status(403).json({ error: 'Akun Operator Bank Data hanya dapat mengakses modul Bank Data' });
@@ -4931,6 +4943,8 @@ daftarkanRutePortalKonten(app, pool, queryDB);
 daftarkanRuteDatasetLanjutan(app, pool, queryDB);
 daftarkanRuteAdminLanjutan(app, pool, queryDB);
 daftarkanRutePengaturanSitus(app, pool, queryDB);
+daftarkanRuteSdpdn(app, pool, queryDB);
+inisialisasiScheduler(app, pool, queryDB);
 if (isProd) {
   app.get('/{*path}', (_, res) => {
     res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));

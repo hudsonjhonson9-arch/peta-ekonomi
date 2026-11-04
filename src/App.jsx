@@ -65,6 +65,8 @@ import KelolaRolePage from "./components/KelolaRolePage.jsx";
 import AkunPage from "./components/AkunPage.jsx";
 import PengaturanWebsitePage from "./components/PengaturanWebsitePage.jsx";
 import PortalPublikLengkap from "./components/PortalPublikLengkap.jsx";
+import DokumentasiApiPage from "./components/DokumentasiApiPage.jsx";
+import { isOpdBapperidaFrontend } from "./data.js";
 import { Icon, Toast }  from "./components/ui.jsx";
 import { ROLE_COLOR } from "./data.js";
 import { Badge } from "./components/ui.jsx";
@@ -204,8 +206,9 @@ export default function App() {
   const siapAdmin = siap && user?.role === "Admin";
   // Operator Bank Data / Produsen Data hanya boleh mengakses modul Bank Data, jadi jangan
   // mem-polling endpoint arsip dokumen.
+  const isBapperida = isOpdBapperidaFrontend(user);
   const isProdusen = user?.role === "Operator Bank Data" || user?.role === "Produsen Data";
-  const siapArsip = siap && !isProdusen;
+  const siapArsip = siap && !isProdusen && isBapperida;
 
   const { data: serverDocs = [], isLoading: docsLoading, isSuccess: docsReady } = useDocs(siapArsip);
   const { data: logsData } = useLogs(siapAdmin);
@@ -309,7 +312,7 @@ export default function App() {
 
   useEffect(() => {
     const isProdusen = user?.role === "Operator Bank Data" || user?.role === "Produsen Data";
-    const allowed = ["dashboard", "bankdata", "spm", "akun", "publik"];
+    const allowed = ["dashboard", "bankdata", "spm", "akun", "publik", "dokumentasi-api"];
     if (isProdusen && page && !allowed.includes(page)) {
       setPage("dashboard");
       try {
@@ -1252,6 +1255,7 @@ if (!user) {
                   {page === "kelola-role" && "Kelola Role & Hak Akses"}
                   {page === "akun" && "Akun Saya"}
                   {page === "pengaturan-website" && "Pengaturan Website"}
+                  {page === "dokumentasi-api" && "Dokumentasi API (SDPDN)"}
                 </div>
               )}
             </div>
@@ -1288,11 +1292,34 @@ if (!user) {
               "dokumen", "upload", "pencarian", "publik", "panduan",
               "bankdata", "kertas-kerja", "screening", "standar-harga", "pengguna",
               "kategori-dokumen", "sektor", "audit", "spm", "master-satudata",
-              "kelola-konten", "monitoring", "kelola-role", "akun", "pengaturan-website"
+              "kelola-konten", "monitoring", "kelola-role", "akun", "pengaturan-website",
+              "dokumentasi-api"
             ].includes(page) || page === "dashboard") && !viewDoc && (
               <Dashboard user={user} docs={docs} onNav={goPage} onView={openDoc} sectors={sectors} categories={categories} />
             )}
-            {page === "dokumen" && !viewDoc && (
+            {/* Proteksi Akses: Modul Perencanaan & Dokumen Khusus Internal BAPPERIDA */}
+            {!isBapperida && ["dokumen", "upload", "kertas-kerja", "screening", "standar-harga"].includes(page) && (
+              <div style={{ padding: "40px 24px", maxWidth: 640, margin: "40px auto", textAlign: "center", background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, boxShadow: T.shadowMd }}>
+                <div style={{ width: 48, height: 48, borderRadius: 24, background: "rgba(239, 68, 68, 0.15)", color: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px auto" }}>
+                  <Icon name="shield" size={24} />
+                </div>
+                <h3 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 8px 0", color: T.text }}>Akses Terbatas: Internal BAPPERIDA</h3>
+                <p style={{ fontSize: 13, color: T.textMuted, lineHeight: 1.6, margin: "0 0 20px 0" }}>
+                  Modul Dokumen Perencanaan, Telaah RKA, dan Kertas Kerja hanya diperuntukkan bagi internal BAPPERIDA Kabupaten Sumba Barat.
+                  Sebagai perwakilan <strong>{user?.opd_nama || "OPD"}</strong>, Anda dapat mengakses data sektoral dan indikator kinerja pada modul Bank Data.
+                </p>
+                <button
+                  onClick={() => goPage("bankdata")}
+                  style={{ padding: "10px 20px", borderRadius: 8, fontSize: 13, fontWeight: 700, background: T.primary, color: "#fff", border: "none", cursor: "pointer" }}
+                >
+                  Buka Modul Bank Data
+                </button>
+              </div>
+            )}
+            {page === "dokumentasi-api" && (
+              <DokumentasiApiPage user={user} />
+            )}
+            {isBapperida && page === "dokumen" && !viewDoc && (
               <DocList docs={docs} onView={openDoc} onNav={goPage} user={user} categories={categories} sectors={sectors} bidangs={bidangs} loading={docsLoading} onBulkAction={handleBulkAction} />
             )}
             {page === "dokumen" && viewDoc && (
@@ -1385,7 +1412,7 @@ if (!user) {
           </div>
 
           {/* FAB: + hanya di halaman Dokumen & Pencarian */}
-          {!viewDoc && (page === "dokumen" || page === "pencarian") && (
+          {!viewDoc && isBapperida && (page === "dokumen" || page === "pencarian") && (
             <button
               onClick={() => goPage("upload")}
               style={{

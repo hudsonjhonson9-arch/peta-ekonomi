@@ -62,6 +62,21 @@ export const ROLE_COLOR = {
 // ada halaman yang ikut hilang dari menu; user bisa menutupnya sendiri dan
 // pilihannya diingat. Group dengan semua item disembunyikan (adminOnly,
 // misalnya) ikut hilang, bukan tampil sebagai judul kosong.
+// Memeriksa apakah pengguna adalah bagian dari internal BAPPERIDA Sumba Barat
+export function isOpdBapperidaFrontend(user) {
+  if (!user) return false;
+  if (user.is_bapperida === true) return true;
+  const r = (user.role || "").toLowerCase();
+  if (r === "admin" || r === "walidata") return true;
+  const opdNama = String(user.opd_nama || user.instansi || user.unit || "").toLowerCase();
+  const opdId = String(user.opd_id || "");
+  return (
+    opdNama.includes("bapperida") ||
+    opdNama.includes("bappeda") ||
+    opdId === "9"
+  );
+}
+
 export const NAV_GROUPS = [
   {
     key: "utama",
@@ -115,6 +130,7 @@ export const NAV_GROUPS = [
     label: "Referensi",
     icon: "file",
     items: [
+      { key: "dokumentasi-api", label: "Dokumentasi API", icon: "world" },
       { key: "panduan", label: "Panduan", icon: "file" },
       { key: "akun", label: "Akun Saya", icon: "users", selalu: true },
     ],
@@ -122,7 +138,44 @@ export const NAV_GROUPS = [
 ];
 
 // Kelompok yang punya setidaknya satu item boleh ditampilkan untuk user ini.
-export function navGroupsUntuk(role, allowedMenus) {
+export function navGroupsUntuk(role, allowedMenus, user) {
+  const isBapperida = isOpdBapperidaFrontend(user);
+
+  // Jika pengguna berasal dari OPD lain di Kabupaten Sumba Barat (selain BAPPERIDA / Admin / Walidata):
+  // Akses dokumen perencanaan, screening RKA, dan kertas kerja DIBATASI (hanya untuk BAPPERIDA).
+  // Pengguna OPD lain hanya dapat mengakses Dashboard OPD, Bank Data, SPM, Dokumentasi API, Portal Publik, dan Akun.
+  if (user && !isBapperida) {
+    return [
+      {
+        key: "utama",
+        label: "Utama",
+        icon: "home",
+        items: [
+          { key: "dashboard", label: "Dashboard", icon: "home" },
+          { key: "dokumentasi-api", label: "Dokumentasi API", icon: "world" },
+        ],
+      },
+      {
+        key: "satudata",
+        label: "Satu Data Sumba Barat",
+        icon: "chart",
+        items: [
+          { key: "bankdata", label: "Bank Data", icon: "chart" },
+          { key: "spm", label: "Capaian SPM", icon: "shield" },
+          { key: "publik", label: "Portal Publik", icon: "world" },
+        ],
+      },
+      {
+        key: "referensi",
+        label: "Pengguna",
+        icon: "users",
+        items: [
+          { key: "akun", label: "Akun Saya", icon: "users", selalu: true },
+        ],
+      },
+    ];
+  }
+
   // Jika role memiliki konfigurasi allowed_menus dinamis dari sd_roles
   if (Array.isArray(allowedMenus) && allowedMenus.length > 0 && role !== "Admin") {
     const set = new Set(allowedMenus);
@@ -138,6 +191,7 @@ export function navGroupsUntuk(role, allowedMenus) {
         icon: "home",
         items: [
           { key: "dashboard", label: "Dashboard", icon: "home" },
+          { key: "dokumentasi-api", label: "Dokumentasi API", icon: "world" },
         ],
       },
       {
@@ -170,7 +224,10 @@ export function grupTerbukaAwal(tersimpan = {}) {
 // jadi menambah halaman baru cukup di satu tempat.
 export const NAV_UTAMA_BOTTOM = ["dashboard", "dokumen", "upload", "pencarian"];
 
-export function navUtamaBottomUntuk(role) {
+export function navUtamaBottomUntuk(role, user) {
+  if (user && !isOpdBapperidaFrontend(user)) {
+    return ["dashboard", "bankdata", "spm"];
+  }
   return (role === "Operator Bank Data" || role === "Produsen Data") ? ["dashboard", "bankdata", "spm"] : NAV_UTAMA_BOTTOM;
 }
 

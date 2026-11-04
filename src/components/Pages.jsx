@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext, useMemo, useRef } from "react";
 import { Icon, Badge, Geser, Select, Button } from "./ui.jsx";
-import { STATUS_COLOR, ROLE_COLOR } from "../data.js";
+import { STATUS_COLOR, ROLE_COLOR, isOpdBapperidaFrontend } from "../data.js";
 import useResponsive from "../useResponsive.js";
 import { ThemeContext } from "../App.jsx";
 import HighlightText from "./HighlightText.jsx";
@@ -726,21 +726,78 @@ export function PortalPublik({ docs, onDownload }) {
 }
 
 // ─── MANAJEMEN PENGGUNA ───────────────────────────────────────────────────────
+const AVATAR_PALETTE = [
+  { bg: "#EFF6FF", text: "#2563EB", darkBg: "#1E3A5F", darkText: "#93C5FD" },
+  { bg: "#F5F3FF", text: "#7C3AED", darkBg: "#2E1065", darkText: "#C4B5FD" },
+  { bg: "#ECFDF5", text: "#059669", darkBg: "#064E3B", darkText: "#6EE7B7" },
+  { bg: "#FFF7ED", text: "#EA580C", darkBg: "#431407", darkText: "#FDBA74" },
+  { bg: "#ECFEFF", text: "#0891B2", darkBg: "#083344", darkText: "#67E8F9" },
+  { bg: "#FEF2F2", text: "#E11D48", darkBg: "#4C0519", darkText: "#FDA4AF" },
+];
+
+function getAvatarColor(name = "") {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  const idx = Math.abs(hash) % AVATAR_PALETTE.length;
+  return AVATAR_PALETTE[idx];
+}
+
+function ambilInisial(name = "") {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + (parts[1] ? parts[1][0] : "")).toUpperCase();
+}
+
+function resolveOpdDanBidang(u) {
+  const isBapp = isOpdBapperidaFrontend(u);
+  let opd = u.opd_nama ? u.opd_nama.trim() : (isBapp ? "BAPPERIDA Kab. Sumba Barat" : "Pemerintah Kab. Sumba Barat");
+  let bidang = (u.unit && u.unit !== "—" && u.unit !== "-") ? u.unit.trim() : "";
+
+  // Hindari duplikasi jika unit/bidang persis sama dengan OPD atau memuat nama OPD
+  if (bidang && opd) {
+    const bLower = bidang.toLowerCase();
+    const oLower = opd.toLowerCase();
+    if (bLower === oLower || (bLower.includes("bapperida") && oLower.includes("bapperida"))) {
+      if (bLower.includes("bidang") || bLower.includes("sekretariat")) {
+        opd = isBapp ? "BAPPERIDA Kab. Sumba Barat" : opd;
+      } else {
+        bidang = "";
+      }
+    }
+  }
+
+  return { opd, bidang, isBapp };
+}
+
 export function ManajemenPengguna({ users, onReload, showToast }) {
   const { isMobile } = useResponsive();
-  const { T } = useContext(ThemeContext);
+  const { T, isDark } = useContext(ThemeContext);
   const s = useMemo(() => makeStyles(T), [T]);
+
+  // Modal State
   const [modalOpen, setModalOpen] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
     id: "", nip: "", name: "", role: "Staf",
     unit: "", status: "AKTIF", password: "", opd_id: ""
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+
+  // Master Data
   const [bidangList, setBidangList] = useState([]);
   const [opdList, setOpdList] = useState([]);
   const [roleList, setRoleList] = useState([]);
+
+  // Search, Filter & Pagination State
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("Semua");
+  const [scopeFilter, setScopeFilter] = useState("Semua");
+  const [statusFilter, setStatusFilter] = useState("Semua");
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(15);
 
   useEffect(() => {
     fetch('/api/bidang').then(r => r.json()).then(d => setBidangList(Array.isArray(d) ? d : [])).catch(() => {});
@@ -752,13 +809,24 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
     setForm({ id: "", nip: "", name: "", role: "Staf", unit: bidangList[0]?.nama || "", status: "AKTIF", password: "", opd_id: "" });
     setErrors({});
     setIsEdit(false);
+    setShowPassword(false);
     setModalOpen(true);
   };
 
   const openEdit = (u) => {
-    setForm({ id: u.id, nip: u.nip, name: u.name, role: u.role, unit: u.unit, status: u.status, password: "", opd_id: u.opd_id ? String(u.opd_id) : "" });
+    setForm({
+      id: u.id,
+      nip: u.nip || "",
+      name: u.name || "",
+      role: u.role || "Staf",
+      unit: u.unit || "",
+      status: u.status || "AKTIF",
+      password: "",
+      opd_id: u.opd_id ? String(u.opd_id) : ""
+    });
     setErrors({});
     setIsEdit(true);
+    setShowPassword(false);
     setModalOpen(true);
   };
 
@@ -816,7 +884,8 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
     }
   };
 
-  const isActive = (s) => s === "AKTIF" || s === "Aktif";
+  const isActive = (st) => st === "AKTIF" || st === "Aktif";
+
   const ambilWarnaRole = (roleName) => {
     const found = roleList.find(r => r.nama === roleName);
     if (found && found.warna_bg && found.warna_text) {
@@ -825,193 +894,903 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
     return ROLE_COLOR[roleName] || { bg: "#F1F5F9", text: "#475569" };
   };
 
+  // Metrics KPI Calculation
+  const metrics = useMemo(() => {
+    const total = users.length;
+    const bapperida = users.filter(u => isOpdBapperidaFrontend(u)).length;
+    const opdLain = total - bapperida;
+    const aktif = users.filter(u => isActive(u.status)).length;
+    const pctAktif = total > 0 ? Math.round((aktif / total) * 100) : 0;
+    return { total, bapperida, opdLain, aktif, pctAktif };
+  }, [users]);
+
+  // Filtered Users
+  const filteredUsers = useMemo(() => {
+    let list = users || [];
+    if (search.trim()) {
+      const q = search.toLowerCase().trim();
+      list = list.filter(u =>
+        (u.name || "").toLowerCase().includes(q) ||
+        (u.nip || "").toLowerCase().includes(q) ||
+        (u.role || "").toLowerCase().includes(q) ||
+        (u.opd_nama || "").toLowerCase().includes(q) ||
+        (u.unit || "").toLowerCase().includes(q)
+      );
+    }
+    if (roleFilter !== "Semua") {
+      list = list.filter(u => u.role === roleFilter);
+    }
+    if (scopeFilter === "bapperida") {
+      list = list.filter(u => isOpdBapperidaFrontend(u));
+    } else if (scopeFilter === "opd_lain") {
+      list = list.filter(u => !isOpdBapperidaFrontend(u));
+    }
+    if (statusFilter !== "Semua") {
+      if (statusFilter === "AKTIF") {
+        list = list.filter(u => isActive(u.status));
+      } else {
+        list = list.filter(u => !isActive(u.status));
+      }
+    }
+    return list;
+  }, [users, search, roleFilter, scopeFilter, statusFilter]);
+
+  // Pagination calculation
+  const totalItems = filteredUsers.length;
+  const isAllPages = perPage === -1;
+  const totalPages = isAllPages ? 1 : Math.max(1, Math.ceil(totalItems / perPage));
+  const currentPage = Math.min(page, totalPages);
+  const pagedUsers = isAllPages ? filteredUsers : filteredUsers.slice((currentPage - 1) * perPage, currentPage * perPage);
+  const startIdx = totalItems === 0 ? 0 : (currentPage - 1) * (isAllPages ? totalItems : perPage) + 1;
+  const endIdx = isAllPages ? totalItems : Math.min(currentPage * perPage, totalItems);
+
+  const hasFilterActive = Boolean(search.trim() || roleFilter !== "Semua" || scopeFilter !== "Semua" || statusFilter !== "Semua");
+  const resetFilters = () => {
+    setSearch("");
+    setRoleFilter("Semua");
+    setScopeFilter("Semua");
+    setStatusFilter("Semua");
+    setPage(1);
+  };
+
+  const roleFilterOptions = useMemo(() => {
+    const rolesFromUsers = Array.from(new Set(users.map(u => u.role).filter(Boolean)));
+    const allRoles = Array.from(new Set(["Admin", "Walidata", "Reviewer", "Staf", "Produsen Data", "Operator Bank Data", ...rolesFromUsers]));
+    return [{ value: "Semua", label: "Semua Peran" }, ...allRoles.map(r => ({ value: r, label: r }))];
+  }, [users]);
+
+  // Grid definition
+  const GRID_COLS = "minmax(250px, 2.3fr) minmax(140px, 1.2fr) minmax(280px, 2.6fr) 110px 145px 125px";
+
   return (
     <div style={{ padding: isMobile ? 16 : "28px 36px", fontFamily: T.font, background: T.bg, minHeight: "100%" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+      {/* ── Page Header ────────────────────────────────────────────── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 14 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, letterSpacing: "-0.02em" }}>Pengguna</h1>
-          <p style={{ fontSize: 13, color: T.textSecondary, margin: "4px 0 0" }}>{users.length} pengguna terdaftar</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: T.text, margin: 0, letterSpacing: "-0.02em" }}>
+              Manajemen Pengguna
+            </h1>
+            <span style={{
+              fontSize: 12, fontWeight: 600, color: T.primary, background: T.primaryLight,
+              padding: "3px 10px", borderRadius: 99, border: `1px solid ${T.border}`
+            }}>
+              {users.length} Akun
+            </span>
+          </div>
+          <p style={{ fontSize: 13, color: T.textSecondary, margin: "6px 0 0" }}>
+            Kelola data staf BAPPERIDA dan operator produsen data OPD se-Kabupaten Sumba Barat
+          </p>
         </div>
-        <button onClick={openAdd} style={s.btnPrimary}
-          onMouseEnter={e => { e.currentTarget.style.background = T.primaryHover; e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,0.35)"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = T.primary; e.currentTarget.style.boxShadow = "0 1px 3px rgba(37,99,235,0.3)"; }}>
-          <Icon name="plus" size={15} /> Tambah
+        <button
+          onClick={openAdd}
+          style={s.btnPrimary}
+          onMouseEnter={e => { e.currentTarget.style.background = T.primaryHover; e.currentTarget.style.boxShadow = "0 4px 14px rgba(37,99,235,0.35)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = T.primary; e.currentTarget.style.boxShadow = "0 1px 3px rgba(37,99,235,0.3)"; }}
+        >
+          <Icon name="plus" size={15} /> Tambah Pengguna
         </button>
       </div>
 
-      {/* Desktop Table */}
+      {/* ── KPI Summary Cards ────────────────────────────────────────── */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)",
+        gap: isMobile ? 10 : 14,
+        marginBottom: 20
+      }}>
+        {/* Total Pengguna */}
+        <div style={{
+          ...s.cardStyle, padding: "16px 18px", display: "flex", alignItems: "center", gap: 14,
+          transition: "transform 0.15s ease, box-shadow 0.15s ease"
+        }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 12, background: T.primaryLight,
+            display: "flex", alignItems: "center", justifyContent: "center", color: T.primary, flexShrink: 0
+          }}>
+            <Icon name="users" size={22} />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Total Pengguna
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: T.text, lineHeight: 1.2, marginTop: 2 }}>
+              {metrics.total}
+            </div>
+            <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              Terdaftar dalam sistem
+            </div>
+          </div>
+        </div>
+
+        {/* BAPPERIDA */}
+        <div style={{
+          ...s.cardStyle, padding: "16px 18px", display: "flex", alignItems: "center", gap: 14,
+          transition: "transform 0.15s ease, box-shadow 0.15s ease"
+        }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 12, background: isDark ? "#2E1065" : "#F5F3FF",
+            display: "flex", alignItems: "center", justifyContent: "center", color: isDark ? "#C4B5FD" : "#7C3AED", flexShrink: 0
+          }}>
+            <Icon name="building" size={22} />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Internal BAPPERIDA
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: T.text, lineHeight: 1.2, marginTop: 2 }}>
+              {metrics.bapperida}
+            </div>
+            <div style={{ fontSize: 11, color: isDark ? "#A78BFA" : "#7C3AED", fontWeight: 600, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              Akses Penuh Perencanaan
+            </div>
+          </div>
+        </div>
+
+        {/* Mitra OPD */}
+        <div style={{
+          ...s.cardStyle, padding: "16px 18px", display: "flex", alignItems: "center", gap: 14,
+          transition: "transform 0.15s ease, box-shadow 0.15s ease"
+        }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 12, background: isDark ? "#083344" : "#ECFEFF",
+            display: "flex", alignItems: "center", justifyContent: "center", color: isDark ? "#67E8F9" : "#0891B2", flexShrink: 0
+          }}>
+            <Icon name="shield" size={22} />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Produsen Data OPD
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: T.text, lineHeight: 1.2, marginTop: 2 }}>
+              {metrics.opdLain}
+            </div>
+            <div style={{ fontSize: 11, color: isDark ? "#38BDF8" : "#0284C7", fontWeight: 600, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              Satu Data & SPM Daerah
+            </div>
+          </div>
+        </div>
+
+        {/* Akun Aktif */}
+        <div style={{
+          ...s.cardStyle, padding: "16px 18px", display: "flex", alignItems: "center", gap: 14,
+          transition: "transform 0.15s ease, box-shadow 0.15s ease"
+        }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 12, background: T.successBg,
+            display: "flex", alignItems: "center", justifyContent: "center", color: T.success, flexShrink: 0
+          }}>
+            <Icon name="checkCircle" size={22} />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Akun Aktif
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: T.text, lineHeight: 1.2, marginTop: 2 }}>
+              {metrics.aktif}
+            </div>
+            <div style={{ fontSize: 11, color: T.success, fontWeight: 600, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {metrics.pctAktif}% dari total pengguna
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Toolbar: Search & Filter Controls ───────────────────────── */}
+      <div style={{
+        ...s.cardStyle,
+        padding: isMobile ? 12 : "14px 18px",
+        marginBottom: 16,
+        display: "flex",
+        gap: 10,
+        alignItems: "center",
+        flexWrap: "wrap"
+      }}>
+        {/* Search Box */}
+        <div style={{ flex: "1 1 240px", minWidth: 200, position: "relative" }}>
+          <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: T.textMuted, pointerEvents: "none", display: "flex" }}>
+            <Icon name="search" size={15} />
+          </div>
+          <input
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
+            placeholder="Cari nama, NIP, peran, OPD, atau bidang..."
+            style={{
+              ...s.inputStyle,
+              paddingLeft: 36,
+              paddingRight: search ? 32 : 12,
+              fontSize: 13,
+              height: 38
+            }}
+            onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
+            onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => { setSearch(""); setPage(1); }}
+              style={{
+                position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+                background: "transparent", border: "none", color: T.textMuted, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", width: 22, height: 22,
+                borderRadius: 99
+              }}
+              title="Hapus pencarian"
+            >
+              <Icon name="x" size={13} />
+            </button>
+          )}
+        </div>
+
+        {/* Filter Peran */}
+        <div style={{ width: isMobile ? "100%" : 170 }}>
+          <Select
+            fullWidth
+            size="md"
+            value={roleFilter}
+            onChange={v => { setRoleFilter(v); setPage(1); }}
+            options={roleFilterOptions}
+          />
+        </div>
+
+        {/* Filter Lingkup Akses */}
+        <div style={{ width: isMobile ? "100%" : 185 }}>
+          <Select
+            fullWidth
+            size="md"
+            value={scopeFilter}
+            onChange={v => { setScopeFilter(v); setPage(1); }}
+            options={[
+              { value: "Semua", label: "Semua Lingkup" },
+              { value: "bapperida", label: "Internal BAPPERIDA" },
+              { value: "opd_lain", label: "Produsen / OPD Luar" },
+            ]}
+          />
+        </div>
+
+        {/* Filter Status */}
+        <div style={{ width: isMobile ? "100%" : 150 }}>
+          <Select
+            fullWidth
+            size="md"
+            value={statusFilter}
+            onChange={v => { setStatusFilter(v); setPage(1); }}
+            options={[
+              { value: "Semua", label: "Semua Status" },
+              { value: "AKTIF", label: "Aktif" },
+              { value: "NONAKTIF", label: "Nonaktif / Lainnya" },
+            ]}
+          />
+        </div>
+
+        {/* Reset Button */}
+        {hasFilterActive && (
+          <button
+            onClick={resetFilters}
+            style={{
+              ...s.btnBase,
+              height: 38,
+              padding: "0 14px",
+              fontSize: 12,
+              color: T.danger,
+              background: T.dangerBg,
+              border: `1px solid ${T.dangerBorder}`,
+            }}
+            title="Reset semua filter"
+          >
+            <Icon name="x" size={13} /> Reset Filter
+          </button>
+        )}
+      </div>
+
+      {/* ── Desktop Data Table ─────────────────────────────────────── */}
       {!isMobile ? (
         <div style={{ ...s.cardStyle, overflow: "hidden" }}>
-          {/* Table Header */}
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1.2fr 0.8fr 1fr 120px", padding: "12px 20px", background: T.primaryLight, borderBottom: `1px solid ${T.border}` }}>
-            {["Nama / NIP", "Peran", "Unit Kerja", "Status", "Login Terakhir", "Aksi"].map(h => (
-              <span key={h} style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</span>
-            ))}
-          </div>
-
-          {users.length === 0 ? (
-            <div style={{ padding: "48px 20px", textAlign: "center" }}>
-              <div style={{ width: 48, height: 48, background: T.primaryLight, borderRadius: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
-                <Icon name="users" size={22} style={{ color: T.primary }} />
+          <div style={{ overflowX: "auto" }}>
+            <div style={{ minWidth: 1010 }}>
+              {/* Sticky Table Header */}
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: GRID_COLS,
+                padding: "12px 20px",
+                background: T.primaryLight,
+                borderBottom: `1px solid ${T.border}`,
+                position: "sticky",
+                top: 0,
+                zIndex: 5
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Pengguna (Nama / NIP)
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Peran & Akses
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Perangkat Daerah & Bidang
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Status
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Login Terakhir
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.primary, textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "right" }}>
+                  Aksi
+                </span>
               </div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 4 }}>Belum ada pengguna</div>
-              <div style={{ fontSize: 13, color: T.textMuted }}>Klik "Tambah" untuk menambahkan pengguna baru</div>
-            </div>
-          ) : (
-            users.map((u, i) => (
-              <div key={u.id}
-                style={{
-                  display: "grid", gridTemplateColumns: "2fr 1fr 1.2fr 0.8fr 1fr 120px",
-                  padding: "14px 20px", alignItems: "center",
-                  borderBottom: i < users.length - 1 ? `1px solid ${T.border}` : "none",
-                  transition: "background 0.12s",
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = T.surfaceHover}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                {/* Name + NIP */}
-                <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-                  <div style={{ width: 36, height: 36, background: T.primaryLight, borderRadius: 99, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: T.primary, flexShrink: 0 }}>
-                    {u.name[0]}
+
+              {/* Table Rows or Empty State */}
+              {totalItems === 0 ? (
+                <div style={{ padding: "56px 20px", textAlign: "center" }}>
+                  <div style={{
+                    width: 52, height: 52, background: T.primaryLight, borderRadius: 14,
+                    display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 14, color: T.primary
+                  }}>
+                    <Icon name="search" size={24} />
                   </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.name}</div>
-                    <div style={{ fontSize: 12, color: T.textMuted }}>NIP: {u.nip}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 4 }}>
+                    Tidak ada pengguna ditemukan
                   </div>
-                </div>
-                {/* Role */}
-                <div>
-                  <Badge label={u.role} colors={ambilWarnaRole(u.role)} />
-                  {u.opd_nama && (
-                    <div style={{ fontSize: 11, color: T.primary, fontWeight: 600, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      OPD: {u.opd_nama}
-                    </div>
+                  <div style={{ fontSize: 13, color: T.textSecondary, maxWidth: 360, margin: "0 auto 16px" }}>
+                    Tidak ada data pengguna yang cocok dengan kata kunci atau filter yang sedang dipilih.
+                  </div>
+                  {hasFilterActive && (
+                    <button onClick={resetFilters} style={s.btnPrimary}>
+                      Reset Semua Filter
+                    </button>
                   )}
                 </div>
-                {/* Unit */}
-                <div style={{ fontSize: 13, color: T.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.unit}</div>
-                {/* Status */}
-                <div>
-                  <span style={{
-                    fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 99,
-                    background: isActive(u.status) ? T.successBg : T.dangerBg,
-                    color: isActive(u.status) ? T.success : T.danger,
-                  }}>{u.status}</span>
-                </div>
-                {/* Last Login */}
-                <div style={{ fontSize: 12, color: T.textMuted }}>{u.lastLogin}</div>
-                {/* Actions */}
-                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                  <button onClick={() => openEdit(u)} style={s.btnGhost}
-                    onMouseEnter={e => e.currentTarget.style.background = T.primaryLight}
-                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                    <Icon name="edit" size={13} /> Edit
-                  </button>
-                  <button onClick={() => handleDelete(u)} style={s.btnDanger}
-                    onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = T.danger; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; e.currentTarget.style.borderColor = T.dangerBorder; }}>
-                    <Icon name="x" size={13} /> Hapus
-                  </button>
-                </div>
+              ) : (
+                pagedUsers.map((u, i) => {
+                  const { opd, bidang, isBapp } = resolveOpdDanBidang(u);
+                  const avColor = getAvatarColor(u.name);
+                  const avBg = isDark && avColor.darkBg ? avColor.darkBg : avColor.bg;
+                  const avText = isDark && avColor.darkText ? avColor.darkText : avColor.text;
+                  const act = isActive(u.status);
+
+                  return (
+                    <div
+                      key={u.id}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: GRID_COLS,
+                        padding: "14px 20px",
+                        alignItems: "center",
+                        borderBottom: i < pagedUsers.length - 1 ? `1px solid ${T.border}` : "none",
+                        transition: "background 0.12s ease",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = T.surfaceHover}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    >
+                      {/* 1. Pengguna (Avatar, Nama, NIP) */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, paddingRight: 10 }}>
+                        <div style={{
+                          width: 38, height: 38, borderRadius: 99, background: avBg,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 13, fontWeight: 700, color: avText, flexShrink: 0,
+                          boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.06)"
+                        }}>
+                          {ambilInisial(u.name)}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div
+                            title={u.name}
+                            style={{
+                              fontSize: 14, fontWeight: 600, color: T.text,
+                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+                            }}
+                          >
+                            {u.name}
+                          </div>
+                          <div style={{ fontSize: 12, color: T.textMuted, fontFamily: "monospace, sans-serif", marginTop: 2 }}>
+                            NIP: {u.nip || "—"}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 2. Peran & Akses */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start", paddingRight: 10 }}>
+                        <Badge label={u.role} colors={ambilWarnaRole(u.role)} />
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          padding: "1px 7px",
+                          borderRadius: 99,
+                          background: isBapp ? (isDark ? "#2E1065" : "#F5F3FF") : (isDark ? "#083344" : "#ECFEFF"),
+                          color: isBapp ? (isDark ? "#C4B5FD" : "#7C3AED") : (isDark ? "#67E8F9" : "#0891B2"),
+                          letterSpacing: "0.02em"
+                        }}>
+                          {isBapp ? "BAPPERIDA" : "OPD Luar"}
+                        </span>
+                      </div>
+
+                      {/* 3. Perangkat Daerah & Bidang (Separated cleanly, NO OVERLAP) */}
+                      <div style={{ minWidth: 0, paddingRight: 14 }}>
+                        <div
+                          title={opd}
+                          style={{
+                            fontSize: 13, fontWeight: 600, color: T.text,
+                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+                          }}
+                        >
+                          {opd}
+                        </div>
+                        {bidang ? (
+                          <div
+                            title={bidang}
+                            style={{
+                              fontSize: 11, color: T.textSecondary, marginTop: 2,
+                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+                            }}
+                          >
+                            {bidang}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
+                            {isBapp ? "Sekretariat / Bidang Teknis" : "Unit Kerja Perangkat Daerah"}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 4. Status */}
+                      <div>
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", gap: 6,
+                          fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 99,
+                          background: act ? T.successBg : T.dangerBg,
+                          color: act ? T.success : T.danger,
+                          border: `1px solid ${act ? T.successBorder : T.dangerBorder}`
+                        }}>
+                          <span style={{
+                            width: 6, height: 6, borderRadius: 99,
+                            background: act ? T.success : T.danger
+                          }} />
+                          {u.status || "Aktif"}
+                        </span>
+                      </div>
+
+                      {/* 5. Login Terakhir */}
+                      <div style={{ fontSize: 12, color: T.textSecondary, whiteSpace: "nowrap" }}>
+                        {u.lastLogin && u.lastLogin !== "—" ? (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                            <Icon name="clock" size={12} style={{ color: T.textMuted }} />
+                            {u.lastLogin}
+                          </span>
+                        ) : (
+                          <span style={{ color: T.textMuted, fontStyle: "italic", fontSize: 11 }}>
+                            Belum pernah
+                          </span>
+                        )}
+                      </div>
+
+                      {/* 6. Aksi */}
+                      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
+                        <button
+                          type="button"
+                          onClick={() => openEdit(u)}
+                          title={`Edit akun ${u.name}`}
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 5,
+                            padding: "6px 11px", fontSize: 12, fontWeight: 600,
+                            color: T.primary, background: T.primaryLight,
+                            border: `1px solid ${T.border}`, borderRadius: T.radius,
+                            cursor: "pointer", transition: "all 0.15s ease",
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.background = T.primary;
+                            e.currentTarget.style.color = "#FFFFFF";
+                            e.currentTarget.style.borderColor = T.primary;
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.background = T.primaryLight;
+                            e.currentTarget.style.color = T.primary;
+                            e.currentTarget.style.borderColor = T.border;
+                          }}
+                        >
+                          <Icon name="edit" size={13} /> Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(u)}
+                          title={`Hapus pengguna ${u.name}`}
+                          style={{
+                            display: "inline-flex", alignItems: "center", justifyContent: "center",
+                            width: 30, height: 30, borderRadius: T.radius,
+                            background: "transparent", border: "1px solid transparent",
+                            color: T.textMuted, cursor: "pointer", transition: "all 0.15s ease",
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.background = T.dangerBg;
+                            e.currentTarget.style.color = T.danger;
+                            e.currentTarget.style.borderColor = T.dangerBorder;
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.background = "transparent";
+                            e.currentTarget.style.color = T.textMuted;
+                            e.currentTarget.style.borderColor = "transparent";
+                          }}
+                        >
+                          <Icon name="trash" size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Pagination & Page Size Footer */}
+          {totalItems > 0 && (
+            <div style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              padding: "12px 20px", background: T.card, borderTop: `1px solid ${T.border}`,
+              flexWrap: "wrap", gap: 12
+            }}>
+              <div style={{ fontSize: 12, color: T.textSecondary }}>
+                Menampilkan <strong style={{ color: T.text }}>{startIdx} - {endIdx}</strong> dari <strong style={{ color: T.text }}>{totalItems}</strong> pengguna
+                {hasFilterActive && <span style={{ color: T.primary, marginLeft: 5 }}>(difilter dari {users.length})</span>}
               </div>
-            ))
+
+              <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: T.textSecondary }}>
+                  <span>Baris per halaman:</span>
+                  <div style={{ width: 85 }}>
+                    <Select
+                      size="sm"
+                      value={perPage}
+                      onChange={v => { setPerPage(Number(v)); setPage(1); }}
+                      options={[
+                        { value: 10, label: "10" },
+                        { value: 15, label: "15" },
+                        { value: 25, label: "25" },
+                        { value: 50, label: "50" },
+                        { value: -1, label: "Semua" },
+                      ]}
+                    />
+                  </div>
+                </div>
+
+                {!isAllPages && totalPages > 1 && (
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <button
+                      disabled={currentPage <= 1}
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      style={{
+                        ...s.btnBase, padding: "6px 12px", fontSize: 12,
+                        background: currentPage <= 1 ? T.surfaceHover : T.card,
+                        border: `1px solid ${T.border}`,
+                        color: currentPage <= 1 ? T.textMuted : T.text,
+                        cursor: currentPage <= 1 ? "not-allowed" : "pointer"
+                      }}
+                    >
+                      <Icon name="chevronLeft" size={13} /> Sebelumnya
+                    </button>
+
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, idx) => {
+                      let pNum = idx + 1;
+                      if (totalPages > 5 && currentPage > 3) {
+                        pNum = Math.min(totalPages - 4 + idx, currentPage - 2 + idx);
+                      }
+                      const isCurrent = pNum === currentPage;
+                      return (
+                        <button
+                          key={pNum}
+                          onClick={() => setPage(pNum)}
+                          style={{
+                            ...s.btnBase, width: 30, height: 30, padding: 0, fontSize: 12,
+                            background: isCurrent ? T.primary : T.card,
+                            color: isCurrent ? "#FFFFFF" : T.text,
+                            border: `1px solid ${isCurrent ? T.primary : T.border}`,
+                            fontWeight: isCurrent ? 700 : 500,
+                          }}
+                        >
+                          {pNum}
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      disabled={currentPage >= totalPages}
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      style={{
+                        ...s.btnBase, padding: "6px 12px", fontSize: 12,
+                        background: currentPage >= totalPages ? T.surfaceHover : T.card,
+                        border: `1px solid ${T.border}`,
+                        color: currentPage >= totalPages ? T.textMuted : T.text,
+                        cursor: currentPage >= totalPages ? "not-allowed" : "pointer"
+                      }}
+                    >
+                      Berikutnya <Icon name="chevronRight" size={13} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
       ) : (
-        /* Mobile Cards */
+        /* ── Mobile Responsive Card View ────────────────────────────── */
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {users.length === 0 ? (
+          {totalItems === 0 ? (
             <div style={{ ...s.cardStyle, padding: "48px 20px", textAlign: "center" }}>
-              <div style={{ width: 48, height: 48, background: T.primaryLight, borderRadius: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
-                <Icon name="users" size={22} style={{ color: T.primary }} />
+              <div style={{
+                width: 48, height: 48, background: T.primaryLight, borderRadius: 12,
+                display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12, color: T.primary
+              }}>
+                <Icon name="search" size={22} />
               </div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 4 }}>Belum ada pengguna</div>
-              <div style={{ fontSize: 13, color: T.textMuted }}>Klik "Tambah" untuk menambahkan pengguna baru</div>
-            </div>
-          ) : users.map(u => (
-            <div key={u.id} style={{ ...s.cardStyle, padding: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                <div style={{ width: 40, height: 40, background: T.primaryLight, borderRadius: 99, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: T.primary, flexShrink: 0 }}>
-                  {u.name[0]}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.name}</div>
-                  <div style={{ fontSize: 12, color: T.textMuted }}>NIP: {u.nip}</div>
-                </div>
-                <Badge label={u.role} colors={ambilWarnaRole(u.role)} />
+              <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 4 }}>
+                Tidak ada pengguna ditemukan
               </div>
-              <div style={{ display: "flex", gap: 8, fontSize: 12, color: T.textSecondary, marginBottom: 12, flexWrap: "wrap" }}>
-                <span style={{ background: T.bg, border: `1px solid ${T.border}`, padding: "3px 10px", borderRadius: 99 }}>{u.unit}</span>
-                <span style={{
-                  fontWeight: 600, padding: "3px 10px", borderRadius: 99,
-                  background: isActive(u.status) ? T.successBg : T.dangerBg,
-                  color: isActive(u.status) ? T.success : T.danger,
-                }}>{u.status}</span>
+              <div style={{ fontSize: 13, color: T.textMuted, marginBottom: 14 }}>
+                Sesuaikan kata kunci pencarian Anda
               </div>
-              <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 12 }}>Login: {u.lastLogin}</div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => openEdit(u)} style={{ ...s.btnBase, flex: 1, padding: "9px 12px", background: T.bg, border: `1px solid ${T.border}`, color: T.textSecondary, fontSize: 13 }}
-                  onMouseEnter={e => e.currentTarget.style.background = T.primaryLight}
-                  onMouseLeave={e => e.currentTarget.style.background = T.bg}>
-                  <Icon name="edit" size={13} /> Edit
+              {hasFilterActive && (
+                <button onClick={resetFilters} style={s.btnPrimary}>
+                  Reset Filter
                 </button>
-                <button onClick={() => handleDelete(u)} style={{ ...s.btnBase, flex: 1, padding: "9px 12px", background: T.dangerBg, border: `1px solid ${T.dangerBorder}`, color: T.danger, fontSize: 13 }}
-                  onMouseEnter={e => { e.currentTarget.style.background = T.dangerHover; e.currentTarget.style.borderColor = T.danger; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = T.dangerBg; e.currentTarget.style.borderColor = T.dangerBorder; }}>
-                  <Icon name="x" size={13} /> Hapus
-                </button>
-              </div>
+              )}
             </div>
-          ))}
+          ) : (
+            pagedUsers.map(u => {
+              const { opd, bidang, isBapp } = resolveOpdDanBidang(u);
+              const avColor = getAvatarColor(u.name);
+              const avBg = isDark && avColor.darkBg ? avColor.darkBg : avColor.bg;
+              const avText = isDark && avColor.darkText ? avColor.darkText : avColor.text;
+              const act = isActive(u.status);
+
+              return (
+                <div key={u.id} style={{ ...s.cardStyle, padding: 16 }}>
+                  {/* Top Bar */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                    <div style={{
+                      width: 42, height: 42, background: avBg, borderRadius: 99,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 14, fontWeight: 700, color: avText, flexShrink: 0
+                    }}>
+                      {ambilInisial(u.name)}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {u.name}
+                      </div>
+                      <div style={{ fontSize: 12, color: T.textMuted, fontFamily: "monospace, sans-serif" }}>
+                        NIP: {u.nip || "—"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Badges Row */}
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+                    <Badge label={u.role} colors={ambilWarnaRole(u.role)} />
+                    <span style={{
+                      fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99,
+                      background: isBapp ? (isDark ? "#2E1065" : "#F5F3FF") : (isDark ? "#083344" : "#ECFEFF"),
+                      color: isBapp ? (isDark ? "#C4B5FD" : "#7C3AED") : (isDark ? "#67E8F9" : "#0891B2"),
+                    }}>
+                      {isBapp ? "BAPPERIDA" : "OPD Luar"}
+                    </span>
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                      fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99,
+                      background: act ? T.successBg : T.dangerBg,
+                      color: act ? T.success : T.danger,
+                      marginLeft: "auto"
+                    }}>
+                      <span style={{ width: 6, height: 6, borderRadius: 99, background: act ? T.success : T.danger }} />
+                      {u.status || "Aktif"}
+                    </span>
+                  </div>
+
+                  {/* OPD & Unit Info */}
+                  <div style={{
+                    background: T.surfaceHover, borderRadius: T.radius, padding: "8px 12px",
+                    marginBottom: 12, fontSize: 12
+                  }}>
+                    <div style={{ fontWeight: 600, color: T.text }}>{opd}</div>
+                    {bidang && <div style={{ color: T.textSecondary, marginTop: 2 }}>{bidang}</div>}
+                  </div>
+
+                  {/* Last Login & Actions */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, fontSize: 12, color: T.textMuted }}>
+                    <span>Login: {u.lastLogin && u.lastLogin !== "—" ? u.lastLogin : "Belum pernah"}</span>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      onClick={() => openEdit(u)}
+                      style={{
+                        ...s.btnBase, flex: 1, padding: "8px 12px",
+                        background: T.primaryLight, border: `1px solid ${T.border}`,
+                        color: T.primary, fontSize: 13
+                      }}
+                    >
+                      <Icon name="edit" size={13} /> Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(u)}
+                      style={{
+                        ...s.btnBase, flex: 1, padding: "8px 12px",
+                        background: T.dangerBg, border: `1px solid ${T.dangerBorder}`,
+                        color: T.danger, fontSize: 13
+                      }}
+                    >
+                      <Icon name="trash" size={13} /> Hapus
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+
+          {/* Mobile Pagination */}
+          {totalItems > 0 && (
+            <div style={{ ...s.cardStyle, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, color: T.textSecondary }}>
+                <span>Menampilkan <strong style={{ color: T.text }}>{startIdx} - {endIdx}</strong> dari <strong style={{ color: T.text }}>{totalItems}</strong></span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>Baris:</span>
+                  <div style={{ width: 80 }}>
+                    <Select
+                      size="sm"
+                      value={perPage}
+                      onChange={v => { setPerPage(Number(v)); setPage(1); }}
+                      options={[
+                        { value: 10, label: "10" },
+                        { value: 15, label: "15" },
+                        { value: 25, label: "25" },
+                        { value: -1, label: "Semua" },
+                      ]}
+                    />
+                  </div>
+                </div>
+              </div>
+              {!isAllPages && totalPages > 1 && (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    disabled={currentPage <= 1}
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    style={{
+                      ...s.btnBase, flex: 1, padding: "7px 12px", fontSize: 12,
+                      background: currentPage <= 1 ? T.surfaceHover : T.card,
+                      border: `1px solid ${T.border}`,
+                      color: currentPage <= 1 ? T.textMuted : T.text,
+                      cursor: currentPage <= 1 ? "not-allowed" : "pointer"
+                    }}
+                  >
+                    <Icon name="chevronLeft" size={13} /> Sebelumnya
+                  </button>
+                  <button
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    style={{
+                      ...s.btnBase, flex: 1, padding: "7px 12px", fontSize: 12,
+                      background: currentPage >= totalPages ? T.surfaceHover : T.card,
+                      border: `1px solid ${T.border}`,
+                      color: currentPage >= totalPages ? T.textMuted : T.text,
+                      cursor: currentPage >= totalPages ? "not-allowed" : "pointer"
+                    }}
+                  >
+                    Berikutnya <Icon name="chevronRight" size={13} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Modal */}
+      {/* ── Modal Tambah / Edit Pengguna ────────────────────────────── */}
       {modalOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", zIndex: 1200, padding: isMobile ? 0 : 20 }}
-          onClick={() => setModalOpen(false)}>
+        <div
+          style={{
+            position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)",
+            backdropFilter: "blur(4px)", display: "flex",
+            alignItems: isMobile ? "flex-end" : "center", justifyContent: "center",
+            zIndex: 1200, padding: isMobile ? 0 : 20
+          }}
+          onClick={() => setModalOpen(false)}
+        >
           <Geser aktif={!isMobile} onClick={e => e.stopPropagation()} style={{
             background: T.card, borderRadius: isMobile ? "16px 16px 0 0" : T.radiusLg,
             padding: isMobile ? "24px 20px 80px" : "28px 32px",
-            width: isMobile ? "100%" : 460, maxHeight: isMobile ? "85vh" : "auto", overflowY: "auto",
+            width: isMobile ? "100%" : 500, maxHeight: isMobile ? "85vh" : "90vh", overflowY: "auto",
             boxShadow: T.shadowLg, animation: isMobile ? "slideUp .25s ease" : "fadeIn .15s ease",
           }}>
             {/* Modal Header */}
-            <div data-pegang style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: 0 }}>{isEdit ? "Edit Pengguna" : "Tambah Pengguna"}</h2>
-              <button onClick={() => setModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.textMuted, transition: "all 0.15s" }}
+            <div data-pegang style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 700, color: T.text, margin: 0 }}>
+                  {isEdit ? "Edit Data Pengguna" : "Tambah Pengguna Baru"}
+                </h2>
+                <p style={{ fontSize: 12, color: T.textSecondary, margin: "4px 0 0" }}>
+                  {isEdit ? `ID: #${form.id} — Perbarui informasi akun & hak akses` : "Lengkapi profil akun untuk memberikan akses aplikasi"}
+                </p>
+              </div>
+              <button
+                onClick={() => setModalOpen(false)}
+                style={{
+                  width: 32, height: 32, borderRadius: 8, background: "transparent",
+                  border: "none", cursor: "pointer", display: "flex", alignItems: "center",
+                  justifyContent: "center", color: T.textMuted, transition: "all 0.15s"
+                }}
                 onMouseEnter={e => { e.currentTarget.style.background = T.surfaceHover; e.currentTarget.style.color = T.text; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.textMuted; }}>
+                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.textMuted; }}
+              >
                 <Icon name="x" size={18} />
               </button>
             </div>
 
-            {/* Form */}
+            {/* Form Fields */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {/* NIP */}
               <div>
-                <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>NIP <span style={{ color: T.danger }}>*</span></label>
-                <input value={form.nip} onChange={e => setForm({ ...form, nip: e.target.value })} placeholder="Masukkan NIP"
+                <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>
+                  NIP (Nomor Induk Pegawai) <span style={{ color: T.danger }}>*</span>
+                </label>
+                <input
+                  value={form.nip}
+                  onChange={e => setForm({ ...form, nip: e.target.value })}
+                  placeholder="Contoh: 198908242025212117"
                   style={errors.nip ? s.inputErrorStyle : s.inputStyle}
-                  onFocus={e => { if (!errors.nip) e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
-                  onBlur={e => { if (!errors.nip) e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }} />
-                {errors.nip && <div style={{ fontSize: 12, color: T.danger, marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}><Icon name="x" size={12} /> {errors.nip}</div>}
+                  onFocus={e => { if (!errors.nip) { e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; } }}
+                  onBlur={e => { if (!errors.nip) { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; } }}
+                />
+                {errors.nip && (
+                  <div style={{ fontSize: 12, color: T.danger, marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                    <Icon name="x" size={12} /> {errors.nip}
+                  </div>
+                )}
               </div>
 
               {/* Nama */}
               <div>
-                <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>Nama Lengkap <span style={{ color: T.danger }}>*</span></label>
-                <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Masukkan nama lengkap"
+                <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>
+                  Nama Lengkap beserta Gelar <span style={{ color: T.danger }}>*</span>
+                </label>
+                <input
+                  value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
+                  placeholder="Contoh: Ester Jola Larra, SP"
                   style={errors.name ? s.inputErrorStyle : s.inputStyle}
-                  onFocus={e => { if (!errors.name) e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
-                  onBlur={e => { if (!errors.name) e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }} />
-                {errors.name && <div style={{ fontSize: 12, color: T.danger, marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}><Icon name="x" size={12} /> {errors.name}</div>}
+                  onFocus={e => { if (!errors.name) { e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; } }}
+                  onBlur={e => { if (!errors.name) { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; } }}
+                />
+                {errors.name && (
+                  <div style={{ fontSize: 12, color: T.danger, marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                    <Icon name="x" size={12} /> {errors.name}
+                  </div>
+                )}
               </div>
 
               {/* Role + Status */}
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.2fr 0.8fr", gap: 14 }}>
                 <div>
-                  <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>Peran <span style={{ color: T.danger }}>*</span></label>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>
+                    Peran (Role) <span style={{ color: T.danger }}>*</span>
+                  </label>
                   <Select
                     fullWidth
                     size="lg"
@@ -1028,10 +1807,16 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>Status <span style={{ color: T.danger }}>*</span></label>
-                  <Select fullWidth size="lg" value={form.status} onChange={v => setForm({ ...form, status: v })} options={["AKTIF", "TUGAS", "NONAKTIF"].map(st => ({ value: st, label: st }))}
-                    onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
-                    onBlur={() => {}} />
+                  <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>
+                    Status Akun <span style={{ color: T.danger }}>*</span>
+                  </label>
+                  <Select
+                    fullWidth
+                    size="lg"
+                    value={form.status}
+                    onChange={v => setForm({ ...form, status: v })}
+                    options={["AKTIF", "TUGAS", "NONAKTIF"].map(st => ({ value: st, label: st }))}
+                  />
                 </div>
               </div>
 
@@ -1048,66 +1833,126 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
                     <Select
                       fullWidth
                       size="lg"
+                      searchable
                       value={form.opd_id || ""}
                       error={!!errors.opd_id}
-                      placeholder="— Pilih OPD —"
+                      placeholder="— Pilih Perangkat Daerah —"
                       onChange={val => {
                         const found = opdList.find(o => String(o.id) === String(val));
                         setForm({ ...form, opd_id: val, unit: found?.nama || form.unit });
                       }}
                       options={[
-                        { value: "", label: "— Pilih OPD —" },
+                        { value: "", label: "— Pilih Perangkat Daerah —" },
                         ...opdList.map(o => ({ value: String(o.id), label: o.nama })),
                       ]}
                     />
-                    {errors.opd_id && <div style={{ fontSize: 12, color: T.danger, marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}><Icon name="x" size={12} /> {errors.opd_id}</div>}
+                    {errors.opd_id && (
+                      <div style={{ fontSize: 12, color: T.danger, marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                        <Icon name="x" size={12} /> {errors.opd_id}
+                      </div>
+                    )}
                   </div>
                 );
               })()}
 
-              {/* Unit Kerja */}
+              {/* Unit Kerja / Bidang */}
               <div>
-                <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>Unit Kerja <span style={{ color: T.danger }}>*</span></label>
-                <Select fullWidth size="lg" value={form.unit} placeholder="— Pilih Bidang —" onChange={v => setForm({ ...form, unit: v })} options={[{ value: "", label: "— Pilih Bidang —" }, ...bidangList.map(b => ({ value: b.nama, label: b.nama })), ...(form.unit && !bidangList.some(b => b.nama === form.unit) ? [{ value: form.unit, label: form.unit }] : [])]}
-
-                  onFocus={e => { e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
-                  onBlur={() => {}} />
-
-
-
-
+                <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>
+                  Unit Kerja / Bidang Teknis
+                </label>
+                <Select
+                  fullWidth
+                  size="lg"
+                  searchable
+                  value={form.unit}
+                  placeholder="— Pilih Bidang atau masukkan —"
+                  onChange={v => setForm({ ...form, unit: v })}
+                  options={[
+                    { value: "", label: "— Pilih Bidang —" },
+                    ...bidangList.map(b => ({ value: b.nama, label: b.nama })),
+                    ...(form.unit && !bidangList.some(b => b.nama === form.unit) ? [{ value: form.unit, label: form.unit }] : [])
+                  ]}
+                />
               </div>
 
               {/* Password */}
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, color: T.text, display: "block", marginBottom: 6 }}>
                   Password {!isEdit && <span style={{ color: T.danger }}>*</span>}
-                  {isEdit && <span style={{ fontWeight: 400, color: T.textMuted, fontSize: 12 }}> (kosongkan jika tidak diubah)</span>}
+                  {isEdit && <span style={{ fontWeight: 400, color: T.textMuted, fontSize: 12 }}> (kosongkan jika tidak ingin diubah)</span>}
                 </label>
-                <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
-                  placeholder={isEdit ? "••••••••" : "Masukkan password"}
-                  style={errors.password ? s.inputErrorStyle : s.inputStyle}
-                  onFocus={e => { if (!errors.password) e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; }}
-                  onBlur={e => { if (!errors.password) e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }} />
-                {errors.password && <div style={{ fontSize: 12, color: T.danger, marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}><Icon name="x" size={12} /> {errors.password}</div>}
+                <div style={{ position: "relative" }}>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={form.password}
+                    onChange={e => setForm({ ...form, password: e.target.value })}
+                    placeholder={isEdit ? "••••••••" : "Masukkan kata sandi"}
+                    style={{
+                      ...(errors.password ? s.inputErrorStyle : s.inputStyle),
+                      paddingRight: 38
+                    }}
+                    onFocus={e => { if (!errors.password) { e.target.style.borderColor = T.primary; e.target.style.boxShadow = T.focusRing; } }}
+                    onBlur={e => { if (!errors.password) { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; } }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    style={{
+                      position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+                      background: "transparent", border: "none", color: T.textMuted, cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center"
+                    }}
+                    title={showPassword ? "Sembunyikan password" : "Lihat password"}
+                  >
+                    <Icon name={showPassword ? "eyeOff" : "eye"} size={16} />
+                  </button>
+                </div>
+                {errors.password && (
+                  <div style={{ fontSize: 12, color: T.danger, marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                    <Icon name="x" size={12} /> {errors.password}
+                  </div>
+                )}
               </div>
 
               {errors.submit && (
-                <div style={{ fontSize: 13, color: T.danger, padding: "10px 14px", background: T.dangerBg, borderRadius: T.radius, border: `1px solid ${T.dangerBorder}`, display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{
+                  fontSize: 13, color: T.danger, padding: "10px 14px",
+                  background: T.dangerBg, borderRadius: T.radius,
+                  border: `1px solid ${T.dangerBorder}`, display: "flex", alignItems: "center", gap: 6
+                }}>
                   <Icon name="x" size={14} /> {errors.submit}
                 </div>
               )}
             </div>
 
-            {/* Actions */}
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24, paddingTop: 16, borderTop: `1px solid ${T.border}` }}>
-              <button onClick={() => setModalOpen(false)} style={{ ...s.btnBase, padding: "10px 18px", background: T.surfaceHover, color: T.textSecondary, fontSize: 13 }}
+            {/* Modal Actions */}
+            <div style={{
+              display: "flex", gap: 10, justifyContent: "flex-end",
+              marginTop: 24, paddingTop: 16, borderTop: `1px solid ${T.border}`
+            }}>
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                style={{
+                  ...s.btnBase, padding: "10px 18px",
+                  background: T.surfaceHover, color: T.textSecondary, fontSize: 13
+                }}
                 onMouseEnter={e => e.currentTarget.style.background = T.borderHover}
-                onMouseLeave={e => e.currentTarget.style.background = T.surfaceHover}>
+                onMouseLeave={e => e.currentTarget.style.background = T.surfaceHover}
+              >
                 Batal
               </button>
-              <button onClick={handleSubmit} disabled={loading} style={{ ...s.btnPrimary, opacity: loading ? 0.6 : 1, cursor: loading ? "not-allowed" : "pointer" }}>
-                {loading ? "Menyimpan..." : "Simpan"}
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={loading}
+                style={{
+                  ...s.btnPrimary,
+                  opacity: loading ? 0.6 : 1,
+                  cursor: loading ? "not-allowed" : "pointer"
+                }}
+              >
+                {loading ? "Menyimpan..." : (isEdit ? "Perbarui Pengguna" : "Simpan Pengguna")}
               </button>
             </div>
           </Geser>
@@ -1116,6 +1961,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
     </div>
   );
 }
+
 
 // ─── MANAJEMEN KATEGORI DOKUMEN ──────────────────────────────────────────────
 
