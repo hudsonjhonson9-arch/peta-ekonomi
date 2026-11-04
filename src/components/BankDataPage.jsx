@@ -77,9 +77,13 @@ export default function BankDataPage({ user, showToast }) {
   const { isMobile } = useResponsive();
   const queryClient = useQueryClient();
 
-  const canWrite = user?.role === "Admin" || user?.role === "Operator Bank Data";
-  const canVerify = user?.role === "Admin" || user?.role === "Reviewer";
-  const isOperator = user?.role === "Operator Bank Data";
+  const canWrite = user?.role === "Admin" || user?.role === "Walidata" || user?.role === "Operator Bank Data" || user?.role === "Produsen Data" || user?.base_level === "Admin" || user?.base_level === "Operator Bank Data";
+  const canVerify = user?.role === "Admin" || user?.role === "Reviewer" || user?.role === "Walidata";
+  const isBapperida = String(user?.opd_nama || "").toLowerCase().includes("bapperida") ||
+                      String(user?.opd_nama || "").toLowerCase().includes("bappeda") ||
+                      String(user?.opd_id || "") === "9" ||
+                      user?.role === "Admin" || user?.role === "Walidata";
+  const isOperator = (user?.role === "Operator Bank Data" || user?.role === "Produsen Data") && !isBapperida;
 
   const [tab, setTabState] = useState(() => {
     try {

@@ -20,7 +20,11 @@ const LEVEL_CONF = {
 export default function BankData({ showToast, user }) {
   const { T } = useContext(ThemeContext);
   const { isMobile } = useResponsive();
-  const isOperator = user?.role === "Operator Bank Data";
+  const isBapperida = String(user?.opd_nama || "").toLowerCase().includes("bapperida") ||
+                      String(user?.opd_nama || "").toLowerCase().includes("bappeda") ||
+                      String(user?.opd_id || "") === "9" ||
+                      user?.role === "Admin" || user?.role === "Walidata";
+  const isOperator = (user?.role === "Operator Bank Data" || user?.role === "Produsen Data") && !isBapperida;
   const queryClient = useQueryClient();
   const { data: tree = [], isLoading } = useQuery({
     queryKey: ['bankdata'],
@@ -185,6 +189,11 @@ export default function BankData({ showToast, user }) {
           <StatChip label="Bidang" value={tree.length} T={T} />
           <StatChip label="OPD" value={tree.reduce((s, b) => s + b.opds.length, 0)} T={T} />
           <StatChip label="Indikator" value={totalIndikator} T={T} />
+          {isBapperida && (
+            <span style={{ fontSize: 11, background: "rgba(14, 116, 144, 0.1)", color: "#0E7490", padding: "4px 10px", borderRadius: 8, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 5, marginLeft: 4 }}>
+              <Icon name="shield" size={13} /> Akses Penuh Seluruh OPD (BAPPERIDA)
+            </span>
+          )}
         </div>
       </div>
 

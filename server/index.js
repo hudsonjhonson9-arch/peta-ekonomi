@@ -22,7 +22,7 @@ import {
 } from './session.js';
 import { kebutuhan, PUBLIK, LOGIN, BANKDATA, REVIEW, ADMIN, jalurOperatorDiizinkan } from './kebijakan.js';
 import {
-  opdTerbatas, opdMilik, bolehEditStatus, bolehVerifikasi,
+  opdTerbatas, opdMilik, isOpdBapperida, bolehEditStatus, bolehVerifikasi,
   validasiMetadataDataset, validasiDaftarField, validasiSatuBaris,
 } from './bank-dataset.js';
 import { daftarkanRuteSatuData } from './satudata-routes.js';
@@ -3149,7 +3149,7 @@ app.delete('/api/bankdata/tahun/:id', async (req, res) => {
 });
 
 function pastikanOpdBoleh(req, res, targetOpdId) {
-  if (!opdTerbatas(req.pengguna)) return true;
+  if (!opdTerbatas(req.pengguna) || isOpdBapperida(req.pengguna)) return true;
   if (!req.pengguna?.opd_id) {
     res.status(403).json({ error: 'Akun Operator belum dipetakan ke OPD' });
     return false;
@@ -3221,7 +3221,8 @@ async function cariOpdBarisNilai(level, rowId, isTriwulan = false) {
 
 app.get('/api/bankdata', async (req, res) => {
   try {
-    if (opdTerbatas(req.pengguna) && !req.pengguna?.opd_id) {
+    const isBapperida = isOpdBapperida(req.pengguna);
+    if (opdTerbatas(req.pengguna) && !req.pengguna?.opd_id && !isBapperida) {
       return res.json([]);
     }
     const [bidangs, opdsAll, ikus, ikks, nilIkuR, twIkuR, nilIkkR, twIkkR, sektorals, indSektR, nilSektR, twSektR] = await Promise.all([
@@ -3239,7 +3240,7 @@ app.get('/api/bankdata', async (req, res) => {
       queryDB(`SELECT * FROM bank_data_sektoral_triwulan ORDER BY indikator_id, tahun`)
     ]);
 
-    const opds = opdTerbatas(req.pengguna)
+    const opds = (opdTerbatas(req.pengguna) && !isBapperida)
       ? opdsAll.filter(o => String(o.id) === String(req.pengguna.opd_id))
       : opdsAll;
 
@@ -3345,7 +3346,7 @@ app.get('/api/bankdata', async (req, res) => {
 
     const treeAll = bidangs.map(b => ({ ...b, opds: [] }));
     for (const o of opds) { const b = treeAll.find(x => String(x.id) === String(o.bidang_id)); if (b) b.opds.push(opdMap.get(String(o.id))); }
-    const tree = opdTerbatas(req.pengguna) ? treeAll.filter(b => b.opds.length > 0) : treeAll;
+    const tree = (opdTerbatas(req.pengguna) && !isBapperida) ? treeAll.filter(b => b.opds.length > 0) : treeAll;
 
     res.json(tree);
   } catch (err) {
@@ -3357,7 +3358,8 @@ app.get('/api/bankdata', async (req, res) => {
 // ── OPD ─────────────────────────────────────────────────────────────────
 app.get('/api/bankdata/opd', async (req, res) => {
   try {
-    if (opdTerbatas(req.pengguna)) {
+    const isBapperida = isOpdBapperida(req.pengguna);
+    if (opdTerbatas(req.pengguna) && !isBapperida) {
       if (!req.pengguna?.opd_id) return res.json([]);
       const rows = await queryDB(
         `SELECT o.id, o.bidang_id, o.nama, o.urutan, b.nama_bidang AS bidang_nama

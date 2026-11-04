@@ -1000,23 +1000,27 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
         style={{
           background: T.card,
           borderRadius: 14,
-          padding: isMobile ? "16px 14px" : "20px 24px",
+          padding: isMobile ? "16px 14px" : "18px 22px",
           border: `1px solid ${T.border}`,
           marginBottom: 20,
-          display: "flex",
-          flexDirection: isMobile ? "column" : "row",
-          justifyContent: "space-between",
-          alignItems: isMobile ? "flex-start" : "center",
-          gap: 16,
           boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        {/* Baris Atas: Informasi Pengguna & Role */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            paddingBottom: isMobile ? 12 : 14,
+            borderBottom: `1px solid ${T.border}`,
+          }}
+        >
           {/* Avatar Bulat dengan Inisial */}
           <div
             style={{
-              width: 46,
-              height: 46,
+              width: 44,
+              height: 44,
               borderRadius: 12,
               background: roleStyle.bg,
               color: roleStyle.text,
@@ -1032,9 +1036,9 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
             {userName.charAt(0).toUpperCase()}
           </div>
 
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 17, fontWeight: 700, color: T.text }}>
+              <span style={{ fontSize: 16.5, fontWeight: 700, color: T.text }}>
                 {salamWaktu}, {userName}
               </span>
               <span
@@ -1094,72 +1098,97 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
           </div>
         </div>
 
-        {/* Shortcut Tombol Aksi Cepat Sesuai Role */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", width: isMobile ? "100%" : "auto" }}>
-          {isProdusen ? (
-            <>
-              <Button size="sm" variant="primary" icon="database" onClick={() => onNav("bankdata")}>
-                Kelola Dataset OPD
-              </Button>
-              <Button size="sm" variant="secondary" icon="shield" onClick={() => onNav("spm")}>
-                Capaian SPM
-              </Button>
-              <Button size="sm" variant="secondary" icon="world" onClick={() => onNav("publik")}>
-                Portal Publik
-              </Button>
-              <Button size="sm" variant="secondary" icon="users" onClick={() => onNav("akun")}>
-                Akun Saya
-              </Button>
-            </>
-          ) : isReviewer ? (
-            <>
-              <Button size="sm" variant="primary" icon="database" onClick={() => onNav("bankdata")}>
-                Verval Dataset
-              </Button>
-              <Button size="sm" variant="secondary" icon="archive" onClick={() => onNav("dokumen")}>
-                Telaah Dokumen
-              </Button>
-              <Button size="sm" variant="secondary" icon="checkCircle" onClick={() => onNav("kertas-kerja")}>
-                Kertas Kerja
-              </Button>
-              <Button size="sm" variant="secondary" icon="filter" onClick={() => onNav("screening")}>
-                Screening RKA
-              </Button>
-            </>
-          ) : isStaf ? (
-            <>
-              <Button size="sm" variant="primary" icon="upload" onClick={() => onNav("upload")}>
-                Unggah Dokumen
-              </Button>
-              <Button size="sm" variant="secondary" icon="checkCircle" onClick={() => onNav("kertas-kerja")}>
-                Kertas Kerja
-              </Button>
-              <Button size="sm" variant="secondary" icon="search" onClick={() => onNav("pencarian")}>
-                Cari Dokumen
-              </Button>
-              <Button size="sm" variant="secondary" icon="chart" onClick={() => onNav("bankdata")}>
-                Bank Data
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button size="sm" variant="primary" icon="database" onClick={() => onNav("bankdata")}>
-                Verval Bank Data
-              </Button>
-              <Button size="sm" variant="secondary" icon="upload" onClick={() => onNav("upload")}>
-                Unggah Dokumen
-              </Button>
-              <Button size="sm" variant="secondary" icon="building" onClick={() => onNav("master-satudata")}>
-                Master Data
-              </Button>
-              <Button size="sm" variant="secondary" icon="chart" onClick={() => onNav("monitoring")}>
-                Monitoring
-              </Button>
-              <Button size="sm" variant="secondary" icon="world" onClick={() => onNav("publik")}>
-                Portal Publik
-              </Button>
-            </>
-          )}
+        {/* Baris Bawah: Shortcut Tombol Aksi Cepat Sesuai Role (Lebar Penuh) */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingTop: 12,
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: T.textSecondary, flexShrink: 0 }}>
+            <Icon name="zap" size={14} style={{ color: T.primary }} />
+            <span>Aksi Cepat</span>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              flexWrap: "wrap",
+              flex: 1,
+              justifyContent: isMobile ? "flex-start" : "flex-end",
+            }}
+          >
+            {isProdusen ? (
+              <>
+                <Button size="sm" variant="primary" icon="database" onClick={() => onNav("bankdata")}>
+                  Kelola Dataset OPD
+                </Button>
+                <Button size="sm" variant="secondary" icon="shield" onClick={() => onNav("spm")}>
+                  Capaian SPM
+                </Button>
+                <Button size="sm" variant="secondary" icon="world" onClick={() => onNav("publik")}>
+                  Portal Publik
+                </Button>
+                <Button size="sm" variant="secondary" icon="users" onClick={() => onNav("akun")}>
+                  Akun Saya
+                </Button>
+              </>
+            ) : isReviewer ? (
+              <>
+                <Button size="sm" variant="primary" icon="database" onClick={() => onNav("bankdata")}>
+                  Verval Dataset
+                </Button>
+                <Button size="sm" variant="secondary" icon="archive" onClick={() => onNav("dokumen")}>
+                  Telaah Dokumen
+                </Button>
+                <Button size="sm" variant="secondary" icon="checkCircle" onClick={() => onNav("kertas-kerja")}>
+                  Kertas Kerja
+                </Button>
+                <Button size="sm" variant="secondary" icon="filter" onClick={() => onNav("screening")}>
+                  Screening RKA
+                </Button>
+              </>
+            ) : isStaf ? (
+              <>
+                <Button size="sm" variant="primary" icon="upload" onClick={() => onNav("upload")}>
+                  Unggah Dokumen
+                </Button>
+                <Button size="sm" variant="secondary" icon="checkCircle" onClick={() => onNav("kertas-kerja")}>
+                  Kertas Kerja
+                </Button>
+                <Button size="sm" variant="secondary" icon="search" onClick={() => onNav("pencarian")}>
+                  Cari Dokumen
+                </Button>
+                <Button size="sm" variant="secondary" icon="chart" onClick={() => onNav("bankdata")}>
+                  Bank Data
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button size="sm" variant="primary" icon="database" onClick={() => onNav("bankdata")}>
+                  Verval Bank Data
+                </Button>
+                <Button size="sm" variant="secondary" icon="upload" onClick={() => onNav("upload")}>
+                  Unggah Dokumen
+                </Button>
+                <Button size="sm" variant="secondary" icon="building" onClick={() => onNav("master-satudata")}>
+                  Master Data
+                </Button>
+                <Button size="sm" variant="secondary" icon="chart" onClick={() => onNav("monitoring")}>
+                  Monitoring
+                </Button>
+                <Button size="sm" variant="secondary" icon="world" onClick={() => onNav("publik")}>
+                  Portal Publik
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 

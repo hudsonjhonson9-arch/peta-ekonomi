@@ -9,9 +9,22 @@ export function opdTerbatas(user) {
   return !!user && (user.role === R_BANKDATA || user.opd_scoped === true);
 }
 
+export function isOpdBapperida(user) {
+  if (!user) return false;
+  const base = user.base_level || user.role;
+  if (base === R_ADMIN || base === R_REVIEWER || user.role === R_ADMIN || user.role === R_REVIEWER || user.role === 'Walidata') {
+    return true;
+  }
+  const nama = String(user.opd_nama || '').toLowerCase();
+  const id = String(user.opd_id || '');
+  const instansi = String(user.instansi_id || '').toLowerCase();
+  return nama.includes('bapperida') || nama.includes('bappeda') || id === '9' || instansi.includes('bapperida');
+}
+
 export function opdMilik(user, opdId) {
   if (!user) return false;
   if (!opdTerbatas(user)) return true;
+  if (isOpdBapperida(user)) return true;
   if (!user.opd_id) return false;
   return String(user.opd_id) === String(opdId);
 }
