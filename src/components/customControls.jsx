@@ -16,7 +16,7 @@ export function Select({
   onChange,
   options = [],
   style,
-  minWidth = 140,
+  minWidth,
   label,
   placeholder = "— Pilih —",
   disabled = false,
@@ -86,7 +86,8 @@ export function Select({
     const hitung = () => {
       if (!btnRef.current) return;
       const r = btnRef.current.getBoundingClientRect();
-      setRect({ top: r.bottom, bottom: r.top, left: r.left, width: Math.max(r.width, 180) });
+      const minPanelWidth = size === "sm" ? 95 : 180;
+      setRect({ top: r.bottom, bottom: r.top, left: r.left, width: Math.max(r.width, minPanelWidth) });
     };
     hitung();
 
@@ -154,7 +155,7 @@ export function Select({
       ref={boxRef}
       style={{
         position: "relative",
-        minWidth: fullWidth ? 0 : minWidth,
+        minWidth: fullWidth ? 0 : (minWidth != null ? minWidth : (size === "sm" ? 70 : 140)),
         width: fullWidth ? "100%" : undefined,
         flex: fullWidth ? "1 1 100%" : "0 1 auto",
         maxWidth: fullWidth ? "none" : 280,

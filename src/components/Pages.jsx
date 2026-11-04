@@ -1455,12 +1455,14 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
                 {hasFilterActive && <span style={{ color: T.primary, marginLeft: 5 }}>(difilter dari {users.length})</span>}
               </div>
 
-              <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: T.textSecondary }}>
-                  <span>Baris per halaman:</span>
-                  <div style={{ width: 85 }}>
+                  <span style={{ whiteSpace: "nowrap" }}>Baris per halaman:</span>
+                  <div style={{ width: 85, minWidth: 85 }}>
                     <Select
+                      fullWidth
                       size="sm"
+                      minWidth={75}
                       value={perPage}
                       onChange={v => { setPerPage(Number(v)); setPage(1); }}
                       options={[
@@ -1480,7 +1482,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
                       disabled={currentPage <= 1}
                       onClick={() => setPage(p => Math.max(1, p - 1))}
                       style={{
-                        ...s.btnBase, padding: "6px 12px", fontSize: 12,
+                        ...s.btnBase, display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0, padding: "6px 12px", fontSize: 12,
                         background: currentPage <= 1 ? T.surfaceHover : T.card,
                         border: `1px solid ${T.border}`,
                         color: currentPage <= 1 ? T.textMuted : T.text,
@@ -1517,7 +1519,7 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
                       disabled={currentPage >= totalPages}
                       onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                       style={{
-                        ...s.btnBase, padding: "6px 12px", fontSize: 12,
+                        ...s.btnBase, display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0, padding: "6px 12px", fontSize: 12,
                         background: currentPage >= totalPages ? T.surfaceHover : T.card,
                         border: `1px solid ${T.border}`,
                         color: currentPage >= totalPages ? T.textMuted : T.text,
@@ -1654,9 +1656,11 @@ export function ManajemenPengguna({ users, onReload, showToast }) {
                 <span>Menampilkan <strong style={{ color: T.text }}>{startIdx} - {endIdx}</strong> dari <strong style={{ color: T.text }}>{totalItems}</strong></span>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span>Baris:</span>
-                  <div style={{ width: 80 }}>
+                  <div style={{ width: 80, minWidth: 80 }}>
                     <Select
+                      fullWidth
                       size="sm"
+                      minWidth={75}
                       value={perPage}
                       onChange={v => { setPerPage(Number(v)); setPage(1); }}
                       options={[
