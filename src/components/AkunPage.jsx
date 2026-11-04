@@ -432,68 +432,89 @@ export default function AkunPage({ user, onUpdateUser }) {
             </div>
           </div>
 
-          {/* Sub-A: Identitas Kepegawaian (Terkunci) - Strip Ringkas */}
+          {/* Sub-A & Sub-B: Dibagi Dua (Kiri: NIP, Role, Unit, OPD | Kanan: Nama, Jabatan, No WA & Simpan) */}
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "4px 10px",
-              padding: "6px 10px",
-              background: T.surfaceHover || "rgba(0,0,0,0.02)",
-              borderRadius: 8,
-              border: `1px solid ${T.border}`,
-              marginBottom: 10,
-              fontSize: 11.5,
+              gridTemplateColumns: isMobile ? "1fr" : "185px 1fr",
+              gap: 12,
+              flex: 1,
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", overflow: "hidden" }}>
-              <span style={{ color: T.textMuted, fontSize: 10.5 }}>NIP:</span>
-              <span style={{ fontWeight: 700, fontFamily: "monospace", color: T.text, fontSize: 11 }}>{profil.nip || "—"}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", overflow: "hidden" }}>
-              <span style={{ color: T.textMuted, fontSize: 10.5 }}>Role:</span>
-              <span style={{ fontWeight: 700, color: T.primary, background: T.primaryLight, padding: "1px 6px", borderRadius: 4, fontSize: 10.5 }}>
-                {profil.role || "—"}
-              </span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", overflow: "hidden" }}>
-              <span style={{ color: T.textMuted, fontSize: 10.5 }}>Unit:</span>
-              <span style={{ fontWeight: 600, color: T.text, fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={profil.bidang}>
-                {profil.bidang || "Sekretariat"}
-              </span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", overflow: "hidden" }}>
-              <span style={{ color: T.textMuted, fontSize: 10.5 }}>OPD:</span>
-              <span style={{ fontWeight: 600, color: T.text, fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={profil.opd_nama}>
-                {profil.opd_nama || "BAPPERIDA"}
-              </span>
-            </div>
-          </div>
+            {/* SEBELAH KIRI: NIP, Role, Unit, OPD (Identitas Terkunci) */}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                padding: "10px 12px",
+                background: T.surfaceHover || "rgba(0,0,0,0.02)",
+                borderRadius: 9,
+                border: `1px solid ${T.border}`,
+                gap: 8,
+              }}
+            >
+              <div>
+                <div style={{ color: T.textMuted, fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>
+                  NIP
+                </div>
+                <div style={{ fontWeight: 700, fontFamily: "monospace", color: T.text, fontSize: 11.5, wordBreak: "break-all" }}>
+                  {profil.nip || "—"}
+                </div>
+              </div>
 
-          {/* Sub-B: Form Kontak & Gelar (Kompak) */}
-          <form onSubmit={handleSimpanProfil} style={{ display: "flex", flexDirection: "column", gap: 9, flex: 1 }}>
-            <div>
-              <label style={{ ...labelStyle, fontSize: 11.5, marginBottom: 3 }}>
-                Nama Lengkap Beserta Gelar <span style={{ color: "#DC2626" }}>*</span>
-              </label>
-              <input
-                style={{ ...inputStyle, padding: "6px 10px", fontSize: 12, height: 32 }}
-                required
-                value={profil.nama}
-                onChange={(e) => setProfil({ ...profil, nama: e.target.value })}
-                placeholder="Contoh: Achmad Aqil Susanto, S.Kom"
-              />
+              <div>
+                <div style={{ color: T.textMuted, fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 3 }}>
+                  Role
+                </div>
+                <div>
+                  <span style={{ fontWeight: 700, color: T.primary, background: T.primaryLight, padding: "2px 7px", borderRadius: 4, fontSize: 11, display: "inline-block" }}>
+                    {profil.role || "—"}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ color: T.textMuted, fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>
+                  Unit
+                </div>
+                <div style={{ fontWeight: 600, color: T.text, fontSize: 11.5, lineHeight: 1.3 }} title={profil.bidang}>
+                  {profil.bidang || "Sekretariat"}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ color: T.textMuted, fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>
+                  OPD
+                </div>
+                <div style={{ fontWeight: 600, color: T.text, fontSize: 11.5, lineHeight: 1.3 }} title={profil.opd_nama}>
+                  {profil.opd_nama || "BAPPERIDA"}
+                </div>
+              </div>
             </div>
 
-            {/* Baris 2-Kolom: Jabatan & Nomor WhatsApp */}
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
+            {/* SEBELAH KANAN: Form Nama, Jabatan, Nomor WA & Tombol Simpan */}
+            <form onSubmit={handleSimpanProfil} style={{ display: "flex", flexDirection: "column", gap: 8, justifyContent: "space-between" }}>
+              <div>
+                <label style={{ ...labelStyle, fontSize: 11.5, marginBottom: 3 }}>
+                  Nama Lengkap Beserta Gelar <span style={{ color: "#DC2626" }}>*</span>
+                </label>
+                <input
+                  style={{ ...inputStyle, padding: "6px 10px", fontSize: 12, height: 32 }}
+                  required
+                  value={profil.nama}
+                  onChange={(e) => setProfil({ ...profil, nama: e.target.value })}
+                  placeholder="Contoh: Achmad Aqil Susanto, S.Kom"
+                />
+              </div>
+
               <div>
                 <label style={{ ...labelStyle, fontSize: 11.5, marginBottom: 3 }}>Jabatan Kedinasan</label>
                 <input
                   style={{ ...inputStyle, padding: "6px 10px", fontSize: 12, height: 32 }}
                   value={profil.jabatan}
                   onChange={(e) => setProfil({ ...profil, jabatan: e.target.value })}
-                  placeholder="Pranata Komputer"
+                  placeholder="Contoh: Pranata Komputer Ahli Pertama"
                 />
               </div>
 
@@ -504,42 +525,41 @@ export default function AkunPage({ user, onUpdateUser }) {
                   inputMode="tel"
                   value={profil.nomorhp}
                   onChange={(e) => setProfil({ ...profil, nomorhp: e.target.value })}
-                  placeholder="082237174435"
+                  placeholder="Contoh: 082237174435"
                 />
               </div>
-            </div>
 
-            {/* Tombol Simpan Profil (Menempel Rapi di Bawah) */}
-            <div style={{ marginTop: "auto", paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
-              <button
-                type="submit"
-                disabled={loadingProfil}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                  width: "100%",
-                  height: 34,
-                  padding: "0 14px",
-                  borderRadius: 8,
-                  background: T.primary,
-                  color: "#fff",
-                  border: "none",
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                  cursor: loadingProfil ? "not-allowed" : "pointer",
-                  opacity: loadingProfil ? 0.7 : 1,
-                  boxShadow: "0 1px 2px rgba(37,99,235,0.25)",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                <Icon name={loadingProfil ? "loader" : "checkCircle"} size={14} />
-                <span>{loadingProfil ? "Menyimpan..." : "Simpan Perubahan Profil"}</span>
-              </button>
-            </div>
-          </form>
-        </div>
+              <div style={{ paddingTop: 4 }}>
+                <button
+                  type="submit"
+                  disabled={loadingProfil}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    width: "100%",
+                    height: 32,
+                    padding: "0 12px",
+                    borderRadius: 8,
+                    background: T.primary,
+                    color: "#fff",
+                    border: "none",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: loadingProfil ? "not-allowed" : "pointer",
+                    opacity: loadingProfil ? 0.7 : 1,
+                    boxShadow: "0 1px 2px rgba(37,99,235,0.25)",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <Icon name={loadingProfil ? "loader" : "checkCircle"} size={13} />
+                  <span>{loadingProfil ? "Menyimpan..." : "Simpan Perubahan Profil"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+          </div>
 
         {/* ── CARD KANAN: GANTI KATA SANDI (ULTRA COMPACT) ── */}
         <div style={{ ...kartuStyle, padding: isMobile ? "12px 14px" : "14px 18px", display: "flex", flexDirection: "column", height: "100%", boxSizing: "border-box" }}>
