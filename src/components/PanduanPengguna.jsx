@@ -1,8 +1,17 @@
 import { useState, useContext, useMemo, useEffect } from "react";
-import { Icon } from "./ui.jsx";
+import { Icon, Select } from "./ui.jsx";
 import useResponsive from "../useResponsive.js";
 import { ThemeContext } from "../App.jsx";
 import { isOpdBapperidaFrontend } from "../data.js";
+
+// ── Pilihan Pratinjau Wewenang (Custom Dropdown untuk Admin) ──────────────
+const ROLE_PREVIEW_OPTIONS = [
+  { value: "Semua", label: "Semua Modul (Administrator)" },
+  { value: "Reviewer", label: "Reviewer / Kabid (BAPPERIDA)" },
+  { value: "Staf", label: "Staf Perencana (BAPPERIDA)" },
+  { value: "Walidata", label: "Walidata Daerah" },
+  { value: "Produsen Data", label: "Produsen Data (OPD Luar)" },
+];
 
 // ── Tab Kategori Utama (ui-ux-pro-max: Clean Segmented Control) ───────────
 const ALL_TABS = [
@@ -460,35 +469,23 @@ export default function PanduanPengguna({ user }) {
             gap: 8,
             fontSize: 12,
             background: T.card,
-            padding: "6px 12px",
+            padding: isAdmin ? "3px 6px 3px 12px" : "6px 12px",
             borderRadius: 8,
             border: `1px solid ${T.border}`,
             color: T.textSecondary
           }}>
-            <Icon name="shield" size={14} style={{ color: T.primary }} />
-            <span>Wewenang Akses:</span>
+            <Icon name="shield" size={14} style={{ color: T.primary, flexShrink: 0 }} />
+            <span style={{ fontWeight: 500, whiteSpace: "nowrap" }}>Wewenang Akses:</span>
             {isAdmin ? (
-              <select
+              <Select
                 value={previewRole}
-                onChange={(e) => setPreviewRole(e.target.value)}
-                style={{
-                  background: T.bg,
-                  color: T.text,
-                  border: `1px solid ${T.border}`,
-                  borderRadius: 6,
-                  padding: "3px 8px",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  outline: "none"
-                }}
-              >
-                <option value="Semua">Semua Modul (Administrator)</option>
-                <option value="Reviewer">Reviewer / Kabid (BAPPERIDA)</option>
-                <option value="Staf">Staf Perencana (BAPPERIDA)</option>
-                <option value="Walidata">Walidata Daerah</option>
-                <option value="Produsen Data">Produsen Data (OPD Luar)</option>
-              </select>
+                onChange={setPreviewRole}
+                options={ROLE_PREVIEW_OPTIONS}
+                size="sm"
+                searchable={false}
+                minWidth={230}
+                style={{ maxWidth: 280 }}
+              />
             ) : (
               <strong style={{ color: T.text }}>
                 {actualRole} {user?.unit ? `(${user.unit})` : ""}
