@@ -1408,7 +1408,7 @@ export default function App() {
               <PortalPublikLengkap user={user} onLoginClick={() => goPage("dashboard")} />
             )}
             {page === "panduan" && (
-              <PanduanPengguna />
+              <PanduanPengguna user={user} />
             )}
             {page === "bankdata" && (
               <BankDataPage user={user} showToast={showToast} initialTab={currentTab || undefined} />

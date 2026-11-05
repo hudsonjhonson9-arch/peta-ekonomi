@@ -1,43 +1,44 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useMemo, useEffect } from "react";
 import { Icon } from "./ui.jsx";
 import useResponsive from "../useResponsive.js";
 import { ThemeContext } from "../App.jsx";
+import { isOpdBapperidaFrontend } from "../data.js";
 
 // ── Tab Kategori Utama (ui-ux-pro-max: Clean Segmented Control) ───────────
-const TABS = [
-  { id: "arsip", title: "Arsip Digital", icon: "archive" },
+const ALL_TABS = [
+  { id: "arsip", title: "Arsip Digital", icon: "archive", bapperidaOnly: true },
   { id: "satudata", title: "Satu Data", icon: "chart" },
   { id: "umum", title: "Umum & Akun", icon: "users" },
 ];
 
-// ── Daftar Seksi Panduan Lengkap ──────────────────────────────────────────
+// ── Daftar Seksi Panduan Lengkap dengan Pembatasan Wewenang Peran ────────
 const SECTIONS = [
-  // ── 1. Arsip Digital & Perencanaan ─────────────────────────────────────
-  { id: "dashboard", title: "Dashboard Arsip", icon: "home", tab: "arsip" },
-  { id: "dokumen", title: "Pustaka Dokumen", icon: "archive", tab: "arsip" },
-  { id: "detail", title: "Detail & Persetujuan", icon: "eye", tab: "arsip" },
-  { id: "upload", title: "Upload Dokumen", icon: "upload", tab: "arsip" },
-  { id: "kertas_kerja", title: "Kertas Kerja & Cascading", icon: "layers", tab: "arsip" },
-  { id: "screening", title: "Screening RKA & SSH", icon: "filter", tab: "arsip" },
-  { id: "kategori", title: "Kategori Dokumen", icon: "tag", tab: "arsip" },
-  { id: "sektor", title: "Sektor Pembangunan", icon: "layers", tab: "arsip" },
-  { id: "audit", title: "Audit Trail", icon: "history", tab: "arsip" },
+  // ── 1. Arsip Digital & Perencanaan (Khusus Internal BAPPERIDA) ──────────
+  { id: "dashboard", title: "Dashboard Arsip", icon: "home", tab: "arsip", bapperidaOnly: true },
+  { id: "dokumen", title: "Pustaka Dokumen", icon: "archive", tab: "arsip", bapperidaOnly: true },
+  { id: "detail", title: "Detail & Persetujuan", icon: "eye", tab: "arsip", bapperidaOnly: true },
+  { id: "upload", title: "Upload Dokumen", icon: "upload", tab: "arsip", bapperidaOnly: true },
+  { id: "kertas_kerja", title: "Kertas Kerja & Cascading", icon: "layers", tab: "arsip", bapperidaOnly: true },
+  { id: "screening", title: "Screening RKA & SSH", icon: "filter", tab: "arsip", bapperidaOnly: true },
+  { id: "kategori", title: "Kategori Dokumen", icon: "tag", tab: "arsip", bapperidaOnly: true, adminOnly: true },
+  { id: "sektor", title: "Sektor Pembangunan", icon: "layers", tab: "arsip", bapperidaOnly: true, adminOnly: true },
+  { id: "audit", title: "Audit Trail", icon: "history", tab: "arsip", bapperidaOnly: true, adminOnly: true },
 
   // ── 2. Satu Data Indonesia ──────────────────────────────────────────────
   { id: "satudata_dashboard", title: "Dashboard Satu Data", icon: "chart", tab: "satudata" },
   { id: "satudata_dataset", title: "Dataset Sektoral", icon: "database", tab: "satudata" },
   { id: "satudata_kinerja", title: "Indikator Kinerja", icon: "layers", tab: "satudata" },
-  { id: "satudata_verifikasi", title: "Verifikasi Dataset (Verval)", icon: "checkCircle", tab: "satudata" },
+  { id: "satudata_verifikasi", title: "Verifikasi Dataset (Verval)", icon: "checkCircle", tab: "satudata", walidataOnly: true },
   { id: "spm", title: "Capaian SPM", icon: "shield", tab: "satudata" },
-  { id: "master_satudata", title: "Master Satu Data", icon: "building", tab: "satudata" },
-  { id: "kelola_konten", title: "Kelola Konten & Publikasi", icon: "file", tab: "satudata" },
-  { id: "monitoring", title: "Monitoring & SDPDN", icon: "server", tab: "satudata" },
+  { id: "master_satudata", title: "Master Satu Data", icon: "building", tab: "satudata", adminOnly: true },
+  { id: "kelola_konten", title: "Kelola Konten & Publikasi", icon: "file", tab: "satudata", adminOnly: true },
+  { id: "monitoring", title: "Monitoring & SDPDN", icon: "server", tab: "satudata", adminOnly: true },
   { id: "publik", title: "Portal Publik Satu Data", icon: "world", tab: "satudata" },
 
   // ── 3. Umum & Akun ──────────────────────────────────────────────────────
   { id: "login", title: "Login & Autentikasi", icon: "users", tab: "umum" },
-  { id: "pencarian", title: "Pencarian Dokumen", icon: "search", tab: "umum" },
-  { id: "pengguna", title: "Manajemen Pengguna", icon: "users", tab: "umum" },
+  { id: "pencarian", title: "Pencarian Dokumen", icon: "search", tab: "umum", bapperidaOnly: true },
+  { id: "pengguna", title: "Manajemen Pengguna", icon: "users", tab: "umum", adminOnly: true },
   { id: "trouble", title: "Troubleshooting", icon: "x", tab: "umum" },
 ];
 
@@ -361,38 +362,139 @@ const CONTENT = {
   },
 };
 
-export default function PanduanPengguna() {
+export default function PanduanPengguna({ user }) {
   const { isMobile } = useResponsive();
   const { T } = useContext(ThemeContext);
 
-  // Tab utama (ui-ux-pro-max: default "arsip")
-  const [activeTab, setActiveTab] = useState("arsip");
+  // Wewenang role & unit kerja
+  const isBapperida = isOpdBapperidaFrontend(user);
+  const actualRole = user?.role || "Staf";
+  const isAdmin = actualRole === "Admin";
 
-  // Seksi aktif di bawah tab terpilih
-  const [activeId, setActiveId] = useState("dashboard");
+  // Mode pratinjau role (khusus Admin agar bisa mengecek tampilan wewenang role lain)
+  const [previewRole, setPreviewRole] = useState(isAdmin ? "Semua" : actualRole);
+
+  const activeRole = previewRole === "Semua" ? actualRole : previewRole;
+  const isPreviewBapperida = previewRole === "Semua"
+    ? isBapperida
+    : (previewRole === "Admin" || previewRole === "Reviewer" || previewRole === "Staf" || previewRole === "Walidata");
+
+  // Filter Tab sesuai wewenang
+  const allowedTabs = useMemo(() => {
+    return ALL_TABS.filter(tab => {
+      if (tab.bapperidaOnly && !isPreviewBapperida) return false;
+      return true;
+    });
+  }, [isPreviewBapperida]);
+
+  // Tab utama aktif
+  const [activeTab, setActiveTab] = useState(() => {
+    return isPreviewBapperida ? "arsip" : "satudata";
+  });
+
+  // Pastikan activeTab selalu valid
+  useEffect(() => {
+    if (!allowedTabs.some(t => t.id === activeTab)) {
+      setActiveTab(allowedTabs[0]?.id || "satudata");
+    }
+  }, [allowedTabs, activeTab]);
+
+  // Filter Seksi sesuai wewenang role yang sedang aktif
+  const allowedSections = useMemo(() => {
+    const isActAdmin = previewRole === "Semua" ? isAdmin : previewRole === "Admin";
+    const isActWalidata = isActAdmin || activeRole === "Walidata" || activeRole === "Reviewer";
+
+    return SECTIONS.filter(s => {
+      // 1. Cek pembatasan instansi BAPPERIDA
+      if (s.bapperidaOnly && !isPreviewBapperida) return false;
+
+      // 2. Cek fitur khusus Admin
+      if (s.adminOnly && !isActAdmin) return false;
+
+      // 3. Cek fitur khusus Walidata / Reviewer
+      if (s.walidataOnly && !isActWalidata) return false;
+
+      return true;
+    });
+  }, [activeRole, previewRole, isPreviewBapperida, isAdmin]);
+
+  // Seksi untuk tab yang sedang aktif
+  const currentSections = useMemo(() => {
+    return allowedSections.filter(s => s.tab === activeTab);
+  }, [allowedSections, activeTab]);
+
+  // Seksi aktif yang sedang dibuka kontennya
+  const [activeId, setActiveId] = useState(() => {
+    return currentSections[0]?.id || "dashboard";
+  });
+
+  // Pastikan activeId valid saat tab berganti
+  useEffect(() => {
+    if (!currentSections.some(s => s.id === activeId)) {
+      if (currentSections[0]) {
+        setActiveId(currentSections[0].id);
+      }
+    }
+  }, [currentSections, activeId]);
 
   const section = CONTENT[activeId] || CONTENT["dashboard"];
-
-  // Filter seksi sesuai tab yang sedang aktif
-  const currentSections = SECTIONS.filter(s => s.tab === activeTab);
-
-  const handleTabChange = (tabId) => {
-    setActiveTab(tabId);
-    const firstSection = SECTIONS.find(s => s.tab === tabId);
-    if (firstSection) {
-      setActiveId(firstSection.id);
-    }
-  };
 
   return (
     <div>
       {/* ── Header Halaman ────────────────────────────────────────── */}
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: T.text, letterSpacing: "-0.01em" }}>
-          Panduan Pengguna Sistem
-        </div>
-        <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>
-          Pusat Dokumen Digital Perencanaan Pembangunan & Satu Data — BAPPERIDA Kabupaten Sumba Barat
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: T.text, letterSpacing: "-0.01em" }}>
+              Panduan Pengguna Sistem
+            </div>
+            <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>
+              Pusat Dokumen Digital Perencanaan Pembangunan & Satu Data — BAPPERIDA Kabupaten Sumba Barat
+            </div>
+          </div>
+
+          {/* Indikator Wewenang Role / Selector Pratinjau untuk Admin */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 12,
+            background: T.card,
+            padding: "6px 12px",
+            borderRadius: 8,
+            border: `1px solid ${T.border}`,
+            color: T.textSecondary
+          }}>
+            <Icon name="shield" size={14} style={{ color: T.primary }} />
+            <span>Wewenang Akses:</span>
+            {isAdmin ? (
+              <select
+                value={previewRole}
+                onChange={(e) => setPreviewRole(e.target.value)}
+                style={{
+                  background: T.bg,
+                  color: T.text,
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 6,
+                  padding: "3px 8px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  outline: "none"
+                }}
+              >
+                <option value="Semua">Semua Modul (Administrator)</option>
+                <option value="Reviewer">Reviewer / Kabid (BAPPERIDA)</option>
+                <option value="Staf">Staf Perencana (BAPPERIDA)</option>
+                <option value="Walidata">Walidata Daerah</option>
+                <option value="Produsen Data">Produsen Data (OPD Luar)</option>
+              </select>
+            ) : (
+              <strong style={{ color: T.text }}>
+                {actualRole} {user?.unit ? `(${user.unit})` : ""}
+              </strong>
+            )}
+          </div>
         </div>
       </div>
 
@@ -407,12 +509,16 @@ export default function PanduanPengguna() {
         gap: 4,
         flexWrap: isMobile ? "wrap" : "nowrap"
       }}>
-        {TABS.map(tab => {
+        {allowedTabs.map(tab => {
           const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
-              onClick={() => handleTabChange(tab.id)}
+              onClick={() => {
+                setActiveTab(tab.id);
+                const first = allowedSections.find(s => s.tab === tab.id);
+                if (first) setActiveId(first.id);
+              }}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -436,7 +542,7 @@ export default function PanduanPengguna() {
         })}
       </div>
 
-      {/* ── Pill Buttons untuk Seksi di Tab Aktif ───────────────────── */}
+      {/* ── Pill Buttons untuk Seksi di Tab Aktif Sesuai Wewenang ───── */}
       <div style={{ display: "flex", gap: 6, marginBottom: 20, overflowX: "auto", paddingBottom: 4, flexWrap: "wrap" }}>
         {currentSections.map(s => {
           const isSel = activeId === s.id;
