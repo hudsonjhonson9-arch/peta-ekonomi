@@ -14,12 +14,10 @@ setInterval(() => {
 }, 120_000);
 
 function dapatkanIP(req) {
-  const xForwarded = req.headers['x-forwarded-for'];
-  if (xForwarded) {
-    const ip = xForwarded.split(',')[0].trim();
-    if (ip) return ip;
-  }
-  return req.ip || req.socket?.remoteAddress || '127.0.0.1';
+  // Gunakan req.ip dari Express yang sudah diverifikasi reverse proxy ('trust proxy').
+  // Jangan membaca x-forwarded-for mentah agar tidak bisa dipalsukan klien untuk bypass rate limit.
+  const ip = req.ip || req.socket?.remoteAddress || '127.0.0.1';
+  return ip.startsWith('::ffff:') ? ip.slice(7) : ip;
 }
 
 export function pembatasLaju(req, res, next) {
@@ -38,7 +36,11 @@ export function pembatasLaju(req, res, next) {
   let windowMs = 60_000; // 1 menit
   let category = 'general';
 
-  if (path === '/api/auth/login' || path.startsWith('/api/akun/lupa-password')) {
+  if (path === '/api/auth/captcha' || path === '/api/portal/captcha') {
+    limit = isLocal ? 1500 : 300;
+    windowMs = 60_000;
+    category = 'captcha';
+  } else if (path === '/api/auth/login' || path.startsWith('/api/akun/lupa-password')) {
     limit = isLocal ? 60 : 20; // percobaan login / lupa password
     windowMs = 600_000; // per 10 menit
     category = 'auth';

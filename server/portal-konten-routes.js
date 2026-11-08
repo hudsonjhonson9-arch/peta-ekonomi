@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { tambahAturan, aturan, aturanSemua, PUBLIK } from './kebijakan.js';
+import { buatCaptcha, verifikasiCaptcha } from './captcha.js';
 
 tambahAturan([
   aturanSemua(PUBLIK, '/feed/berita\\.xml'),
@@ -15,52 +16,15 @@ export function daftarkanRutePortalKonten(app, pool, queryDB) {
   // ── 1. Captcha Sederhana untuk Form Publik ────────────────────────────────
   app.get('/api/portal/captcha', async (_, res) => {
     try {
-      const a = Math.floor(Math.random() * 15) + 1;
-      const b = Math.floor(Math.random() * 10) + 1;
-      const hasil = String(a + b);
-      const token = crypto.randomBytes(16).toString('hex');
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 menit
-
-      await pool.query(
-        `INSERT INTO sd_captcha_session (token, jawaban, expires_at)
-         VALUES ($1, $2, $3)`,
-        [token, hasil, expiresAt]
-      );
-
-      // Gambar SVG sederhana untuk captcha
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="130" height="42" viewBox="0 0 130 42">
-        <rect width="130" height="42" fill="#F1F5F9" rx="6" />
-        <line x1="10" y1="12" x2="120" y2="30" stroke="#CBD5E1" stroke-width="1.5" />
-        <line x1="15" y1="32" x2="115" y2="10" stroke="#CBD5E1" stroke-width="1.5" />
-        <text x="65" y="27" font-family="monospace" font-size="20" font-weight="bold" fill="#0F172A" text-anchor="middle" letter-spacing="3">${a} + ${b} = ?</text>
-      </svg>`;
-
-      res.json({
-        token,
-        soal: `${a} + ${b} = ?`,
-        svg_base64: `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`,
-      });
+      const c = await buatCaptcha(pool);
+      res.json(c);
     } catch (err) {
       console.error('Captcha error:', err);
       res.status(500).json({ error: 'Gagal membuat captcha' });
     }
   });
 
-  // Helper verifikasi captcha
-  const verifikasiCaptcha = async (token, jawaban) => {
-    if (!token || !jawaban) return false;
-    const { rows } = await pool.query(
-      `SELECT * FROM sd_captcha_session WHERE token = $1 AND expires_at > NOW()`,
-      [token]
-    );
-    if (!rows.length) return false;
-    const match = rows[0].jawaban.trim() === String(jawaban).trim();
-    // Hapus sesi captcha yang sudah dipakai
-    pool.query(`DELETE FROM sd_captcha_session WHERE token = $1`, [token]).catch(() => {});
-    return match;
-  };
-
-  // ── 2. Tanya Data (Q&A) dengan Captcha ─────────────────────────────────────
+  // ── 2. Tanya Data (Q&A) dengan Captcha Wajib ──────────────────────────────
   app.post('/api/portal/qna-kirim', async (req, res) => {
     const { nama, email, nomorhp, pertanyaan, organisasi, captcha_token, captcha_jawaban } = req.body;
 
@@ -68,11 +32,13 @@ export function daftarkanRutePortalKonten(app, pool, queryDB) {
       return res.status(400).json({ error: 'Nama dan pertanyaan wajib diisi' });
     }
 
-    if (captcha_token) {
-      const valid = await verifikasiCaptcha(captcha_token, captcha_jawaban);
-      if (!valid) {
-        return res.status(400).json({ error: 'Jawaban captcha salah atau sesi telah kedaluwarsa' });
-      }
+    if (!captcha_token || captcha_jawaban == null || !String(captcha_jawaban).trim()) {
+      return res.status(400).json({ error: 'Verifikasi keamanan (bukan bot) wajib diisi', captcha_error: true });
+    }
+
+    const valid = await verifikasiCaptcha(pool, captcha_token, captcha_jawaban);
+    if (!valid) {
+      return res.status(400).json({ error: 'Verifikasi keamanan (bukan bot) salah atau telah kedaluwarsa', captcha_error: true });
     }
 
     try {

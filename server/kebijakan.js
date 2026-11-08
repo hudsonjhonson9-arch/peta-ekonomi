@@ -29,6 +29,7 @@ const semua = (lvl, pola) => ({ m: null, lvl, pola: new RegExp(`^${pola}$`) });
 const ATURAN = [
   // ── Publik ──────────────────────────────────────────────────────────────
   t('GET', PUBLIK, '/api/health'),
+  t('GET', PUBLIK, '/api/auth/captcha'),
   t('POST', PUBLIK, '/api/auth/login'),
   t('GET', PUBLIK, '/api/publik'),
   t('GET', PUBLIK, '/api/publik/verify'),

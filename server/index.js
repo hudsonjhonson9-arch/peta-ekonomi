@@ -18,7 +18,7 @@ import {
   NAMA_COOKIE, MASA_JAM, MASA_JAM_INGAT, R_ADMIN, R_REVIEWER, R_STAF, R_BANKDATA,
   normalisasiRole, rahasia, buatToken, verifikasiTokenDetail,
   periksaKonfigurasiSession, periksaPemisahanSecret,
-  bacaCookie, pasangCookie, lepasCookie, PANJANG_MINIMUM,
+  bacaCookie, pasangCookie, lepasCookie, PANJANG_MINIMUM, samaKonst,
 } from './session.js';
 import { kebutuhan, PUBLIK, LOGIN, BANKDATA, REVIEW, ADMIN, jalurOperatorDiizinkan, jalurKhususBapperida } from './kebijakan.js';
 import { daftarkanRuteSdpdn } from './sdpdn-routes.js';
@@ -33,6 +33,7 @@ import { daftarkanRuteAkun } from './akun-routes.js';
 import { daftarkanRutePortal } from './portal-routes.js';
 import { daftarkanRutePortalKonten } from './portal-konten-routes.js';
 import { daftarkanRuteDatasetLanjutan } from './dataset-lanjutan-routes.js';
+import { buatCaptcha, verifikasiCaptcha, inisialisasiPembersihCaptcha } from './captcha.js';
 import { daftarkanRuteAdminLanjutan } from './admin-lanjutan-routes.js';
 import { daftarkanRutePengaturanSitus } from './pengaturan-situs-routes.js';
 
@@ -41,6 +42,17 @@ dotenv.config();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app       = express();
 const isProd    = process.env.NODE_ENV === 'production';
+
+// Sembunyikan fingerprinting Express
+app.disable('x-powered-by');
+
+// Header keamanan HTTP dasar (Clickjacking, MIME Sniffing, Referrer Policy)
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
 
 // CORS: default hanya menerima origin yang sama. Aplikasi disajikan dari
 // server sendiri, jadi tidak butuh allow-list. Kalau ada integrator dari domain
@@ -63,7 +75,7 @@ app.use(cors({
   origin: (origin, cb) => cb(null, !origin || ORIGIN_TERDAFTAR.includes(origin)),
   credentials: true,
 }));
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '10mb' }));
 
 // Anti-cache header untuk semua endpoint API agar selalu menyajikan data langsung dari database
 app.use('/api', (req, res, next) => {
@@ -82,7 +94,8 @@ app.use(pembatasLaju);
 const izinkanLewatiUpload = req => {
   if (req.method !== 'POST' || req.originalUrl.split('?')[0] !== '/api/docs') return false;
   const key = process.env.UPLOAD_API_KEY;
-  return !!key && req.headers['x-upload-key'] === key;
+  const reqKey = req.headers['x-upload-key'];
+  return !!key && !!reqKey && samaKonst(key, reqKey);
 };
 
 // ── Gerbang session ───────────────────────────────────────────────────────
@@ -573,11 +586,34 @@ app.get('/api/health', async (_, res) => {
   }
 });
 
+// Pembersihan otomatis sesi captcha kedaluwarsa
+inisialisasiPembersihCaptcha(pool);
+
+// ── Auth: Captcha Verifikasi Bukan Bot ────────────────────────────────────
+app.get('/api/auth/captcha', async (_, res) => {
+  try {
+    const c = await buatCaptcha(pool);
+    res.json(c);
+  } catch (err) {
+    console.error('Buat captcha error:', err.message);
+    res.status(500).json({ error: 'Gagal membuat verifikasi captcha' });
+  }
+});
+
 // ── Auth: Login dengan NIP + bcrypt ──────────────────────────────────────
 app.post('/api/auth/login', async (req, res) => {
-  const { nip, password, remember } = req.body;
+  const { nip, password, remember, captcha_token, captcha_jawaban } = req.body;
   if (!nip || !password)
     return res.status(400).json({ error: 'NIP dan Password diperlukan' });
+
+  // Verifikasi anti-bot
+  const isHuman = await verifikasiCaptcha(pool, captcha_token, captcha_jawaban);
+  if (!isHuman) {
+    return res.status(400).json({
+      error: 'Verifikasi keamanan (bukan bot) salah atau telah kedaluwarsa. Silakan coba lagi.',
+      captcha_error: true,
+    });
+  }
 
   // "Ingat saya" hanya dihitung bila diminta eksplisit (remember === true):
   // token & cookie panjang 30 hari; tanpa itu cookie session (ikut hilang

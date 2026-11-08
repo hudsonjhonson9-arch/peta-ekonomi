@@ -2,7 +2,8 @@ import { tambahAturan, aturan, aturanSemua, PUBLIK } from './kebijakan.js';
 
 // Daftarkan hak akses rute portal publik
 tambahAturan([
-  aturanSemua(PUBLIK, '/api/portal(/[^/]+)*'),
+  aturan('GET',  PUBLIK, '/api/portal(/[^/]+)*'),
+  aturan('POST', PUBLIK, '/api/portal/bandingkan'),
 ]);
 
 export function daftarkanRutePortal(app, pool, queryDB) {
@@ -350,10 +351,17 @@ export function daftarkanRutePortal(app, pool, queryDB) {
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${safeName}.csv"`);
         
+        // Sanitasi sel untuk mencegah CSV Formula Injection (CWE-1236)
+        const sanitizeCsvCell = (val) => {
+          const s = String(val ?? '');
+          const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+          return `"${safe.replace(/"/g, '""')}"`;
+        };
+
         const headers = ['tahun', 'periode', 'kode_wilayah', 'nama_wilayah', ...fields.map(f => f.nama_field)];
         const labels = ['Tahun', 'Periode', 'Kode Wilayah', 'Nama Wilayah', ...fields.map(f => f.label || f.nama_field)];
         
-        let csvContent = '\uFEFF' + labels.map(l => `"${String(l).replace(/"/g, '""')}"`).join(',') + '\n';
+        let csvContent = '\uFEFF' + labels.map(sanitizeCsvCell).join(',') + '\n';
         
         for (const r of rows) {
           const line = [
@@ -363,7 +371,7 @@ export function daftarkanRutePortal(app, pool, queryDB) {
             r.nama_wilayah ?? '',
             ...fields.map(f => (r.data ? (r.data[f.nama_field] ?? '') : '')),
           ];
-          csvContent += line.map(val => `"${String(val).replace(/"/g, '""')}"`).join(',') + '\n';
+          csvContent += line.map(sanitizeCsvCell).join(',') + '\n';
         }
         return res.send(csvContent);
       }

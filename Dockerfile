@@ -20,5 +20,6 @@ COPY server/ ./server/
 # Seed SQL dibaca server saat boot (jika pohon PKS masih kosong).
 # Tanpa COPY ini file-nya tidak ada di image dan auto-seed akan gagal.
 COPY db/ ./db/
+USER node
 EXPOSE 3000
 CMD ["node", "server/index.js"]

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Icon, Geser } from "./ui.jsx";
+import VerifikasiBukanBot from "./VerifikasiBukanBot.jsx";
 
 export default function LupaPasswordModal({ isOpen, onClose }) {
   const [step, setStep] = useState(1); // 1: Cek NIP, 2: Reset Form, 3: Sukses
@@ -7,6 +8,9 @@ export default function LupaPasswordModal({ isOpen, onClose }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [infoAkun, setInfoAkun] = useState(null);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaJawaban, setCaptchaJawaban] = useState("");
+  const captchaRef = useRef(null);
 
   const [verifikasiHp, setVerifikasiHp] = useState("");
   const [passwordBaru, setPasswordBaru] = useState("");
@@ -21,6 +25,10 @@ export default function LupaPasswordModal({ isOpen, onClose }) {
       setError("Silakan masukkan NIP Anda");
       return;
     }
+    if (!captchaJawaban.trim()) {
+      setError("Silakan selesaikan verifikasi keamanan (bukan bot)");
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -29,11 +37,16 @@ export default function LupaPasswordModal({ isOpen, onClose }) {
       const res = await fetch("/api/akun/lupa-password/cek", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nip: nip.trim() }),
+        body: JSON.stringify({
+          nip: nip.trim(),
+          captcha_token: captchaToken,
+          captcha_jawaban: captchaJawaban,
+        }),
       });
       const data = await res.json();
 
       if (!res.ok) {
+        if (captchaRef.current) captchaRef.current.reload();
         throw new Error(data.error || "Gagal memeriksa NIP");
       }
 
@@ -218,6 +231,13 @@ export default function LupaPasswordModal({ isOpen, onClose }) {
                   autoFocus
                 />
               </div>
+
+              <VerifikasiBukanBot
+                ref={captchaRef}
+                value={captchaJawaban}
+                onChange={setCaptchaJawaban}
+                onTokenChange={setCaptchaToken}
+              />
 
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
                 <button

@@ -772,7 +772,7 @@ export default function SpmPage({ user, showToast, readOnly = false }) {
                                   <span>Lihat</span>
                                 </button>
                                 <a
-                                  href={d.file_url}
+                                  href={/^(https?:|\/)/i.test(d.file_url) ? d.file_url : "#"}
                                   target="_blank"
                                   rel="noreferrer"
                                   title="Buka Google Drive di tab baru"
@@ -1022,7 +1022,7 @@ export default function SpmPage({ user, showToast, readOnly = false }) {
                             <Icon name="checkCircle" size={14} style={{ color: "#0D9488" }} />
                             <span>Tautan Google Drive tersambung</span>
                           </div>
-                          <a href={form.file_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, fontWeight: 700, color: "#0D9488" }}>
+                          <a href={/^(https?:|\/)/i.test(form.file_url) ? form.file_url : "#"} target="_blank" rel="noreferrer" style={{ fontSize: 11, fontWeight: 700, color: "#0D9488" }}>
                             Buka Drive ↗
                           </a>
                         </div>

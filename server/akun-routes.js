@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { tambahAturan, aturan, aturanSemua, PUBLIK, LOGIN } from './kebijakan.js';
+import { verifikasiCaptcha } from './captcha.js';
 
 // Daftarkan hak akses route akun
 tambahAturan([
@@ -15,9 +16,17 @@ tambahAturan([
 export function daftarkanRuteAkun(app, pool, queryDB) {
   // ── 1. Cek NIP untuk Pemulihan Akun (Lupa Password) ──────────────────────
   app.post('/api/akun/lupa-password/cek', async (req, res) => {
-    const { nip } = req.body;
+    const { nip, captcha_token, captcha_jawaban } = req.body;
     if (!nip || !String(nip).trim()) {
       return res.status(400).json({ error: 'NIP wajib diisi' });
+    }
+
+    const isHuman = await verifikasiCaptcha(pool, captcha_token, captcha_jawaban);
+    if (!isHuman) {
+      return res.status(400).json({
+        error: 'Verifikasi keamanan (bukan bot) salah atau telah kedaluwarsa. Silakan coba lagi.',
+        captcha_error: true,
+      });
     }
 
     try {
@@ -34,13 +43,16 @@ export function daftarkanRuteAkun(app, pool, queryDB) {
       }
 
       const user = rows[0];
-      // Samarkan nomor HP jika ada (contoh: 0812****5678)
-      let hpClue = '';
-      if (user.nomorhp && user.nomorhp.length >= 7) {
-        const awal = user.nomorhp.slice(0, 4);
-        const akhir = user.nomorhp.slice(-3);
-        hpClue = `${awal}****${akhir}`;
+      const cleanHp = String(user.nomorhp || '').replace(/\D/g, '');
+      if (!cleanHp || cleanHp.length < 8) {
+        return res.status(400).json({
+          error: 'Akun ini belum memiliki nomor HP terdaftar. Silakan hubungi Administrator untuk mereset kata sandi Anda.',
+        });
       }
+
+      // Samarkan nomor HP tanpa membocorkan digit belakang (misal: 0812****)
+      const awal = cleanHp.slice(0, 4);
+      const hpClue = `${awal}****`;
 
       // Buat token tantangan reset sesi (berlaku 15 menit)
       const token = crypto.randomBytes(24).toString('hex');
@@ -56,7 +68,7 @@ export function daftarkanRuteAkun(app, pool, queryDB) {
         nip: user.nip,
         username: user.username,
         bidang: user.bidang || '—',
-        punya_hp: Boolean(user.nomorhp),
+        punya_hp: true,
         clue_hp: hpClue,
         token_verifikasi: token,
       });
@@ -95,7 +107,12 @@ export function daftarkanRuteAkun(app, pool, queryDB) {
         return res.status(400).json({ error: 'Tiket reset tidak valid atau sudah kedaluwarsa. Silakan ulangi proses.' });
       }
 
-      // Verifikasi kecocokan nomor HP jika akun memiliki nomor HP terdaftar
+      // Verifikasi kecocokan nomor HP
+      const hpInput = String(verifikasi_hp || '').replace(/\D/g, '');
+      if (!/^\d{4}$/.test(hpInput)) {
+        return res.status(400).json({ error: 'Verifikasi harus berupa tepat 4 digit terakhir nomor HP Anda' });
+      }
+
       const userRes = await pool.query(
         `SELECT u."NIP" AS nip, u.nomorhp, u.username
            FROM user_list u
@@ -103,13 +120,15 @@ export function daftarkanRuteAkun(app, pool, queryDB) {
         [nip.trim()]
       );
 
-      if (userRes.rows.length && userRes.rows[0].nomorhp) {
-        const hpDb = userRes.rows[0].nomorhp.replace(/\D/g, '');
-        const hpInput = String(verifikasi_hp || '').replace(/\D/g, '');
-        // Cocokkan 4 digit terakhir nomor hp atau nomor lengkap
-        if (!hpInput || (hpInput.length >= 4 && !hpDb.endsWith(hpInput) && hpDb !== hpInput)) {
-          return res.status(400).json({ error: 'Verifikasi 4 digit terakhir nomor HP tidak cocok' });
-        }
+      if (!userRes.rows.length) {
+        return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
+      }
+
+      const hpDb = String(userRes.rows[0].nomorhp || '').replace(/\D/g, '');
+      if (!hpDb || hpDb.length < 8 || !hpDb.endsWith(hpInput)) {
+        // Batalkan tiket jika verifikasi salah untuk mencegah brute-force
+        await pool.query(`UPDATE sd_password_reset_token SET used_at = NOW() WHERE token = $1`, [token_verifikasi]).catch(() => {});
+        return res.status(400).json({ error: 'Verifikasi 4 digit terakhir nomor HP tidak cocok. Tiket reset dibatalkan demi keamanan.' });
       }
 
       // Hash password baru dengan bcrypt (10 rounds)

@@ -20,6 +20,16 @@ tambahAturan([
   aturan('GET',    LOGIN,    '/api/bps/cari'),
 ]);
 
+function urlAman(url) {
+  if (typeof url !== 'string' || !url.trim()) return false;
+  try {
+    const u = new URL(url.trim());
+    return u.protocol === 'https:' || u.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 export function daftarkanRuteDatasetLanjutan(app, pool, queryDB) {
   // ── 1. Siklus Pemutakhiran Dataset ────────────────────────────────────────
   app.get('/api/bankdata/dataset/:id/siklus', async (req, res) => {
@@ -208,7 +218,18 @@ export function daftarkanRuteDatasetLanjutan(app, pool, queryDB) {
       return res.status(400).json({ error: 'Nama file dan URL berkas wajib diisi' });
     }
 
+    if (!urlAman(url_file)) {
+      return res.status(400).json({ error: 'URL berkas tidak valid atau tidak aman (harus diawali http:// atau https://)' });
+    }
+
     try {
+      const ds = await queryDB(`SELECT opd_id FROM bank_dataset WHERE id = $1`, [id]);
+      if (!ds.length) return res.status(404).json({ error: 'Dataset tidak ditemukan' });
+
+      if (opdTerbatas(req.pengguna) && !opdMilik(req.pengguna, ds[0].opd_id)) {
+        return res.status(403).json({ error: 'Bukan dataset milik OPD Anda' });
+      }
+
       const { rows } = await pool.query(
         `INSERT INTO bank_dataset_lampiran (dataset_id, nama_file, nama_asli, url_file, mime_type, ukuran_bytes, keterangan, uploaded_by, periode_key)
          VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8)
@@ -226,6 +247,19 @@ export function daftarkanRuteDatasetLanjutan(app, pool, queryDB) {
   app.delete('/api/bankdata/lampiran/:lampiranId', async (req, res) => {
     const { lampiranId } = req.params;
     try {
+      const l = await queryDB(`
+        SELECT l.id, d.opd_id
+          FROM bank_dataset_lampiran l
+          JOIN bank_dataset d ON d.id = l.dataset_id
+         WHERE l.id = $1
+      `, [lampiranId]);
+
+      if (!l.length) return res.status(404).json({ error: 'Lampiran tidak ditemukan' });
+
+      if (opdTerbatas(req.pengguna) && !opdMilik(req.pengguna, l[0].opd_id)) {
+        return res.status(403).json({ error: 'Bukan lampiran milik OPD Anda' });
+      }
+
       await pool.query(`DELETE FROM bank_dataset_lampiran WHERE id = $1`, [lampiranId]);
       res.json({ message: 'Lampiran berhasil dihapus' });
     } catch (err) {

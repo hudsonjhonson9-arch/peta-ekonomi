@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Icon } from "./ui.jsx";
 import LupaPasswordModal from "./LupaPasswordModal.jsx";
+import VerifikasiBukanBot from "./VerifikasiBukanBot.jsx";
 
 export default function LoginPage({ onLogin, onBackToPublic }) {
   const [nip, setNip] = useState("");
@@ -10,10 +11,17 @@ export default function LoginPage({ onLogin, onBackToPublic }) {
   const [showPass, setShowPass] = useState(false);
   const [remember, setRemember] = useState(true);
   const [showLupaModal, setShowLupaModal] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaJawaban, setCaptchaJawaban] = useState("");
+  const captchaRef = useRef(null);
 
   const handle = async () => {
     if (!nip || !pass) {
       setErr("Silakan masukkan NIP dan password");
+      return;
+    }
+    if (!captchaJawaban.trim()) {
+      setErr("Silakan jawab hitungan verifikasi keamanan (bukan bot)");
       return;
     }
     setLoading(true);
@@ -22,11 +30,21 @@ export default function LoginPage({ onLogin, onBackToPublic }) {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nip, password: pass, remember })
+        body: JSON.stringify({
+          nip,
+          password: pass,
+          remember,
+          captcha_token: captchaToken,
+          captcha_jawaban: captchaJawaban.trim(),
+        })
       });
       const data = await res.json();
-      if (!res.ok) setErr(data.error || "Login gagal");
-      else onLogin(data.user);
+      if (!res.ok) {
+        setErr(data.error || "Login gagal");
+        captchaRef.current?.reload();
+      } else {
+        onLogin(data.user);
+      }
     } catch {
       setErr("Gagal menghubungi server");
     } finally {
@@ -49,8 +67,8 @@ export default function LoginPage({ onLogin, onBackToPublic }) {
         .ad-login { min-height: 100vh; min-height: 100dvh; width: 100%; display: flex; background: #F8FAFC; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
         .ad-login .kiri { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; }
         .ad-login .card {
-          width: 100%; max-width: 360px; background: #fff; border-radius: 20px;
-          padding: 36px 32px; box-shadow: 0 20px 60px rgba(15,23,42,0.10);
+          width: 100%; max-width: 380px; background: #fff; border-radius: 20px;
+          padding: 34px 28px; box-shadow: 0 20px 60px rgba(15,23,42,0.10);
           border: 1px solid #E2E8F0; box-sizing: border-box;
           animation: adFadeUp .5s ease both;
         }
@@ -128,6 +146,15 @@ export default function LoginPage({ onLogin, onBackToPublic }) {
                   </button>
                 </div>
               </div>
+
+              {/* Verifikasi Bukan Bot */}
+              <VerifikasiBukanBot
+                ref={captchaRef}
+                value={captchaJawaban}
+                onChange={setCaptchaJawaban}
+                onTokenChange={setCaptchaToken}
+                onKeyDown={e => e.key === "Enter" && handle()}
+              />
 
               {/* Ingat saya + lupa password */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>

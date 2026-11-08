@@ -1304,7 +1304,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
                         </div>
                       </div>
                       <a
-                        href={l.url_file}
+                        href={/^(https?:|\/)/i.test(l.url_file) ? l.url_file : "#"}
                         target="_blank"
                         rel="noreferrer"
                         style={{
@@ -2689,7 +2689,7 @@ export default function PortalPublikLengkap({ onLoginClick, user = null }) {
               <div style={{ display: "flex", gap: 8 }}>
                 {previewPublikasi.file_url && (
                   <a
-                    href={previewPublikasi.file_url}
+                    href={/^(https?:|\/)/i.test(previewPublikasi.file_url) ? previewPublikasi.file_url : "#"}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{

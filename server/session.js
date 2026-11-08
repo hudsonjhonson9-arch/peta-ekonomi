@@ -49,9 +49,19 @@ export function normalisasiRole(dbRole) {
   return PETA_ROLE.get(String(dbRole).trim().toUpperCase()) || R_STAF;
 }
 
+const RAHASIA_TERLARANG = new Set([
+  'ARSIPDIGITALBAPPERIDA2026',
+  'Bidangekonomi2026',
+  'BapperidaSB2026',
+  '1234567890123456',
+  'secret1234567890',
+]);
+
 export function rahasia() {
   const s = process.env.SESSION_SECRET;
-  return s && s.trim().length >= PANJANG_MINIMUM ? s : null;
+  if (!s || s.trim().length < PANJANG_MINIMUM) return null;
+  if (RAHASIA_TERLARANG.has(s.trim())) return null;
+  return s;
 }
 
 // SESSION_SECRET dan UPLOAD_API_KEY tidak boleh bernilai sama.
@@ -85,6 +95,18 @@ export function periksaPemisahanSecret() {
 // Coolify, bukan baru ketahuan saat semua request mulai 500.
 export function periksaKonfigurasiSession() {
   const s = process.env.SESSION_SECRET;
+  if (s && RAHASIA_TERLARANG.has(s.trim())) {
+    console.error(
+      '\n' +
+      '='.repeat(72) +
+      '\nSESSION_SECRET menggunakan kunci bawaan/bocor yang dilarang!\n' +
+      'Kunci ini pernah masuk repositori dan tidak aman digunakan di produksi.\n' +
+      'Ganti SESSION_SECRET di Coolify dengan string acak baru:\n' +
+      'node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"\n' +
+      '='.repeat(72) + '\n'
+    );
+    return false;
+  }
   if (!rahasia()) {
     console.error(
       '\n' +
@@ -117,7 +139,7 @@ function tandaTangan(data, secret) {
 
 // Perbandingan waktu-tetap. Panjang harus sama dulu karena timingSafeEqual
 // melempar error untuk buffer berbeda panjang.
-function samaKonst(a, b) {
+export function samaKonst(a, b) {
   const ba = Buffer.from(String(a), 'utf8');
   const bb = Buffer.from(String(b), 'utf8');
   if (ba.length !== bb.length) return false;
