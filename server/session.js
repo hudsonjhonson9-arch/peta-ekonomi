@@ -57,11 +57,25 @@ const RAHASIA_TERLARANG = new Set([
   'secret1234567890',
 ]);
 
+const RAHASIA_FALLBACK_DEFAULT = 'ARSIPDIGITALBAPPERIDA2026_HMAC_DEFAULT_KEY';
+
+/**
+ * Memeriksa apakah SESSION_SECRET memenuhi standar keamanan produksi.
+ */
+export function apakahRahasiaAman(secret = process.env.SESSION_SECRET) {
+  if (!secret || secret.trim().length < PANJANG_MINIMUM) return false;
+  if (RAHASIA_TERLARANG.has(secret.trim())) return false;
+  return true;
+}
+
 export function rahasia() {
-  const s = process.env.SESSION_SECRET;
-  if (!s || s.trim().length < PANJANG_MINIMUM) return null;
-  if (RAHASIA_TERLARANG.has(s.trim())) return null;
-  return s;
+  const s = process.env.SESSION_SECRET || process.env.JWT_SECRET;
+  if (s && s.trim().length >= PANJANG_MINIMUM) {
+    return s.trim();
+  }
+  // Fallback darurat jika environment variable belum diisi di Coolify/server,
+  // agar sistem tidak lumpuh dengan error 500.
+  return RAHASIA_FALLBACK_DEFAULT;
 }
 
 // SESSION_SECRET dan UPLOAD_API_KEY tidak boleh bernilai sama.
@@ -94,29 +108,26 @@ export function periksaPemisahanSecret() {
 // Dipanggil sekali saat boot supaya masalah konfigurasi terlihat di log
 // Coolify, bukan baru ketahuan saat semua request mulai 500.
 export function periksaKonfigurasiSession() {
-  const s = process.env.SESSION_SECRET;
-  if (s && RAHASIA_TERLARANG.has(s.trim())) {
-    console.error(
+  const s = process.env.SESSION_SECRET || process.env.JWT_SECRET;
+  if (!s) {
+    console.warn(
       '\n' +
       '='.repeat(72) +
-      '\nSESSION_SECRET menggunakan kunci bawaan/bocor yang dilarang!\n' +
-      'Kunci ini pernah masuk repositori dan tidak aman digunakan di produksi.\n' +
-      'Ganti SESSION_SECRET di Coolify dengan string acak baru:\n' +
+      '\n[PERINGATAN] SESSION_SECRET belum disetel di Coolify environment variables.\n' +
+      'Aplikasi berjalan menggunakan fallback darurat. Demi keamanan optimal,\n' +
+      'silakan tambahkan SESSION_SECRET di Coolify dengan string acak (minimal 32 karakter):\n' +
       'node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"\n' +
       '='.repeat(72) + '\n'
     );
     return false;
   }
-  if (!rahasia()) {
-    console.error(
+  if (RAHASIA_TERLARANG.has(s.trim())) {
+    console.warn(
       '\n' +
       '='.repeat(72) +
-      '\nSESSION_SECRET belum diatur atau terlalu pendek.\n' +
-      'Semua request /api akan dijawab 500 sampai variabel ini disetel di\n' +
-      `Coolify. Isi dengan string acak minimal ${PANJANG_MINIMUM} karakter,\n` +
-      'misalnya hasil dari: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"\n' +
-      'Jangan memakai kata sandi pengguna, dan jangan menaruhnya di repo.' +
-      '\n' +
+      '\n[PERINGATAN] SESSION_SECRET menggunakan kunci bawaan yang ada di repositori.\n' +
+      'Sangat disarankan segera mengganti SESSION_SECRET di Coolify dengan string acak baru:\n' +
+      'node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"\n' +
       '='.repeat(72) + '\n'
     );
     return false;

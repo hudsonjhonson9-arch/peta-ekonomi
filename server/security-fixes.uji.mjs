@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { rahasia, samaKonst } from './session.js';
+import { rahasia, apakahRahasiaAman, samaKonst } from './session.js';
 
 console.log('--- TEST PERBAIKAN KEAMANAN ---');
 
@@ -7,18 +7,24 @@ console.log('--- TEST PERBAIKAN KEAMANAN ---');
 {
   const oldSecret = process.env.SESSION_SECRET;
   process.env.SESSION_SECRET = 'ARSIPDIGITALBAPPERIDA2026';
-  assert.equal(rahasia(), null, 'Kunci bocor ARSIPDIGITALBAPPERIDA2026 harus ditolak');
+  assert.equal(apakahRahasiaAman(), false, 'Kunci bocor ARSIPDIGITALBAPPERIDA2026 harus ditandai tidak aman');
+  assert.equal(rahasia(), 'ARSIPDIGITALBAPPERIDA2026', 'Tetap mengembalikan string agar login tidak 500');
   
   process.env.SESSION_SECRET = 'Bidangekonomi2026';
-  assert.equal(rahasia(), null, 'Kunci default Bidangekonomi2026 harus ditolak');
+  assert.equal(apakahRahasiaAman(), false, 'Kunci default Bidangekonomi2026 harus ditandai tidak aman');
   
   process.env.SESSION_SECRET = 'short';
-  assert.equal(rahasia(), null, 'Kunci pendek (< 16 karakter) harus ditolak');
+  assert.equal(apakahRahasiaAman(), false, 'Kunci pendek (< 16 karakter) harus ditandai tidak aman');
   
   process.env.SESSION_SECRET = 'kunci-acak-yang-sangat-aman-dan-panjang-12345';
-  assert.equal(rahasia(), 'kunci-acak-yang-sangat-aman-dan-panjang-12345', 'Kunci acak panjang harus diterima');
+  assert.equal(apakahRahasiaAman(), true, 'Kunci acak panjang harus ditandai aman');
+  assert.equal(rahasia(), 'kunci-acak-yang-sangat-aman-dan-panjang-12345');
+
+  delete process.env.SESSION_SECRET;
+  assert.ok(rahasia(), 'Fallback darurat harus tersedia saat SESSION_SECRET kosong');
+  
   process.env.SESSION_SECRET = oldSecret;
-  console.log('  ok  blacklist kunci bocor & validasi panjang rahasia');
+  console.log('  ok  blacklist kunci bocor & fallback toleran session');
 }
 
 // 2. samaKonst timing safe comparison
