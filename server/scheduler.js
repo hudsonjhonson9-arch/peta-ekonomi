@@ -144,7 +144,7 @@ export function inisialisasiScheduler(app, pool, queryDB) {
     }
   };
 
-  // 3. Job: Maintenance & Pruning Token Kedaluwarsa
+  // 3. Job: Maintenance & Pruning Token Kedaluwarsa & Sesi Usang
   const jalankanPruning = async () => {
     const job = state.jobs.pruning_maintenance;
     job.status = 'running';
@@ -157,6 +157,18 @@ export function inisialisasiScheduler(app, pool, queryDB) {
       await queryDB(`
         DELETE FROM sd_password_reset_token
          WHERE expires_at < NOW()
+      `).catch(() => {});
+
+      // Hapus sesi login auth_sessions yang telah kedaluwarsa (housekeeping)
+      await queryDB(`
+        DELETE FROM auth_sessions
+         WHERE expires_at < NOW()
+      `).catch(() => {});
+
+      // Hapus sesi captcha usang (> 1 jam)
+      await queryDB(`
+        DELETE FROM sd_captcha_session
+         WHERE created_at < NOW() - INTERVAL '1 hour'
       `).catch(() => {});
 
       job.status = 'success';

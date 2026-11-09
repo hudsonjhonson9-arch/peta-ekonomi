@@ -1683,8 +1683,8 @@ export function daftarkanRuteSatuData(app, pool, queryDB) {
       const dataset = dRows[0];
 
       const records = await queryDB(`
-        SELECT r.id, r.tahun, r.periode, r.wilayah_kode, r.data, r.created_at
-          FROM bank_dataset_record r
+        SELECT r.id, r.tahun, r.periode, r.wilayah_kode, r.data, r.created_by, r.updated_at, r.updated_at AS created_at
+          FROM bank_dataset_row r
          WHERE r.dataset_id = $1
          ORDER BY r.tahun DESC
       `, [req.params.id]);
