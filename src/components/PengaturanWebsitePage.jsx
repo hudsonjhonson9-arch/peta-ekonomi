@@ -507,7 +507,7 @@ export default function PengaturanWebsitePage() {
               <div className="pk-grid2">
                 {[
                   { path: "/Lambang_Kabupaten_Sumba_Barat.png", name: "Lambang Kabupaten Sumba Barat", role: "Portal publik", aktif: true },
-                  { path: "/icon.svg", name: "Logo Arsip Digital BAPPERIDA", role: "Panel admin dan arsip internal", aktif: false },
+                  { path: "/icon.svg", name: "Logo UMA DATA", role: "Panel admin dan arsip internal", aktif: false },
                 ].map((a) => (
                   <figure key={a.path} style={{ margin: 0 }}>
                     <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", border: a.aktif ? "1.5px solid var(--pk-primary)" : "1px solid var(--pk-border)", borderRadius: 8, background: "var(--pk-sunken)" }}>

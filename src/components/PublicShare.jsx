@@ -51,7 +51,7 @@ export default function PublicShare({ token, verify }) {
     <div style={{ width: "100%", flex: 1, minWidth: 0, minHeight: "100dvh", background: T.bg, fontFamily: T.font }}>
       <div style={{ background: `linear-gradient(135deg, ${T.sidebarBg}, ${T.primary})`, color: "#fff", padding: isMobile ? "20px 16px" : "26px 32px" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <div style={{ fontSize: isMobile ? 17 : 20, fontWeight: 700 }}>ARSIP DIGITAL BAPPERIDA</div>
+          <div style={{ fontSize: isMobile ? 17 : 20, fontWeight: 700 }}>UMA DATA</div>
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", marginTop: 2 }}>
             {isVerify ? "Verifikasi Keaslian Dokumen" : "Dokumen yang Dibagikan"} · Kabupaten Sumba Barat
           </div>
@@ -140,7 +140,7 @@ export default function PublicShare({ token, verify }) {
         )}
 
         <div style={{ textAlign: "center", marginTop: 28 }}>
-          <a href={window.location.pathname} style={{ fontSize: 13, color: T.primary, textDecoration: "none" }}>Buka aplikasi Arsip Digital</a>
+          <a href={window.location.pathname} style={{ fontSize: 13, color: T.primary, textDecoration: "none" }}>Buka aplikasi UMA DATA</a>
         </div>
       </div>
     </div>

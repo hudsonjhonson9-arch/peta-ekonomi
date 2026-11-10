@@ -104,8 +104,8 @@ export default function LoginPage({ onLogin, onBackToPublic }) {
               {/* Logo */}
               <div style={{ textAlign: "center", marginBottom: 26 }}>
                 <img src="/icon.svg" alt="" width={52} height={52} style={{ margin: "0 auto 12px", display: "block", borderRadius: 14 }} />
-                <div style={{ fontSize: 19, fontWeight: 700, color: "#0F172A", letterSpacing: -0.3 }}>Arsip Digital Bapperida</div>
-                <div style={{ fontSize: 12, color: "#64748B", marginTop: 4 }}>Pusat Dokumen Digital Perencanaan Pembangunan</div>
+                <div style={{ fontSize: 19, fontWeight: 700, color: "#0F172A", letterSpacing: -0.3 }}>UMA DATA</div>
+                <div style={{ fontSize: 12, color: "#64748B", marginTop: 4 }}>Rumah data dan dokumen perencanaan pembangunan</div>
               </div>
 
               {/* NIP */}

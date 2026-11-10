@@ -681,7 +681,7 @@ export default function SpmPage({ user, showToast, readOnly = false }) {
                     Dokumen & Laporan Standar Pelayanan Minimal
                   </div>
                   <div style={{ fontSize: 12, color: T.textSecondary }}>
-                    Terintegrasi langsung dengan Arsip Digital BAPPERIDA & Google Drive Storage
+                    Terintegrasi langsung dengan UMA DATA & Google Drive Storage
                   </div>
                 </div>
                 {isAdmin && (
@@ -986,7 +986,7 @@ export default function SpmPage({ user, showToast, readOnly = false }) {
 
                   {modeArsip && (
                     <div style={{ background: T.bg, borderRadius: 10, border: `1px solid ${T.border}`, padding: 12 }}>
-                      <label style={lblStyle}>Pilih Dokumen dari Arsip Digital BAPPERIDA *</label>
+                      <label style={lblStyle}>Pilih Dokumen dari Arsip Digital *</label>
                       <Select
                         fullWidth
                         searchable

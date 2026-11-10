@@ -1,5 +1,5 @@
-# ARSIP DIGITAL BAPPERIDA
-**Pusat Dokumen Digital Perencanaan Bidang Ekonomi**
+# UMA DATA
+**Rumah Data dan Arsip Perencanaan**
 BAPPERIDA Kabupaten Sumba Barat
 
 ---

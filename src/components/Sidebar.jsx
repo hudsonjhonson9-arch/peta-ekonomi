@@ -246,7 +246,7 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
         <img src="/icon.svg" alt="" width={36} height={36} style={{ flexShrink: 0, borderRadius: 10 }} />
         {!modeIcon && (
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: -0.2 }}>ARSIP DIGITAL BAPPERIDA</div>
+            <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: -0.2 }}>UMA DATA</div>
             <div style={{ fontSize: 10, color: T.textMuted, marginTop: 1 }}>Bapperida · Kab. Sumba Barat</div>
           </div>
         )}

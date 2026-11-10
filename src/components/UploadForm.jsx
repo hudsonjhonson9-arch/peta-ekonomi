@@ -568,7 +568,7 @@ export default function UploadForm({
           Upload Dokumen
         </div>
         <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 4 }}>
-          Tambah dokumen baru ke repositori ARSIP DIGITAL BAPPERIDA
+          Tambah dokumen baru ke repositori UMA DATA
         </div>
       </div>
 
