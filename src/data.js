@@ -153,6 +153,8 @@ export const NAV_GROUPS = [
     items: [
       { key: "dashboard-arsip", label: "Dashboard Arsip", icon: "home" },
       { key: "dokumen", label: "Dokumen", icon: "archive" },
+      { key: "agenda-surat", label: "Agenda Surat", icon: "mail" },
+      { key: "register-sppd", label: "Register SPPD", icon: "mapPin" },
       { key: "kertas-kerja", label: "Kertas Kerja", icon: "checkCircle", children: KERTAS_KERJA_CHILDREN },
       { key: "screening", label: "Screening RKA", icon: "filter" },
       { key: "standar-harga", label: "Standar Harga", icon: "dollar", adminOnly: true },

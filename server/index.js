@@ -36,6 +36,7 @@ import { daftarkanRuteDatasetLanjutan } from './dataset-lanjutan-routes.js';
 import { buatCaptcha, verifikasiCaptcha, inisialisasiPembersihCaptcha } from './captcha.js';
 import { daftarkanRuteAdminLanjutan } from './admin-lanjutan-routes.js';
 import { daftarkanRutePengaturanSitus } from './pengaturan-situs-routes.js';
+import { daftarkanRuteAgenda } from './agenda-routes.js';
 
 dotenv.config();
 
@@ -565,6 +566,7 @@ jalankanMigration('tahap_2', [
   .then(() => jalankanMigration('tahap_23', [], true))
   .then(() => jalankanMigration('tahap_24', [], true))
   .then(() => jalankanMigration('tahap_25', [], true))
+  .then(() => jalankanMigration('tahap_26', ['agenda_surat_masuk', 'agenda_disposisi', 'agenda_surat_keluar', 'agenda_sppd']))
   .then(jalankanSeed)
   // Impor bawaan standar harga SIPD (db/standar_harga_sipd_<jenis>_<tahun>.xlsx).
   // Setelah tahap_13 karena merge-nya menarget index unik tahap_13. Gagal di
@@ -5101,6 +5103,7 @@ daftarkanRuteDatasetLanjutan(app, pool, queryDB);
 daftarkanRuteAdminLanjutan(app, pool, queryDB);
 daftarkanRutePengaturanSitus(app, pool, queryDB);
 daftarkanRuteSdpdn(app, pool, queryDB);
+daftarkanRuteAgenda(app, pool, queryDB);
 inisialisasiScheduler(app, pool, queryDB);
 if (isProd) {
   app.get('/{*path}', (_, res) => {

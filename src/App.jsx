@@ -67,6 +67,8 @@ import AkunPage from "./components/AkunPage.jsx";
 import PengaturanWebsitePage from "./components/PengaturanWebsitePage.jsx";
 import PortalPublikLengkap from "./components/PortalPublikLengkap.jsx";
 import DokumentasiApiPage from "./components/DokumentasiApiPage.jsx";
+import AgendaSuratPage from "./components/agenda/AgendaSuratPage.jsx";
+import AgendaSppdPage from "./components/agenda/AgendaSppdPage.jsx";
 import { isOpdBapperidaFrontend } from "./data.js";
 import { Icon, Toast } from "./components/ui.jsx";
 import { ROLE_COLOR } from "./data.js";
@@ -1299,6 +1301,8 @@ export default function App() {
                   {page === "panduan" && "Panduan Pengguna"}
                   {page === "bankdata" && "Bank Data"}
                   {page === "kertas-kerja" && "Kertas Kerja"}
+                  {page === "agenda-surat" && "Agenda Surat"}
+                  {page === "register-sppd" && "Register SPPD"}
                   {page === "screening" && "Screening RKA"}
                   {page === "standar-harga" && "Standar Harga"}
                   {page === "spm" && "Standar Pelayanan Minimal (SPM)"}
@@ -1424,6 +1428,12 @@ export default function App() {
                 onBukaDokumen={bukaDokumenId}
                 initialTab={currentTab || undefined}
               />
+            )}
+            {page === "agenda-surat" && (
+              <AgendaSuratPage />
+            )}
+            {page === "register-sppd" && (
+              <AgendaSppdPage />
             )}
             {page === "screening" && (
               <ScreeningRKA user={user} showToast={showToast} />
