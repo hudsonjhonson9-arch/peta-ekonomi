@@ -1,8 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="70 161 190 190" role="img" aria-label="Arsip Digital Bapperida">
-  <rect x="70" y="161" width="150" height="170" rx="16" fill="#0F172A"/>
-  <rect x="90" y="171" width="150" height="170" rx="16" fill="#1D4ED8"/>
-  <path d="M126 181 H228 L260 213 V335 A16 16 0 0 1 244 351 H126 A16 16 0 0 1 110 335 V197 A16 16 0 0 1 126 181 Z" fill="#2563EB"/>
-  <path d="M228 181 L260 213 H228 Z" fill="#0F172A"/>
-  <rect x="140" y="248" width="88" height="18" rx="9" fill="#FFFFFF"/>
-  <rect x="140" y="284" width="56" height="18" rx="9" fill="#FFFFFF"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="6 6 108 108" role="img" aria-label="UMA DATA">
+  <rect x="6" y="6" width="108" height="108" rx="28" fill="#1D4ED8"/>
+  <g transform="translate(60 60) scale(.7) translate(-60 -63)"><path d="M49 14H71L80 56H40Z M42 60H78L104 84V88H16V84Z M26 92H56V112H26Z M64 92H94V112H64Z " fill="#FFFFFF" fill-rule="evenodd"/></g>
 </svg>
