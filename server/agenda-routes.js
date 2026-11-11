@@ -179,6 +179,21 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
     }
   });
 
+  // Ambil detail Disposisi untuk suatu Surat Masuk
+  app.get('/api/agenda/surat-masuk/:id/disposisi', async (req, res) => {
+    try {
+      const surat_masuk_id = parseInt(req.params.id, 10);
+      const rows = await queryDB(
+        `SELECT * FROM agenda_disposisi WHERE surat_masuk_id = $1`,
+        [surat_masuk_id]
+      );
+      res.json({ ok: true, disposisi: rows[0] || null });
+    } catch (e) {
+      console.error('[Agenda] Get Disposisi Error:', e);
+      res.status(500).json({ ok: false, message: 'Gagal mengambil data disposisi' });
+    }
+  });
+
   // Disposisi Digital
   app.post('/api/agenda/surat-masuk/:id/disposisi', async (req, res) => {
     try {
@@ -370,11 +385,23 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
     }
   });
 
-  // Update Status / Berkas Surat Keluar
+  // Update Status / Berkas / Detail Surat Keluar
   app.put('/api/agenda/surat-keluar/:id', async (req, res) => {
     try {
       const id = parseInt(req.params.id, 10);
-      const { tujuan_surat, perihal, sifat, bidang_pengonsep, penandatangan, file_draft_url, file_final_url, status } = req.body;
+      const {
+        tujuan_surat,
+        perihal,
+        sifat,
+        bidang_pengonsep,
+        penandatangan,
+        kode_klasifikasi,
+        tanggal_surat,
+        nomor_surat,
+        file_draft_url,
+        file_final_url,
+        status
+      } = req.body;
 
       const upRes = await queryDB(
         `UPDATE agenda_surat_keluar
@@ -383,13 +410,16 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
              sifat = COALESCE($3, sifat),
              bidang_pengonsep = COALESCE($4, bidang_pengonsep),
              penandatangan = COALESCE($5, penandatangan),
-             file_draft_url = COALESCE($6, file_draft_url),
-             file_final_url = COALESCE($7, file_final_url),
-             status = COALESCE($8, status),
+             kode_klasifikasi = COALESCE($6, kode_klasifikasi),
+             tanggal_surat = COALESCE($7, tanggal_surat),
+             nomor_surat = COALESCE($8, nomor_surat),
+             file_draft_url = COALESCE($9, file_draft_url),
+             file_final_url = COALESCE($10, file_final_url),
+             status = COALESCE($11, status),
              updated_at = NOW()
-         WHERE id = $9
+         WHERE id = $12
          RETURNING *`,
-        [tujuan_surat, perihal, sifat, bidang_pengonsep, penandatangan, file_draft_url, file_final_url, status, id]
+        [tujuan_surat, perihal, sifat, bidang_pengonsep, penandatangan, kode_klasifikasi, tanggal_surat, nomor_surat, file_draft_url, file_final_url, status, id]
       );
 
       if (!upRes.length) return res.status(404).json({ ok: false, message: 'Surat keluar tidak ditemukan' });
@@ -400,15 +430,20 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
     }
   });
 
-  // Batalkan Nomor Surat Keluar (Soft cancel agar urutan nomor tidak hilang)
+  // Batalkan / Hapus Nomor Surat Keluar (Hanya Admin)
   app.delete('/api/agenda/surat-keluar/:id', async (req, res) => {
     try {
       const id = parseInt(req.params.id, 10);
-      await queryDB(
-        `UPDATE agenda_surat_keluar SET status = 'Dibatalkan', updated_at = NOW() WHERE id = $1`,
-        [id]
-      );
-      res.json({ ok: true, message: 'Nomor surat keluar telah ditandai Dibatalkan' });
+      if (req.query.force === 'true') {
+        await queryDB(`DELETE FROM agenda_surat_keluar WHERE id = $1`, [id]);
+        res.json({ ok: true, message: 'Surat keluar telah dihapus secara permanen' });
+      } else {
+        await queryDB(
+          `UPDATE agenda_surat_keluar SET status = 'Dibatalkan', updated_at = NOW() WHERE id = $1`,
+          [id]
+        );
+        res.json({ ok: true, message: 'Nomor surat keluar telah ditandai Dibatalkan' });
+      }
     } catch (e) {
       console.error('[Agenda] Cancel Surat Keluar Error:', e);
       res.status(500).json({ ok: false, message: 'Gagal membatalkan surat keluar' });
@@ -418,6 +453,25 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
   // ════════════════════════════════════════════════════════
   // 3. BUKU REGISTER SPPD (DALAM & LUAR DAERAH)
   // ════════════════════════════════════════════════════════
+
+  // Preview Nomor Register SPPD Berikutnya
+  app.get('/api/agenda/sppd/preview-nomor', async (req, res) => {
+    try {
+      const tahun = parseInt(req.query.tahun, 10) || new Date().getFullYear();
+      const jenis_sppd = req.query.jenis === 'LUAR_DAERAH' ? 'LUAR_DAERAH' : 'DALAM_DAERAH';
+      const lastReg = await queryDB(
+        `SELECT COUNT(*)::int as n FROM agenda_sppd WHERE tahun = $1 AND jenis_sppd = $2`,
+        [tahun, jenis_sppd]
+      );
+      const nextNo = (lastReg[0]?.n || 0) + 1;
+      const kodeSuffix = jenis_sppd === 'DALAM_DAERAH' ? 'SPPD-DD' : 'SPPD-LD';
+      const nomor_register = `${String(nextNo).padStart(3, '0')}/${kodeSuffix}/${tahun}`;
+      res.json({ ok: true, nomor_register, next_no: nextNo, tahun, jenis_sppd });
+    } catch (e) {
+      console.error('[Agenda] Preview SPPD Nomor Error:', e);
+      res.status(500).json({ ok: false, message: 'Gagal mempratinjau nomor register SPPD' });
+    }
+  });
   
   // List Register SPPD
   app.get('/api/agenda/sppd', async (req, res) => {
@@ -544,27 +598,91 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
     }
   });
 
-  // Update SPPD
+  // Update SPPD (Full CRUD untuk Admin)
   app.put('/api/agenda/sppd/:id', async (req, res) => {
     try {
       const id = parseInt(req.params.id, 10);
-      const fields = req.body;
+      const {
+        nomor_spt,
+        nomor_sppd,
+        tanggal_spt,
+        pejabat_perintah,
+        pelaksana_nip,
+        pelaksana_nama,
+        pelaksana_pangkat,
+        pelaksana_jabatan,
+        pengikut,
+        maksud_perjalanan,
+        tempat_berangkat,
+        tempat_tujuan,
+        provinsi_tujuan,
+        rute_perjalanan,
+        alat_angkutan,
+        tanggal_berangkat,
+        tanggal_kembali,
+        subkegiatan_id,
+        subkegiatan_nama,
+        kode_rekening,
+        rincian_biaya,
+        total_biaya,
+        file_spt_url,
+        file_sppd_url,
+        file_lhp_url,
+        status
+      } = req.body;
+
+      // Hitung lama hari perjalanan jika tanggal berubah
+      let lama_hari = undefined;
+      if (tanggal_berangkat && tanggal_kembali) {
+        const t1 = new Date(tanggal_berangkat);
+        const t2 = new Date(tanggal_kembali);
+        const diffTime = Math.abs(t2 - t1);
+        lama_hari = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
+      }
 
       const upRes = await queryDB(
         `UPDATE agenda_sppd
-         SET maksud_perjalanan = COALESCE($1, maksud_perjalanan),
-             tempat_tujuan = COALESCE($2, tempat_tujuan),
-             tanggal_berangkat = COALESCE($3, tanggal_berangkat),
-             tanggal_kembali = COALESCE($4, tanggal_kembali),
-             total_biaya = COALESCE($5, total_biaya),
-             status = COALESCE($6, status),
-             file_spt_url = COALESCE($7, file_spt_url),
-             file_sppd_url = COALESCE($8, file_sppd_url),
-             file_lhp_url = COALESCE($9, file_lhp_url),
+         SET nomor_spt = COALESCE($1, nomor_spt),
+             nomor_sppd = COALESCE($2, nomor_sppd),
+             tanggal_spt = COALESCE($3, tanggal_spt),
+             pejabat_perintah = COALESCE($4, pejabat_perintah),
+             pelaksana_nip = COALESCE($5, pelaksana_nip),
+             pelaksana_nama = COALESCE($6, pelaksana_nama),
+             pelaksana_pangkat = COALESCE($7, pelaksana_pangkat),
+             pelaksana_jabatan = COALESCE($8, pelaksana_jabatan),
+             pengikut = CASE WHEN $9::jsonb IS NOT NULL THEN $9::jsonb ELSE pengikut END,
+             maksud_perjalanan = COALESCE($10, maksud_perjalanan),
+             tempat_berangkat = COALESCE($11, tempat_berangkat),
+             tempat_tujuan = COALESCE($12, tempat_tujuan),
+             provinsi_tujuan = COALESCE($13, provinsi_tujuan),
+             rute_perjalanan = COALESCE($14, rute_perjalanan),
+             alat_angkutan = COALESCE($15, alat_angkutan),
+             tanggal_berangkat = COALESCE($16, tanggal_berangkat),
+             tanggal_kembali = COALESCE($17, tanggal_kembali),
+             lama_hari = COALESCE($18, lama_hari),
+             subkegiatan_id = COALESCE($19, subkegiatan_id),
+             subkegiatan_nama = COALESCE($20, subkegiatan_nama),
+             kode_rekening = COALESCE($21, kode_rekening),
+             rincian_biaya = CASE WHEN $22::jsonb IS NOT NULL THEN $22::jsonb ELSE rincian_biaya END,
+             total_biaya = COALESCE($23, total_biaya),
+             file_spt_url = COALESCE($24, file_spt_url),
+             file_sppd_url = COALESCE($25, file_sppd_url),
+             file_lhp_url = COALESCE($26, file_lhp_url),
+             status = COALESCE($27, status),
              updated_at = NOW()
-         WHERE id = $10
+         WHERE id = $28
          RETURNING *`,
-        [fields.maksud_perjalanan, fields.tempat_tujuan, fields.tanggal_berangkat, fields.tanggal_kembali, fields.total_biaya, fields.status, fields.file_spt_url, fields.file_sppd_url, fields.file_lhp_url, id]
+        [
+          nomor_spt, nomor_sppd, tanggal_spt, pejabat_perintah,
+          pelaksana_nip, pelaksana_nama, pelaksana_pangkat, pelaksana_jabatan,
+          pengikut ? JSON.stringify(pengikut) : null,
+          maksud_perjalanan, tempat_berangkat, tempat_tujuan, provinsi_tujuan, rute_perjalanan, alat_angkutan,
+          tanggal_berangkat, tanggal_kembali, lama_hari,
+          subkegiatan_id, subkegiatan_nama, kode_rekening,
+          rincian_biaya ? JSON.stringify(rincian_biaya) : null,
+          total_biaya, file_spt_url, file_sppd_url, file_lhp_url, status,
+          id
+        ]
       );
 
       if (!upRes.length) return res.status(404).json({ ok: false, message: 'SPPD tidak ditemukan' });
@@ -572,6 +690,19 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
     } catch (e) {
       console.error('[Agenda] Update SPPD Error:', e);
       res.status(500).json({ ok: false, message: 'Gagal memperbarui data SPPD' });
+    }
+  });
+
+  // Hapus SPPD (Hanya Admin)
+  app.delete('/api/agenda/sppd/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const delRes = await queryDB(`DELETE FROM agenda_sppd WHERE id = $1 RETURNING id`, [id]);
+      if (!delRes.length) return res.status(404).json({ ok: false, message: 'SPPD tidak ditemukan' });
+      res.json({ ok: true, message: 'Register SPPD berhasil dihapus' });
+    } catch (e) {
+      console.error('[Agenda] Delete SPPD Error:', e);
+      res.status(500).json({ ok: false, message: 'Gagal menghapus SPPD' });
     }
   });
 

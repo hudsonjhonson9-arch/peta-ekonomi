@@ -1430,10 +1430,10 @@ export default function App() {
               />
             )}
             {page === "agenda-surat" && (
-              <AgendaSuratPage />
+              <AgendaSuratPage user={user} showToast={showToast} />
             )}
             {page === "register-sppd" && (
-              <AgendaSppdPage />
+              <AgendaSppdPage user={user} showToast={showToast} />
             )}
             {page === "screening" && (
               <ScreeningRKA user={user} showToast={showToast} />

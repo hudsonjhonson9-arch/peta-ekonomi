@@ -35,12 +35,18 @@ test('daftarkanRuteAgenda mendaftarkan seluruh endpoint agenda ke Express app', 
   const paths = routes.map(r => `${r.method} ${r.path}`);
   assert.ok(paths.includes('GET /api/agenda/surat-masuk'), 'harus ada GET /api/agenda/surat-masuk');
   assert.ok(paths.includes('POST /api/agenda/surat-masuk'), 'harus ada POST /api/agenda/surat-masuk');
+  assert.ok(paths.includes('GET /api/agenda/surat-masuk/:id/disposisi'), 'harus ada GET disposisi');
   assert.ok(paths.includes('POST /api/agenda/surat-masuk/:id/disposisi'), 'harus ada POST disposisi');
+  assert.ok(paths.includes('DELETE /api/agenda/surat-masuk/:id'), 'harus ada DELETE surat masuk');
   assert.ok(paths.includes('GET /api/agenda/surat-keluar'), 'harus ada GET /api/agenda/surat-keluar');
   assert.ok(paths.includes('GET /api/agenda/surat-keluar/preview-nomor'), 'harus ada preview nomor surat');
   assert.ok(paths.includes('POST /api/agenda/surat-keluar'), 'harus ada booking surat keluar');
+  assert.ok(paths.includes('DELETE /api/agenda/surat-keluar/:id'), 'harus ada DELETE surat keluar');
+  assert.ok(paths.includes('GET /api/agenda/sppd/preview-nomor'), 'harus ada preview nomor SPPD');
   assert.ok(paths.includes('GET /api/agenda/sppd'), 'harus ada GET /api/agenda/sppd');
   assert.ok(paths.includes('POST /api/agenda/sppd'), 'harus ada POST /api/agenda/sppd');
+  assert.ok(paths.includes('PUT /api/agenda/sppd/:id'), 'harus ada PUT /api/agenda/sppd/:id');
+  assert.ok(paths.includes('DELETE /api/agenda/sppd/:id'), 'harus ada DELETE /api/agenda/sppd/:id');
   assert.ok(paths.includes('POST /api/agenda/sppd/:id/lhp'), 'harus ada upload LHP');
   assert.ok(paths.includes('POST /api/agenda/sppd/:id/spj'), 'harus ada upload SPJ');
 });
