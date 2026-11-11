@@ -708,23 +708,23 @@ export default function AgendaSuratPage({ user, showToast }) {
         </button>
       </div>
 
-      {/* ── Toolbar Search & Filter Grid Bar ── */}
+      {/* ── Toolbar Search & Filter (Matching DocPages / BankData) ── */}
       <div
         style={{
           background: T.card,
           borderRadius: 12,
           border: `1px solid ${T.border}`,
-          padding: 14,
+          padding: isMobile ? 12 : 14,
           marginBottom: 16,
-          display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr 1fr auto",
+          display: "flex",
           gap: 10,
           alignItems: "center",
+          flexWrap: "wrap",
         }}
       >
-        <div style={{ position: "relative" }}>
+        <div style={{ position: "relative", flex: "1 1 240px", minWidth: 200 }}>
           <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: T.textMuted, display: "flex", pointerEvents: "none" }}>
-            <Icon name="search" size={15} />
+            <Icon name="search" size={14} />
           </div>
           <input
             type="text"
@@ -736,7 +736,7 @@ export default function AgendaSuratPage({ user, showToast }) {
               width: "100%",
               padding: "9px 12px 9px 34px",
               borderRadius: 8,
-              border: `1px solid ${T.border}`,
+              border: `1.5px solid ${T.border}`,
               background: T.inputBg,
               color: T.text,
               fontSize: 13,
@@ -748,47 +748,58 @@ export default function AgendaSuratPage({ user, showToast }) {
         </div>
 
         {/* Filter Sifat */}
-        <Select
-          value={sifatFilter}
-          onChange={setSifatFilter}
-          placeholder="Semua Sifat"
-          options={[
-            { value: "", label: "Semua Sifat" },
-            { value: "Biasa", label: "Biasa" },
-            { value: "Penting", label: "Penting" },
-            { value: "Rahasia", label: "Rahasia" },
-            { value: "Segera", label: "Segera" },
-          ]}
-          fullWidth
-        />
+        <div style={{ width: isMobile ? "100%" : 150 }}>
+          <Select
+            value={sifatFilter}
+            onChange={setSifatFilter}
+            placeholder="Semua Sifat"
+            options={[
+              { value: "", label: "Semua Sifat" },
+              { value: "Biasa", label: "Biasa" },
+              { value: "Penting", label: "Penting" },
+              { value: "Rahasia", label: "Rahasia" },
+              { value: "Segera", label: "Segera" },
+            ]}
+            fullWidth
+            size="sm"
+          />
+        </div>
 
         {/* Filter Status */}
-        <Select
-          value={statusFilter}
-          onChange={setStatusFilter}
-          placeholder="Semua Status"
-          options={tab === "masuk" ? [
-            { value: "", label: "Semua Status" },
-            { value: "Diterima", label: "Diterima" },
-            { value: "Didisposisi", label: "Didisposisi" },
-            { value: "Selesai", label: "Selesai" },
-          ] : [
-            { value: "", label: "Semua Status" },
-            { value: "Draf", label: "Draf" },
-            { value: "Ditandatangani", label: "Ditandatangani" },
-            { value: "Terkirim", label: "Terkirim" },
-            { value: "Dibatalkan", label: "Dibatalkan" },
-          ]}
-          fullWidth
-        />
+        <div style={{ width: isMobile ? "100%" : 160 }}>
+          <Select
+            value={statusFilter}
+            onChange={setStatusFilter}
+            placeholder="Semua Status"
+            options={tab === "masuk" ? [
+              { value: "", label: "Semua Status" },
+              { value: "Diterima", label: "Diterima" },
+              { value: "Didisposisi", label: "Didisposisi" },
+              { value: "Selesai", label: "Selesai" },
+            ] : [
+              { value: "", label: "Semua Status" },
+              { value: "Draf", label: "Draf" },
+              { value: "Ditandatangani", label: "Ditandatangani" },
+              { value: "Terkirim", label: "Terkirim" },
+              { value: "Dibatalkan", label: "Dibatalkan" },
+            ]}
+            fullWidth
+            size="sm"
+          />
+        </div>
 
         <Button
           variant="secondary"
           icon="refresh"
+          size="sm"
           onClick={fetchData}
         >
           Segarkan
         </Button>
+
+        <div style={{ marginLeft: "auto", fontSize: 12, color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>
+          {tab === "masuk" ? `${filteredMasuk.length} surat masuk` : `${filteredKeluar.length} surat keluar`}
+        </div>
       </div>
 
       {/* ── Table Container ── */}
