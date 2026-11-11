@@ -503,7 +503,7 @@ export default function AgendaSuratPage({ user, showToast }) {
             Buku Agenda Surat
           </h2>
           <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 3 }}>
-            Registrasi digital surat masuk, disposisi tindak lanjut pimpinan, dan penomoran surat keluar dinas
+            Registrasi surat masuk & keluar dinas · {itemsMasuk.length} surat masuk ({statMasukDisposisi} didisposisi, {statMasukMenunggu} menunggu arahan), {itemsKeluar.length} surat keluar aktif
           </div>
         </div>
 
@@ -542,116 +542,24 @@ export default function AgendaSuratPage({ user, showToast }) {
         </div>
       </div>
 
-      {/* ── Metric Summary Strip (4 KPI Cards Matching Dashboard) ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
-          gap: isMobile ? 8 : 12,
-          marginBottom: 20,
-        }}
-      >
-        {[
-          {
-            label: `Surat Masuk (${tahun})`,
-            value: statMasukTotal,
-            hint: "Dokumen registrasi masuk",
-            icon: "fileText",
-            color: "#2563EB",
-          },
-          {
-            label: "Telah Didisposisi",
-            value: statMasukDisposisi,
-            hint: "Instruksi tindak lanjut aktif",
-            icon: "checkCircle",
-            color: "#10B981",
-          },
-          {
-            label: "Menunggu Tindak Lanjut",
-            value: statMasukMenunggu,
-            hint: "Perlu arahan pimpinan",
-            icon: "clock",
-            color: "#F59E0B",
-          },
-          {
-            label: "Surat Keluar Terdaftar",
-            value: statKeluarAktif,
-            hint: "Nomor dinas resmi aktif",
-            icon: "externalLink",
-            color: "#8B5CF6",
-          },
-        ].map((s, i) => (
-          <div
-            key={i}
-            style={{
-              background: T.card,
-              borderRadius: 12,
-              padding: 16,
-              border: `1px solid ${T.border}`,
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "space-between",
-              minHeight: 90,
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-              <div style={{ fontSize: 11.5, color: T.textSecondary, fontWeight: 500, lineHeight: 1.3 }}>
-                {s.label}
-              </div>
-              <div
-                style={{
-                  width: 30,
-                  height: 30,
-                  background: `${s.color}15`,
-                  borderRadius: 8,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <Icon name={s.icon} size={15} style={{ color: s.color }} />
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 26, fontWeight: 800, color: s.color, letterSpacing: -0.5, fontVariantNumeric: "tabular-nums" }}>
-                {s.value}
-              </div>
-              {s.hint && (
-                <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>{s.hint}</div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Segmented Capsule Tab Switcher ── */}
-      <div
-        style={{
-          display: "inline-flex",
-          background: T.card,
-          padding: 4,
-          borderRadius: 10,
-          border: `1px solid ${T.border}`,
-          gap: 4,
-          marginBottom: 16,
-        }}
-      >
+      {/* ── Sub-Nav Tabs (Matching BankData & DocPages) ── */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
         <button
           type="button"
           onClick={() => { setTab("masuk"); setStatusFilter(""); setSifatFilter(""); }}
           style={{
+            padding: "8px 16px",
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
             display: "inline-flex",
             alignItems: "center",
             gap: 7,
-            padding: "7px 14px",
-            borderRadius: 7,
-            border: "none",
-            background: tab === "masuk" ? T.primary : "transparent",
+            background: tab === "masuk" ? T.primary : T.card,
             color: tab === "masuk" ? "#fff" : T.textSecondary,
-            fontWeight: tab === "masuk" ? 700 : 500,
-            fontSize: 12.5,
-            cursor: "pointer",
+            border: `1px solid ${tab === "masuk" ? T.primary : T.border}`,
+            boxShadow: tab === "masuk" ? T.shadowSm : "none",
             transition: "all 0.15s ease",
           }}
         >
@@ -659,7 +567,7 @@ export default function AgendaSuratPage({ user, showToast }) {
           <span>Buku Surat Masuk & Disposisi</span>
           <span
             style={{
-              padding: "1px 6px",
+              padding: "1px 7px",
               borderRadius: 99,
               fontSize: 11,
               fontWeight: 700,
@@ -676,17 +584,18 @@ export default function AgendaSuratPage({ user, showToast }) {
           type="button"
           onClick={() => { setTab("keluar"); setStatusFilter(""); setSifatFilter(""); }}
           style={{
+            padding: "8px 16px",
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
             display: "inline-flex",
             alignItems: "center",
             gap: 7,
-            padding: "7px 14px",
-            borderRadius: 7,
-            border: "none",
-            background: tab === "keluar" ? T.primary : "transparent",
+            background: tab === "keluar" ? T.primary : T.card,
             color: tab === "keluar" ? "#fff" : T.textSecondary,
-            fontWeight: tab === "keluar" ? 700 : 500,
-            fontSize: 12.5,
-            cursor: "pointer",
+            border: `1px solid ${tab === "keluar" ? T.primary : T.border}`,
+            boxShadow: tab === "keluar" ? T.shadowSm : "none",
             transition: "all 0.15s ease",
           }}
         >
@@ -694,7 +603,7 @@ export default function AgendaSuratPage({ user, showToast }) {
           <span>Buku Surat Keluar & Booking Nomor</span>
           <span
             style={{
-              padding: "1px 6px",
+              padding: "1px 7px",
               borderRadius: 99,
               fontSize: 11,
               fontWeight: 700,

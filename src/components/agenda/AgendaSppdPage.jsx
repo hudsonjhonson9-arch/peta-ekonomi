@@ -2,7 +2,14 @@ import { useState, useEffect, useContext, useMemo } from "react";
 import { ThemeContext } from "../../App.jsx";
 import { useIsDark, Icon, Modal, Select, Button } from "../ui.jsx";
 import useResponsive from "../../useResponsive.js";
-import { unduhSuratTugasDocx, unduhSppdDocx } from "../../utils/sppdDocxGenerator.js";
+import {
+  unduhSuratTugasDocx,
+  unduhSppdDocx,
+  unduhSuratTugasPdf,
+  unduhSppdPdf,
+  cetakSuratTugasWindow,
+  cetakSppdWindow
+} from "../../utils/sppdDocxGenerator.js";
 
 const PEJABAT_PERINTAH_LIST = [
   "Kepala BAPPERIDA",
@@ -67,7 +74,7 @@ export default function AgendaSppdPage({ user, showToast }) {
   const unduhSPT = async (it) => {
     setIsGeneratingDocx(true);
     try {
-      notif("Menyiapkan dokumen Surat Perintah Tugas (SPT)...");
+      notif("Menyiapkan dokumen Surat Perintah Tugas (SPT .docx)...");
       await unduhSuratTugasDocx(it);
       notif("Surat Perintah Tugas (SPT) berhasil diunduh (.docx)!");
     } catch (err) {
@@ -81,7 +88,7 @@ export default function AgendaSppdPage({ user, showToast }) {
     setIsGeneratingDocx(true);
     try {
       const namaTarget = person?.nama || it.pelaksana_nama || "Pelaksana";
-      notif(`Menyiapkan lembar SPPD untuk ${namaTarget}...`);
+      notif(`Menyiapkan lembar SPPD untuk ${namaTarget} (.docx)...`);
       await unduhSppdDocx(it, person);
       notif(`SPPD untuk ${namaTarget} berhasil diunduh (.docx)!`);
     } catch (err) {
@@ -89,6 +96,41 @@ export default function AgendaSppdPage({ user, showToast }) {
     } finally {
       setIsGeneratingDocx(false);
     }
+  };
+
+  const unduhSPTPdf = async (it) => {
+    setIsGeneratingDocx(true);
+    try {
+      notif("Menyiapkan dokumen Surat Perintah Tugas (SPT .pdf)...");
+      await unduhSuratTugasPdf(it);
+      notif("Surat Perintah Tugas (SPT) berhasil diunduh (.pdf)!");
+    } catch (err) {
+      notif("Gagal membuat PDF SPT: " + (err?.message || err));
+    } finally {
+      setIsGeneratingDocx(false);
+    }
+  };
+
+  const unduhSPPDPdf = async (it, person = null) => {
+    setIsGeneratingDocx(true);
+    try {
+      const namaTarget = person?.nama || it.pelaksana_nama || "Pelaksana";
+      notif(`Menyiapkan lembar SPPD untuk ${namaTarget} (.pdf)...`);
+      await unduhSppdPdf(it, person);
+      notif(`SPPD untuk ${namaTarget} berhasil diunduh (.pdf)!`);
+    } catch (err) {
+      notif("Gagal membuat PDF SPPD: " + (err?.message || err));
+    } finally {
+      setIsGeneratingDocx(false);
+    }
+  };
+
+  const cetakSPT = (it) => {
+    cetakSuratTugasWindow(it);
+  };
+
+  const cetakSPPD = (it, person = null) => {
+    cetakSppdWindow(it, person);
   };
 
 
@@ -450,7 +492,7 @@ export default function AgendaSppdPage({ user, showToast }) {
             Buku Register SPPD & SPT
           </h2>
           <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 3 }}>
-            Penerbitan surat perintah tugas (SPT), registrasi perjalanan dinas (SPPD), dan verifikasi pertanggungjawaban SPJ
+            Penerbitan surat perintah tugas (SPT), registrasi perjalanan dinas (SPPD), dan verifikasi SPJ · {items.length} register ({statSelesai} selesai/SPJ lengkap)
           </div>
         </div>
 
@@ -479,109 +521,24 @@ export default function AgendaSppdPage({ user, showToast }) {
         </div>
       </div>
 
-      {/* ── Metric Summary Strip (3 Cards - Anggaran Ditiadakan) ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
-          gap: isMobile ? 8 : 12,
-          marginBottom: 20,
-        }}
-      >
-        {[
-          {
-            label: "SPPD Dalam Daerah",
-            value: statDalam,
-            hint: "Register perjalanan dinas dalam daerah",
-            icon: "building",
-            color: "#2563EB",
-          },
-          {
-            label: "SPPD Luar Daerah",
-            value: statLuar,
-            hint: "Register perjalanan dinas luar daerah",
-            icon: "externalLink",
-            color: "#8B5CF6",
-          },
-          {
-            label: "LHP / SPJ Lengkap",
-            value: statSelesai,
-            hint: "Laporan hasil & berkas SPJ terverifikasi",
-            icon: "checkCircle",
-            color: "#10B981",
-          },
-        ].map((s, i) => (
-          <div
-            key={i}
-            style={{
-              background: T.card,
-              borderRadius: 12,
-              padding: 16,
-              border: `1px solid ${T.border}`,
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "space-between",
-              minHeight: 90,
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-              <div style={{ fontSize: 11.5, color: T.textSecondary, fontWeight: 500, lineHeight: 1.3 }}>
-                {s.label}
-              </div>
-              <div
-                style={{
-                  width: 30,
-                  height: 30,
-                  background: `${s.color}15`,
-                  borderRadius: 8,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <Icon name={s.icon} size={15} style={{ color: s.color }} />
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 26, fontWeight: 800, color: s.color, letterSpacing: -0.5, fontVariantNumeric: "tabular-nums" }}>
-                {s.value}
-              </div>
-              {s.hint && (
-                <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>{s.hint}</div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Segmented Capsule Tab Switcher ── */}
-      <div
-        style={{
-          display: "inline-flex",
-          background: T.card,
-          padding: 4,
-          borderRadius: 10,
-          border: `1px solid ${T.border}`,
-          gap: 4,
-          marginBottom: 16,
-        }}
-      >
+      {/* ── Sub-Nav Tabs (Matching BankData & DocPages) ── */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
         <button
           type="button"
           onClick={() => { setJenis("DALAM_DAERAH"); setStatusFilter(""); }}
           style={{
+            padding: "8px 16px",
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
             display: "inline-flex",
             alignItems: "center",
             gap: 7,
-            padding: "7px 14px",
-            borderRadius: 7,
-            border: "none",
-            background: jenis === "DALAM_DAERAH" ? T.primary : "transparent",
+            background: jenis === "DALAM_DAERAH" ? T.primary : T.card,
             color: jenis === "DALAM_DAERAH" ? "#fff" : T.textSecondary,
-            fontWeight: jenis === "DALAM_DAERAH" ? 700 : 500,
-            fontSize: 12.5,
-            cursor: "pointer",
+            border: `1px solid ${jenis === "DALAM_DAERAH" ? T.primary : T.border}`,
+            boxShadow: jenis === "DALAM_DAERAH" ? T.shadowSm : "none",
             transition: "all 0.15s ease",
           }}
         >
@@ -589,7 +546,7 @@ export default function AgendaSppdPage({ user, showToast }) {
           <span>SPPD Dalam Daerah</span>
           <span
             style={{
-              padding: "1px 6px",
+              padding: "1px 7px",
               borderRadius: 99,
               fontSize: 11,
               fontWeight: 700,
@@ -606,17 +563,18 @@ export default function AgendaSppdPage({ user, showToast }) {
           type="button"
           onClick={() => { setJenis("LUAR_DAERAH"); setStatusFilter(""); }}
           style={{
+            padding: "8px 16px",
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
             display: "inline-flex",
             alignItems: "center",
             gap: 7,
-            padding: "7px 14px",
-            borderRadius: 7,
-            border: "none",
-            background: jenis === "LUAR_DAERAH" ? T.primary : "transparent",
+            background: jenis === "LUAR_DAERAH" ? T.primary : T.card,
             color: jenis === "LUAR_DAERAH" ? "#fff" : T.textSecondary,
-            fontWeight: jenis === "LUAR_DAERAH" ? 700 : 500,
-            fontSize: 12.5,
-            cursor: "pointer",
+            border: `1px solid ${jenis === "LUAR_DAERAH" ? T.primary : T.border}`,
+            boxShadow: jenis === "LUAR_DAERAH" ? T.shadowSm : "none",
             transition: "all 0.15s ease",
           }}
         >
@@ -624,7 +582,7 @@ export default function AgendaSppdPage({ user, showToast }) {
           <span>SPPD Luar Daerah</span>
           <span
             style={{
-              padding: "1px 6px",
+              padding: "1px 7px",
               borderRadius: 99,
               fontSize: 11,
               fontWeight: 700,
@@ -1571,58 +1529,85 @@ export default function AgendaSppdPage({ user, showToast }) {
               </div>
             </div>
 
-            {/* Generator Naskah Dinas Otomatis (.docx) */}
-            <div style={{ marginTop: 8, padding: "12px 14px", borderRadius: 8, background: isDark ? "rgba(37,99,235,0.1)" : "#EFF6FF", border: `1px solid ${isDark ? "#2563EB" : "#BFDBFE"}` }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: T.primary, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5, display: "flex", alignItems: "center", gap: 6 }}>
-                <Icon name="download" size={13} />
-                <span>Cetak / Unduh Dokumen Resmi Otomatis (.docx)</span>
+            {/* Generator Naskah Dinas Otomatis (.docx & .pdf) */}
+            <div style={{ marginTop: 8, padding: "14px 16px", borderRadius: 10, background: isDark ? "rgba(37,99,235,0.08)" : "#EFF6FF", border: `1px solid ${isDark ? "#2563EB" : "#BFDBFE"}` }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: T.primary, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5, display: "flex", alignItems: "center", gap: 6 }}>
+                <Icon name="download" size={14} />
+                <span>Cetak / Unduh Dokumen Resmi Otomatis (Word & PDF)</span>
               </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  disabled={isGeneratingDocx}
-                  onClick={() => unduhSPT(modalDetail.data)}
-                  style={{
-                    padding: "7px 12px",
-                    borderRadius: 7,
-                    border: "none",
-                    background: T.primary,
-                    color: "#fff",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: isGeneratingDocx ? "not-allowed" : "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    opacity: isGeneratingDocx ? 0.7 : 1,
-                  }}
-                >
-                  <Icon name="download" size={13} />
-                  <span>Unduh Surat Tugas (SPT)</span>
-                </button>
+              
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {/* SPT Actions */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, background: T.card, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.border}` }}>
+                  <div>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text }}>Surat Perintah Tugas (SPT)</div>
+                    <div style={{ fontSize: 11, color: T.textSecondary }}>No. {modalDetail.data.nomor_spt || modalDetail.data.nomor_register}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      type="button"
+                      disabled={isGeneratingDocx}
+                      onClick={() => unduhSPT(modalDetail.data)}
+                      style={{ padding: "6px 10px", borderRadius: 6, border: "none", background: T.primary, color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: isGeneratingDocx ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+                    >
+                      <Icon name="file" size={12} />
+                      <span>Word (.docx)</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isGeneratingDocx}
+                      onClick={() => unduhSPTPdf(modalDetail.data)}
+                      style={{ padding: "6px 10px", borderRadius: 6, border: "none", background: "#DC2626", color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: isGeneratingDocx ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+                    >
+                      <Icon name="download" size={12} />
+                      <span>PDF (.pdf)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => cetakSPT(modalDetail.data)}
+                      style={{ padding: "6px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+                    >
+                      <Icon name="externalLink" size={12} />
+                      <span>Cetak</span>
+                    </button>
+                  </div>
+                </div>
 
-                <button
-                  type="button"
-                  disabled={isGeneratingDocx}
-                  onClick={() => unduhSPPD(modalDetail.data, null)}
-                  style={{
-                    padding: "7px 12px",
-                    borderRadius: 7,
-                    border: "none",
-                    background: "#059669",
-                    color: "#fff",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: isGeneratingDocx ? "not-allowed" : "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    opacity: isGeneratingDocx ? 0.7 : 1,
-                  }}
-                >
-                  <Icon name="download" size={13} />
-                  <span>Unduh SPPD Pelaksana Utama</span>
-                </button>
+                {/* SPPD Utama Actions */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, background: T.card, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.border}` }}>
+                  <div>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text }}>SPPD (Pelaksana Utama)</div>
+                    <div style={{ fontSize: 11, color: T.textSecondary }}>{modalDetail.data.pelaksana_nama}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      type="button"
+                      disabled={isGeneratingDocx}
+                      onClick={() => unduhSPPD(modalDetail.data, null)}
+                      style={{ padding: "6px 10px", borderRadius: 6, border: "none", background: "#059669", color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: isGeneratingDocx ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+                    >
+                      <Icon name="file" size={12} />
+                      <span>Word (.docx)</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isGeneratingDocx}
+                      onClick={() => unduhSPPDPdf(modalDetail.data, null)}
+                      style={{ padding: "6px 10px", borderRadius: 6, border: "none", background: "#DC2626", color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: isGeneratingDocx ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+                    >
+                      <Icon name="download" size={12} />
+                      <span>PDF (.pdf)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => cetakSPPD(modalDetail.data, null)}
+                      style={{ padding: "6px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+                    >
+                      <Icon name="externalLink" size={12} />
+                      <span>Cetak</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1678,38 +1663,38 @@ export default function AgendaSppdPage({ user, showToast }) {
         </Modal>
       )}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* MODAL 5: CETAK & UNDUH DOKUMEN RESMI (.DOCX TEMPLATE) */}
+      {/* MODAL 5: CETAK & UNDUH DOKUMEN RESMI (.DOCX & .PDF) */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {modalCetak && (
         <Modal
           title="Cetak & Unduh Dokumen Resmi"
-          subtitle={`Format dokumen otomatis (.docx) untuk ${modalCetak.item.nomor_register}`}
+          subtitle={`Format dokumen Word (.docx) dan PDF (.pdf) untuk ${modalCetak.item.nomor_register}`}
           icon="download"
           onClose={() => setModalCetak(null)}
-          maxWidth={540}
+          maxWidth={600}
         >
           <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
             {/* Box Surat Tugas (SPT) */}
             <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>
-                    Surat Perintah Tugas (SPT)
-                  </div>
-                  <div style={{ fontSize: 11.5, color: T.textSecondary, marginTop: 2 }}>
-                    Nomor: {modalCetak.item.nomor_spt || modalCetak.item.nomor_register} · Ditetapkan oleh: {modalCetak.item.pejabat_perintah || "Kepala BAPPERIDA"}
-                  </div>
-                  <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 4 }}>
-                    Mencakup 1 pelaksana utama {modalCetak.item.pengikut?.length ? `+ ${modalCetak.item.pengikut.length} orang pengikut` : "(perorangan)"}
-                  </div>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>
+                  Surat Perintah Tugas (SPT)
                 </div>
+                <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 2 }}>
+                  Nomor: <b>{modalCetak.item.nomor_spt || modalCetak.item.nomor_register}</b> · Ditetapkan oleh: {modalCetak.item.pejabat_perintah || "Kepala BAPPERIDA"}
+                </div>
+                <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 2 }}>
+                  Personil: 1 pelaksana utama {modalCetak.item.pengikut?.length ? `+ ${modalCetak.item.pengikut.length} orang pengikut` : "(perorangan)"}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button
                   type="button"
                   disabled={isGeneratingDocx}
                   onClick={() => unduhSPT(modalCetak.item)}
                   style={{
-                    padding: "7px 12px",
-                    borderRadius: 8,
+                    padding: "7px 14px",
+                    borderRadius: 7,
                     border: "none",
                     background: T.primary,
                     color: "#fff",
@@ -1720,36 +1705,77 @@ export default function AgendaSppdPage({ user, showToast }) {
                     alignItems: "center",
                     gap: 6,
                     opacity: isGeneratingDocx ? 0.7 : 1,
-                    flexShrink: 0,
+                  }}
+                >
+                  <Icon name="file" size={13} />
+                  <span>Unduh Word (.docx)</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isGeneratingDocx}
+                  onClick={() => unduhSPTPdf(modalCetak.item)}
+                  style={{
+                    padding: "7px 14px",
+                    borderRadius: 7,
+                    border: "none",
+                    background: "#DC2626",
+                    color: "#fff",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: isGeneratingDocx ? "not-allowed" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    opacity: isGeneratingDocx ? 0.7 : 1,
                   }}
                 >
                   <Icon name="download" size={13} />
-                  <span>Unduh SPT (.docx)</span>
+                  <span>Unduh PDF (.pdf)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => cetakSPT(modalCetak.item)}
+                  style={{
+                    padding: "7px 14px",
+                    borderRadius: 7,
+                    border: `1px solid ${T.border}`,
+                    background: T.card,
+                    color: T.text,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <Icon name="externalLink" size={13} />
+                  <span>Pratinjau / Cetak</span>
                 </button>
               </div>
             </div>
 
             {/* Box SPPD Pelaksana Utama */}
             <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>
-                    SPPD Pelaksana Utama
-                  </div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.primary, marginTop: 2 }}>
-                    {modalCetak.item.pelaksana_nama}
-                  </div>
-                  <div style={{ fontSize: 11.5, color: T.textSecondary, marginTop: 2 }}>
-                    NIP: {modalCetak.item.pelaksana_nip || "—"} · {modalCetak.item.pelaksana_jabatan || "Staf"}
-                  </div>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>
+                  SPPD (Pelaksana Utama)
                 </div>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: T.primary, marginTop: 2 }}>
+                  {modalCetak.item.pelaksana_nama}
+                </div>
+                <div style={{ fontSize: 11.5, color: T.textSecondary, marginTop: 2 }}>
+                  NIP: {modalCetak.item.pelaksana_nip || "—"} · {modalCetak.item.pelaksana_jabatan || "Staf"}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button
                   type="button"
                   disabled={isGeneratingDocx}
                   onClick={() => unduhSPPD(modalCetak.item, null)}
                   style={{
-                    padding: "7px 12px",
-                    borderRadius: 8,
+                    padding: "7px 14px",
+                    borderRadius: 7,
                     border: "none",
                     background: "#059669",
                     color: "#fff",
@@ -1760,11 +1786,52 @@ export default function AgendaSppdPage({ user, showToast }) {
                     alignItems: "center",
                     gap: 6,
                     opacity: isGeneratingDocx ? 0.7 : 1,
-                    flexShrink: 0,
+                  }}
+                >
+                  <Icon name="file" size={13} />
+                  <span>Unduh Word (.docx)</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isGeneratingDocx}
+                  onClick={() => unduhSPPDPdf(modalCetak.item, null)}
+                  style={{
+                    padding: "7px 14px",
+                    borderRadius: 7,
+                    border: "none",
+                    background: "#DC2626",
+                    color: "#fff",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: isGeneratingDocx ? "not-allowed" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    opacity: isGeneratingDocx ? 0.7 : 1,
                   }}
                 >
                   <Icon name="download" size={13} />
-                  <span>Unduh SPPD (.docx)</span>
+                  <span>Unduh PDF (.pdf)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => cetakSPPD(modalCetak.item, null)}
+                  style={{
+                    padding: "7px 14px",
+                    borderRadius: 7,
+                    border: `1px solid ${T.border}`,
+                    background: T.card,
+                    color: T.text,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <Icon name="externalLink" size={13} />
+                  <span>Pratinjau / Cetak</span>
                 </button>
               </div>
             </div>
@@ -1781,10 +1848,10 @@ export default function AgendaSppdPage({ user, showToast }) {
 
               return (
                 <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: 14 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text, marginBottom: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 10 }}>
                     SPPD Pegawai Pengikut ({listP.length} orang)
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {listP.map((p, idx) => (
                       <div
                         key={idx}
@@ -1793,37 +1860,81 @@ export default function AgendaSppdPage({ user, showToast }) {
                           justifyContent: "space-between",
                           alignItems: "center",
                           gap: 10,
-                          padding: "6px 8px",
+                          padding: "10px 12px",
                           background: T.card,
-                          borderRadius: 6,
+                          borderRadius: 8,
                           border: `1px solid ${T.border}`,
+                          flexWrap: "wrap",
                         }}
                       >
                         <div>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: T.text }}>{p.nama || `Pengikut #${idx + 1}`}</div>
-                          <div style={{ fontSize: 11, color: T.textSecondary }}>NIP: {p.nip || "—"} · {p.jabatan || "-"}</div>
+                          <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text }}>{p.nama || `Pengikut #${idx + 1}`}</div>
+                          <div style={{ fontSize: 11.5, color: T.textSecondary }}>NIP: {p.nip || "—"} · {p.jabatan || "-"}</div>
                         </div>
-                        <button
-                          type="button"
-                          disabled={isGeneratingDocx}
-                          onClick={() => unduhSPPD(modalCetak.item, p)}
-                          style={{
-                            padding: "5px 10px",
-                            borderRadius: 6,
-                            border: `1px solid ${T.border}`,
-                            background: T.bg,
-                            color: T.text,
-                            fontSize: 11.5,
-                            fontWeight: 600,
-                            cursor: isGeneratingDocx ? "not-allowed" : "pointer",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                          }}
-                        >
-                          <Icon name="download" size={11} />
-                          <span>Unduh SPPD</span>
-                        </button>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button
+                            type="button"
+                            disabled={isGeneratingDocx}
+                            onClick={() => unduhSPPD(modalCetak.item, p)}
+                            style={{
+                              padding: "5px 10px",
+                              borderRadius: 6,
+                              border: "none",
+                              background: "#059669",
+                              color: "#fff",
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              cursor: isGeneratingDocx ? "not-allowed" : "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            <Icon name="file" size={11} />
+                            <span>Word</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isGeneratingDocx}
+                            onClick={() => unduhSPPDPdf(modalCetak.item, p)}
+                            style={{
+                              padding: "5px 10px",
+                              borderRadius: 6,
+                              border: "none",
+                              background: "#DC2626",
+                              color: "#fff",
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              cursor: isGeneratingDocx ? "not-allowed" : "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            <Icon name="download" size={11} />
+                            <span>PDF</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => cetakSPPD(modalCetak.item, p)}
+                            style={{
+                              padding: "5px 10px",
+                              borderRadius: 6,
+                              border: `1px solid ${T.border}`,
+                              background: T.bg,
+                              color: T.text,
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            <Icon name="externalLink" size={11} />
+                            <span>Cetak</span>
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1836,13 +1947,13 @@ export default function AgendaSppdPage({ user, showToast }) {
                 type="button"
                 onClick={() => setModalCetak(null)}
                 style={{
-                  padding: "8px 16px",
+                  padding: "8px 18px",
                   borderRadius: 8,
                   border: `1px solid ${T.border}`,
                   background: T.card,
                   color: T.text,
                   cursor: "pointer",
-                  fontSize: 12.5,
+                  fontSize: 13,
                   fontWeight: 600,
                 }}
               >
