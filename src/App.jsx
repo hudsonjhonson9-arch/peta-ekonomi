@@ -1351,7 +1351,7 @@ export default function App() {
               "bankdata", "kertas-kerja", "screening", "standar-harga", "pengguna",
               "kategori-dokumen", "sektor", "audit", "spm", "master-satudata",
               "kelola-konten", "monitoring", "kelola-role", "akun", "pengaturan-website",
-              "dokumentasi-api"
+              "dokumentasi-api", "agenda-surat", "register-sppd"
             ].includes(page) || page === "dashboard" || page === "dashboard-arsip" || page === "dashboard-satudata") && !viewDoc && (
                 <Dashboard user={user} docs={docs} onNav={goPage} onView={openDoc} sectors={sectors} categories={categories} activePage={page} />
               )}
