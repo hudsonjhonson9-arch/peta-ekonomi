@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext, useMemo } from "react";
 import { ThemeContext } from "../../App.jsx";
-import { useIsDark, Icon, Modal } from "../ui.jsx";
+import { useIsDark, Icon, Modal, Select } from "../ui.jsx";
 
 const PEJABAT_PERINTAH_LIST = [
   "Kepala BAPPERIDA",
@@ -403,26 +403,18 @@ export default function AgendaSppdPage({ user, showToast }) {
 
         {/* Action Buttons */}
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: "4px 8px" }}>
-            <Icon name="calendar" size={14} style={{ color: T.textSecondary }} />
-            <select
-              value={tahun}
-              onChange={(e) => setTahun(parseInt(e.target.value, 10))}
-              style={{
-                border: "none",
-                background: "transparent",
-                color: T.text,
-                fontWeight: 700,
-                fontSize: 13,
-                outline: "none",
-                cursor: "pointer"
-              }}
-            >
-              <option value={2026}>Tahun 2026</option>
-              <option value={2025}>Tahun 2025</option>
-              <option value={2024}>Tahun 2024</option>
-            </select>
-          </div>
+          <Select
+            value={tahun}
+            onChange={(v) => setTahun(parseInt(v, 10))}
+            options={[
+              { value: 2026, label: "Tahun 2026" },
+              { value: 2025, label: "Tahun 2025" },
+              { value: 2024, label: "Tahun 2024" },
+            ]}
+            icon="calendar"
+            size="sm"
+            minWidth={135}
+          />
 
           <button
             onClick={() => bukaAmbilNomorSppd(jenis)}
@@ -606,26 +598,21 @@ export default function AgendaSppdPage({ user, showToast }) {
         </div>
 
         {/* Filter Status */}
-        <select
+        <Select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          style={{
-            padding: "8px 12px",
-            borderRadius: 8,
-            border: `1px solid ${T.border}`,
-            background: T.card,
-            color: T.text,
-            fontSize: 12.5,
-            cursor: "pointer"
-          }}
-        >
-          <option value="">Semua Status SPPD</option>
-          <option value="Pengajuan">Pengajuan</option>
-          <option value="Disetujui">Disetujui</option>
-          <option value="Berangkat">Berangkat</option>
-          <option value="Laporan Masuk">Laporan Masuk</option>
-          <option value="Selesai">Selesai</option>
-        </select>
+          onChange={setStatusFilter}
+          placeholder="Semua Status SPPD"
+          options={[
+            { value: "", label: "Semua Status SPPD" },
+            { value: "Pengajuan", label: "Pengajuan" },
+            { value: "Disetujui", label: "Disetujui" },
+            { value: "Berangkat", label: "Berangkat" },
+            { value: "Laporan Masuk", label: "Laporan Masuk" },
+            { value: "Selesai", label: "Selesai" },
+          ]}
+          size="sm"
+          minWidth={160}
+        />
 
         <button
           onClick={fetchData}
@@ -1032,28 +1019,25 @@ export default function AgendaSppdPage({ user, showToast }) {
                 {modalSppd.data.jenis_sppd === "LUAR_DAERAH" ? (
                   <div>
                     <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Provinsi Tujuan</label>
-                    <select
+                    <Select
+                      fullWidth
+                      size="sm"
+                      searchable
                       value={modalSppd.data.provinsi_tujuan}
-                      onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, provinsi_tujuan: e.target.value } })}
-                      style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12.5 }}
-                    >
-                      {PROVINSI_LIST.map((p) => (
-                        <option key={p} value={p}>{p}</option>
-                      ))}
-                    </select>
+                      onChange={(v) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, provinsi_tujuan: v } })}
+                      options={PROVINSI_LIST.map((p) => ({ value: p, label: p }))}
+                    />
                   </div>
                 ) : (
                   <div>
                     <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Alat Angkutan</label>
-                    <select
+                    <Select
+                      fullWidth
+                      size="sm"
                       value={modalSppd.data.alat_angkutan}
-                      onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, alat_angkutan: e.target.value } })}
-                      style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12.5 }}
-                    >
-                      {ANGKUTAN_LIST.map((a) => (
-                        <option key={a} value={a}>{a}</option>
-                      ))}
-                    </select>
+                      onChange={(v) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, alat_angkutan: v } })}
+                      options={ANGKUTAN_LIST.map((a) => ({ value: a, label: a }))}
+                    />
                   </div>
                 )}
               </div>
@@ -1110,15 +1094,13 @@ export default function AgendaSppdPage({ user, showToast }) {
 
                 <div>
                   <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Pejabat Pemberi Perintah</label>
-                  <select
+                  <Select
+                    fullWidth
+                    size="sm"
                     value={modalSppd.data.pejabat_perintah}
-                    onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pejabat_perintah: e.target.value } })}
-                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12.5 }}
-                  >
-                    {PEJABAT_PERINTAH_LIST.map((p) => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pejabat_perintah: v } })}
+                    options={PEJABAT_PERINTAH_LIST.map((p) => ({ value: p, label: p }))}
+                  />
                 </div>
               </div>
             </div>
@@ -1192,17 +1174,19 @@ export default function AgendaSppdPage({ user, showToast }) {
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Status SPPD
                 </label>
-                <select
+                <Select
+                  fullWidth
+                  size="md"
                   value={modalSppd.data.status}
-                  onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, status: e.target.value } })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
-                >
-                  <option value="Pengajuan">Pengajuan</option>
-                  <option value="Disetujui">Disetujui</option>
-                  <option value="Berangkat">Berangkat</option>
-                  <option value="Laporan Masuk">Laporan Masuk</option>
-                  <option value="Selesai">Selesai</option>
-                </select>
+                  onChange={(v) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, status: v } })}
+                  options={[
+                    { value: "Pengajuan", label: "Pengajuan" },
+                    { value: "Disetujui", label: "Disetujui" },
+                    { value: "Berangkat", label: "Berangkat" },
+                    { value: "Laporan Masuk", label: "Laporan Masuk" },
+                    { value: "Selesai", label: "Selesai" },
+                  ]}
+                />
               </div>
             )}
 
@@ -1355,15 +1339,17 @@ export default function AgendaSppdPage({ user, showToast }) {
               <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                 Status Verifikasi Berkas
               </label>
-              <select
+              <Select
+                fullWidth
+                size="md"
                 value={modalSpj.status}
-                onChange={(e) => setModalSpj({ ...modalSpj, status: e.target.value })}
-                style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
-              >
-                <option value="Laporan Masuk">Laporan Masuk (Dalam Verifikasi TU/Keuangan)</option>
-                <option value="Selesai">Selesai (SPJ Lengkap & Terverifikasi)</option>
-                <option value="Pengajuan">Belum Selesai</option>
-              </select>
+                onChange={(v) => setModalSpj({ ...modalSpj, status: v })}
+                options={[
+                  { value: "Laporan Masuk", label: "Laporan Masuk (Dalam Verifikasi TU/Keuangan)" },
+                  { value: "Selesai", label: "Selesai (SPJ Lengkap & Terverifikasi)" },
+                  { value: "Pengajuan", label: "Belum Selesai" },
+                ]}
+              />
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 10 }}>

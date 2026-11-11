@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext, useMemo } from "react";
 import { ThemeContext } from "../../App.jsx";
-import { useIsDark, Icon, Modal } from "../ui.jsx";
+import { useIsDark, Icon, Modal, Select } from "../ui.jsx";
 
 const KODE_KLASIFIKASI_LIST = [
   { kode: "050", label: "050 - Perencanaan Pembangunan Daerah" },
@@ -474,26 +474,18 @@ export default function AgendaSuratPage({ user, showToast }) {
 
         {/* Year Selector & Primary Action */}
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: "4px 8px" }}>
-            <Icon name="calendar" size={14} style={{ color: T.textSecondary }} />
-            <select
-              value={tahun}
-              onChange={(e) => setTahun(parseInt(e.target.value, 10))}
-              style={{
-                border: "none",
-                background: "transparent",
-                color: T.text,
-                fontWeight: 700,
-                fontSize: 13,
-                outline: "none",
-                cursor: "pointer"
-              }}
-            >
-              <option value={2026}>Tahun 2026</option>
-              <option value={2025}>Tahun 2025</option>
-              <option value={2024}>Tahun 2024</option>
-            </select>
-          </div>
+          <Select
+            value={tahun}
+            onChange={(v) => setTahun(parseInt(v, 10))}
+            options={[
+              { value: 2026, label: "Tahun 2026" },
+              { value: 2025, label: "Tahun 2025" },
+              { value: 2024, label: "Tahun 2024" },
+            ]}
+            icon="calendar"
+            size="sm"
+            minWidth={135}
+          />
 
           {tab === "masuk" ? (
             <button
@@ -700,56 +692,41 @@ export default function AgendaSuratPage({ user, showToast }) {
         </div>
 
         {/* Filter Sifat */}
-        <select
+        <Select
           value={sifatFilter}
-          onChange={(e) => setSifatFilter(e.target.value)}
-          style={{
-            padding: "8px 12px",
-            borderRadius: 8,
-            border: `1px solid ${T.border}`,
-            background: T.card,
-            color: T.text,
-            fontSize: 12.5,
-            cursor: "pointer"
-          }}
-        >
-          <option value="">Semua Sifat</option>
-          <option value="Biasa">Biasa</option>
-          <option value="Penting">Penting</option>
-          <option value="Rahasia">Rahasia</option>
-          <option value="Segera">Segera</option>
-        </select>
+          onChange={setSifatFilter}
+          placeholder="Semua Sifat"
+          options={[
+            { value: "", label: "Semua Sifat" },
+            { value: "Biasa", label: "Biasa" },
+            { value: "Penting", label: "Penting" },
+            { value: "Rahasia", label: "Rahasia" },
+            { value: "Segera", label: "Segera" },
+          ]}
+          size="sm"
+          minWidth={130}
+        />
 
         {/* Filter Status */}
-        <select
+        <Select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          style={{
-            padding: "8px 12px",
-            borderRadius: 8,
-            border: `1px solid ${T.border}`,
-            background: T.card,
-            color: T.text,
-            fontSize: 12.5,
-            cursor: "pointer"
-          }}
-        >
-          <option value="">Semua Status</option>
-          {tab === "masuk" ? (
-            <>
-              <option value="Diterima">Diterima</option>
-              <option value="Didisposisi">Didisposisi</option>
-              <option value="Selesai">Selesai</option>
-            </>
-          ) : (
-            <>
-              <option value="Draf">Draf</option>
-              <option value="Ditandatangani">Ditandatangani</option>
-              <option value="Terkirim">Terkirim</option>
-              <option value="Dibatalkan">Dibatalkan</option>
-            </>
-          )}
-        </select>
+          onChange={setStatusFilter}
+          placeholder="Semua Status"
+          options={tab === "masuk" ? [
+            { value: "", label: "Semua Status" },
+            { value: "Diterima", label: "Diterima" },
+            { value: "Didisposisi", label: "Didisposisi" },
+            { value: "Selesai", label: "Selesai" },
+          ] : [
+            { value: "", label: "Semua Status" },
+            { value: "Draf", label: "Draf" },
+            { value: "Ditandatangani", label: "Ditandatangani" },
+            { value: "Terkirim", label: "Terkirim" },
+            { value: "Dibatalkan", label: "Dibatalkan" },
+          ]}
+          size="sm"
+          minWidth={140}
+        />
 
         <button
           onClick={fetchData}
@@ -1165,31 +1142,35 @@ export default function AgendaSuratPage({ user, showToast }) {
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Sifat Surat
                 </label>
-                <select
+                <Select
+                  fullWidth
+                  size="md"
                   value={modalMasuk.data.sifat}
-                  onChange={(e) => setModalMasuk({ ...modalMasuk, data: { ...modalMasuk.data, sifat: e.target.value } })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
-                >
-                  <option value="Biasa">Biasa</option>
-                  <option value="Penting">Penting</option>
-                  <option value="Rahasia">Rahasia</option>
-                  <option value="Segera">Segera</option>
-                </select>
+                  onChange={(v) => setModalMasuk({ ...modalMasuk, data: { ...modalMasuk.data, sifat: v } })}
+                  options={[
+                    { value: "Biasa", label: "Biasa" },
+                    { value: "Penting", label: "Penting" },
+                    { value: "Rahasia", label: "Rahasia" },
+                    { value: "Segera", label: "Segera" },
+                  ]}
+                />
               </div>
 
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Kode Klasifikasi
                 </label>
-                <select
+                <Select
+                  fullWidth
+                  size="md"
+                  searchable
                   value={modalMasuk.data.kode_klasifikasi}
-                  onChange={(e) => setModalMasuk({ ...modalMasuk, data: { ...modalMasuk.data, kode_klasifikasi: e.target.value } })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
-                >
-                  {KODE_KLASIFIKASI_LIST.map((k) => (
-                    <option key={k.kode} value={k.kode}>{k.kode} - {k.label.split("- ")[1]}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setModalMasuk({ ...modalMasuk, data: { ...modalMasuk.data, kode_klasifikasi: v } })}
+                  options={KODE_KLASIFIKASI_LIST.map((k) => ({
+                    value: k.kode,
+                    label: `${k.kode} - ${k.label.split("- ")[1] || k.label}`,
+                  }))}
+                />
               </div>
 
               <div>
@@ -1224,15 +1205,17 @@ export default function AgendaSuratPage({ user, showToast }) {
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Status Surat
                 </label>
-                <select
+                <Select
+                  fullWidth
+                  size="md"
                   value={modalMasuk.data.status}
-                  onChange={(e) => setModalMasuk({ ...modalMasuk, data: { ...modalMasuk.data, status: e.target.value } })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
-                >
-                  <option value="Diterima">Diterima</option>
-                  <option value="Didisposisi">Didisposisi</option>
-                  <option value="Selesai">Selesai</option>
-                </select>
+                  onChange={(v) => setModalMasuk({ ...modalMasuk, data: { ...modalMasuk.data, status: v } })}
+                  options={[
+                    { value: "Diterima", label: "Diterima" },
+                    { value: "Didisposisi", label: "Didisposisi" },
+                    { value: "Selesai", label: "Selesai" },
+                  ]}
+                />
               </div>
             )}
 
@@ -1284,15 +1267,17 @@ export default function AgendaSuratPage({ user, showToast }) {
                   <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                     Pemberi Disposisi
                   </label>
-                  <select
+                  <Select
+                    fullWidth
+                    size="md"
                     value={modalDisposisi.form.pemberi_disposisi}
-                    onChange={(e) => setModalDisposisi({ ...modalDisposisi, form: { ...modalDisposisi.form, pemberi_disposisi: e.target.value } })}
-                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
-                  >
-                    <option value="Kepala BAPPERIDA">Kepala BAPPERIDA</option>
-                    <option value="Sekretaris BAPPERIDA">Sekretaris BAPPERIDA</option>
-                    <option value="Plt. Kepala BAPPERIDA">Plt. Kepala BAPPERIDA</option>
-                  </select>
+                    onChange={(v) => setModalDisposisi({ ...modalDisposisi, form: { ...modalDisposisi.form, pemberi_disposisi: v } })}
+                    options={[
+                      { value: "Kepala BAPPERIDA", label: "Kepala BAPPERIDA" },
+                      { value: "Sekretaris BAPPERIDA", label: "Sekretaris BAPPERIDA" },
+                      { value: "Plt. Kepala BAPPERIDA", label: "Plt. Kepala BAPPERIDA" },
+                    ]}
+                  />
                 </div>
 
                 <div>
@@ -1390,15 +1375,17 @@ export default function AgendaSuratPage({ user, showToast }) {
                   <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                     Status Disposisi
                   </label>
-                  <select
+                  <Select
+                    fullWidth
+                    size="md"
                     value={modalDisposisi.form.status_tindaklanjut}
-                    onChange={(e) => setModalDisposisi({ ...modalDisposisi, form: { ...modalDisposisi.form, status_tindaklanjut: e.target.value } })}
-                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
-                  >
-                    <option value="Didisposisikan">Didisposisikan</option>
-                    <option value="Dalam Proses">Dalam Proses</option>
-                    <option value="Selesai">Selesai</option>
-                  </select>
+                    onChange={(v) => setModalDisposisi({ ...modalDisposisi, form: { ...modalDisposisi.form, status_tindaklanjut: v } })}
+                    options={[
+                      { value: "Didisposisikan", label: "Didisposisikan" },
+                      { value: "Dalam Proses", label: "Dalam Proses" },
+                      { value: "Selesai", label: "Selesai" },
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -1453,10 +1440,13 @@ export default function AgendaSuratPage({ user, showToast }) {
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Kode Klasifikasi *
                 </label>
-                <select
+                <Select
+                  fullWidth
+                  size="md"
+                  searchable
                   value={modalKeluar.data.kode_klasifikasi}
-                  onChange={async (e) => {
-                    const newKode = e.target.value;
+                  onChange={async (v) => {
+                    const newKode = v;
                     const prev = await fetchPreviewNomorKeluar(newKode);
                     setModalKeluar({
                       ...modalKeluar,
@@ -1464,12 +1454,11 @@ export default function AgendaSuratPage({ user, showToast }) {
                       data: { ...modalKeluar.data, kode_klasifikasi: newKode }
                     });
                   }}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
-                >
-                  {KODE_KLASIFIKASI_LIST.map((k) => (
-                    <option key={k.kode} value={k.kode}>{k.label}</option>
-                  ))}
-                </select>
+                  options={KODE_KLASIFIKASI_LIST.map((k) => ({
+                    value: k.kode,
+                    label: k.label,
+                  }))}
+                />
               </div>
 
               <div>
@@ -1519,30 +1508,26 @@ export default function AgendaSuratPage({ user, showToast }) {
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Bidang Pengonsep *
                 </label>
-                <select
+                <Select
+                  fullWidth
+                  size="md"
                   value={modalKeluar.data.bidang_pengonsep}
-                  onChange={(e) => setModalKeluar({ ...modalKeluar, data: { ...modalKeluar.data, bidang_pengonsep: e.target.value } })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
-                >
-                  {BIDANG_LIST.map((b) => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setModalKeluar({ ...modalKeluar, data: { ...modalKeluar.data, bidang_pengonsep: v } })}
+                  options={BIDANG_LIST.map((b) => ({ value: b, label: b }))}
+                />
               </div>
 
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Pejabat Penandatangan
                 </label>
-                <select
+                <Select
+                  fullWidth
+                  size="md"
                   value={modalKeluar.data.penandatangan}
-                  onChange={(e) => setModalKeluar({ ...modalKeluar, data: { ...modalKeluar.data, penandatangan: e.target.value } })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
-                >
-                  {PENANDATANGAN_LIST.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setModalKeluar({ ...modalKeluar, data: { ...modalKeluar.data, penandatangan: v } })}
+                  options={PENANDATANGAN_LIST.map((p) => ({ value: p, label: p }))}
+                />
               </div>
             </div>
 
@@ -1551,32 +1536,36 @@ export default function AgendaSuratPage({ user, showToast }) {
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Sifat Surat
                 </label>
-                <select
+                <Select
+                  fullWidth
+                  size="md"
                   value={modalKeluar.data.sifat}
-                  onChange={(e) => setModalKeluar({ ...modalKeluar, data: { ...modalKeluar.data, sifat: e.target.value } })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
-                >
-                  <option value="Biasa">Biasa</option>
-                  <option value="Penting">Penting</option>
-                  <option value="Rahasia">Rahasia</option>
-                  <option value="Segera">Segera</option>
-                </select>
+                  onChange={(v) => setModalKeluar({ ...modalKeluar, data: { ...modalKeluar.data, sifat: v } })}
+                  options={[
+                    { value: "Biasa", label: "Biasa" },
+                    { value: "Penting", label: "Penting" },
+                    { value: "Rahasia", label: "Rahasia" },
+                    { value: "Segera", label: "Segera" },
+                  ]}
+                />
               </div>
 
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Status Surat
                 </label>
-                <select
+                <Select
+                  fullWidth
+                  size="md"
                   value={modalKeluar.data.status}
-                  onChange={(e) => setModalKeluar({ ...modalKeluar, data: { ...modalKeluar.data, status: e.target.value } })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
-                >
-                  <option value="Draf">Draf</option>
-                  <option value="Ditandatangani">Ditandatangani</option>
-                  <option value="Terkirim">Terkirim</option>
-                  {isAdmin && <option value="Dibatalkan">Dibatalkan</option>}
-                </select>
+                  onChange={(v) => setModalKeluar({ ...modalKeluar, data: { ...modalKeluar.data, status: v } })}
+                  options={[
+                    { value: "Draf", label: "Draf" },
+                    { value: "Ditandatangani", label: "Ditandatangani" },
+                    { value: "Terkirim", label: "Terkirim" },
+                    ...(isAdmin ? [{ value: "Dibatalkan", label: "Dibatalkan" }] : []),
+                  ]}
+                />
               </div>
             </div>
 
