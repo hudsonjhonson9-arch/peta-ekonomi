@@ -18,7 +18,7 @@ import {
   NAMA_COOKIE, MASA_JAM, MASA_JAM_INGAT, R_ADMIN, R_REVIEWER, R_STAF, R_BANKDATA,
   normalisasiRole, rahasia, buatToken, verifikasiTokenDetail,
   periksaKonfigurasiSession, periksaPemisahanSecret,
-  bacaCookie, pasangCookie, lepasCookie, PANJANG_MINIMUM, samaKonst,
+  bacaCookie, bacaSemuaCookie, pasangCookie, lepasCookie, PANJANG_MINIMUM, samaKonst,
 } from './session.js';
 import { kebutuhan, PUBLIK, LOGIN, BANKDATA, REVIEW, ADMIN, jalurOperatorDiizinkan, jalurKhususBapperida } from './kebijakan.js';
 import { daftarkanRuteSdpdn } from './sdpdn-routes.js';
@@ -175,9 +175,28 @@ app.use(async (req, res, next) => {
       error: `Session belum dikonfigurasi: SESSION_SECRET wajib diisi (minimal ${PANJANG_MINIMUM} karakter)`,
     });
 
-  const { muatan, alasan } = verifikasiTokenDetail(bacaCookie(req), secret);
+  const tokens = bacaSemuaCookie(req);
+  let muatan = null;
+  let alasan = 'tidak ada cookie session';
+
+  for (const t of tokens) {
+    const resVerif = verifikasiTokenDetail(t, secret);
+    if (resVerif.muatan) {
+      muatan = resVerif.muatan;
+      alasan = null;
+      break;
+    } else {
+      alasan = resVerif.alasan;
+    }
+  }
+
   if (!muatan) {
-    console.warn(`[auth] 401 ${req.method} ${path} — ${alasan}`);
+    // Jika klien mengirim cookie yang ternyata invalid/basi/secret berbeda setelah deploy,
+    // langsung lepas cookie dari browser agar user tidak terjebak loop 401.
+    if (tokens.length > 0) {
+      console.warn(`[auth] 401 ${req.method} ${path} — ${alasan}`);
+      lepasCookie(res);
+    }
     return res.status(401).json({ error: 'Sesi berakhir, silakan login kembali' });
   }
 

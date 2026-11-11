@@ -219,6 +219,25 @@ export function bacaCookie(req, nama = NAMA_COOKIE) {
   return null;
 }
 
+// Membaca SEMUA cookie dengan nama yang sama (mis. jika ada cookie host-only
+// dan cookie domain wildcard .mindcloud.my.id sekaligus di browser).
+export function bacaSemuaCookie(req, nama = NAMA_COOKIE) {
+  const mentah = req.headers && req.headers.cookie;
+  if (!mentah) return [];
+  const hasil = [];
+  for (const bagian of mentah.split(';')) {
+    const i = bagian.indexOf('=');
+    if (i < 0) continue;
+    if (bagian.slice(0, i).trim() === nama) {
+      try {
+        const val = decodeURIComponent(bagian.slice(i + 1).trim());
+        if (val) hasil.push(val);
+      } catch { /* abaikan parsing error */ }
+    }
+  }
+  return hasil;
+}
+
 // `ingat` = centang "Ingat saya" di login:
 //   true  → cookie persistent 30 hari (MASA_JAM_INGAT) — tetap ada setelah
 //           browser ditutup, token juga berlaku 30 hari;
@@ -245,4 +264,6 @@ export function pasangCookie(res, token, req, ingat = false) {
 
 export function lepasCookie(res) {
   res.clearCookie(NAMA_COOKIE, { path: '/' });
+  // Bersihkan juga cookie dengan domain wildcard jika diset lewat SSO absensi-app
+  res.clearCookie(NAMA_COOKIE, { path: '/', domain: '.mindcloud.my.id' });
 }

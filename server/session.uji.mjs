@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict';
 import {
-  buatToken, pasangCookie, verifikasiTokenDetail,
+  buatToken, pasangCookie, lepasCookie, bacaSemuaCookie, verifikasiTokenDetail,
   MASA_JAM, MASA_JAM_INGAT, NAMA_COOKIE,
 } from './session.js';
 
@@ -71,6 +71,26 @@ uji('tanpa ingat → cookie session (tanpa maxAge)', () => {
   pasangCookie(res, 'token', { secure: false });
   assert.equal(panggilan.opsi.maxAge, undefined, 'session cookie: tanpa maxAge');
   assert.equal(panggilan.opsi.secure, false, 'ikut req.secure');
+});
+
+// 6. bacaSemuaCookie membaca semua cookie duplikat dari header
+uji('bacaSemuaCookie membaca multiple cookie arsip_session', () => {
+  const req = { headers: { cookie: 'arsip_session=tokenA; other=123; arsip_session=tokenB' } };
+  const hasil = bacaSemuaCookie(req);
+  assert.deepEqual(hasil, ['tokenA', 'tokenB']);
+});
+
+// 7. lepasCookie membersihkan host-only dan domain wildcard .mindcloud.my.id
+uji('lepasCookie membersihkan host-only dan domain wildcard', () => {
+  const clears = [];
+  const res = { clearCookie: (nama, opsi) => clears.push({ nama, opsi }) };
+  lepasCookie(res);
+  assert.equal(clears.length, 2);
+  assert.equal(clears[0].nama, NAMA_COOKIE);
+  assert.equal(clears[0].opsi.path, '/');
+  assert.equal(clears[1].nama, NAMA_COOKIE);
+  assert.equal(clears[1].opsi.domain, '.mindcloud.my.id');
+  assert.equal(clears[1].opsi.path, '/');
 });
 
 console.log(`\n${lulus} uji lulus${process.exitCode ? ' — ADA YANG GAGAL' : ''}`);
