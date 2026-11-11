@@ -387,23 +387,23 @@ export default function AgendaSuratPage({ user, showToast }) {
     }
   };
 
-  // Badge Status Renderer
+  // Badge Status Renderer (Anti-slop: crisp, accessible, semantic)
   const renderStatusBadge = (status) => {
     const s = status || "Diterima";
-    let bg = "rgba(148,163,184,0.15)";
+    let bg = isDark ? "rgba(148,163,184,0.12)" : "rgba(148,163,184,0.15)";
     let col = T.textSecondary;
 
     if (s === "Didisposisi" || s === "Ditandatangani") {
-      bg = "rgba(37,99,235,0.12)";
+      bg = isDark ? "rgba(59,130,246,0.18)" : "rgba(37,99,235,0.1)";
       col = T.primary;
     } else if (s === "Selesai" || s === "Terkirim") {
-      bg = "rgba(5,150,105,0.12)";
+      bg = isDark ? "rgba(16,185,129,0.18)" : "rgba(5,150,105,0.1)";
       col = T.success;
     } else if (s === "Draf" || s === "Menunggu TTD") {
-      bg = "rgba(217,119,6,0.12)";
+      bg = isDark ? "rgba(245,158,11,0.18)" : "rgba(217,119,6,0.1)";
       col = T.warning;
     } else if (s === "Dibatalkan") {
-      bg = "rgba(220,38,38,0.12)";
+      bg = isDark ? "rgba(239,68,68,0.18)" : "rgba(220,38,38,0.1)";
       col = T.danger;
     }
 
@@ -411,15 +411,16 @@ export default function AgendaSuratPage({ user, showToast }) {
       <span style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 4,
-        padding: "3px 8px",
-        borderRadius: 6,
+        gap: 5,
+        padding: "2px 8px",
+        borderRadius: 99,
         fontSize: 11,
-        fontWeight: 700,
+        fontWeight: 600,
         background: bg,
-        color: col
+        color: col,
+        whiteSpace: "nowrap"
       }}>
-        <span style={{ width: 5, height: 5, borderRadius: "50%", background: col }} />
+        <span style={{ width: 5, height: 5, borderRadius: "50%", background: col, flexShrink: 0 }} />
         {s}
       </span>
     );
@@ -427,52 +428,84 @@ export default function AgendaSuratPage({ user, showToast }) {
 
   const renderSifatBadge = (sifat) => {
     const s = sifat || "Biasa";
-    let bg = "rgba(100,116,139,0.1)";
+    let bg = isDark ? "rgba(148,163,184,0.1)" : "rgba(100,116,139,0.08)";
     let col = T.textSecondary;
-    if (s === "Penting") { bg = "rgba(245,158,11,0.12)"; col = "#D97706"; }
-    else if (s === "Rahasia") { bg = "rgba(220,38,38,0.12)"; col = "#DC2626"; }
-    else if (s === "Segera") { bg = "rgba(147,51,234,0.12)"; col = "#9333EA"; }
+    if (s === "Penting") { bg = isDark ? "rgba(245,158,11,0.16)" : "rgba(245,158,11,0.1)"; col = isDark ? "#FBBF24" : "#B45309"; }
+    else if (s === "Rahasia") { bg = isDark ? "rgba(239,68,68,0.16)" : "rgba(220,38,38,0.1)"; col = isDark ? "#F87171" : "#B91C1C"; }
+    else if (s === "Segera") { bg = isDark ? "rgba(168,85,247,0.16)" : "rgba(147,51,234,0.1)"; col = isDark ? "#C084FC" : "#7E22CE"; }
 
     return (
       <span style={{
-        padding: "2px 6px",
+        padding: "1px 6px",
         borderRadius: 4,
         fontSize: 10.5,
         fontWeight: 600,
         background: bg,
-        color: col
+        color: col,
+        whiteSpace: "nowrap"
       }}>
         {s}
       </span>
     );
   };
 
+  // Skeleton Loader for tables (Rule 19: Add loading states)
+  const renderTableSkeleton = (cols = 7, rows = 5) => {
+    const bgBar = isDark ? "rgba(255,255,255,0.06)" : "#E2E8F0";
+    return (
+      <div style={{ padding: "8px 0" }}>
+        {Array.from({ length: rows }).map((_, rIdx) => (
+          <div
+            key={rIdx}
+            style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${cols}, 1fr)`,
+              gap: 16,
+              padding: "14px 16px",
+              borderBottom: `1px solid ${isDark ? "#334155" : "#F1F5F9"}`,
+              alignItems: "center",
+              animation: "agendaPulse 1.4s ease-in-out infinite",
+              animationDelay: `${rIdx * 0.12}s`,
+            }}
+          >
+            {Array.from({ length: cols }).map((_, cIdx) => (
+              <div
+                key={cIdx}
+                style={{
+                  height: cIdx === 0 ? 15 : 13,
+                  width: cIdx === 0 ? "70%" : cIdx === 4 ? "90%" : "60%",
+                  borderRadius: 4,
+                  background: bgBar,
+                }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div style={{ padding: "20px 24px", maxWidth: 1280, margin: "0 auto", fontFamily: T.font }}>
+      <style>{`
+        @keyframes agendaPulse {
+          0%, 100% { opacity: 0.45; }
+          50% { opacity: 0.9; }
+        }
+      `}</style>
+
       {/* ── Page Header ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 16 }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text, margin: 0, letterSpacing: "-0.02em" }}>
-              Tata Kelola Arsip & Agenda Surat
-            </h1>
-            <span style={{
-              fontSize: 11,
-              fontWeight: 700,
-              padding: "2px 8px",
-              borderRadius: 6,
-              background: isAdmin ? "rgba(37,99,235,0.12)" : "rgba(100,116,139,0.12)",
-              color: isAdmin ? T.primary : T.textSecondary
-            }}>
-              {isAdmin ? "Mode Admin: Full CRUD" : "Mode Staf: Disposisi & Booking"}
-            </span>
-          </div>
-          <p style={{ fontSize: 13, color: T.textSecondary, margin: "4px 0 0" }}>
-            Pencatatan surat masuk, disposisi digital pimpinan, dan penerbitan nomor surat dinas resmi BAPPERIDA Sumba Barat
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, letterSpacing: "-0.02em", textWrap: "balance" }}>
+            Buku Agenda Surat
+          </h1>
+          <p style={{ fontSize: 13, color: T.textSecondary, margin: "4px 0 0", lineHeight: 1.5 }}>
+            Registrasi digital surat masuk, disposisi tindak lanjut pimpinan, dan penomoran surat keluar dinas.
           </p>
         </div>
 
-        {/* Year Selector & Primary Action */}
+        {/* Year Selector & Primary Action (Rule 10: Emphasize CTA) */}
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <Select
             value={tahun}
@@ -489,176 +522,200 @@ export default function AgendaSuratPage({ user, showToast }) {
 
           {tab === "masuk" ? (
             <button
+              type="button"
               onClick={bukaTambahSuratMasuk}
               style={{
-                display: "flex",
+                height: 36,
+                display: "inline-flex",
                 alignItems: "center",
-                gap: 6,
-                padding: "8px 16px",
+                gap: 7,
+                padding: "0 16px",
                 borderRadius: 8,
                 border: "none",
                 background: T.primary,
                 color: "#FFFFFF",
-                fontWeight: 700,
+                fontWeight: 600,
                 fontSize: 13,
                 cursor: "pointer",
-                boxShadow: T.shadowSm
+                boxShadow: T.shadowSm,
+                transition: "background 0.15s ease"
               }}
             >
               <Icon name="plus" size={14} />
-              Catat Surat Masuk
+              <span>Catat Surat Masuk</span>
             </button>
           ) : (
             <button
+              type="button"
               onClick={bukaTambahSuratKeluar}
               style={{
-                display: "flex",
+                height: 36,
+                display: "inline-flex",
                 alignItems: "center",
-                gap: 6,
-                padding: "8px 16px",
+                gap: 7,
+                padding: "0 16px",
                 borderRadius: 8,
                 border: "none",
                 background: T.primary,
                 color: "#FFFFFF",
-                fontWeight: 700,
+                fontWeight: 600,
                 fontSize: 13,
                 cursor: "pointer",
-                boxShadow: T.shadowSm
+                boxShadow: T.shadowSm,
+                transition: "background 0.15s ease"
               }}
             >
               <Icon name="plus" size={14} />
-              Booking Nomor Surat
+              <span>Booking Nomor Surat</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* ── Metric Summary Cards ── */}
+      {/* ── Metric Summary Strip (Rule 7: Enlarge main feature & Rule 18: Tabular nums) ── */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
         gap: 12,
         marginBottom: 20
       }}>
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: "rgba(37,99,235,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: T.primary }}>
-            <Icon name="fileText" size={18} />
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 16px", boxShadow: T.shadowSm }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: T.textSecondary }}>Surat Masuk ({tahun})</span>
+            <Icon name="fileText" size={15} style={{ color: T.primary, opacity: 0.85 }} />
           </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: T.textSecondary }}>Surat Masuk ({tahun})</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: T.text, fontVariantNumeric: "tabular-nums" }}>{statMasukTotal} Dokumen</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums", marginTop: 4 }}>
+            {statMasukTotal}
           </div>
-        </div>
-
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: "rgba(5,150,105,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: T.success }}>
-            <Icon name="checkCircle" size={18} />
-          </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: T.textSecondary }}>Telah Didisposisikan</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: T.text, fontVariantNumeric: "tabular-nums" }}>{statMasukDisposisi} Surat</div>
+          <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 2 }}>
+            Dokumen registrasi masuk
           </div>
         </div>
 
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: "rgba(217,119,6,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: T.warning }}>
-            <Icon name="clock" size={18} />
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 16px", boxShadow: T.shadowSm }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: T.textSecondary }}>Telah Didisposisi</span>
+            <Icon name="checkCircle" size={15} style={{ color: T.success, opacity: 0.85 }} />
           </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: T.textSecondary }}>Menunggu Tindak Lanjut</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: T.text, fontVariantNumeric: "tabular-nums" }}>{statMasukMenunggu} Surat</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums", marginTop: 4 }}>
+            {statMasukDisposisi}
+          </div>
+          <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 2 }}>
+            Instruksi tindak lanjut aktif
           </div>
         </div>
 
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: "rgba(147,51,234,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#9333EA" }}>
-            <Icon name="share" size={18} />
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 16px", boxShadow: T.shadowSm }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: T.textSecondary }}>Menunggu Tindak Lanjut</span>
+            <Icon name="clock" size={15} style={{ color: T.warning, opacity: 0.85 }} />
           </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: T.textSecondary }}>Surat Keluar Terdaftar</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: T.text, fontVariantNumeric: "tabular-nums" }}>{statKeluarAktif} Nomor</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums", marginTop: 4 }}>
+            {statMasukMenunggu}
+          </div>
+          <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 2 }}>
+            Perlu arahan pimpinan
+          </div>
+        </div>
+
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 16px", boxShadow: T.shadowSm }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: T.textSecondary }}>Surat Keluar Terdaftar</span>
+            <Icon name="externalLink" size={15} style={{ color: "#8B5CF6", opacity: 0.85 }} />
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums", marginTop: 4 }}>
+            {statKeluarAktif}
+          </div>
+          <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 2 }}>
+            Nomor dinas resmi aktif
           </div>
         </div>
       </div>
 
-      {/* ── Main Tab Bar ── */}
+      {/* ── Main Tab Navigation (Anti-slop: Crisp Underline Tabs) ── */}
       <div style={{
         display: "flex",
-        gap: 6,
+        gap: 20,
         borderBottom: `1px solid ${T.border}`,
         marginBottom: 16
       }}>
         <button
+          type="button"
           onClick={() => { setTab("masuk"); setStatusFilter(""); setSifatFilter(""); }}
           style={{
-            display: "flex",
+            display: "inline-flex",
             alignItems: "center",
             gap: 8,
-            padding: "10px 18px",
-            background: tab === "masuk" ? T.card : "transparent",
-            color: tab === "masuk" ? T.primary : T.textSecondary,
-            fontWeight: 700,
-            fontSize: 13,
-            borderTop: `2px solid ${tab === "masuk" ? T.primary : "transparent"}`,
-            borderLeft: tab === "masuk" ? `1px solid ${T.border}` : "1px solid transparent",
-            borderRight: tab === "masuk" ? `1px solid ${T.border}` : "1px solid transparent",
-            borderBottom: tab === "masuk" ? `1px solid ${T.card}` : "none",
-            borderRadius: "6px 6px 0 0",
+            padding: "10px 4px",
+            background: "none",
+            border: "none",
+            borderBottom: `2px solid ${tab === "masuk" ? T.primary : "transparent"}`,
+            color: tab === "masuk" ? T.text : T.textSecondary,
+            fontWeight: tab === "masuk" ? 600 : 500,
+            fontSize: 13.5,
             cursor: "pointer",
             marginBottom: -1,
-            transition: "all 0.15s ease"
+            transition: "all 0.15s ease",
+            outline: "none"
           }}
         >
           <Icon name="archive" size={15} />
           <span>Buku Surat Masuk & Disposisi</span>
           <span style={{
             fontSize: 11,
-            padding: "1px 6px",
-            borderRadius: 10,
-            background: tab === "masuk" ? "rgba(37,99,235,0.12)" : T.bg,
-            color: tab === "masuk" ? T.primary : T.textSecondary
+            fontWeight: 600,
+            padding: "1px 7px",
+            borderRadius: 99,
+            background: tab === "masuk" ? (isDark ? "rgba(59,130,246,0.18)" : "#EFF6FF") : (isDark ? "#1E293B" : "#F1F5F9"),
+            color: tab === "masuk" ? T.primary : T.textSecondary,
+            fontVariantNumeric: "tabular-nums"
           }}>
             {itemsMasuk.length}
           </span>
         </button>
 
         <button
+          type="button"
           onClick={() => { setTab("keluar"); setStatusFilter(""); setSifatFilter(""); }}
           style={{
-            display: "flex",
+            display: "inline-flex",
             alignItems: "center",
             gap: 8,
-            padding: "10px 18px",
-            background: tab === "keluar" ? T.card : "transparent",
-            color: tab === "keluar" ? T.primary : T.textSecondary,
-            fontWeight: 700,
-            fontSize: 13,
-            borderTop: `2px solid ${tab === "keluar" ? T.primary : "transparent"}`,
-            borderLeft: tab === "keluar" ? `1px solid ${T.border}` : "1px solid transparent",
-            borderRight: tab === "keluar" ? `1px solid ${T.border}` : "1px solid transparent",
-            borderBottom: tab === "keluar" ? `1px solid ${T.card}` : "none",
-            borderRadius: "6px 6px 0 0",
+            padding: "10px 4px",
+            background: "none",
+            border: "none",
+            borderBottom: `2px solid ${tab === "keluar" ? T.primary : "transparent"}`,
+            color: tab === "keluar" ? T.text : T.textSecondary,
+            fontWeight: tab === "keluar" ? 600 : 500,
+            fontSize: 13.5,
             cursor: "pointer",
             marginBottom: -1,
-            transition: "all 0.15s ease"
+            transition: "all 0.15s ease",
+            outline: "none"
           }}
         >
           <Icon name="externalLink" size={15} />
           <span>Buku Surat Keluar & Booking Nomor</span>
           <span style={{
             fontSize: 11,
-            padding: "1px 6px",
-            borderRadius: 10,
-            background: tab === "keluar" ? "rgba(37,99,235,0.12)" : T.bg,
-            color: tab === "keluar" ? T.primary : T.textSecondary
+            fontWeight: 600,
+            padding: "1px 7px",
+            borderRadius: 99,
+            background: tab === "keluar" ? (isDark ? "rgba(59,130,246,0.18)" : "#EFF6FF") : (isDark ? "#1E293B" : "#F1F5F9"),
+            color: tab === "keluar" ? T.primary : T.textSecondary,
+            fontVariantNumeric: "tabular-nums"
           }}>
             {itemsKeluar.length}
           </span>
         </button>
       </div>
 
-      {/* ── Toolbar Search & Filter ── */}
+      {/* ── Toolbar Search & Filter (Anti-slop: Unified Bar) ── */}
       <div style={{
+        background: T.card,
+        border: `1px solid ${T.border}`,
+        borderRadius: 10,
+        padding: "8px 12px",
         display: "flex",
         gap: 10,
         marginBottom: 16,
@@ -667,9 +724,9 @@ export default function AgendaSuratPage({ user, showToast }) {
       }}>
         <div style={{
           position: "relative",
-          flex: "1 1 280px"
+          flex: "1 1 260px"
         }}>
-          <div style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: T.textSecondary }}>
+          <div style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: T.textMuted, display: "flex", pointerEvents: "none" }}>
             <Icon name="search" size={14} />
           </div>
           <input
@@ -680,13 +737,16 @@ export default function AgendaSuratPage({ user, showToast }) {
             onKeyDown={(e) => e.key === "Enter" && fetchData()}
             style={{
               width: "100%",
-              padding: "8px 12px 8px 32px",
-              borderRadius: 8,
+              height: 34,
+              padding: "0 10px 0 32px",
+              borderRadius: 7,
               border: `1px solid ${T.border}`,
-              background: T.card,
+              background: T.bg,
               color: T.text,
-              fontSize: 12.5,
-              outline: "none"
+              fontSize: 13,
+              fontFamily: T.font,
+              outline: "none",
+              transition: "border-color 0.15s ease"
             }}
           />
         </div>
@@ -729,24 +789,36 @@ export default function AgendaSuratPage({ user, showToast }) {
         />
 
         <button
+          type="button"
           onClick={fetchData}
           style={{
-            padding: "8px 14px",
-            borderRadius: 8,
+            height: 34,
+            padding: "0 12px",
+            borderRadius: 7,
             border: `1px solid ${T.border}`,
-            background: T.card,
+            background: T.bg,
             color: T.text,
             fontSize: 12.5,
             fontWeight: 600,
             cursor: "pointer",
-            display: "flex",
+            display: "inline-flex",
             alignItems: "center",
-            gap: 6
+            gap: 6,
+            transition: "all 0.15s ease"
           }}
         >
           <Icon name="refresh" size={13} />
-          Segarkan
+          <span>Segarkan</span>
         </button>
+
+        <span style={{
+          marginLeft: "auto",
+          fontSize: 12,
+          color: T.textMuted,
+          fontVariantNumeric: "tabular-nums"
+        }}>
+          {tab === "masuk" ? `${filteredMasuk.length} surat masuk` : `${filteredKeluar.length} surat keluar`}
+        </span>
       </div>
 
       {/* ── Table Container ── */}
@@ -758,15 +830,13 @@ export default function AgendaSuratPage({ user, showToast }) {
         overflow: "hidden"
       }}>
         {loading ? (
-          <div style={{ padding: 48, textAlign: "center", color: T.textSecondary }}>
-            <Icon name="loader" size={24} style={{ animation: "spin 1s linear infinite", marginBottom: 8 }} />
-            <div style={{ fontSize: 13, fontWeight: 600 }}>Memuat buku register agenda...</div>
-          </div>
+          renderTableSkeleton(7, 5)
         ) : error ? (
           <div style={{ padding: 48, textAlign: "center", color: T.danger }}>
             <Icon name="alert" size={24} style={{ marginBottom: 8 }} />
             <div style={{ fontSize: 13, fontWeight: 600 }}>{error}</div>
             <button
+              type="button"
               onClick={fetchData}
               style={{ marginTop: 12, padding: "6px 14px", borderRadius: 6, background: T.bg, border: `1px solid ${T.border}`, color: T.text, cursor: "pointer", fontSize: 12 }}
             >
@@ -776,17 +846,44 @@ export default function AgendaSuratPage({ user, showToast }) {
         ) : tab === "masuk" ? (
           /* ═════════ TABEL SURAT MASUK ═════════ */
           filteredMasuk.length === 0 ? (
-            <div style={{ padding: 48, textAlign: "center", color: T.textSecondary }}>
-              <Icon name="fileText" size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
-              <div style={{ fontSize: 13, fontWeight: 600 }}>Belum ada catatan surat masuk untuk tahun {tahun}</div>
-              <p style={{ fontSize: 12, color: T.textMuted, margin: "4px 0 14px" }}>
-                Gunakan tombol "Catat Surat Masuk" untuk mulai mencatat surat dinas masuk.
+            <div style={{ padding: "56px 20px", textAlign: "center" }}>
+              <div style={{
+                width: 44,
+                height: 44,
+                borderRadius: 10,
+                background: isDark ? "rgba(255,255,255,0.05)" : "#F1F5F9",
+                color: T.textMuted,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 12
+              }}>
+                <Icon name="fileText" size={22} />
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: T.text }}>Belum ada catatan surat masuk untuk tahun {tahun}</div>
+              <p style={{ fontSize: 12.5, color: T.textSecondary, maxWidth: 380, margin: "4px auto 16px", lineHeight: 1.5 }}>
+                Mulai mencatat surat dinas masuk untuk pengelolaan agenda disposisi pimpinan dan arsip digital.
               </p>
               <button
+                type="button"
                 onClick={bukaTambahSuratMasuk}
-                style={{ padding: "8px 16px", borderRadius: 8, background: T.primary, color: "#fff", border: "none", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
+                style={{
+                  height: 34,
+                  padding: "0 14px",
+                  borderRadius: 7,
+                  background: T.primary,
+                  color: "#fff",
+                  border: "none",
+                  fontWeight: 600,
+                  fontSize: 12.5,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6
+                }}
               >
-                + Catat Surat Pertama
+                <Icon name="plus" size={13} />
+                <span>Catat Surat Pertama</span>
               </button>
             </div>
           ) : (
@@ -794,13 +891,13 @@ export default function AgendaSuratPage({ user, showToast }) {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, textAlign: "left" }}>
                 <thead>
                   <tr style={{ background: isDark ? "#131D31" : "#F8FAFC", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>
-                    <th style={{ padding: "10px 14px", fontWeight: 700, width: 140 }}>No. Agenda</th>
-                    <th style={{ padding: "10px 14px", fontWeight: 700, width: 110 }}>Tgl. Terima</th>
-                    <th style={{ padding: "10px 14px", fontWeight: 700 }}>Asal Instansi</th>
-                    <th style={{ padding: "10px 14px", fontWeight: 700 }}>Nomor & Tanggal Asli</th>
-                    <th style={{ padding: "10px 14px", fontWeight: 700, minWidth: 260 }}>Perihal & Sifat</th>
-                    <th style={{ padding: "10px 14px", fontWeight: 700, width: 130 }}>Status</th>
-                    <th style={{ padding: "10px 14px", fontWeight: 700, textAlign: "right", minWidth: 160 }}>Aksi</th>
+                    <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", width: 140 }}>No. Agenda</th>
+                    <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", width: 110 }}>Tgl. Terima</th>
+                    <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em" }}>Asal Instansi</th>
+                    <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em" }}>Nomor & Tgl Asli</th>
+                    <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", minWidth: 260 }}>Perihal & Sifat</th>
+                    <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", width: 130 }}>Status</th>
+                    <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", textAlign: "right", minWidth: 150 }}>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -811,69 +908,78 @@ export default function AgendaSuratPage({ user, showToast }) {
                         borderBottom: `1px solid ${T.border}`,
                         transition: "background 0.1s ease"
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = isDark ? "#243247" : "#F8FAFC"}
+                      onMouseEnter={(e) => e.currentTarget.style.background = isDark ? "#1E293B" : "#F8FAFC"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
-                      <td style={{ padding: "12px 14px", fontFamily: "monospace", fontWeight: 700, color: T.primary, fontVariantNumeric: "tabular-nums" }}>
+                      <td style={{ padding: "11px 14px", fontFamily: "monospace", fontWeight: 600, color: T.primary, fontVariantNumeric: "tabular-nums" }}>
                         {it.nomor_agenda}
                       </td>
-                      <td style={{ padding: "12px 14px", fontVariantNumeric: "tabular-nums", color: T.text }}>
+                      <td style={{ padding: "11px 14px", fontVariantNumeric: "tabular-nums", color: T.text }}>
                         {it.tanggal_terima ? it.tanggal_terima.split("T")[0] : "—"}
                       </td>
-                      <td style={{ padding: "12px 14px", fontWeight: 600, color: T.text }}>
+                      <td style={{ padding: "11px 14px", fontWeight: 600, color: T.text }}>
                         {it.asal_surat}
                       </td>
-                      <td style={{ padding: "12px 14px" }}>
+                      <td style={{ padding: "11px 14px" }}>
                         <div style={{ fontWeight: 600, color: T.text }}>{it.nomor_surat_asli}</div>
                         <div style={{ fontSize: 11, color: T.textSecondary, fontVariantNumeric: "tabular-nums" }}>
                           {it.tanggal_surat ? it.tanggal_surat.split("T")[0] : "—"}
                         </div>
                       </td>
-                      <td style={{ padding: "12px 14px" }}>
+                      <td style={{ padding: "11px 14px" }}>
                         <div style={{ color: T.text, lineHeight: 1.4, marginBottom: 4 }}>{it.perihal}</div>
                         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                           {renderSifatBadge(it.sifat)}
                           <span style={{ fontSize: 11, color: T.textMuted }}>Kode: {it.kode_klasifikasi || "050"}</span>
                         </div>
                       </td>
-                      <td style={{ padding: "12px 14px" }}>
+                      <td style={{ padding: "11px 14px" }}>
                         {renderStatusBadge(it.status)}
                       </td>
-                      <td style={{ padding: "12px 14px", textAlign: "right" }}>
-                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
-                          {/* Disposisi (Staff & Admin) */}
+                      <td style={{ padding: "11px 14px", textAlign: "right" }}>
+                        <div style={{ display: "flex", gap: 5, justifyContent: "flex-end", alignItems: "center" }}>
+                          {/* Disposisi Button */}
                           <button
+                            type="button"
                             title="Lembar Disposisi"
                             onClick={() => bukaModalDisposisi(it)}
                             style={{
-                              padding: "5px 10px",
+                              height: 28,
+                              padding: "0 9px",
                               borderRadius: 6,
                               border: `1px solid ${T.border}`,
-                              background: it.status === "Didisposisi" ? "rgba(37,99,235,0.1)" : T.bg,
+                              background: it.status === "Didisposisi" ? (isDark ? "rgba(59,130,246,0.18)" : "rgba(37,99,235,0.08)") : T.bg,
                               color: it.status === "Didisposisi" ? T.primary : T.text,
                               fontSize: 11.5,
-                              fontWeight: 700,
+                              fontWeight: 600,
                               cursor: "pointer",
                               display: "inline-flex",
                               alignItems: "center",
-                              gap: 4
+                              gap: 5,
+                              transition: "all 0.15s ease"
                             }}
                           >
                             <Icon name="fileText" size={12} />
-                            Disposisi
+                            <span>Disposisi</span>
                           </button>
 
                           {/* Detail Button */}
                           <button
+                            type="button"
                             title="Lihat Detail"
                             onClick={() => setModalDetail({ jenis: "masuk", data: it })}
                             style={{
-                              padding: "5px 8px",
+                              width: 28,
+                              height: 28,
                               borderRadius: 6,
                               border: `1px solid ${T.border}`,
                               background: T.bg,
                               color: T.textSecondary,
-                              cursor: "pointer"
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              transition: "all 0.15s ease"
                             }}
                           >
                             <Icon name="eye" size={13} />
@@ -882,15 +988,21 @@ export default function AgendaSuratPage({ user, showToast }) {
                           {/* Edit Button (Admin Only) */}
                           {isAdmin && (
                             <button
-                              title="Edit Surat Masuk (Admin)"
+                              type="button"
+                              title="Edit Surat Masuk"
                               onClick={() => bukaEditSuratMasuk(it)}
                               style={{
-                                padding: "5px 8px",
+                                width: 28,
+                                height: 28,
                                 borderRadius: 6,
                                 border: `1px solid ${T.border}`,
                                 background: T.bg,
                                 color: T.textSecondary,
-                                cursor: "pointer"
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                transition: "all 0.15s ease"
                               }}
                             >
                               <Icon name="edit" size={13} />
@@ -900,15 +1012,21 @@ export default function AgendaSuratPage({ user, showToast }) {
                           {/* Hapus Button (Admin Only) */}
                           {isAdmin && (
                             <button
-                              title="Hapus Surat Masuk (Admin)"
+                              type="button"
+                              title="Hapus Surat Masuk"
                               onClick={() => setModalHapus({ jenis: "masuk", data: it })}
                               style={{
-                                padding: "5px 8px",
+                                width: 28,
+                                height: 28,
                                 borderRadius: 6,
                                 border: `1px solid ${T.dangerBorder || "#FECACA"}`,
                                 background: T.dangerBg || "#FEF2F2",
                                 color: T.danger,
-                                cursor: "pointer"
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                transition: "all 0.15s ease"
                               }}
                             >
                               <Icon name="trash" size={13} />
@@ -925,17 +1043,44 @@ export default function AgendaSuratPage({ user, showToast }) {
         ) : (
           /* ═════════ TABEL SURAT KELUAR ═════════ */
           filteredKeluar.length === 0 ? (
-            <div style={{ padding: 48, textAlign: "center", color: T.textSecondary }}>
-              <Icon name="share" size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
-              <div style={{ fontSize: 13, fontWeight: 600 }}>Belum ada register surat keluar untuk tahun {tahun}</div>
-              <p style={{ fontSize: 12, color: T.textMuted, margin: "4px 0 14px" }}>
-                Klik tombol "Booking Nomor Surat" untuk memesan nomor urut dinas resmi.
+            <div style={{ padding: "56px 20px", textAlign: "center" }}>
+              <div style={{
+                width: 44,
+                height: 44,
+                borderRadius: 10,
+                background: isDark ? "rgba(255,255,255,0.05)" : "#F1F5F9",
+                color: T.textMuted,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 12
+              }}>
+                <Icon name="externalLink" size={22} />
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: T.text }}>Belum ada register surat keluar untuk tahun {tahun}</div>
+              <p style={{ fontSize: 12.5, color: T.textSecondary, maxWidth: 380, margin: "4px auto 16px", lineHeight: 1.5 }}>
+                Pesan nomor urut surat keluar resmi untuk menjamin integritas tata naskah dinas.
               </p>
               <button
+                type="button"
                 onClick={bukaTambahSuratKeluar}
-                style={{ padding: "8px 16px", borderRadius: 8, background: T.primary, color: "#fff", border: "none", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
+                style={{
+                  height: 34,
+                  padding: "0 14px",
+                  borderRadius: 7,
+                  background: T.primary,
+                  color: "#fff",
+                  border: "none",
+                  fontWeight: 600,
+                  fontSize: 12.5,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6
+                }}
               >
-                + Booking Nomor Pertama
+                <Icon name="plus" size={13} />
+                <span>Booking Nomor Pertama</span>
               </button>
             </div>
           ) : (
@@ -943,13 +1088,13 @@ export default function AgendaSuratPage({ user, showToast }) {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, textAlign: "left" }}>
                 <thead>
                   <tr style={{ background: isDark ? "#131D31" : "#F8FAFC", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>
-                    <th style={{ padding: "10px 14px", fontWeight: 700, width: 80 }}>No. Urut</th>
-                    <th style={{ padding: "10px 14px", fontWeight: 700, minWidth: 200 }}>Nomor Surat Dinas</th>
-                    <th style={{ padding: "10px 14px", fontWeight: 700, width: 110 }}>Tanggal</th>
-                    <th style={{ padding: "10px 14px", fontWeight: 700 }}>Tujuan Surat</th>
-                    <th style={{ padding: "10px 14px", fontWeight: 700, minWidth: 240 }}>Perihal & Bidang</th>
-                    <th style={{ padding: "10px 14px", fontWeight: 700, width: 120 }}>Status</th>
-                    <th style={{ padding: "10px 14px", fontWeight: 700, textAlign: "right", minWidth: 140 }}>Aksi</th>
+                    <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", width: 80 }}>No. Urut</th>
+                    <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", minWidth: 200 }}>Nomor Surat Dinas</th>
+                    <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", width: 110 }}>Tanggal</th>
+                    <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em" }}>Tujuan Surat</th>
+                    <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", minWidth: 240 }}>Perihal & Bidang</th>
+                    <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", width: 120 }}>Status</th>
+                    <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", textAlign: "right", minWidth: 140 }}>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -961,49 +1106,55 @@ export default function AgendaSuratPage({ user, showToast }) {
                         transition: "background 0.1s ease",
                         opacity: it.status === "Dibatalkan" ? 0.6 : 1
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = isDark ? "#243247" : "#F8FAFC"}
+                      onMouseEnter={(e) => e.currentTarget.style.background = isDark ? "#1E293B" : "#F8FAFC"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
-                      <td style={{ padding: "12px 14px", fontFamily: "monospace", fontWeight: 700, color: T.primary, fontVariantNumeric: "tabular-nums" }}>
+                      <td style={{ padding: "11px 14px", fontFamily: "monospace", fontWeight: 600, color: T.primary, fontVariantNumeric: "tabular-nums" }}>
                         {String(it.nomor_urut || 1).padStart(4, "0")}
                       </td>
-                      <td style={{ padding: "12px 14px" }}>
-                        <div style={{ fontFamily: "monospace", fontWeight: 700, color: T.text, fontSize: 13, textDecoration: it.status === "Dibatalkan" ? "line-through" : "none" }}>
+                      <td style={{ padding: "11px 14px" }}>
+                        <div style={{ fontFamily: "monospace", fontWeight: 600, color: T.text, fontSize: 13, textDecoration: it.status === "Dibatalkan" ? "line-through" : "none" }}>
                           {it.nomor_surat}
                         </div>
                         <div style={{ fontSize: 11, color: T.textSecondary }}>
                           Reg: {it.nomor_agenda || "—"}
                         </div>
                       </td>
-                      <td style={{ padding: "12px 14px", fontVariantNumeric: "tabular-nums", color: T.text }}>
+                      <td style={{ padding: "11px 14px", fontVariantNumeric: "tabular-nums", color: T.text }}>
                         {it.tanggal_surat ? it.tanggal_surat.split("T")[0] : "—"}
                       </td>
-                      <td style={{ padding: "12px 14px", fontWeight: 600, color: T.text }}>
+                      <td style={{ padding: "11px 14px", fontWeight: 600, color: T.text }}>
                         {it.tujuan_surat}
                       </td>
-                      <td style={{ padding: "12px 14px" }}>
+                      <td style={{ padding: "11px 14px" }}>
                         <div style={{ color: T.text, lineHeight: 1.4, marginBottom: 4 }}>{it.perihal}</div>
                         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                           <span style={{ fontSize: 11, color: T.textSecondary, fontWeight: 600 }}>{it.bidang_pengonsep}</span>
                           <span style={{ fontSize: 11, color: T.textMuted }}>• TTD: {it.penandatangan || "Kepala Badan"}</span>
                         </div>
                       </td>
-                      <td style={{ padding: "12px 14px" }}>
+                      <td style={{ padding: "11px 14px" }}>
                         {renderStatusBadge(it.status)}
                       </td>
-                      <td style={{ padding: "12px 14px", textAlign: "right" }}>
-                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
+                      <td style={{ padding: "11px 14px", textAlign: "right" }}>
+                        <div style={{ display: "flex", gap: 5, justifyContent: "flex-end", alignItems: "center" }}>
                           {/* Detail Button */}
                           <button
+                            type="button"
                             title="Lihat Detail"
                             onClick={() => setModalDetail({ jenis: "keluar", data: it })}
                             style={{
-                              padding: "5px 8px",
+                              width: 28,
+                              height: 28,
                               borderRadius: 6,
                               border: `1px solid ${T.border}`,
                               background: T.bg,
                               color: T.textSecondary,
-                              cursor: "pointer"
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              transition: "all 0.15s ease"
                             }}
                           >
                             <Icon name="eye" size={13} />
@@ -1012,15 +1163,21 @@ export default function AgendaSuratPage({ user, showToast }) {
                           {/* Edit Button (Admin Only) */}
                           {isAdmin && (
                             <button
-                              title="Edit Surat Keluar (Admin)"
+                              type="button"
+                              title="Edit Surat Keluar"
                               onClick={() => bukaEditSuratKeluar(it)}
                               style={{
-                                padding: "5px 8px",
+                                width: 28,
+                                height: 28,
                                 borderRadius: 6,
                                 border: `1px solid ${T.border}`,
                                 background: T.bg,
                                 color: T.textSecondary,
-                                cursor: "pointer"
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                transition: "all 0.15s ease"
                               }}
                             >
                               <Icon name="edit" size={13} />
@@ -1030,15 +1187,21 @@ export default function AgendaSuratPage({ user, showToast }) {
                           {/* Batalkan / Hapus Button (Admin Only) */}
                           {isAdmin && (
                             <button
-                              title="Batalkan / Hapus Nomor (Admin)"
+                              type="button"
+                              title="Batalkan / Hapus Nomor"
                               onClick={() => setModalHapus({ jenis: "keluar", data: it })}
                               style={{
-                                padding: "5px 8px",
+                                width: 28,
+                                height: 28,
                                 borderRadius: 6,
                                 border: `1px solid ${T.dangerBorder || "#FECACA"}`,
                                 background: T.dangerBg || "#FEF2F2",
                                 color: T.danger,
-                                cursor: "pointer"
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                transition: "all 0.15s ease"
                               }}
                             >
                               <Icon name="trash" size={13} />

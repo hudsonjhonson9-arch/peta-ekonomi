@@ -342,19 +342,20 @@ export default function AgendaSppdPage({ user, showToast }) {
     });
   };
 
+  // Badge Status Renderer (Anti-slop: crisp, accessible, semantic)
   const renderStatusBadge = (status) => {
     const s = status || "Pengajuan";
-    let bg = "rgba(148,163,184,0.15)";
+    let bg = isDark ? "rgba(148,163,184,0.12)" : "rgba(148,163,184,0.15)";
     let col = T.textSecondary;
 
     if (s === "Selesai") {
-      bg = "rgba(5,150,105,0.12)";
+      bg = isDark ? "rgba(16,185,129,0.18)" : "rgba(5,150,105,0.1)";
       col = T.success;
     } else if (s === "Laporan Masuk" || s === "Disetujui") {
-      bg = "rgba(37,99,235,0.12)";
+      bg = isDark ? "rgba(59,130,246,0.18)" : "rgba(37,99,235,0.1)";
       col = T.primary;
     } else if (s === "Berangkat" || s === "Pengajuan") {
-      bg = "rgba(217,119,6,0.12)";
+      bg = isDark ? "rgba(245,158,11,0.18)" : "rgba(217,119,6,0.1)";
       col = T.warning;
     }
 
@@ -362,46 +363,78 @@ export default function AgendaSppdPage({ user, showToast }) {
       <span style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 4,
-        padding: "3px 8px",
-        borderRadius: 6,
+        gap: 5,
+        padding: "2px 8px",
+        borderRadius: 99,
         fontSize: 11,
-        fontWeight: 700,
+        fontWeight: 600,
         background: bg,
-        color: col
+        color: col,
+        whiteSpace: "nowrap"
       }}>
-        <span style={{ width: 5, height: 5, borderRadius: "50%", background: col }} />
+        <span style={{ width: 5, height: 5, borderRadius: "50%", background: col, flexShrink: 0 }} />
         {s}
       </span>
     );
   };
 
+  // Skeleton Loader for SPPD tables (Rule 19: Add loading states)
+  const renderTableSkeleton = (cols = 8, rows = 5) => {
+    const bgBar = isDark ? "rgba(255,255,255,0.06)" : "#E2E8F0";
+    return (
+      <div style={{ padding: "8px 0" }}>
+        {Array.from({ length: rows }).map((_, rIdx) => (
+          <div
+            key={rIdx}
+            style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${cols}, 1fr)`,
+              gap: 16,
+              padding: "14px 16px",
+              borderBottom: `1px solid ${isDark ? "#334155" : "#F1F5F9"}`,
+              alignItems: "center",
+              animation: "agendaPulse 1.4s ease-in-out infinite",
+              animationDelay: `${rIdx * 0.12}s`,
+            }}
+          >
+            {Array.from({ length: cols }).map((_, cIdx) => (
+              <div
+                key={cIdx}
+                style={{
+                  height: cIdx === 0 ? 15 : 13,
+                  width: cIdx === 0 ? "70%" : cIdx === 2 ? "90%" : "60%",
+                  borderRadius: 4,
+                  background: bgBar,
+                }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div style={{ padding: "20px 24px", maxWidth: 1280, margin: "0 auto", fontFamily: T.font }}>
+      <style>{`
+        @keyframes agendaPulse {
+          0%, 100% { opacity: 0.45; }
+          50% { opacity: 0.9; }
+        }
+      `}</style>
+
       {/* ── Page Header ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 16 }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text, margin: 0, letterSpacing: "-0.02em" }}>
-              Buku Register SPPD & SPT
-            </h1>
-            <span style={{
-              fontSize: 11,
-              fontWeight: 700,
-              padding: "2px 8px",
-              borderRadius: 6,
-              background: isAdmin ? "rgba(37,99,235,0.12)" : "rgba(100,116,139,0.12)",
-              color: isAdmin ? T.primary : T.textSecondary
-            }}>
-              {isAdmin ? "Mode Admin: Full CRUD" : "Mode Staf: Ambil Nomor & SPJ"}
-            </span>
-          </div>
-          <p style={{ fontSize: 13, color: T.textSecondary, margin: "4px 0 0" }}>
-            Penerbitan nomor surat perintah tugas (SPT), registrasi surat perjalanan dinas (SPPD), dan verifikasi pertanggungjawaban SPJ
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, letterSpacing: "-0.02em", textWrap: "balance" }}>
+            Buku Register SPPD & SPT
+          </h1>
+          <p style={{ fontSize: 13, color: T.textSecondary, margin: "4px 0 0", lineHeight: 1.5 }}>
+            Penerbitan surat perintah tugas (SPT), registrasi perjalanan dinas (SPPD), dan verifikasi pertanggungjawaban SPJ.
           </p>
         </div>
 
-        {/* Action Buttons */}
+        {/* Year Selector & Primary Action (Rule 10: Emphasize CTA) */}
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <Select
             value={tahun}
@@ -417,154 +450,175 @@ export default function AgendaSppdPage({ user, showToast }) {
           />
 
           <button
+            type="button"
             onClick={() => bukaAmbilNomorSppd(jenis)}
             style={{
-              display: "flex",
+              height: 36,
+              display: "inline-flex",
               alignItems: "center",
-              gap: 6,
-              padding: "8px 16px",
+              gap: 7,
+              padding: "0 16px",
               borderRadius: 8,
               border: "none",
               background: T.primary,
               color: "#FFFFFF",
-              fontWeight: 700,
+              fontWeight: 600,
               fontSize: 13,
               cursor: "pointer",
-              boxShadow: T.shadowSm
+              boxShadow: T.shadowSm,
+              transition: "background 0.15s ease"
             }}
           >
             <Icon name="plus" size={14} />
-            Ambil Nomor SPPD ({jenis === "DALAM_DAERAH" ? "Dalam Daerah" : "Luar Daerah"})
+            <span>Ambil Nomor SPPD ({jenis === "DALAM_DAERAH" ? "Dalam Daerah" : "Luar Daerah"})</span>
           </button>
         </div>
       </div>
 
-      {/* ── Metric Summary Cards ── */}
+      {/* ── Metric Summary Strip (Rule 7: Enlarge main feature & Rule 18: Tabular nums) ── */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
         gap: 12,
         marginBottom: 20
       }}>
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: "rgba(37,99,235,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: T.primary }}>
-            <Icon name="file" size={18} />
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 16px", boxShadow: T.shadowSm }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: T.textSecondary }}>SPPD Dalam Daerah</span>
+            <Icon name="building" size={15} style={{ color: T.primary, opacity: 0.85 }} />
           </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: T.textSecondary }}>SPPD Dalam Daerah</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: T.text, fontVariantNumeric: "tabular-nums" }}>{statDalam} Register</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums", marginTop: 4 }}>
+            {statDalam}
           </div>
-        </div>
-
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: "rgba(147,51,234,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#9333EA" }}>
-            <Icon name="share" size={18} />
-          </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: T.textSecondary }}>SPPD Luar Daerah</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: T.text, fontVariantNumeric: "tabular-nums" }}>{statLuar} Register</div>
+          <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 2 }}>
+            Register perjalanan daerah
           </div>
         </div>
 
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: "rgba(5,150,105,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: T.success }}>
-            <Icon name="dollar" size={18} />
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 16px", boxShadow: T.shadowSm }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: T.textSecondary }}>SPPD Luar Daerah</span>
+            <Icon name="externalLink" size={15} style={{ color: "#8B5CF6", opacity: 0.85 }} />
           </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: T.textSecondary }}>Total Anggaran Dinas</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: T.text, fontVariantNumeric: "tabular-nums" }}>{fmtRupiah(statTotalBiaya)}</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums", marginTop: 4 }}>
+            {statLuar}
+          </div>
+          <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 2 }}>
+            Register luar daerah
           </div>
         </div>
 
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: "rgba(217,119,6,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: T.warning }}>
-            <Icon name="checkCircle" size={18} />
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 16px", boxShadow: T.shadowSm }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: T.textSecondary }}>Total Anggaran Dinas</span>
+            <Icon name="dollar" size={15} style={{ color: T.success, opacity: 0.85 }} />
           </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: T.textSecondary }}>LHP / SPJ Lengkap</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: T.text, fontVariantNumeric: "tabular-nums" }}>{statSelesai} Berkas</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums", marginTop: 6 }}>
+            {fmtRupiah(statTotalBiaya)}
+          </div>
+          <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 2 }}>
+            Alokasi anggaran terdaftar
+          </div>
+        </div>
+
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 16px", boxShadow: T.shadowSm }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: T.textSecondary }}>LHP / SPJ Lengkap</span>
+            <Icon name="checkCircle" size={15} style={{ color: T.warning, opacity: 0.85 }} />
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums", marginTop: 4 }}>
+            {statSelesai}
+          </div>
+          <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 2 }}>
+            Laporan & berkas SPJ masuk
           </div>
         </div>
       </div>
 
-      {/* ── Tabs (Dalam Daerah vs Luar Daerah) ── */}
+      {/* ── Main Tab Navigation (Anti-slop: Crisp Underline Tabs) ── */}
       <div style={{
         display: "flex",
-        gap: 6,
+        gap: 20,
         borderBottom: `1px solid ${T.border}`,
         marginBottom: 16
       }}>
         <button
+          type="button"
           onClick={() => { setJenis("DALAM_DAERAH"); setStatusFilter(""); }}
           style={{
-            display: "flex",
+            display: "inline-flex",
             alignItems: "center",
             gap: 8,
-            padding: "10px 18px",
-            background: jenis === "DALAM_DAERAH" ? T.card : "transparent",
-            color: jenis === "DALAM_DAERAH" ? T.primary : T.textSecondary,
-            fontWeight: 700,
-            fontSize: 13,
-            borderTop: `2px solid ${jenis === "DALAM_DAERAH" ? T.primary : "transparent"}`,
-            borderLeft: jenis === "DALAM_DAERAH" ? `1px solid ${T.border}` : "1px solid transparent",
-            borderRight: jenis === "DALAM_DAERAH" ? `1px solid ${T.border}` : "1px solid transparent",
-            borderBottom: jenis === "DALAM_DAERAH" ? `1px solid ${T.card}` : "none",
-            borderRadius: "6px 6px 0 0",
+            padding: "10px 4px",
+            background: "none",
+            border: "none",
+            borderBottom: `2px solid ${jenis === "DALAM_DAERAH" ? T.primary : "transparent"}`,
+            color: jenis === "DALAM_DAERAH" ? T.text : T.textSecondary,
+            fontWeight: jenis === "DALAM_DAERAH" ? 600 : 500,
+            fontSize: 13.5,
             cursor: "pointer",
             marginBottom: -1,
-            transition: "all 0.15s ease"
+            transition: "all 0.15s ease",
+            outline: "none"
           }}
         >
           <Icon name="building" size={15} />
           <span>SPPD Dalam Daerah</span>
           <span style={{
             fontSize: 11,
-            padding: "1px 6px",
-            borderRadius: 10,
-            background: jenis === "DALAM_DAERAH" ? "rgba(37,99,235,0.12)" : T.bg,
-            color: jenis === "DALAM_DAERAH" ? T.primary : T.textSecondary
+            fontWeight: 600,
+            padding: "1px 7px",
+            borderRadius: 99,
+            background: jenis === "DALAM_DAERAH" ? (isDark ? "rgba(59,130,246,0.18)" : "#EFF6FF") : (isDark ? "#1E293B" : "#F1F5F9"),
+            color: jenis === "DALAM_DAERAH" ? T.primary : T.textSecondary,
+            fontVariantNumeric: "tabular-nums"
           }}>
             {statDalam}
           </span>
         </button>
 
         <button
+          type="button"
           onClick={() => { setJenis("LUAR_DAERAH"); setStatusFilter(""); }}
           style={{
-            display: "flex",
+            display: "inline-flex",
             alignItems: "center",
             gap: 8,
-            padding: "10px 18px",
-            background: jenis === "LUAR_DAERAH" ? T.card : "transparent",
-            color: jenis === "LUAR_DAERAH" ? T.primary : T.textSecondary,
-            fontWeight: 700,
-            fontSize: 13,
-            borderTop: `2px solid ${jenis === "LUAR_DAERAH" ? T.primary : "transparent"}`,
-            borderLeft: jenis === "LUAR_DAERAH" ? `1px solid ${T.border}` : "1px solid transparent",
-            borderRight: jenis === "LUAR_DAERAH" ? `1px solid ${T.border}` : "1px solid transparent",
-            borderBottom: jenis === "LUAR_DAERAH" ? `1px solid ${T.card}` : "none",
-            borderRadius: "6px 6px 0 0",
+            padding: "10px 4px",
+            background: "none",
+            border: "none",
+            borderBottom: `2px solid ${jenis === "LUAR_DAERAH" ? T.primary : "transparent"}`,
+            color: jenis === "LUAR_DAERAH" ? T.text : T.textSecondary,
+            fontWeight: jenis === "LUAR_DAERAH" ? 600 : 500,
+            fontSize: 13.5,
             cursor: "pointer",
             marginBottom: -1,
-            transition: "all 0.15s ease"
+            transition: "all 0.15s ease",
+            outline: "none"
           }}
         >
           <Icon name="externalLink" size={15} />
           <span>SPPD Luar Daerah</span>
           <span style={{
             fontSize: 11,
-            padding: "1px 6px",
-            borderRadius: 10,
-            background: jenis === "LUAR_DAERAH" ? "rgba(37,99,235,0.12)" : T.bg,
-            color: jenis === "LUAR_DAERAH" ? T.primary : T.textSecondary
+            fontWeight: 600,
+            padding: "1px 7px",
+            borderRadius: 99,
+            background: jenis === "LUAR_DAERAH" ? (isDark ? "rgba(59,130,246,0.18)" : "#EFF6FF") : (isDark ? "#1E293B" : "#F1F5F9"),
+            color: jenis === "LUAR_DAERAH" ? T.primary : T.textSecondary,
+            fontVariantNumeric: "tabular-nums"
           }}>
             {statLuar}
           </span>
         </button>
       </div>
 
-      {/* ── Toolbar Search & Filter ── */}
+      {/* ── Toolbar Search & Filter (Anti-slop: Unified Bar) ── */}
       <div style={{
+        background: T.card,
+        border: `1px solid ${T.border}`,
+        borderRadius: 10,
+        padding: "8px 12px",
         display: "flex",
         gap: 10,
         marginBottom: 16,
@@ -575,7 +629,7 @@ export default function AgendaSppdPage({ user, showToast }) {
           position: "relative",
           flex: "1 1 280px"
         }}>
-          <div style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: T.textSecondary }}>
+          <div style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: T.textMuted, display: "flex", pointerEvents: "none" }}>
             <Icon name="search" size={14} />
           </div>
           <input
@@ -586,13 +640,16 @@ export default function AgendaSppdPage({ user, showToast }) {
             onKeyDown={(e) => e.key === "Enter" && fetchData()}
             style={{
               width: "100%",
-              padding: "8px 12px 8px 32px",
-              borderRadius: 8,
+              height: 34,
+              padding: "0 10px 0 32px",
+              borderRadius: 7,
               border: `1px solid ${T.border}`,
-              background: T.card,
+              background: T.bg,
               color: T.text,
-              fontSize: 12.5,
-              outline: "none"
+              fontSize: 13,
+              fontFamily: T.font,
+              outline: "none",
+              transition: "border-color 0.15s ease"
             }}
           />
         </div>
@@ -615,24 +672,36 @@ export default function AgendaSppdPage({ user, showToast }) {
         />
 
         <button
+          type="button"
           onClick={fetchData}
           style={{
-            padding: "8px 14px",
-            borderRadius: 8,
+            height: 34,
+            padding: "0 12px",
+            borderRadius: 7,
             border: `1px solid ${T.border}`,
-            background: T.card,
+            background: T.bg,
             color: T.text,
             fontSize: 12.5,
             fontWeight: 600,
             cursor: "pointer",
-            display: "flex",
+            display: "inline-flex",
             alignItems: "center",
-            gap: 6
+            gap: 6,
+            transition: "all 0.15s ease"
           }}
         >
           <Icon name="refresh" size={13} />
-          Segarkan
+          <span>Segarkan</span>
         </button>
+
+        <span style={{
+          marginLeft: "auto",
+          fontSize: 12,
+          color: T.textMuted,
+          fontVariantNumeric: "tabular-nums"
+        }}>
+          {items.length} register SPPD
+        </span>
       </div>
 
       {/* ── Table Container ── */}
@@ -644,15 +713,13 @@ export default function AgendaSppdPage({ user, showToast }) {
         overflow: "hidden"
       }}>
         {loading ? (
-          <div style={{ padding: 48, textAlign: "center", color: T.textSecondary }}>
-            <Icon name="loader" size={24} style={{ animation: "spin 1s linear infinite", marginBottom: 8 }} />
-            <div style={{ fontSize: 13, fontWeight: 600 }}>Memuat buku register SPPD...</div>
-          </div>
+          renderTableSkeleton(8, 5)
         ) : error ? (
           <div style={{ padding: 48, textAlign: "center", color: T.danger }}>
             <Icon name="alert" size={24} style={{ marginBottom: 8 }} />
             <div style={{ fontSize: 13, fontWeight: 600 }}>{error}</div>
             <button
+              type="button"
               onClick={fetchData}
               style={{ marginTop: 12, padding: "6px 14px", borderRadius: 6, background: T.bg, border: `1px solid ${T.border}`, color: T.text, cursor: "pointer", fontSize: 12 }}
             >
@@ -660,19 +727,46 @@ export default function AgendaSppdPage({ user, showToast }) {
             </button>
           </div>
         ) : items.length === 0 ? (
-          <div style={{ padding: 48, textAlign: "center", color: T.textSecondary }}>
-            <Icon name="fileText" size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
-            <div style={{ fontSize: 13, fontWeight: 600 }}>
+          <div style={{ padding: "56px 20px", textAlign: "center" }}>
+            <div style={{
+              width: 44,
+              height: 44,
+              borderRadius: 10,
+              background: isDark ? "rgba(255,255,255,0.05)" : "#F1F5F9",
+              color: T.textMuted,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 12
+            }}>
+              <Icon name="building" size={22} />
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: T.text }}>
               Belum ada data register SPPD {jenis === "DALAM_DAERAH" ? "Dalam Daerah" : "Luar Daerah"} untuk tahun {tahun}
             </div>
-            <p style={{ fontSize: 12, color: T.textMuted, margin: "4px 0 14px" }}>
-              Klik tombol "Ambil Nomor SPPD" untuk mendaftarkan perjalanan dinas baru.
+            <p style={{ fontSize: 12.5, color: T.textSecondary, maxWidth: 380, margin: "4px auto 16px", lineHeight: 1.5 }}>
+              Ambil nomor register baru untuk menetapkan surat perintah tugas dan pembebanan anggaran perjalanan dinas resmi.
             </p>
             <button
+              type="button"
               onClick={() => bukaAmbilNomorSppd(jenis)}
-              style={{ padding: "8px 16px", borderRadius: 8, background: T.primary, color: "#fff", border: "none", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
+              style={{
+                height: 34,
+                padding: "0 14px",
+                borderRadius: 7,
+                background: T.primary,
+                color: "#fff",
+                border: "none",
+                fontWeight: 600,
+                fontSize: 12.5,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6
+              }}
             >
-              + Ambil Nomor SPPD Pertama
+              <Icon name="plus" size={13} />
+              <span>Ambil Nomor SPPD Pertama</span>
             </button>
           </div>
         ) : (
@@ -680,14 +774,14 @@ export default function AgendaSppdPage({ user, showToast }) {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, textAlign: "left" }}>
               <thead>
                 <tr style={{ background: isDark ? "#131D31" : "#F8FAFC", borderBottom: `1px solid ${T.border}`, color: T.textSecondary }}>
-                  <th style={{ padding: "10px 14px", fontWeight: 700, width: 140 }}>No. Register</th>
-                  <th style={{ padding: "10px 14px", fontWeight: 700, minWidth: 170 }}>Pelaksana Utama</th>
-                  <th style={{ padding: "10px 14px", fontWeight: 700, minWidth: 240 }}>Maksud Perjalanan Dinas</th>
-                  <th style={{ padding: "10px 14px", fontWeight: 700, minWidth: 140 }}>Tujuan & Transport</th>
-                  <th style={{ padding: "10px 14px", fontWeight: 700, width: 140 }}>Jadwal & Hari</th>
-                  <th style={{ padding: "10px 14px", fontWeight: 700, textAlign: "right", width: 120 }}>Total Biaya</th>
-                  <th style={{ padding: "10px 14px", fontWeight: 700, width: 110 }}>Status</th>
-                  <th style={{ padding: "10px 14px", fontWeight: 700, textAlign: "right", minWidth: 160 }}>Aksi</th>
+                  <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", width: 140 }}>No. Register</th>
+                  <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", minWidth: 170 }}>Pelaksana Utama</th>
+                  <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", minWidth: 240 }}>Maksud Perjalanan Dinas</th>
+                  <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", minWidth: 140 }}>Tujuan & Transport</th>
+                  <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", width: 140 }}>Jadwal & Hari</th>
+                  <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", textAlign: "right", width: 120 }}>Total Biaya</th>
+                  <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", width: 110 }}>Status</th>
+                  <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", textAlign: "right", minWidth: 160 }}>Aksi</th>
                 </tr>
               </thead>
               <tbody>
@@ -698,11 +792,11 @@ export default function AgendaSppdPage({ user, showToast }) {
                       borderBottom: `1px solid ${T.border}`,
                       transition: "background 0.1s ease"
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = isDark ? "#243247" : "#F8FAFC"}
+                    onMouseEnter={(e) => e.currentTarget.style.background = isDark ? "#1E293B" : "#F8FAFC"}
                     onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                   >
-                    <td style={{ padding: "12px 14px" }}>
-                      <div style={{ fontFamily: "monospace", fontWeight: 700, color: T.primary, fontVariantNumeric: "tabular-nums" }}>
+                    <td style={{ padding: "11px 14px" }}>
+                      <div style={{ fontFamily: "monospace", fontWeight: 600, color: T.primary, fontVariantNumeric: "tabular-nums" }}>
                         {it.nomor_register}
                       </div>
                       <div style={{ fontSize: 11, color: T.textSecondary }}>
@@ -710,22 +804,22 @@ export default function AgendaSppdPage({ user, showToast }) {
                       </div>
                     </td>
 
-                    <td style={{ padding: "12px 14px" }}>
-                      <div style={{ fontWeight: 700, color: T.text }}>{it.pelaksana_nama}</div>
-                      <div style={{ fontSize: 11, color: T.textSecondary, fontFamily: "monospace" }}>NIP: {it.pelaksana_nip || "—"}</div>
+                    <td style={{ padding: "11px 14px" }}>
+                      <div style={{ fontWeight: 600, color: T.text }}>{it.pelaksana_nama}</div>
+                      <div style={{ fontSize: 11, color: T.textSecondary, fontFamily: "monospace", fontVariantNumeric: "tabular-nums" }}>NIP: {it.pelaksana_nip || "—"}</div>
                       {it.pelaksana_jabatan && (
                         <div style={{ fontSize: 11, color: T.textMuted }}>{it.pelaksana_jabatan}</div>
                       )}
                     </td>
 
-                    <td style={{ padding: "12px 14px" }}>
+                    <td style={{ padding: "11px 14px" }}>
                       <div style={{ color: T.text, lineHeight: 1.4, marginBottom: 4 }}>{it.maksud_perjalanan}</div>
                       <div style={{ fontSize: 11, color: T.textSecondary }}>
                         Subkeg: {it.subkegiatan_nama || "BAPPERIDA"}
                       </div>
                     </td>
 
-                    <td style={{ padding: "12px 14px" }}>
+                    <td style={{ padding: "11px 14px" }}>
                       <div style={{ fontWeight: 600, color: T.text }}>{it.tempat_tujuan}</div>
                       {it.provinsi_tujuan && (
                         <div style={{ fontSize: 11, color: T.textMuted }}>{it.provinsi_tujuan}</div>
@@ -733,61 +827,70 @@ export default function AgendaSppdPage({ user, showToast }) {
                       <div style={{ fontSize: 11, color: T.textSecondary, marginTop: 2 }}>{it.alat_angkutan}</div>
                     </td>
 
-                    <td style={{ padding: "12px 14px", fontVariantNumeric: "tabular-nums" }}>
+                    <td style={{ padding: "11px 14px", fontVariantNumeric: "tabular-nums" }}>
                       <div style={{ fontWeight: 600, color: T.text, fontSize: 12 }}>
                         {it.tanggal_berangkat ? it.tanggal_berangkat.split("T")[0] : "—"}
                       </div>
                       <div style={{ fontSize: 11, color: T.textSecondary }}>
                         s/d {it.tanggal_kembali ? it.tanggal_kembali.split("T")[0] : "—"}
                       </div>
-                      <div style={{ fontSize: 11, color: T.warning, fontWeight: 700, marginTop: 2 }}>
+                      <div style={{ fontSize: 11, color: T.warning, fontWeight: 600, marginTop: 2 }}>
                         {it.lama_hari || 1} Hari Dinas
                       </div>
                     </td>
 
-                    <td style={{ padding: "12px 14px", fontWeight: 700, textAlign: "right", fontFamily: "monospace", fontVariantNumeric: "tabular-nums", color: T.text }}>
+                    <td style={{ padding: "11px 14px", fontWeight: 600, textAlign: "right", fontFamily: "monospace", fontVariantNumeric: "tabular-nums", color: T.text }}>
                       {fmtRupiah(it.total_biaya)}
                     </td>
 
-                    <td style={{ padding: "12px 14px" }}>
+                    <td style={{ padding: "11px 14px" }}>
                       {renderStatusBadge(it.status)}
                     </td>
 
-                    <td style={{ padding: "12px 14px", textAlign: "right" }}>
-                      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
-                        {/* Berkas SPJ & LHP (Staff & Admin) */}
+                    <td style={{ padding: "11px 14px", textAlign: "right" }}>
+                      <div style={{ display: "flex", gap: 5, justifyContent: "flex-end", alignItems: "center" }}>
+                        {/* Berkas SPJ & LHP */}
                         <button
+                          type="button"
                           title="Kelola LHP & SPJ"
                           onClick={() => bukaModalSpj(it)}
                           style={{
-                            padding: "5px 10px",
+                            height: 28,
+                            padding: "0 9px",
                             borderRadius: 6,
                             border: `1px solid ${T.border}`,
-                            background: it.file_lhp_url ? "rgba(5,150,105,0.1)" : T.bg,
+                            background: it.file_lhp_url ? (isDark ? "rgba(16,185,129,0.18)" : "rgba(5,150,105,0.08)") : T.bg,
                             color: it.file_lhp_url ? T.success : T.text,
                             fontSize: 11.5,
-                            fontWeight: 700,
+                            fontWeight: 600,
                             cursor: "pointer",
                             display: "inline-flex",
                             alignItems: "center",
-                            gap: 4
+                            gap: 5,
+                            transition: "all 0.15s ease"
                           }}
                         >
                           <Icon name="upload" size={12} />
-                          SPJ/LHP
+                          <span>SPJ/LHP</span>
                         </button>
 
                         {/* Detail Button */}
                         <button
+                          type="button"
                           title="Lihat Detail SPT & SPPD"
                           onClick={() => setModalDetail({ data: it })}
                           style={{
-                            padding: "5px 8px",
+                            width: 28,
+                            height: 28,
                             borderRadius: 6,
                             border: `1px solid ${T.border}`,
                             background: T.bg,
                             color: T.textSecondary,
-                            cursor: "pointer"
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            transition: "all 0.15s ease"
                           }}
                         >
                           <Icon name="eye" size={13} />
@@ -796,15 +899,21 @@ export default function AgendaSppdPage({ user, showToast }) {
                         {/* Edit Button (Admin Only) */}
                         {isAdmin && (
                           <button
-                            title="Edit Register SPPD (Admin)"
+                            type="button"
+                            title="Edit Register SPPD"
                             onClick={() => bukaEditSppd(it)}
                             style={{
-                              padding: "5px 8px",
+                              width: 28,
+                              height: 28,
                               borderRadius: 6,
                               border: `1px solid ${T.border}`,
                               background: T.bg,
                               color: T.textSecondary,
-                              cursor: "pointer"
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              transition: "all 0.15s ease"
                             }}
                           >
                             <Icon name="edit" size={13} />
@@ -814,15 +923,21 @@ export default function AgendaSppdPage({ user, showToast }) {
                         {/* Hapus Button (Admin Only) */}
                         {isAdmin && (
                           <button
-                            title="Hapus Register SPPD (Admin)"
+                            type="button"
+                            title="Hapus Register SPPD"
                             onClick={() => setModalHapus({ data: it })}
                             style={{
-                              padding: "5px 8px",
+                              width: 28,
+                              height: 28,
                               borderRadius: 6,
                               border: `1px solid ${T.dangerBorder || "#FECACA"}`,
                               background: T.dangerBg || "#FEF2F2",
                               color: T.danger,
-                              cursor: "pointer"
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              transition: "all 0.15s ease"
                             }}
                           >
                             <Icon name="trash" size={13} />
