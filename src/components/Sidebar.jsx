@@ -24,14 +24,19 @@ function muatGrupTerbuka() {
   }
 }
 
-const KUNCI_SUB = "sidebarSubmenuTerbuka";
+const KUNCI_SUB = "sidebarSubmenuTerbuka_v2";
 
 function muatSubBuka() {
   try {
+    // Bersihkan cache versi lama yang menyimpan semua submenu terbuka secara default
+    if (localStorage.getItem("sidebarSubmenuTerbuka")) {
+      localStorage.removeItem("sidebarSubmenuTerbuka");
+    }
     const v = JSON.parse(localStorage.getItem(KUNCI_SUB) || "null");
-    return v && typeof v === "object" && !Array.isArray(v) ? v : { bankdata: true, spm: true, "kertas-kerja": true, "master-satudata": true, "kelola-konten": true, monitoring: true };
+    // Default tertutup (hide) sesuai permintaan
+    return v && typeof v === "object" && !Array.isArray(v) ? v : {};
   } catch {
-    return { bankdata: true, spm: true, "kertas-kerja": true, "master-satudata": true, "kelola-konten": true, monitoring: true };
+    return {};
   }
 }
 
@@ -139,17 +144,22 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
   const [grupBuka, setGrupBuka] = useState(() => grupTerbukaAwal(muatGrupTerbuka()));
   const [subBuka, setSubBuka] = useState(muatSubBuka);
 
-  // Jika active berubah ke halaman yang punya submenu, buka otomatis submenunya
+  // Jika active berubah ke halaman yang merupakan anak dari submenu, buka submenu tersebut agar terlihat
   useEffect(() => {
     if (active) {
-      setSubBuka(prev => {
-        if (prev[active]) return prev;
-        const next = { ...prev, [active]: true };
-        simpanSubBuka(next);
-        return next;
-      });
+      const parent = groups.flatMap(g => g.items).find(n =>
+        n.children && n.children.some(c => c.key === active || (activeTab && c.tab === activeTab))
+      );
+      if (parent) {
+        setSubBuka(prev => {
+          if (prev[parent.key]) return prev;
+          const next = { ...prev, [parent.key]: true };
+          simpanSubBuka(next);
+          return next;
+        });
+      }
     }
-  }, [active]);
+  }, [active, activeTab, groups]);
 
   const toggleSub = (itemKey) => {
     setSubBuka(prev => {
