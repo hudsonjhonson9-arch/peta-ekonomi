@@ -249,7 +249,7 @@ export function bangunHtmlSPT(it) {
             <table style="width: 100%; border-collapse: collapse;">
               ${t.pelaksana.map((p) => `
                 <tr>
-                  <td style="width: 22px; vertical-align: top; padding: 2px 0;">${p.No}.</td>
+                  <td style="width: 22px; vertical-align: top; padding: 2px 0;">${t.pelaksana.length > 1 ? p.No + "." : ""}</td>
                   <td style="width: 120px; vertical-align: top; padding: 2px 0;">Nama</td>
                   <td style="width: 12px; vertical-align: top; padding: 2px 0; text-align: center;">:</td>
                   <td style="vertical-align: top; padding: 2px 0; font-weight: bold;">${p.Nama}</td>
@@ -378,7 +378,7 @@ export function bangunHtmlSPPD(it, person = null) {
           <tr>
             <td style="width: 60%;"></td>
             <td style="width: 40%;">
-              <table style="width: 100%; font-size: 9.5pt;">
+              <table style="width: 100%; font-size: 9pt;">
                 <tr><td style="width: 70px;">Lembar ke</td><td>: </td></tr>
                 <tr><td>Kode No</td><td>: </td></tr>
                 <tr><td>Nomor</td><td>: <b>${t.NomorSPPD}</b></td></tr>
@@ -393,89 +393,89 @@ export function bangunHtmlSPPD(it, person = null) {
         </div>
 
         <!-- Tabel Isian 10 Poin -->
-        <table style="width: 100%; border: 1px solid #000; border-collapse: collapse; font-size: 9.5pt;">
+        <table style="width: 100%; border: 1px solid #000; border-collapse: collapse; font-size: 9pt;">
           <tr>
-            <td style="border: 1px solid #000; width: 28px; text-align: center; vertical-align: top; padding: 4px;">1.</td>
-            <td style="border: 1px solid #000; width: 230px; vertical-align: top; padding: 4px;">Pengguna Anggaran / KPA</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px; font-weight: bold;">${t.KpaNama}</td>
+            <td style="border: 1px solid #000; width: 28px; text-align: center; vertical-align: top; padding: 2px 5px;">1.</td>
+            <td style="border: 1px solid #000; width: 230px; vertical-align: top; padding: 2px 5px;">Pengguna Anggaran / KPA</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px; font-weight: bold;">${t.KpaNama}</td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px;">2.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px;">Nama / NIP Pegawai yang melaksanakan dinas</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px;">
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 2px 5px;">2.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px;">Nama / NIP Pegawai yang melaksanakan dinas</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px;">
               <b>${t.Nama}</b><br/>
               NIP. ${t.NIP}
             </td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px;">3.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px;">
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 2px 5px;">3.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px;">
               a. Pangkat dan Golongan<br/>
               b. Jabatan / Instansi<br/>
               c. Tingkat Biaya Perjalanan Dinas
             </td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px;">
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px;">
               a. ${t.PangkatGolongan}<br/>
               b. ${t.JabatanInstansi}<br/>
               c. ${t.TingkatBiaya}
             </td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px;">4.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px;">Maksud perjalanan dinas</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px;">${t.Maksud}</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 2px 5px;">4.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px;">Maksud perjalanan dinas</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px;">${t.Maksud}</td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px;">5.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px;">Alat angkut yang dipergunakan</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px;">${t.AlatAngkut}</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 2px 5px;">5.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px;">Alat angkut yang dipergunakan</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px;">${t.AlatAngkut}</td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px;">6.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px;">
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 2px 5px;">6.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px;">
               a. Tempat berangkat<br/>
               b. Tempat tujuan
             </td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px;">
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px;">
               a. ${t.TempatBerangkat}<br/>
               b. ${t.TempatTujuan}
             </td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px;">7.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px;">
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 2px 5px;">7.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px;">
               a. Lamanya perjalanan dinas<br/>
               b. Tanggal berangkat<br/>
               c. Tanggal harus kembali
             </td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px;">
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px;">
               a. ${t.LamaHari}<br/>
               b. ${t.TanggalBerangkat}<br/>
               c. ${t.TanggalKembali}
             </td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px;">8.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px;">Pengikut : Nama</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px;">${pengikutRows}</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 2px 5px;">8.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px;">Pengikut : Nama</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px;">${pengikutRows}</td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px;">9.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px;">
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 2px 5px;">9.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px;">
               Pembebanan Anggaran<br/>
               a. Instansi<br/>
               b. Mata Anggaran
             </td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px;">
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px;">
               <br/>
               a. ${t.Instansi}<br/>
               b. ${t.MataAnggaran}
             </td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px;">10.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px;">Keterangan lain-lain</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px;">-</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 2px 5px;">10.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px;">Keterangan lain-lain</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 2px 5px;">-</td>
           </tr>
         </table>
 
@@ -489,7 +489,7 @@ export function bangunHtmlSPPD(it, person = null) {
               <div style="font-weight: bold; margin-top: 4px; line-height: 1.3;">
                 Kepala Bapperida Kabupaten Sumba Barat,
               </div>
-              <div style="height: 50px;"></div>
+              <div style="height: 44px;"></div>
               <div style="font-weight: bold; text-decoration: underline;">${t.KepalaNama}</div>
               <div>${t.KepalaPangkat}</div>
               <div>NIP: ${t.KepalaNIP}</div>
@@ -499,60 +499,60 @@ export function bangunHtmlSPPD(it, person = null) {
       </div>
 
       <!-- ══ LEMBAR II: VISUM & PENGESAHAN ══ -->
-      <div style="page-break-before: always; margin-top: 24px; padding-top: 10px;" class="sppd-page-2">
+      <div style="page-break-before: always; break-before: page;" class="sppd-page-2">
         <div style="text-align: right; font-size: 9pt; margin-bottom: 6px;">
           Nomor SPD: <b>${t.NomorSPPD}</b>
         </div>
-        <table style="width: 100%; border: 1px solid #000; border-collapse: collapse; font-size: 9.5pt;">
+        <table style="width: 100%; border: 1px solid #000; border-collapse: collapse; font-size: 9pt;">
           <!-- Kolom Visum I -->
           <tr>
-            <td style="border: 1px solid #000; width: 50%; vertical-align: top; padding: 8px;">
+            <td style="border: 1px solid #000; width: 50%; vertical-align: top; padding: 5px 7px;">
               &nbsp;
             </td>
-            <td style="border: 1px solid #000; width: 50%; vertical-align: top; padding: 8px;">
+            <td style="border: 1px solid #000; width: 50%; vertical-align: top; padding: 5px 7px;">
               I. Berangkat dari : ${t.TempatBerangkat}<br/>
               Ke : ${t.TempatTujuan}<br/>
               Pada Tanggal : ${t.TanggalBerangkat}<br/>
               <div style="font-weight: bold; margin-top: 4px;">KEPALA BIDANG PERENCANAAN, PENGENDALIAN DAN EVALUASI,</div>
-              <div style="height: 40px;"></div>
+              <div style="height: 34px;"></div>
               <div style="font-weight: bold; text-decoration: underline;">${t.BidangNama}</div>
               <div>NIP. ${t.BidangNIP}</div>
             </td>
           </tr>
           <!-- Kolom Visum II -->
           <tr>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 8px;">
+            <td style="border: 1px solid #000; vertical-align: top; padding: 5px 7px;">
               II. Tiba pada : ${t.TempatTujuan}<br/>
               Tanggal : ${t.TanggalBerangkat}<br/>
               Kepala / Pejabat :<br/>
-              <div style="height: 40px;"></div>
+              <div style="height: 34px;"></div>
               ( ............................................................ )<br/>
               NIP.
             </td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 8px;">
+            <td style="border: 1px solid #000; vertical-align: top; padding: 5px 7px;">
               Berangkat dari : ${t.TempatTujuan}<br/>
               Ke : ${t.TempatBerangkat}<br/>
               Tanggal : ${t.TanggalKembali}<br/>
               Kepala / Pejabat :<br/>
-              <div style="height: 40px;"></div>
+              <div style="height: 34px;"></div>
               ( ............................................................ )<br/>
               NIP.
             </td>
           </tr>
           <!-- Kolom Visum III -->
           <tr>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 8px;">
+            <td style="border: 1px solid #000; vertical-align: top; padding: 5px 7px;">
               III. Tiba pada : ${t.TempatBerangkat}<br/>
               Tanggal : ${t.TanggalKembali}<br/>
               Pejabat Pelaksana Teknis Kegiatan / Kasubbag :<br/>
-              <div style="height: 40px;"></div>
+              <div style="height: 34px;"></div>
               ( ............................................................ )<br/>
               NIP.
             </td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 8px;">
+            <td style="border: 1px solid #000; vertical-align: top; padding: 5px 7px;">
               Telah diperiksa, dengan keterangan bahwa perjalanan tersebut diatas benar dilakukan atas perintahnya dan semata-mata untuk kepentingan jabatan dalam waktu yang sesingkat-singkatnya.<br/>
               <div style="font-weight: bold; margin-top: 4px;">SEKRETARIS BAPPERIDA KABUPATEN SUMBA BARAT</div>
-              <div style="height: 40px;"></div>
+              <div style="height: 34px;"></div>
               <div style="font-weight: bold; text-decoration: underline;">${t.SekretarisNama}</div>
               <div>NIP. ${t.SekretarisNIP}</div>
             </td>
@@ -620,6 +620,7 @@ export async function unduhSppdPdf(it, person = null) {
   const cleanNo = (it.nomor_sppd || it.nomor_register || "SPPD").replace(/[\/\\?%*:|"<>]/g, "_");
   const opt = {
     margin: [8, 12, 8, 12],
+    pagebreak: { mode: ["css"], avoid: "tr" },
     filename: `SPPD_${cleanNo}_${targetNama}.pdf`,
     image: { type: "jpeg", quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true, logging: false },

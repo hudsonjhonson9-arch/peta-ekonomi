@@ -479,6 +479,34 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
   // 3. BUKU REGISTER SPPD (DALAM & LUAR DAERAH)
   // ════════════════════════════════════════════════════════
 
+  // Daftar Pegawai untuk Autocomplete / Pilihan SPT & SPPD
+  app.get('/api/agenda/pegawai-list', async (req, res) => {
+    try {
+      const q = req.query.q ? `%${req.query.q.trim()}%` : null;
+      let sql = `
+        SELECT id, 
+               username AS nama, 
+               "NIP" AS nip, 
+               COALESCE(pangkat, '') AS pangkat, 
+               COALESCE("Jabatan", '') AS jabatan, 
+               COALESCE(bidang, '') AS bidang
+        FROM user_list
+        WHERE (status_aktif = true OR status_aktif IS NULL)
+      `;
+      const params = [];
+      if (q) {
+        sql += ` AND (username ILIKE $1 OR "NIP" ILIKE $1 OR "Jabatan" ILIKE $1)`;
+        params.push(q);
+      }
+      sql += ` ORDER BY username ASC`;
+      const rows = await queryDB(sql, params);
+      res.json({ ok: true, items: rows });
+    } catch (e) {
+      console.error('[Agenda] Get Pegawai List Error:', e);
+      res.status(500).json({ ok: false, message: 'Gagal mengambil daftar pegawai' });
+    }
+  });
+
   // Preview Nomor Register SPPD Berikutnya
   app.get('/api/agenda/sppd/preview-nomor', async (req, res) => {
     try {
