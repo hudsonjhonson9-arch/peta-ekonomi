@@ -5127,7 +5127,7 @@ daftarkanRuteSdpdn(app, pool, queryDB);
 daftarkanRuteAgenda(app, pool, queryDB);
 inisialisasiScheduler(app, pool, queryDB);
 if (isProd) {
-  app.get(['/umadata', '/umadata/*', '/arsip', '/arsip/*', '/{*path}'], (_, res) => {
+  app.get(['/umadata', '/umadata/{*path}', '/arsip', '/arsip/{*path}', '/{*path}'], (_, res) => {
     res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
   });
 }
