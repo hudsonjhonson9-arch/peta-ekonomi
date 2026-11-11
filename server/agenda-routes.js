@@ -6,6 +6,7 @@ tambahAturan([
   aturan('DELETE', ADMIN, '/api/agenda/surat-masuk/[^/]+'),
   aturan('DELETE', ADMIN, '/api/agenda/surat-keluar/[^/]+'),
   aturan('DELETE', ADMIN, '/api/agenda/sppd/[^/]+'),
+  aturan('DELETE', ADMIN, '/api/agenda/disposisi/[^/]+'),
   aturanSemua(LOGIN, '/api/agenda(/[^/]+)*')
 ]);
 
@@ -38,9 +39,14 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
 
       let sql = `
         SELECT sm.*, 
-               d.id as disposisi_id, d.status_tindaklanjut, d.diteruskan_kepada, d.batas_waktu
+               d.id as disposisi_id, d.status_tindaklanjut, d.diteruskan_kepada, d.batas_waktu,
+               d.pemberi_disposisi, d.catatan_instruksi
         FROM agenda_surat_masuk sm
-        LEFT JOIN agenda_disposisi d ON d.surat_masuk_id = sm.id
+        LEFT JOIN (
+          SELECT DISTINCT ON (surat_masuk_id) *
+          FROM agenda_disposisi
+          ORDER BY surat_masuk_id, id DESC
+        ) d ON d.surat_masuk_id = sm.id
         WHERE sm.tahun = $1
       `;
       const params = [tahun];
@@ -184,38 +190,34 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
     try {
       const surat_masuk_id = parseInt(req.params.id, 10);
       const rows = await queryDB(
-        `SELECT * FROM agenda_disposisi WHERE surat_masuk_id = $1`,
+        `SELECT * FROM agenda_disposisi WHERE surat_masuk_id = $1 ORDER BY id ASC`,
         [surat_masuk_id]
       );
-      res.json({ ok: true, disposisi: rows[0] || null });
+      res.json({ ok: true, disposisi: rows[rows.length - 1] || null, riwayat: rows });
     } catch (e) {
       console.error('[Agenda] Get Disposisi Error:', e);
       res.status(500).json({ ok: false, message: 'Gagal mengambil data disposisi' });
     }
   });
 
-  // Disposisi Digital
+  // Disposisi Digital (Multi-tier: Kepala BAPPERIDA -> Sekretaris -> Kepala Bidang)
   app.post('/api/agenda/surat-masuk/:id/disposisi', async (req, res) => {
     try {
       const surat_masuk_id = parseInt(req.params.id, 10);
       const {
+        id: disposisi_id,
         tanggal_disposisi = new Date().toISOString().split('T')[0],
-        pemberi_disposisi = 'Kepala Badan',
+        pemberi_disposisi = 'Kepala BAPPERIDA',
         arahan = [],
         catatan_instruksi = '',
         diteruskan_kepada = [],
         batas_waktu = null,
-        status_tindaklanjut = 'Didisposisikan'
+        status_tindaklanjut = 'Didisposisikan',
+        mode = 'tambah'
       } = req.body;
 
-      // Cek apakah sudah ada disposisi untuk surat ini
-      const exist = await queryDB(
-        `SELECT id FROM agenda_disposisi WHERE surat_masuk_id = $1`,
-        [surat_masuk_id]
-      );
-
       let dRes;
-      if (exist.length) {
+      if (mode === 'edit' && disposisi_id) {
         dRes = await queryDB(
           `UPDATE agenda_disposisi
            SET tanggal_disposisi = $1,
@@ -226,9 +228,9 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
                batas_waktu = $6,
                status_tindaklanjut = $7,
                updated_at = NOW()
-           WHERE surat_masuk_id = $8
+           WHERE id = $8 AND surat_masuk_id = $9
            RETURNING *`,
-          [tanggal_disposisi, pemberi_disposisi, JSON.stringify(arahan), catatan_instruksi, JSON.stringify(diteruskan_kepada), batas_waktu, status_tindaklanjut, surat_masuk_id]
+          [tanggal_disposisi, pemberi_disposisi, JSON.stringify(arahan), catatan_instruksi, JSON.stringify(diteruskan_kepada), batas_waktu, status_tindaklanjut, disposisi_id, surat_masuk_id]
         );
       } else {
         dRes = await queryDB(
@@ -246,10 +248,33 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
         [surat_masuk_id]
       );
 
-      res.json({ ok: true, disposisi: dRes[0] });
+      const allRows = await queryDB(
+        `SELECT * FROM agenda_disposisi WHERE surat_masuk_id = $1 ORDER BY id ASC`,
+        [surat_masuk_id]
+      );
+
+      res.json({ ok: true, disposisi: dRes[0], riwayat: allRows });
     } catch (e) {
       console.error('[Agenda] Disposisi Error:', e);
       res.status(500).json({ ok: false, message: 'Gagal menyimpan disposisi' });
+    }
+  });
+
+  // Hapus satu entri riwayat disposisi (Admin only)
+  app.delete('/api/agenda/disposisi/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const row = await queryDB(`DELETE FROM agenda_disposisi WHERE id = $1 RETURNING surat_masuk_id`, [id]);
+      if (row.length) {
+        const remaining = await queryDB(`SELECT id FROM agenda_disposisi WHERE surat_masuk_id = $1`, [row[0].surat_masuk_id]);
+        if (remaining.length === 0) {
+          await queryDB(`UPDATE agenda_surat_masuk SET status = 'Diterima', updated_at = NOW() WHERE id = $1`, [row[0].surat_masuk_id]);
+        }
+      }
+      res.json({ ok: true, message: 'Entri disposisi berhasil dihapus' });
+    } catch (e) {
+      console.error('[Agenda] Delete Disposisi Error:', e);
+      res.status(500).json({ ok: false, message: 'Gagal menghapus entri disposisi' });
     }
   });
 
