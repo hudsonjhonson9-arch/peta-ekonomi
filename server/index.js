@@ -273,6 +273,8 @@ app.use(async (req, res, next) => {
 if (isProd) {
   const distPath = path.join(__dirname, '..', 'dist');
   app.use(express.static(distPath));
+  app.use('/umadata', express.static(distPath));
+  app.use('/arsip', express.static(distPath));
 }
 
 // ── PostgreSQL ────────────────────────────────────────────────────────────
@@ -5125,12 +5127,12 @@ daftarkanRuteSdpdn(app, pool, queryDB);
 daftarkanRuteAgenda(app, pool, queryDB);
 inisialisasiScheduler(app, pool, queryDB);
 if (isProd) {
-  app.get('/{*path}', (_, res) => {
+  app.get(['/umadata', '/umadata/*', '/arsip', '/arsip/*', '/{*path}'], (_, res) => {
     res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
   });
 }
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   // Dicek paling awal supaya konfigurasi session yang salah langsung terlihat di
   // log, bukan baru ketahuan setelah pengguna mencoba login.

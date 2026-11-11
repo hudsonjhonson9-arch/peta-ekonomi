@@ -3,6 +3,35 @@ import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App.jsx'
 
+// Intercept fetch untuk otomatis menyesuaikan endpoint jika berjalan di bawah subpath /umadata atau /arsip
+const _fetchAsli = window.fetch;
+window.fetch = function(input, init) {
+  const currentPath = window.location.pathname;
+  const isUmaData = currentPath.startsWith('/umadata');
+  const isArsip = currentPath.startsWith('/arsip');
+  const prefix = isUmaData ? '/umadata' : (isArsip ? '/arsip' : '');
+
+  if (prefix) {
+    if (typeof input === 'string') {
+      if (!input.startsWith(prefix + '/')) {
+        if (input.startsWith('/api/') || input.startsWith('/geojson/') || input.startsWith('/icon.')) {
+          input = prefix + input;
+        }
+      }
+    } else if (input instanceof Request) {
+      try {
+        const u = new URL(input.url);
+        if (u.origin === window.location.origin && !u.pathname.startsWith(prefix + '/')) {
+          if (u.pathname.startsWith('/api/') || u.pathname.startsWith('/geojson/') || u.pathname.startsWith('/icon.')) {
+            input = new Request(prefix + u.pathname + u.search, input);
+          }
+        }
+      } catch (_) {}
+    }
+  }
+  return _fetchAsli.call(this, input, init);
+};
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
