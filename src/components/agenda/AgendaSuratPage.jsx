@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext, useMemo } from "react";
 import { ThemeContext } from "../../App.jsx";
-import { useIsDark, Icon, Modal, Select, Button } from "../ui.jsx";
+import { useIsDark, Icon, Modal, Select, Button, DatePicker } from "../ui.jsx";
 import useResponsive from "../../useResponsive.js";
 
 const KODE_KLASIFIKASI_LIST = [
@@ -279,13 +279,15 @@ export default function AgendaSuratPage({ user, showToast }) {
   };
 
   // ── Handlers Surat Keluar ─────────────────────────────────────────────────
-  const fetchPreviewNomorKeluar = async (kode) => {
+  const fetchPreviewNomorKeluar = async (kode, customBulan = null) => {
     try {
-      const res = await fetch(`/api/agenda/surat-keluar/preview-nomor?tahun=${tahun}&kode=${encodeURIComponent(kode || "050")}`);
+      const b = customBulan || (new Date().getMonth() + 1);
+      const res = await fetch(`/api/agenda/surat-keluar/preview-nomor?tahun=${tahun}&kode=${encodeURIComponent(kode || "050")}&bulan=${b}`);
       const data = await res.json();
       if (data.ok) return data.nomor_surat;
     } catch (_) {}
-    return "050/..../BAPPERIDA/.../2026";
+    const romawi = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"][(customBulan ? customBulan - 1 : new Date().getMonth())] || "XI";
+    return `BAPPERIDA.011.7/53.12/..../${romawi}/${tahun}`;
   };
 
   const bukaTambahSuratKeluar = async () => {
@@ -1145,11 +1147,10 @@ export default function AgendaSuratPage({ user, showToast }) {
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Tanggal Surat Asli
                 </label>
-                <input
-                  type="date"
+                <DatePicker
                   value={modalMasuk.data.tanggal_surat}
-                  onChange={(e) => setModalMasuk({ ...modalMasuk, data: { ...modalMasuk.data, tanggal_surat: e.target.value } })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
+                  onChange={(val) => setModalMasuk({ ...modalMasuk, data: { ...modalMasuk.data, tanggal_surat: val } })}
+                  placeholder="Pilih tanggal surat..."
                 />
               </div>
 
@@ -1157,11 +1158,10 @@ export default function AgendaSuratPage({ user, showToast }) {
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Tanggal Diterima
                 </label>
-                <input
-                  type="date"
+                <DatePicker
                   value={modalMasuk.data.tanggal_terima}
-                  onChange={(e) => setModalMasuk({ ...modalMasuk, data: { ...modalMasuk.data, tanggal_terima: e.target.value } })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
+                  onChange={(val) => setModalMasuk({ ...modalMasuk, data: { ...modalMasuk.data, tanggal_terima: val } })}
+                  placeholder="Pilih tanggal terima..."
                 />
               </div>
             </div>
@@ -1327,11 +1327,10 @@ export default function AgendaSuratPage({ user, showToast }) {
                   <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                     Tanggal Disposisi
                   </label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={modalDisposisi.form.tanggal_disposisi}
-                    onChange={(e) => setModalDisposisi({ ...modalDisposisi, form: { ...modalDisposisi.form, tanggal_disposisi: e.target.value } })}
-                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
+                    onChange={(val) => setModalDisposisi({ ...modalDisposisi, form: { ...modalDisposisi.form, tanggal_disposisi: val } })}
+                    placeholder="Pilih tanggal disposisi..."
                   />
                 </div>
               </div>
@@ -1406,11 +1405,10 @@ export default function AgendaSuratPage({ user, showToast }) {
                   <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                     Batas Waktu Tindak Lanjut (Opsional)
                   </label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={modalDisposisi.form.batas_waktu}
-                    onChange={(e) => setModalDisposisi({ ...modalDisposisi, form: { ...modalDisposisi.form, batas_waktu: e.target.value } })}
-                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
+                    onChange={(val) => setModalDisposisi({ ...modalDisposisi, form: { ...modalDisposisi.form, batas_waktu: val } })}
+                    placeholder="Pilih batas waktu..."
                   />
                 </div>
 
@@ -1508,12 +1506,19 @@ export default function AgendaSuratPage({ user, showToast }) {
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Tanggal Surat *
                 </label>
-                <input
-                  type="date"
-                  required
+                <DatePicker
                   value={modalKeluar.data.tanggal_surat}
-                  onChange={(e) => setModalKeluar({ ...modalKeluar, data: { ...modalKeluar.data, tanggal_surat: e.target.value } })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
+                  onChange={async (newTgl) => {
+                    const d = new Date(newTgl);
+                    const bln = !isNaN(d.getTime()) ? d.getMonth() + 1 : (new Date().getMonth() + 1);
+                    const prev = await fetchPreviewNomorKeluar(modalKeluar.data.kode_klasifikasi, bln);
+                    setModalKeluar({
+                      ...modalKeluar,
+                      previewNomor: modalKeluar.mode === "tambah" ? prev : modalKeluar.previewNomor,
+                      data: { ...modalKeluar.data, tanggal_surat: newTgl }
+                    });
+                  }}
+                  placeholder="Pilih tanggal surat..."
                 />
               </div>
             </div>

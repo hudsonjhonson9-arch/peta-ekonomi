@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext, useMemo } from "react";
 import { ThemeContext } from "../../App.jsx";
-import { useIsDark, Icon, Modal, Select, Button } from "../ui.jsx";
+import { useIsDark, Icon, Modal, Select, Button, DatePicker } from "../ui.jsx";
 import useResponsive from "../../useResponsive.js";
 import {
   unduhSuratTugasDocx,
@@ -1141,23 +1141,21 @@ export default function AgendaSppdPage({ user, showToast }) {
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 10 }}>
                 <div>
                   <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Tgl. Berangkat *</label>
-                  <input
-                    type="date"
-                    required
+                  <DatePicker
+                    size="sm"
                     value={modalSppd.data.tanggal_berangkat}
-                    onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, tanggal_berangkat: e.target.value } })}
-                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12.5 }}
+                    onChange={(val) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, tanggal_berangkat: val } })}
+                    placeholder="Pilih tanggal berangkat..."
                   />
                 </div>
 
                 <div>
                   <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Tgl. Kembali *</label>
-                  <input
-                    type="date"
-                    required
+                  <DatePicker
+                    size="sm"
                     value={modalSppd.data.tanggal_kembali}
-                    onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, tanggal_kembali: e.target.value } })}
-                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12.5 }}
+                    onChange={(val) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, tanggal_kembali: val } })}
+                    placeholder="Pilih tanggal kembali..."
                   />
                 </div>
 

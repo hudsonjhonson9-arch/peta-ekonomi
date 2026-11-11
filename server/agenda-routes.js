@@ -19,7 +19,7 @@ export function formatBulanRomawi(bulan1Based) {
 export function formatNomorSuratKeluar(kode, noUrut, bulan, tahun) {
   const padUrut = String(noUrut).padStart(4, '0');
   const romawi = formatBulanRomawi(bulan);
-  return `${kode || '050'}/${padUrut}/BAPPERIDA/${romawi}/${tahun}`;
+  return `BAPPERIDA.011.7/53.12/${padUrut}/${romawi}/${tahun}`;
 }
 
 export function daftarkanRuteAgenda(app, pool, queryDB) {
