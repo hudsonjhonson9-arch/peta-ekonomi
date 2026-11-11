@@ -63,7 +63,19 @@ function PortalPreview({ s, kelengkapan }) {
       <div style={{ border: "1px solid var(--pk-border-strong)", borderRadius: 8, overflow: "hidden", fontFamily: `'${s.tema.font}', system-ui, sans-serif`, background: "var(--pk-card)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 11px", borderBottom: "1px solid var(--pk-border)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
-            <img src={s.identitas.logo_url || "/Lambang_Kabupaten_Sumba_Barat.png"} alt="" width={18} height={22} style={{ objectFit: "contain" }} />
+            <img
+              src={s.identitas.logo_url || `${import.meta.env.BASE_URL}Lambang_Kabupaten_Sumba_Barat.png`}
+              alt=""
+              width={18}
+              height={22}
+              style={{ objectFit: "contain" }}
+              onError={(e) => {
+                if (!e.target.dataset.fallback) {
+                  e.target.dataset.fallback = '1';
+                  e.target.src = '/Lambang_Kabupaten_Sumba_Barat.png';
+                }
+              }}
+            />
             <div style={{ minWidth: 0, lineHeight: 1.15 }}>
               <div style={{ fontSize: 10, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.identitas.nama_portal}</div>
               <div style={{ fontSize: 8, color: "var(--pk-muted)" }}>{s.identitas.nama_daerah}</div>
@@ -506,8 +518,8 @@ export default function PengaturanWebsitePage() {
             <Row title="Logo" desc="Portal publik memakai lambang resmi Kabupaten Sumba Barat.">
               <div className="pk-grid2">
                 {[
-                  { path: "/Lambang_Kabupaten_Sumba_Barat.png", name: "Lambang Kabupaten Sumba Barat", role: "Portal publik", aktif: true },
-                  { path: "/icon.svg", name: "Logo UMA DATA", role: "Panel admin dan arsip internal", aktif: false },
+                  { path: `${import.meta.env.BASE_URL}Lambang_Kabupaten_Sumba_Barat.png`, name: "Lambang Kabupaten Sumba Barat", role: "Portal publik", aktif: true },
+                  { path: `${import.meta.env.BASE_URL}icon.svg`, name: "Logo UMA DATA", role: "Panel admin dan arsip internal", aktif: false },
                 ].map((a) => (
                   <figure key={a.path} style={{ margin: 0 }}>
                     <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", border: a.aktif ? "1.5px solid var(--pk-primary)" : "1px solid var(--pk-border)", borderRadius: 8, background: "var(--pk-sunken)" }}>

@@ -243,7 +243,19 @@ export default function Sidebar({ active, activeTab, onNav, user, onLogout, onCi
         padding: modeIcon ? "18px 12px 10px" : "18px 16px 10px",
         display: "flex", alignItems: "center", gap: 10,
       }}>
-        <img src="/icon.svg" alt="" width={36} height={36} style={{ flexShrink: 0, borderRadius: 10 }} />
+        <img
+          src={`${import.meta.env.BASE_URL}icon.svg`}
+          alt="UMA DATA"
+          width={36}
+          height={36}
+          style={{ flexShrink: 0, borderRadius: 10 }}
+          onError={(e) => {
+            if (!e.target.dataset.fallback) {
+              e.target.dataset.fallback = '1';
+              e.target.src = '/icon.svg';
+            }
+          }}
+        />
         {!modeIcon && (
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: -0.2 }}>UMA DATA</div>

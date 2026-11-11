@@ -103,7 +103,19 @@ export default function LoginPage({ onLogin, onBackToPublic }) {
             <div className="stagger">
               {/* Logo */}
               <div style={{ textAlign: "center", marginBottom: 26 }}>
-                <img src="/icon.svg" alt="" width={52} height={52} style={{ margin: "0 auto 12px", display: "block", borderRadius: 14 }} />
+                <img
+                  src={`${import.meta.env.BASE_URL}icon.svg`}
+                  alt="UMA DATA"
+                  width={52}
+                  height={52}
+                  style={{ margin: "0 auto 12px", display: "block", borderRadius: 14 }}
+                  onError={(e) => {
+                    if (!e.target.dataset.fallback) {
+                      e.target.dataset.fallback = '1';
+                      e.target.src = '/icon.svg';
+                    }
+                  }}
+                />
                 <div style={{ fontSize: 19, fontWeight: 700, color: "#0F172A", letterSpacing: -0.3 }}>UMA DATA</div>
                 <div style={{ fontSize: 12, color: "#64748B", marginTop: 4 }}>Rumah data dan dokumen perencanaan pembangunan</div>
               </div>
@@ -261,7 +273,19 @@ export default function LoginPage({ onLogin, onBackToPublic }) {
         {/* Kanan — panel brand (hidden < 1024px) */}
         <div className="kanan">
           <div style={{ maxWidth: 440 }}>
-            <img src="/icon.svg" alt="" width={64} height={64} style={{ marginBottom: 28, borderRadius: 16, boxShadow: "0 8px 24px rgba(15,23,42,0.2)" }} />
+            <img
+              src={`${import.meta.env.BASE_URL}icon.svg`}
+              alt="UMA DATA"
+              width={64}
+              height={64}
+              style={{ marginBottom: 28, borderRadius: 16, boxShadow: "0 8px 24px rgba(15,23,42,0.2)" }}
+              onError={(e) => {
+                if (!e.target.dataset.fallback) {
+                  e.target.dataset.fallback = '1';
+                  e.target.src = '/icon.svg';
+                }
+              }}
+            />
             <h1 style={{ fontSize: 40, fontWeight: 800, lineHeight: 1.15, letterSpacing: -1, margin: "0 0 16px" }}>
               Satu pintu untuk arsip perencanaan pembangunan daerah.
             </h1>

@@ -89,7 +89,19 @@ export function PortalNavbar({ subPage, onNav, user, onLoginClick }) {
       <div className="pp-row pp-brandrow">
         <button type="button" className="pp-brand" onClick={() => onNav("beranda")} aria-label="Ke beranda Satu Data Sumba Barat">
           <span className="pp-logo">
-            <img src="/Lambang_Kabupaten_Sumba_Barat.png" alt="" width={30} height={30} style={{ objectFit: "contain" }} />
+            <img
+              src={`${import.meta.env.BASE_URL}Lambang_Kabupaten_Sumba_Barat.png`}
+              alt="Lambang Kabupaten Sumba Barat"
+              width={30}
+              height={30}
+              style={{ objectFit: "contain" }}
+              onError={(e) => {
+                if (!e.target.dataset.fallback) {
+                  e.target.dataset.fallback = '1';
+                  e.target.src = '/Lambang_Kabupaten_Sumba_Barat.png';
+                }
+              }}
+            />
           </span>
           <span>
             <span className="pp-brand-name" style={{ display: "flex", alignItems: "center", gap: 7 }}>
