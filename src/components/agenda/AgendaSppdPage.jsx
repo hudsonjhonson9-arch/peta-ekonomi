@@ -74,11 +74,6 @@ export default function AgendaSppdPage({ user, showToast }) {
       .catch(() => {});
   }, []);
 
-  const pegawaiOptions = useMemo(
-    () => pegawaiList.map((p) => ({ value: String(p.id), label: `${p.nama}${p.nip ? " — " + p.nip : ""}` })),
-    [pegawaiList]
-  );
-  const cariPegawai = (id) => pegawaiList.find((p) => String(p.id) === String(id));
 
   const notif = (msg) => {
     if (showToast) showToast(msg);
@@ -1033,33 +1028,25 @@ export default function AgendaSppdPage({ user, showToast }) {
             </div>
 
             {/* Pelaksana Utama */}
+            <datalist id="daftar-pegawai">
+              {pegawaiList.map((p) => <option key={p.id} value={p.nama}>{p.nip} · {p.jabatan}</option>)}
+            </datalist>
             <div style={{ border: `1px solid ${T.border}`, borderRadius: 8, padding: "12px 14px", background: T.bg }}>
               <div style={{ fontSize: 12, fontWeight: 800, color: T.text, marginBottom: 10 }}>1. Personil 1 (Pelaksana Utama)</div>
-              <div style={{ marginBottom: 10 }}>
-                <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Pilih dari Pegawai Sistem (opsional — atau isi manual di bawah)</label>
-                <Select
-                  fullWidth
-                  size="sm"
-                  searchable
-                  value=""
-                  placeholder="Cari nama / NIP pegawai..."
-                  onChange={(v) => {
-                    const p = cariPegawai(v);
-                    if (!p) return;
-                    setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_nama: p.nama, pelaksana_nip: p.nip || "", pelaksana_pangkat: p.pangkat || "", pelaksana_jabatan: p.jabatan || "" } });
-                  }}
-                  options={pegawaiOptions}
-                />
-              </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <div>
                   <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Nama Lengkap *</label>
                   <input
                     type="text"
                     required
-                    placeholder="Nama lengkap pelaksana"
+                    placeholder="Ketik nama — pilih dari saran pegawai atau isi manual"
+                    list="daftar-pegawai"
                     value={modalSppd.data.pelaksana_nama}
-                    onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_nama: e.target.value } })}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      const p = pegawaiList.find((x) => x.nama === v);
+                      setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_nama: v, ...(p ? { pelaksana_nip: p.nip || "", pelaksana_pangkat: p.pangkat || "", pelaksana_jabatan: p.jabatan || "" } : {}) } });
+                    }}
                     style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12.5 }}
                   />
                 </div>
@@ -1233,24 +1220,7 @@ export default function AgendaSppdPage({ user, showToast }) {
                   {modalSppd.data.pengikut.map((p, idx) => (
                     <div key={idx} style={{ border: `1px solid ${T.border}`, borderRadius: 6, padding: 8, background: T.card, display: "flex", flexDirection: "column", gap: 6 }}>
                       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, whiteSpace: "nowrap" }}>Personil {idx + 2}</span>
-                        <div style={{ flex: 1 }}>
-                          <Select
-                            fullWidth
-                            size="sm"
-                            searchable
-                            value=""
-                            placeholder="Pilih dari pegawai sistem..."
-                            onChange={(v) => {
-                              const pg = cariPegawai(v);
-                              if (!pg) return;
-                              const cur = [...modalSppd.data.pengikut];
-                              cur[idx] = { nama: pg.nama, nip: pg.nip || "", pangkat: pg.pangkat || "", jabatan: pg.jabatan || "" };
-                              setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pengikut: cur } });
-                            }}
-                            options={pegawaiOptions}
-                          />
-                        </div>
+                        <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, whiteSpace: "nowrap", flex: 1 }}>Personil {idx + 2}</span>
                         <button
                           type="button"
                           aria-label={`Hapus personil ${idx + 2}`}
@@ -1265,9 +1235,18 @@ export default function AgendaSppdPage({ user, showToast }) {
                           <input
                             key={f}
                             type="text"
-                            placeholder={ph}
+                            placeholder={f === "nama" ? "Ketik nama — saran pegawai / manual" : ph}
+                            list={f === "nama" ? "daftar-pegawai" : undefined}
                             value={p[f] || ""}
-                            onChange={(e) => updatePengikut(idx, f, e.target.value)}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              const pg = f === "nama" && pegawaiList.find((x) => x.nama === v);
+                              if (pg) {
+                                const cur = [...modalSppd.data.pengikut];
+                                cur[idx] = { nama: pg.nama, nip: pg.nip || "", pangkat: pg.pangkat || "", jabatan: pg.jabatan || "" };
+                                setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pengikut: cur } });
+                              } else updatePengikut(idx, f, v);
+                            }}
                             style={{ padding: "6px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 12 }}
                           />
                         ))}
