@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import jsPDF from "jspdf";
-import Jscanify from "jscanify/client";
+import Jscanify from "./jscanify.client.js";
 import "./DocumentScanner.css";
 
 const OPENCV_SRC = "https://docs.opencv.org/4.7.0/opencv.js";
