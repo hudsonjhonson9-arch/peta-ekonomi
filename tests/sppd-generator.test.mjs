@@ -1,0 +1,169 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import PizZip from 'pizzip';
+import Docxtemplater from 'docxtemplater';
+import {
+  bangunTagsSPT,
+  bangunTagsSPPD,
+  splitDasar,
+  TTD_DEFAULT,
+  PARAF_DEFAULT
+} from '../src/utils/sppdDocxGenerator.js';
+
+const ROOT = path.resolve(import.meta.dirname, '..');
+const readDocXml = (file) => {
+  const buf = fs.readFileSync(path.join(ROOT, file));
+  const zip = new PizZip(buf);
+  return zip.file('word/document.xml').asText();
+};
+
+test('templates 2026: memiliki prolog XML dan tag wajib', () => {
+  const sptXml = readDocXml('public/templates/spt_template.docx');
+  assert.ok(sptXml.startsWith('<?xml') || sptXml.includes('<w:document'), 'spt_template harus memiliki prolog XML');
+  assert.ok(sptXml.includes('{#dasarRows}'), 'spt_template memuat {#dasarRows}');
+  assert.ok(sptXml.includes('{#pelaksana}'), 'spt_template memuat {#pelaksana}');
+  assert.ok(sptXml.includes('{KepadaLabel}'), 'spt_template memuat {KepadaLabel}');
+  assert.ok(sptXml.includes('{Paraf1}'), 'spt_template memuat {Paraf1}');
+  assert.ok(sptXml.includes('{Paraf2}'), 'spt_template memuat {Paraf2}');
+  assert.ok(sptXml.includes('{Paraf3}'), 'spt_template memuat {Paraf3}');
+
+  const sppdXml = readDocXml('public/templates/sppd_template.docx');
+  assert.ok(sppdXml.startsWith('<?xml') || sppdXml.includes('<w:document'), 'sppd_template harus memiliki prolog XML');
+  assert.ok(sppdXml.includes('{NomorSPPD}'), 'sppd_template memuat {NomorSPPD}');
+  assert.ok(sppdXml.includes('{SekretarisNama}'), 'sppd_template memuat {SekretarisNama}');
+  assert.ok(sppdXml.includes('{BidangNama}'), 'sppd_template memuat {BidangNama}');
+  assert.ok(sppdXml.includes('{PPTKJabatan}'), 'sppd_template memuat {PPTKJabatan}');
+  assert.ok(sppdXml.includes('{Paraf1}'), 'sppd_template memuat {Paraf1}');
+  assert.ok(sppdXml.includes('{Paraf2}'), 'sppd_template memuat {Paraf2}');
+  assert.ok(sppdXml.includes('{Paraf3}'), 'sppd_template memuat {Paraf3}');
+});
+
+test('splitDasar: memecah string dasar multi-baris menjadi array {No, Teks}', () => {
+  const text = `DPA Bapperida Kabupaten Sumba Barat TA 2026
+Nota Dinas Sekretaris Daerah Nomor 001/2026
+Surat Undangan Bappeda Provinsi NTT`;
+  const res = splitDasar(text);
+  assert.equal(res.length, 3);
+  assert.deepEqual(res[0], { No: 1, Teks: 'DPA Bapperida Kabupaten Sumba Barat TA 2026' });
+  assert.deepEqual(res[1], { No: 2, Teks: 'Nota Dinas Sekretaris Daerah Nomor 001/2026' });
+  assert.deepEqual(res[2], { No: 3, Teks: 'Surat Undangan Bappeda Provinsi NTT' });
+});
+
+test('bangunTagsSPT: menghasilkan dasarRows dan pelaksana multi-personil (KepadaLabel hanya baris 1)', () => {
+  const mockItem = {
+    nomor_spt: '001/SPT/BAPPERIDA/2026',
+    dasar_hukum: 'Dasar baris 1\nDasar baris 2',
+    maksud_perjalanan: 'Konsultasi Perencanaan Anggaran',
+    tempat_berangkat: 'Waikabubak',
+    tempat_tujuan: 'Kupang',
+    tanggal_spt: '2026-11-20',
+    pelaksana_nama: 'Budi Santoso',
+    pelaksana_nip: '19850101 201001 1 001',
+    pelaksana_pangkat: 'Pembina / IV a',
+    pelaksana_jabatan: 'Kepala Bidang PPE',
+    pengikut: [
+      {
+        nama: 'Siti Aminah',
+        nip: '19900202 201502 2 002',
+        pangkat: 'Penata / III c',
+        jabatan: 'Perencana Ahli Muda'
+      }
+    ],
+    penandatangan: {
+      status: 'Definitif',
+      jabatan: 'Kepala BAPPERIDA',
+      nama: 'CHARLES HERMANA WERU,S.Sos',
+      pangkat: 'Pembina Utama Muda – IV/c',
+      nip: '19721102 200112 1 001'
+    },
+    paraf: ['Sekretaris BAPPERIDA', 'Kepala Bidang PPE', 'Kasubbag Umum & Kepegawaian']
+  };
+
+  const tags = bangunTagsSPT(mockItem);
+  assert.equal(tags.Nomor, '001/SPT/BAPPERIDA/2026');
+  assert.equal(tags.dasarRows.length, 2);
+  assert.equal(tags.dasarRows[0].Teks, 'Dasar baris 1');
+
+  assert.equal(tags.pelaksana.length, 2);
+  assert.equal(tags.pelaksana[0].Nama, 'Budi Santoso');
+  assert.equal(tags.pelaksana[0].KepadaLabel, 'Kepada');
+  assert.equal(tags.pelaksana[0].TitikLabel, ':');
+
+  assert.equal(tags.pelaksana[1].Nama, 'Siti Aminah');
+  assert.equal(tags.pelaksana[1].KepadaLabel, '');
+  assert.equal(tags.pelaksana[1].TitikLabel, '');
+
+  assert.equal(tags.KepalaNama, 'CHARLES HERMANA WERU,S.Sos');
+  assert.equal(tags.Paraf1, 'Sekretaris BAPPERIDA');
+  assert.equal(tags.Paraf2, 'Kepala Bidang PPE');
+  assert.equal(tags.Paraf3, 'Kasubbag Umum & Kepegawaian');
+});
+
+test('bangunTagsSPPD: menghasilkan PPTKJabatan dan 3 paraf', () => {
+  const mockItem = {
+    nomor_sppd: '001/SPPD/BAPPERIDA/2026',
+    pelaksana_nama: 'Budi Santoso',
+    pelaksana_nip: '19850101 201001 1 001',
+    pelaksana_pangkat: 'Pembina / IV a',
+    pelaksana_jabatan: 'Kepala Bidang PPE',
+    maksud_perjalanan: 'Konsultasi Perencanaan Anggaran',
+    tempat_berangkat: 'Waikabubak',
+    tempat_tujuan: 'Kupang',
+    tingkat_biaya: 'Tingkat C',
+    alat_angkutan: 'Pesawat Udara (Ekonomi)',
+    tanggal_berangkat: '2026-11-20',
+    tanggal_kembali: '2026-11-23',
+    lama_hari: 4,
+    instansi: 'BAPPERIDA Kabupaten Sumba Barat',
+    subkegiatan_nama: 'Penyusunan RKPD Kabupaten Sumba Barat',
+    penandatangan: {
+      status: 'Plt.',
+      jabatan: 'Kepala BAPPERIDA',
+      nama: 'IMANUEL MOSES KALEGOTAN, ST.,M.Si',
+      pangkat: 'Pembina Tk. I - IV/b',
+      nip: '19800315 200501 1 011'
+    },
+    paraf: ['Sekretaris BAPPERIDA', 'Kepala Bidang PPE', 'Kasubbag Umum']
+  };
+
+  const tags = bangunTagsSPPD(mockItem);
+  assert.equal(tags.NomorSPPD, '001/SPPD/BAPPERIDA/2026');
+  assert.equal(tags.Nama, 'Budi Santoso');
+  assert.equal(tags.KepalaNama, 'IMANUEL MOSES KALEGOTAN, ST.,M.Si');
+  assert.match(tags.JabatanTtd, /PLT/i);
+  assert.equal(tags.Paraf1, 'Sekretaris BAPPERIDA');
+  assert.equal(tags.Paraf2, 'Kepala Bidang PPE');
+  assert.equal(tags.Paraf3, 'Kasubbag Umum');
+});
+
+test('Docxtemplater: template SPT dan SPPD sukses dirender tanpa tag tak terdefinisi', () => {
+  const sptBuf = fs.readFileSync(path.join(ROOT, 'public/templates/spt_template.docx'));
+  const sptZip = new PizZip(sptBuf);
+  const sptDoc = new Docxtemplater(sptZip, { delimiters: { start: '{', end: '}' }, paragraphLoop: true, linebreaks: true });
+  const mockSpt = {
+    nomor_spt: '001/SPT/2026',
+    dasar_hukum: 'Dasar 1\nDasar 2',
+    maksud_perjalanan: 'Rakor Perencanaan',
+    tempat_berangkat: 'Waikabubak',
+    tempat_tujuan: 'Tambolaka',
+    pelaksana_nama: 'Alex',
+    pelaksana_nip: '19800101',
+    pelaksana_pangkat: 'IV/a',
+    pelaksana_jabatan: 'Kabid',
+    pengikut: [{ nama: 'Dedi', nip: '19900101', pangkat: 'III/b', jabatan: 'Staf' }],
+    penandatangan: { status: 'Definitif', nama: 'Kaban', pangkat: 'IV/c', nip: '19700101', jabatan: 'Kepala BAPPERIDA' },
+    paraf: ['Sekretaris', 'Kabid', 'Kasubbag']
+  };
+  sptDoc.render(bangunTagsSPT(mockSpt));
+  const sptOut = sptDoc.getZip().generate({ type: 'nodebuffer' });
+  assert.ok(sptOut.length > 50000, 'SPT docx rendered binary size > 50KB');
+
+  const sppdBuf = fs.readFileSync(path.join(ROOT, 'public/templates/sppd_template.docx'));
+  const sppdZip = new PizZip(sppdBuf);
+  const sppdDoc = new Docxtemplater(sppdZip, { delimiters: { start: '{', end: '}' }, paragraphLoop: true, linebreaks: true });
+  sppdDoc.render(bangunTagsSPPD(mockSpt, mockSpt.pengikut[0]));
+  const sppdOut = sppdDoc.getZip().generate({ type: 'nodebuffer' });
+  assert.ok(sppdOut.length > 50000, 'SPPD docx rendered binary size > 50KB');
+});

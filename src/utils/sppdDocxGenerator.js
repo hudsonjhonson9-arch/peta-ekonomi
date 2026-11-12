@@ -1,6 +1,10 @@
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
-import html2pdf from "html2pdf.js";
+
+async function getHtml2Pdf() {
+  const mod = await import("html2pdf.js");
+  return mod.default || mod;
+}
 
 const BULAN = [
   "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -85,6 +89,43 @@ export async function renderDocxBlob(templateUrl, tags) {
   }
 }
 
+export const TTD_DEFAULT = {
+  status: "Definitif",
+  jabatan: "KEPALA BAPPERIDA",
+  nama: "CHARLES HERMANA WERU,S.Sos",
+  pangkat: "Pembina Utama Muda – IV/c",
+  nip: "19721102 200112 1 001"
+};
+export const PARAF_DEFAULT = ["Sekretaris BAPPERIDA", "Kepala Bidang Terkait", "Kasubbag Umum & Kepegawaian"];
+
+// Dasar multi-baris -> loop {#dasarRows} di template
+export function splitDasar(s) {
+  return String(s || "").split(/\r?\n/).map(x => x.trim()).filter(Boolean)
+    .map((t, i) => ({ No: i + 1, Teks: t }));
+}
+
+function parseJson(v, fb) {
+  if (!v) return fb;
+  if (typeof v === "object") return v;
+  try { return JSON.parse(v); } catch (_) { return fb; }
+}
+
+// Tag penandatangan (mendukung Plt. / Plh.) + paraf hierarki (jabatan saja)
+function tagsTtdParaf(it) {
+  const t = { ...TTD_DEFAULT, ...parseJson(it.penandatangan, {}) };
+  const prefix = t.status && t.status !== "Definitif" ? t.status + " " : "";
+  const paraf = parseJson(it.paraf, []);
+  return {
+    JabatanTtd: prefix + (t.jabatan || TTD_DEFAULT.jabatan).toUpperCase(),
+    KepalaNama: t.nama || "",
+    KepalaPangkat: t.pangkat || "",
+    KepalaNIP: t.nip || "",
+    Paraf1: paraf[0] ?? PARAF_DEFAULT[0],
+    Paraf2: paraf[1] ?? PARAF_DEFAULT[1],
+    Paraf3: paraf[2] ?? PARAF_DEFAULT[2]
+  };
+}
+
 export function bangunTagsSPT(it) {
   const tahun = it.tahun || new Date().getFullYear();
   let pengikutList = [];
@@ -115,19 +156,27 @@ export function bangunTagsSPT(it) {
   if (it.tempat_tujuan) untuk += " di " + it.tempat_tujuan;
   if (untuk && !/[.!]$/.test(untuk)) untuk += ".";
 
+  // "Kepada :" dan nomor hanya di baris pertama / bila >1 orang
+  pelaksana.forEach((p, i) => {
+    p.KepadaLabel = i === 0 ? "Kepada" : "";
+    p.TitikLabel = i === 0 ? ":" : "";
+    p.Kepada = p.KepadaLabel;
+    p.Titik = p.TitikLabel;
+    p.NoTxt = pelaksana.length > 1 ? `${p.No}.` : "";
+  });
+
+  const dasarStr = it.dasar_hukum || `DPA Bapperida Kabupaten Sumba Barat TA ${tahun}`;
+  const dasarRows = splitDasar(dasarStr);
+
   return {
     Nomor: it.nomor_spt || it.nomor_register || "001/SPT/2026",
-    Dasar: it.dasar_hukum || `DPA Bapperida Kabupaten Sumba Barat TA ${tahun}`,
+    Dasar: dasarStr,
+    dasarRows,
     pelaksana,
     Untuk: untuk,
     DitetapkanDi: it.tempat_berangkat || "Waikabubak",
     TanggalSurat: tanggalID(it.tanggal_spt || it.tanggal_berangkat || new Date()),
-    KepalaNama: it.pejabat_perintah || "CHARLES HERMANA WERU,S.Sos",
-    KepalaPangkat: "Pembina Utama Muda – IV/c",
-    KepalaNIP: "19721102 200112 1 001",
-    Paraf1: "Sekretaris BAPPERIDA",
-    Paraf2: "Kepala Bidang Terkait",
-    Paraf3: "Kasubbag Umum & Kepegawaian"
+    ...tagsTtdParaf(it)
   };
 }
 
@@ -138,44 +187,46 @@ export function bangunTagsSPPD(it, person = null) {
   const pangkat = person?.pangkat || it.pelaksana_pangkat || "-";
   const jabatan = person?.jabatan || it.pelaksana_jabatan || "-";
 
+  const tp = tagsTtdParaf(it);
+  const wewenang = parseJson(it.wewenang, {}) || {};
+  const sekretaris = wewenang.sekretaris || {};
+  const bidang = wewenang.bidang || {};
+  const ktu = wewenang.ktu || {};
+
   return {
     NomorSPPD: it.nomor_sppd || it.nomor_register || "001/SPPD/2026",
-    KpaNama: it.pejabat_perintah || "CHARLES HERMANA WERU,S.Sos",
+    KpaNama: tp.KepalaNama,
     Nama: nama,
     NIP: nip,
     PangkatGolongan: pangkat,
     JabatanInstansi: jabatan,
-    TingkatBiaya: it.jenis_sppd === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C",
+    TingkatBiaya: it.tingkat_biaya || (it.jenis_sppd === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C"),
     Maksud: it.maksud_perjalanan || "-",
     AlatAngkut: it.alat_angkutan || "Kendaraan Dinas / Darat",
     TempatBerangkat: it.tempat_berangkat || "Waikabubak",
     TempatTujuan: it.tempat_tujuan || "-",
-    LamaHari: formatLamaHari(it.tanggal_berangkat, it.tanggalKembali || it.tanggal_kembali),
+    LamaHari: it.lama_hari ? `${it.lama_hari} (${terbilang(it.lama_hari)}) Hari` : formatLamaHari(it.tanggal_berangkat, it.tanggalKembali || it.tanggal_kembali),
     TanggalBerangkat: tanggalID(it.tanggal_berangkat),
     TanggalKembali: tanggalID(it.tanggal_kembali || it.tanggalKembali || it.tanggal_berangkat),
-    Instansi: "Bapperida Kabupaten Sumba Barat",
+    Instansi: it.instansi || "Bapperida Kabupaten Sumba Barat",
     MataAnggaran: it.subkegiatan_nama
       ? `DPA Bapperida - ${it.subkegiatan_nama}`
       : `DPA Bapperida Kabupaten Sumba Barat TA ${tahun}`,
     DitetapkanDi: it.tempat_berangkat || "Waikabubak",
     TanggalPenetapan: tanggalID(it.tanggal_spt || it.tanggal_berangkat || new Date()),
-    KepalaNama: it.pejabat_perintah || "CHARLES HERMANA WERU,S.Sos",
-    KepalaPangkat: "Pembina Utama Muda – IV/c",
-    KepalaNIP: "19721102 200112 1 001",
-    SekretarisNama: "IMANUEL MOSES KALEGOTAN, ST.,M.Si",
-    SekretarisNIP: "19800315 200501 1 011",
-    BidangNama: "BERLIAN MAGU WERU,S.Sos",
-    BidangNIP: "19690619 200903 1 001",
-    KtuNama: "",
-    KtuNIP: "",
-    Paraf1: "Sekretaris BAPPERIDA",
-    Paraf2: "Kepala Bidang Terkait",
-    Paraf3: "Kasubbag Umum & Kepegawaian"
+    SekretarisNama: sekretaris.nama || "IMANUEL MOSES KALEGOTAN, ST.,M.Si",
+    SekretarisNIP: sekretaris.nip || "19800315 200501 1 011",
+    BidangNama: bidang.nama || "BERLIAN MAGU WERU,S.Sos",
+    BidangNIP: bidang.nip || "19690619 200903 1 001",
+    PPTKJabatan: bidang.jabatan || it.bidang_jabatan || "Kepala Bidang PPE",
+    KtuNama: ktu.nama || "",
+    KtuNIP: ktu.nip || "",
+    ...tp
   };
 }
 
 export async function unduhSuratTugasDocx(it) {
-  const baseUrl = import.meta.env.BASE_URL || "/";
+  const baseUrl = (typeof import.meta !== "undefined" && import.meta.env?.BASE_URL) || "/";
   const templatePath = `${baseUrl.replace(/\/$/, "")}/templates/spt_template.docx`;
   const tags = bangunTagsSPT(it);
   const blob = await renderDocxBlob(templatePath, tags);
@@ -185,13 +236,88 @@ export async function unduhSuratTugasDocx(it) {
 }
 
 export async function unduhSppdDocx(it, person = null) {
-  const baseUrl = import.meta.env.BASE_URL || "/";
+  const baseUrl = (typeof import.meta !== "undefined" && import.meta.env?.BASE_URL) || "/";
   const templatePath = `${baseUrl.replace(/\/$/, "")}/templates/sppd_template.docx`;
   const tags = bangunTagsSPPD(it, person);
   const blob = await renderDocxBlob(templatePath, tags);
   const targetNama = (person?.nama || it.pelaksana_nama || "Pelaksana").replace(/[\/\\?%*:|"<>]/g, "_");
   const cleanNo = (it.nomor_sppd || it.nomor_register || "SPPD").replace(/[\/\\?%*:|"<>]/g, "_");
   unduhBlob(blob, `SPPD_${cleanNo}_${targetNama}.docx`);
+  return true;
+}
+
+export async function unduhBundleSppdZip(it) {
+  const baseUrl = (typeof import.meta !== "undefined" && import.meta.env?.BASE_URL) || "/";
+  const sptTemplatePath = `${baseUrl.replace(/\/$/, "")}/templates/spt_template.docx`;
+  const sppdTemplatePath = `${baseUrl.replace(/\/$/, "")}/templates/sppd_template.docx`;
+
+  const [sptRes, sppdRes] = await Promise.all([
+    fetch(sptTemplatePath),
+    fetch(sppdTemplatePath)
+  ]);
+  if (!sptRes.ok || !sppdRes.ok) {
+    throw new Error("Gagal memuat template SPT atau SPPD");
+  }
+
+  const [sptBuf, sppdBuf] = await Promise.all([
+    sptRes.arrayBuffer(),
+    sppdRes.arrayBuffer()
+  ]);
+
+  const zipOut = new PizZip();
+
+  // 1. Render SPT
+  const sptZip = new PizZip(sptBuf);
+  const sptDoc = new Docxtemplater(sptZip, {
+    delimiters: { start: "{", end: "}" },
+    paragraphLoop: true,
+    linebreaks: true,
+  });
+  sptDoc.render(bangunTagsSPT(it));
+  const cleanNo = (it.nomor_spt || it.nomor_register || "SPT").replace(/[\/\\?%*:|"<>]/g, "_");
+  const sptContent = sptDoc.getZip().generate({ type: "uint8array" });
+  zipOut.file(`SPT_${cleanNo}.docx`, sptContent);
+
+  // 2. Render SPPD untuk pelaksana utama
+  const renderSppdFile = (person, idx) => {
+    const sppdZip = new PizZip(sppdBuf);
+    const sppdDoc = new Docxtemplater(sppdZip, {
+      delimiters: { start: "{", end: "}" },
+      paragraphLoop: true,
+      linebreaks: true,
+    });
+    sppdDoc.render(bangunTagsSPPD(it, person));
+    const targetNama = (person?.nama || it.pelaksana_nama || `Pelaksana_${idx}`).replace(/[\/\\?%*:|"<>]/g, "_");
+    const sppdContent = sppdDoc.getZip().generate({ type: "uint8array" });
+    zipOut.file(`SPPD_${cleanNo}_${idx}_${targetNama}.docx`, sppdContent);
+  };
+
+  renderSppdFile({
+    nama: it.pelaksana_nama,
+    nip: it.pelaksana_nip,
+    pangkat: it.pelaksana_pangkat,
+    jabatan: it.pelaksana_jabatan
+  }, 1);
+
+  // 3. Render SPPD untuk pengikut jika ada
+  let pengikutList = [];
+  try {
+    pengikutList = Array.isArray(it.pengikut) ? it.pengikut : JSON.parse(it.pengikut || "[]");
+  } catch (_) {
+    pengikutList = [];
+  }
+
+  pengikutList.forEach((p, idx) => {
+    renderSppdFile(p, idx + 2);
+  });
+
+  const blob = zipOut.generate({
+    type: "blob",
+    mimeType: "application/zip",
+    compression: "DEFLATE"
+  });
+
+  unduhBlob(blob, `PAKET_SPPD_${cleanNo}.zip`);
   return true;
 }
 
@@ -321,7 +447,7 @@ export function bangunHtmlSPT(it) {
             <div>Ditetapkan di : ${t.DitetapkanDi}</div>
             <div>Pada Tanggal : ${t.TanggalSurat}</div>
             <div style="font-weight: bold; margin-top: 6px; line-height: 1.3;">
-              KEPALA BAPPERIDA<br/>
+              ${t.JabatanTtd}<br/>
               KABUPATEN SUMBA BARAT,
             </div>
             <div style="height: 60px;"></div>
@@ -487,7 +613,7 @@ export function bangunHtmlSPPD(it, person = null) {
               <div>Ditetapkan di : ${t.DitetapkanDi}</div>
               <div>Pada Tanggal : ${t.TanggalPenetapan}</div>
               <div style="font-weight: bold; margin-top: 4px; line-height: 1.3;">
-                Kepala Bapperida Kabupaten Sumba Barat,
+                ${t.JabatanTtd}<br/>KABUPATEN SUMBA BARAT,
               </div>
               <div style="height: 44px;"></div>
               <div style="font-weight: bold; text-decoration: underline;">${t.KepalaNama}</div>
@@ -594,6 +720,7 @@ export async function unduhSuratTugasPdf(it) {
   };
 
   try {
+    const html2pdf = await getHtml2Pdf();
     await html2pdf().set(opt).from(container).save();
     return true;
   } catch (err) {
@@ -628,6 +755,7 @@ export async function unduhSppdPdf(it, person = null) {
   };
 
   try {
+    const html2pdf = await getHtml2Pdf();
     await html2pdf().set(opt).from(container).save();
     return true;
   } catch (err) {
