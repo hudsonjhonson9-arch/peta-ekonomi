@@ -1747,6 +1747,18 @@ export function daftarkanRuteSatuData(app, pool, queryDB) {
         ],
       },
       {
+        key: 'agenda_sppd',
+        label: 'Agenda Surat & SPPD',
+        deskripsi: 'Pengelolaan agenda surat masuk, surat keluar, penugasan SPT, dan SPPD',
+        permissions: [
+          { key: 'agenda.read', label: 'Lihat Agenda & SPPD', desc: 'Melihat daftar surat masuk, surat keluar, dan SPPD' },
+          { key: 'agenda.create', label: 'Buat Agenda / SPPD', desc: 'Mencatat surat baru atau menerbitkan SPT/SPPD' },
+          { key: 'agenda.update', label: 'Edit Agenda / SPPD', desc: 'Memperbarui data agenda, personil, atau rincian biaya' },
+          { key: 'agenda.delete', label: 'Hapus Agenda / SPPD', desc: 'Menghapus data agenda atau SPPD dari sistem' },
+          { key: 'agenda.wewenang', label: 'Pengaturan Wewenang', desc: 'Mengatur pejabat penandatangan dan paraf hierarki' },
+        ],
+      },
+      {
         key: 'bankdata',
         label: 'Bank Data & Satu Data',
         deskripsi: 'Pengelolaan data statistik sektoral, IKU, dan IKK',
@@ -1830,6 +1842,8 @@ export function daftarkanRuteSatuData(app, pool, queryDB) {
       { key: 'dokumen', label: 'Dokumen', group: 'Arsip Digital' },
       { key: 'upload', label: 'Upload Dokumen', group: 'Arsip Digital' },
       { key: 'pencarian', label: 'Pencarian', group: 'Arsip Digital' },
+      { key: 'agenda-surat', label: 'Agenda Surat', group: 'Arsip Digital' },
+      { key: 'agenda-sppd', label: 'SPT & SPPD', group: 'Arsip Digital' },
       { key: 'publik', label: 'Portal Publik', group: 'Arsip Digital' },
       { key: 'kertas-kerja', label: 'Kertas Kerja', group: 'Perencanaan' },
       { key: 'screening', label: 'Screening RKA', group: 'Perencanaan' },

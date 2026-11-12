@@ -23,7 +23,97 @@ export function formatNomorSuratKeluar(kode, noUrut, bulan, tahun) {
   return `BAPPERIDA.011.7/53.12/${padUrut}/${romawi}/${tahun}`;
 }
 
+export const DEFAULT_WEWENANG = {
+  kepala: {
+    status: 'Definitif',
+    jabatan: 'Kepala BAPPERIDA',
+    nama: 'CHARLES HERMANA WERU,S.Sos',
+    pangkat: 'Pembina Utama Muda – IV/c',
+    nip: '19721102 200112 1 001'
+  },
+  sekretaris: {
+    nama: 'IMANUEL MOSES KALEGOTAN, ST.,M.Si',
+    nip: '19800315 200501 1 011',
+    pangkat: 'Pembina Tk. I - IV/b',
+    jabatan: 'Sekretaris BAPPERIDA'
+  },
+  bidang: {
+    nama: 'BERLIAN MAGU WERU,S.Sos',
+    nip: '19690619 200903 1 001',
+    jabatan: 'Kepala Bidang PPE'
+  },
+  ktu: {
+    nama: '',
+    nip: '',
+    jabatan: 'Kasubbag Umum & Kepegawaian'
+  },
+  paraf: [
+    'Sekretaris BAPPERIDA',
+    'Kepala Bidang Terkait',
+    'Kasubbag Umum & Kepegawaian'
+  ]
+};
+
 export function daftarkanRuteAgenda(app, pool, queryDB) {
+  // DDL idempoten: tabel pengaturan wewenang & penandatangan agenda/sppd
+  queryDB(`
+    CREATE TABLE IF NOT EXISTS agenda_pengaturan_wewenang (
+      id SERIAL PRIMARY KEY,
+      key VARCHAR(64) UNIQUE NOT NULL,
+      value JSONB NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+    ALTER TABLE agenda_sppd ADD COLUMN IF NOT EXISTS penandatangan JSONB, ADD COLUMN IF NOT EXISTS paraf JSONB;
+  `).catch((e) => console.error('[Agenda] DDL wewenang/agenda_sppd gagal:', e.message));
+
+  // ════════════════════════════════════════════════════════
+  // 0. PENGATURAN WEWENANG PENANDATANGAN & PARAF
+  // ════════════════════════════════════════════════════════
+  app.get('/api/agenda/wewenang', async (req, res) => {
+    try {
+      const result = await queryDB(
+        `SELECT value FROM agenda_pengaturan_wewenang WHERE key = 'sppd_wewenang' LIMIT 1`
+      );
+      if (result.rows && result.rows.length > 0) {
+        return res.json({ success: true, data: result.rows[0].value });
+      }
+      return res.json({ success: true, data: DEFAULT_WEWENANG });
+    } catch (err) {
+      console.error('[Agenda] Gagal ambil pengaturan wewenang:', err);
+      return res.status(500).json({ error: 'Gagal mengambil pengaturan wewenang' });
+    }
+  });
+
+  app.post('/api/agenda/wewenang', async (req, res) => {
+    try {
+      const payload = req.body.value || req.body;
+      if (!payload || typeof payload !== 'object') {
+        return res.status(400).json({ error: 'Data wewenang tidak valid' });
+      }
+      const merged = {
+        ...DEFAULT_WEWENANG,
+        ...payload,
+        kepala: { ...DEFAULT_WEWENANG.kepala, ...(payload.kepala || {}) },
+        sekretaris: { ...DEFAULT_WEWENANG.sekretaris, ...(payload.sekretaris || {}) },
+        bidang: { ...DEFAULT_WEWENANG.bidang, ...(payload.bidang || {}) },
+        ktu: { ...DEFAULT_WEWENANG.ktu, ...(payload.ktu || {}) },
+        paraf: Array.isArray(payload.paraf) && payload.paraf.length ? payload.paraf : DEFAULT_WEWENANG.paraf
+      };
+
+      const result = await queryDB(
+        `INSERT INTO agenda_pengaturan_wewenang (key, value, updated_at)
+         VALUES ('sppd_wewenang', $1::jsonb, NOW())
+         ON CONFLICT (key) DO UPDATE
+         SET value = EXCLUDED.value, updated_at = NOW()
+         RETURNING *`,
+        [JSON.stringify(merged)]
+      );
+      return res.json({ success: true, data: result.rows[0].value });
+    } catch (err) {
+      console.error('[Agenda] Gagal simpan pengaturan wewenang:', err);
+      return res.status(500).json({ error: 'Gagal menyimpan pengaturan wewenang' });
+    }
+  });
   // ════════════════════════════════════════════════════════
   // 1. AGENDA SURAT MASUK
   // ════════════════════════════════════════════════════════
@@ -600,7 +690,9 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
         total_biaya = 0,
         file_spt_url = null,
         file_sppd_url = null,
-        surat_masuk_ref_id = null
+        surat_masuk_ref_id = null,
+        penandatangan = null,
+        paraf = null
       } = req.body;
 
       if (!pelaksana_nip || !pelaksana_nama || !maksud_perjalanan || !tempat_tujuan || !tanggal_berangkat || !tanggal_kembali) {
@@ -631,8 +723,8 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
           maksud_perjalanan, tempat_berangkat, tempat_tujuan, provinsi_tujuan, rute_perjalanan,
           alat_angkutan, tanggal_berangkat, tanggal_kembali, lama_hari,
           subkegiatan_id, subkegiatan_nama, kode_rekening, rincian_biaya, total_biaya,
-          file_spt_url, file_sppd_url, surat_masuk_ref_id, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25::jsonb, $26, $27, $28, $29, $30)
+          file_spt_url, file_sppd_url, surat_masuk_ref_id, created_by, penandatangan, paraf)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25::jsonb, $26, $27, $28, $29, $30, $31::jsonb, $32::jsonb)
          RETURNING *`,
         [
           jenis_sppd, tahun, nomor_register, nomor_spt || nomor_register, nomor_sppd || nomor_register, tanggal_spt, pejabat_perintah,
@@ -640,7 +732,8 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
           maksud_perjalanan, tempat_berangkat, tempat_tujuan, provinsi_tujuan, rute_perjalanan,
           alat_angkutan, tanggal_berangkat, tanggal_kembali, lama_hari,
           subkegiatan_id, subkegiatan_nama, kode_rekening, JSON.stringify(rincian_biaya), total_biaya,
-          file_spt_url, file_sppd_url, surat_masuk_ref_id, userCreator
+          file_spt_url, file_sppd_url, surat_masuk_ref_id, userCreator,
+          penandatangan ? JSON.stringify(penandatangan) : null, paraf ? JSON.stringify(paraf) : null
         ]
       );
 
@@ -722,6 +815,8 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
              file_sppd_url = COALESCE($25, file_sppd_url),
              file_lhp_url = COALESCE($26, file_lhp_url),
              status = COALESCE($27, status),
+             penandatangan = CASE WHEN $29::jsonb IS NOT NULL THEN $29::jsonb ELSE penandatangan END,
+             paraf = CASE WHEN $30::jsonb IS NOT NULL THEN $30::jsonb ELSE paraf END,
              updated_at = NOW()
          WHERE id = $28
          RETURNING *`,
@@ -734,7 +829,9 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
           subkegiatan_id, subkegiatan_nama, kode_rekening,
           rincian_biaya ? JSON.stringify(rincian_biaya) : null,
           total_biaya, file_spt_url, file_sppd_url, file_lhp_url, status,
-          id
+          id,
+          req.body.penandatangan ? JSON.stringify(req.body.penandatangan) : null,
+          req.body.paraf ? JSON.stringify(req.body.paraf) : null
         ]
       );
 
