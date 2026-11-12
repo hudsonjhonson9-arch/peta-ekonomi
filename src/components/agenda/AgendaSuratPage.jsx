@@ -2,6 +2,7 @@ import { useState, useEffect, useContext, useMemo, useRef } from "react";
 import { ThemeContext } from "../../App.jsx";
 import { useIsDark, Icon, Modal, Select, Button, DatePicker } from "../ui.jsx";
 import useResponsive from "../../useResponsive.js";
+import ModalPengaturanWewenang from "./ModalPengaturanWewenang.jsx";
 
 const KODE_KLASIFIKASI_LIST = [
   { kode: "050", label: "050 - Perencanaan Pembangunan Daerah" },
@@ -495,7 +496,16 @@ export default function AgendaSuratPage({ user, showToast }) {
   const [modalHapus, setModalHapus] = useState(null); // { jenis: 'masuk'|'keluar', data }
   const [modalKamera, setModalKamera] = useState(false);
   const [modalLightboxFoto, setModalLightboxFoto] = useState(null); // { url, title }
+  const [modalWewenang, setModalWewenang] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [pegawaiList, setPegawaiList] = useState([]);
+
+  useEffect(() => {
+    fetch("/api/agenda/pegawai-list")
+      .then((r) => r.json())
+      .then((j) => { if (j.ok) setPegawaiList(j.items || []); })
+      .catch(() => {});
+  }, []);
 
   const notif = (msg) => {
     if (showToast) showToast(msg);
@@ -1256,6 +1266,15 @@ export default function AgendaSuratPage({ user, showToast }) {
               Booking Nomor Surat
             </Button>
           )}
+
+          <Button
+            variant="secondary"
+            icon="settings"
+            onClick={() => setModalWewenang(true)}
+            title="Pengaturan pejabat penandatangan dan paraf hierarki"
+          >
+            Wewenang
+          </Button>
         </div>
       </div>
 
@@ -3137,6 +3156,18 @@ export default function AgendaSuratPage({ user, showToast }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL: PENGATURAN WEWENANG */}
+      {modalWewenang && (
+        <ModalPengaturanWewenang
+          onClose={() => setModalWewenang(false)}
+          pegawaiList={pegawaiList}
+          showToast={showToast}
+          onSaved={() => {
+            notif("Pengaturan wewenang berhasil disimpan.");
+          }}
+        />
       )}
     </div>
   );

@@ -5,11 +5,14 @@ import useResponsive from "../../useResponsive.js";
 import {
   unduhSuratTugasDocx,
   unduhSppdDocx,
+  unduhBundleSppdZip,
   unduhSuratTugasPdf,
   unduhSppdPdf,
   cetakSuratTugasWindow,
   cetakSppdWindow
 } from "../../utils/sppdDocxGenerator.js";
+import ModalPengaturanWewenang from "./ModalPengaturanWewenang.jsx";
+import ModalPratinjauDokumen from "./ModalPratinjauDokumen.jsx";
 
 const PEJABAT_PERINTAH_LIST = [
   "Kepala BAPPERIDA",
@@ -63,6 +66,8 @@ export default function AgendaSppdPage({ user, showToast }) {
   const [modalDetail, setModalDetail] = useState(null); // { data }
   const [modalHapus, setModalHapus] = useState(null); // { data }
   const [modalCetak, setModalCetak] = useState(null); // { item }
+  const [modalWewenang, setModalWewenang] = useState(false);
+  const [modalPratinjau, setModalPratinjau] = useState(null); // { item }
   const [isGeneratingDocx, setIsGeneratingDocx] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [pegawaiList, setPegawaiList] = useState([]);
@@ -140,6 +145,19 @@ export default function AgendaSppdPage({ user, showToast }) {
 
   const cetakSPPD = (it, person = null) => {
     cetakSppdWindow(it, person);
+  };
+
+  const unduhZipBundle = async (it) => {
+    setIsGeneratingDocx(true);
+    try {
+      notif("Menyiapkan paket ZIP (SPT + semua SPPD)…");
+      await unduhBundleSppdZip(it);
+      notif("Paket ZIP berhasil diunduh!");
+    } catch (err) {
+      notif("Gagal membuat ZIP: " + (err?.message || err));
+    } finally {
+      setIsGeneratingDocx(false);
+    }
   };
 
 
@@ -527,6 +545,15 @@ export default function AgendaSppdPage({ user, showToast }) {
           >
             Ambil Nomor SPPD ({jenis === "DALAM_DAERAH" ? "Dalam Daerah" : "Luar Daerah"})
           </Button>
+
+          <Button
+            variant="secondary"
+            icon="settings"
+            onClick={() => setModalWewenang(true)}
+            title="Pengaturan pejabat penandatangan dan paraf hierarki"
+          >
+            Wewenang
+          </Button>
         </div>
       </div>
 
@@ -812,6 +839,31 @@ export default function AgendaSppdPage({ user, showToast }) {
 
                     <td style={{ padding: "11px 14px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: 5, justifyContent: "flex-end", alignItems: "center" }}>
+                        {/* Tombol Pratinjau Dokumen */}
+                        <button
+                          type="button"
+                          title="Pratinjau & Cetak SPT / SPPD"
+                          onClick={() => setModalPratinjau({ item: it })}
+                          style={{
+                            height: 28,
+                            padding: "0 9px",
+                            borderRadius: 6,
+                            border: `1px solid ${isDark ? "rgba(16,185,129,0.4)" : "#A7F3D0"}`,
+                            background: isDark ? "rgba(5,150,105,0.15)" : "#ECFDF5",
+                            color: isDark ? "#34D399" : "#059669",
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 5,
+                            transition: "all 0.15s ease"
+                          }}
+                        >
+                          <Icon name="eye" size={12} />
+                          <span>Pratinjau</span>
+                        </button>
+
                         {/* Tombol Cetak / Unduh Dokumen Resmi */}
                         <button
                           type="button"
@@ -1981,6 +2033,27 @@ export default function AgendaSppdPage({ user, showToast }) {
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* MODAL: PENGATURAN WEWENANG */}
+      {modalWewenang && (
+        <ModalPengaturanWewenang
+          onClose={() => setModalWewenang(false)}
+          pegawaiList={pegawaiList}
+          showToast={showToast}
+          onSaved={(data) => {
+            notif("Wewenang diperbarui. Dokumen berikutnya akan menggunakan konfigurasi baru.");
+          }}
+        />
+      )}
+
+      {/* MODAL: PRATINJAU DOKUMEN */}
+      {modalPratinjau && (
+        <ModalPratinjauDokumen
+          item={modalPratinjau.item}
+          onClose={() => setModalPratinjau(null)}
+          showToast={showToast}
+        />
       )}
     </div>
   );

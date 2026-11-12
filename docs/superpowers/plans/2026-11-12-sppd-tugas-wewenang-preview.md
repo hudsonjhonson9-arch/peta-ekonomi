@@ -132,3 +132,4 @@
   - Angka, NIP, tanggal menggunakan `tabular-nums` atau `font-mono`.
   - Contrast dan radius sudut konsisten dengan tema SandalWoods / Peta Ekonomi.
 - [ ] **Step 4: Commit akhir & laporan ke user**: `chore: finalisasi sistem sppd tugas wewenang dan preview`
+
