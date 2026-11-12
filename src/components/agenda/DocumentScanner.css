@@ -1,0 +1,263 @@
+.ds-root {
+  --ds-ink: #18212b;
+  --ds-ink-soft: #4a5766;
+  --ds-line: #c9d0d8;
+  --ds-ground: #eceff2;
+  --ds-white: #ffffff;
+  --ds-blue: #1f5fbf;
+  --ds-blue-dark: #194c99;
+  --ds-found: #e3a33a;
+  --ds-locked: #3fbf75;
+  --ds-danger: #a3281f;
+  --ds-radius: 4px;
+
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  background: var(--ds-ground);
+  color: var(--ds-ink);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.ds-root *,
+.ds-root *::before,
+.ds-root *::after {
+  box-sizing: border-box;
+}
+
+/* Header */
+.ds-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  padding-top: max(10px, env(safe-area-inset-top));
+  background: var(--ds-white);
+  border-bottom: 1px solid var(--ds-line);
+}
+
+.ds-title {
+  margin: 0;
+  margin-right: auto;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.ds-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ds-ink-soft);
+}
+
+.ds-size select {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius);
+  background: var(--ds-white);
+  color: var(--ds-ink);
+  font: inherit;
+}
+
+/* Area kamera */
+.ds-stagewrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ds-ink);
+}
+
+.ds-stage {
+  position: absolute;
+  inset: 0;
+}
+
+.ds-stage[hidden] {
+  display: none;
+}
+
+.ds-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ds-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.ds-preview {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  background: var(--ds-white);
+}
+
+.ds-status {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 4px solid var(--ds-line);
+  border-radius: var(--ds-radius);
+  background: rgba(24, 33, 43, 0.86);
+  color: var(--ds-white);
+}
+
+.ds-status--found {
+  border-left-color: var(--ds-found);
+}
+
+.ds-status--locked {
+  border-left-color: var(--ds-locked);
+}
+
+.ds-error {
+  max-width: 34ch;
+  margin: 0;
+  padding: 16px;
+  color: var(--ds-white);
+  text-align: left;
+}
+
+/* Bagian bawah */
+.ds-foot {
+  padding: 10px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  background: var(--ds-white);
+  border-top: 1px solid var(--ds-line);
+}
+
+.ds-strip {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 0 0 4px;
+  list-style: none;
+  overflow-x: auto;
+}
+
+.ds-thumb {
+  position: relative;
+  display: block;
+  width: 52px;
+  height: 72px;
+  padding: 0;
+  border: 2px solid var(--ds-line);
+  border-radius: var(--ds-radius);
+  background: var(--ds-ground);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.ds-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ds-thumb span {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  min-width: 18px;
+  padding: 0 4px;
+  background: var(--ds-ink);
+  color: var(--ds-white);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.ds-thumb.is-active {
+  border-color: var(--ds-blue);
+}
+
+.ds-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ds-notice {
+  margin: 10px 0 0;
+  color: var(--ds-ink-soft);
+}
+
+/* Tombol */
+.ds-btn {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: var(--ds-radius);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ds-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ds-btn--primary {
+  flex: 1 1 160px;
+  background: var(--ds-blue);
+  color: var(--ds-white);
+}
+
+.ds-btn--primary:hover:not(:disabled) {
+  background: var(--ds-blue-dark);
+}
+
+.ds-btn--outline {
+  flex: 1 1 160px;
+  border-color: var(--ds-ink);
+  background: var(--ds-white);
+  color: var(--ds-ink);
+}
+
+.ds-btn--quiet {
+  border-color: var(--ds-line);
+  background: var(--ds-white);
+  color: var(--ds-ink);
+  font-weight: 500;
+}
+
+.ds-btn--danger {
+  border-color: var(--ds-danger);
+  background: var(--ds-white);
+  color: var(--ds-danger);
+}
+
+.ds-root :focus-visible {
+  outline: 3px solid var(--ds-blue);
+  outline-offset: 2px;
+}
+
+.ds-stagewrap :focus-visible {
+  outline-color: var(--ds-white);
+}
+
+@media (max-width: 480px) {
+  .ds-size span {
+    display: none;
+  }
+}

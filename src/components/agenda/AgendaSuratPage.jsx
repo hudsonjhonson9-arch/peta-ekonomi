@@ -3,6 +3,19 @@ import { ThemeContext } from "../../App.jsx";
 import { useIsDark, Icon, Modal, Select, Button, DatePicker } from "../ui.jsx";
 import useResponsive from "../../useResponsive.js";
 import ModalPengaturanWewenang from "./ModalPengaturanWewenang.jsx";
+import DocumentScanner from "./DocumentScanner.jsx";
+
+// Chrome memblokir navigasi ke data URL di tab baru, jadi diubah ke Blob URL dulu.
+async function bukaBerkas(url) {
+  try {
+    const blob = await (await fetch(url)).blob();
+    const blobUrl = URL.createObjectURL(blob);
+    window.open(blobUrl, "_blank");
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+  } catch {
+    window.open(url, "_blank");
+  }
+}
 
 const KODE_KLASIFIKASI_LIST = [
   { kode: "050", label: "050 - Perencanaan Pembangunan Daerah" },
@@ -495,10 +508,19 @@ export default function AgendaSuratPage({ user, showToast }) {
   const [modalDetail, setModalDetail] = useState(null); // { jenis: 'masuk'|'keluar', data }
   const [modalHapus, setModalHapus] = useState(null); // { jenis: 'masuk'|'keluar', data }
   const [modalKamera, setModalKamera] = useState(false);
+  const [modalScan, setModalScan] = useState(false);
   const [modalLightboxFoto, setModalLightboxFoto] = useState(null); // { url, title }
   const [modalWewenang, setModalWewenang] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [pegawaiList, setPegawaiList] = useState([]);
+
+  // Foto dibuka di lightbox, PDF/tautan dibuka di tab baru
+  const lihatBerkas = (url, title) => {
+    if (!url) return;
+    if (url.startsWith("data:image")) setModalLightboxFoto({ url, title });
+    else if (url.startsWith("data:")) bukaBerkas(url);
+    else window.open(url, "_blank", "noopener");
+  };
 
   useEffect(() => {
     fetch("/api/agenda/pegawai-list")
@@ -1549,12 +1571,7 @@ export default function AgendaSuratPage({ user, showToast }) {
                         {it.file_url && (
                           <button
                             type="button"
-                            onClick={() =>
-                              setModalLightboxFoto({
-                                url: it.file_url,
-                                title: `Foto Fisik: ${it.nomor_agenda} (${it.asal_surat})`
-                              })
-                            }
+                            onClick={() => lihatBerkas(it.file_url, `Foto Fisik: ${it.nomor_agenda} (${it.asal_surat})`)}
                             style={{
                               marginTop: 4,
                               padding: "2px 7px",
@@ -2024,11 +2041,11 @@ export default function AgendaSuratPage({ user, showToast }) {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                 <button
                   type="button"
-                  onClick={() => setModalKamera(true)}
+                  onClick={() => setModalScan(true)}
                   style={{
                     padding: "9px 12px",
                     borderRadius: 8,
-                    border: `1.5px solid ${modalMasuk.data.file_url?.startsWith("data:image") ? T.primary : T.border}`,
+                    border: `1.5px solid ${modalMasuk.data.file_url?.startsWith("data:") ? T.primary : T.border}`,
                     background: isDark ? "#1E293B" : "#fff",
                     color: T.text,
                     fontSize: 12,
@@ -2042,7 +2059,7 @@ export default function AgendaSuratPage({ user, showToast }) {
                   }}
                 >
                   <Icon name="camera" size={14} />
-                  <span>Ambil Foto</span>
+                  <span>Pindai Surat</span>
                 </button>
 
                 <label
@@ -2141,10 +2158,10 @@ export default function AgendaSuratPage({ user, showToast }) {
                   </div>
 
                   <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-                    {modalMasuk.data.file_url.startsWith("data:image") && (
+                    {modalMasuk.data.file_url.startsWith("data:") && (
                       <button
                         type="button"
-                        onClick={() => setModalLightboxFoto({ url: modalMasuk.data.file_url, title: "Foto Fisik Surat Masuk" })}
+                        onClick={() => lihatBerkas(modalMasuk.data.file_url, "Foto Fisik Surat Masuk")}
                         style={{
                           padding: "4px 8px",
                           borderRadius: 6,
@@ -2258,10 +2275,10 @@ export default function AgendaSuratPage({ user, showToast }) {
                     <button
                       type="button"
                       onClick={() =>
-                        setModalLightboxFoto({
-                          url: modalDisposisi.surat.file_url,
-                          title: `Foto Fisik: ${modalDisposisi.surat.nomor_agenda} (${modalDisposisi.surat.asal_surat})`
-                        })
+                        lihatBerkas(
+                          modalDisposisi.surat.file_url,
+                          `Foto Fisik: ${modalDisposisi.surat.nomor_agenda} (${modalDisposisi.surat.asal_surat})`
+                        )
                       }
                       style={{
                         padding: "6px 12px",
@@ -2948,7 +2965,18 @@ export default function AgendaSuratPage({ user, showToast }) {
                         <Icon name="camera" size={13} /> Lihat Foto Fisik Surat
                       </button>
                     ) : (
-                      <a href={modalDetail.data.file_url} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: T.primary, textDecoration: "none", fontWeight: 600 }}>
+                      <a
+                        href={modalDetail.data.file_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => {
+                          if (modalDetail.data.file_url.startsWith("data:")) {
+                            e.preventDefault();
+                            bukaBerkas(modalDetail.data.file_url);
+                          }
+                        }}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: T.primary, textDecoration: "none", fontWeight: 600 }}
+                      >
                         <Icon name="link" size={13} /> Berkas Surat Masuk
                       </a>
                     )
@@ -3044,6 +3072,33 @@ export default function AgendaSuratPage({ user, showToast }) {
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* MODAL KAMERA LANGSUNG AMBIL FOTO SURAT */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
+      {modalScan && (
+        <DocumentScanner
+          defaultSize="F4"
+          fileName={`surat-${String(modalMasuk?.data?.nomor_surat_asli || "masuk").replace(/[^\w-]+/g, "_")}`}
+          onClose={() => setModalScan(false)}
+          onSave={async (file, info) => {
+            const dataUrl = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = () => reject(reader.error);
+              reader.readAsDataURL(file);
+            });
+            // Batas body server 10 MB; data URL ~33% lebih besar dari file aslinya
+            if (dataUrl.length > 9 * 1024 * 1024) {
+              throw Object.assign(new Error("PDF terlalu besar"), {
+                userMessage: "PDF terlalu besar untuk disimpan (maksimal sekitar 6 MB). Kurangi jumlah halaman, lalu simpan lagi.",
+              });
+            }
+            setModalMasuk((prev) =>
+              prev ? { ...prev, data: { ...prev.data, file_url: dataUrl, file_name: file.name } } : prev
+            );
+            setModalScan(false);
+            notif(`PDF ${info.pageCount} halaman terlampir. Klik "Simpan Surat Masuk" untuk menyimpan.`);
+          }}
+        />
+      )}
+
       <CameraCaptureModal
         isOpen={modalKamera}
         onClose={() => setModalKamera(false)}
