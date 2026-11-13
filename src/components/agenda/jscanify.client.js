@@ -10,6 +10,9 @@
  * gagal di image Docker node:alpine. Versi browser hanya butuh file ini plus
  * OpenCV.js yang dimuat sebagai global `window.cv`.
  *
+ * Perubahan dari aslinya: objek hasil contours.get(i) kini dilepas (delete) agar
+ * memori WebAssembly tidak terus bertambah selama kamera terbuka.
+ *
  * MIT License
  *
  * Copyright (c) 2023 ColonelParrot
@@ -41,7 +44,7 @@ export default class Jscanify {
   /**
    * Mencari kontur kertas terbesar di dalam gambar.
    * @param {*} img cv.Mat
-   * @returns kontur terbesar, atau null
+   * @returns kontur terbesar (panggil .delete() setelah dipakai), atau null
    */
   findPaperContour(img) {
     const cv = window.cv;
@@ -62,7 +65,9 @@ export default class Jscanify {
     let maxArea = 0;
     let maxContourIndex = -1;
     for (let i = 0; i < contours.size(); ++i) {
-      const area = cv.contourArea(contours.get(i));
+      const contour = contours.get(i);
+      const area = cv.contourArea(contour);
+      contour.delete();
       if (area > maxArea) {
         maxArea = area;
         maxContourIndex = i;
@@ -84,7 +89,8 @@ export default class Jscanify {
    * @param {*} image canvas / img / video yang bisa dibaca cv.imread
    * @param {*} resultWidth lebar hasil
    * @param {*} resultHeight tinggi hasil
-   * @param {*} cornerPoints opsional: titik sudut manual
+   * @param {*} cornerPoints opsional: titik sudut yang sudah diketahui
+   *            ({ topLeftCorner, topRightCorner, bottomLeftCorner, bottomRightCorner })
    * @returns HTMLCanvasElement, atau null bila kertas tidak ditemukan
    */
   extractPaper(image, resultWidth, resultHeight, cornerPoints) {
@@ -93,7 +99,7 @@ export default class Jscanify {
     const img = cv.imread(image);
     const maxContour = cornerPoints ? null : this.findPaperContour(img);
 
-    if (maxContour == null && cornerPoints === undefined) {
+    if (!cornerPoints && maxContour == null) {
       img.delete();
       return null;
     }

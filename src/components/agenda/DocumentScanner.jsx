@@ -3,7 +3,9 @@ import jsPDF from "jspdf";
 import Jscanify from "./jscanify.client.js";
 import "./DocumentScanner.css";
 
-const OPENCV_SRC = "https://docs.opencv.org/4.7.0/opencv.js";
+const OPENCV_SRC = "/opencv.js"; // di-host sendiri di folder public/
+const OPENCV_CDN = "https://docs.opencv.org/4.7.0/opencv.js"; // cadangan bila file lokal tidak ada
+const LOAD_TIMEOUT_MS = 90000;
 
 const SIZES = {
   A4: { label: "A4", w: 210, h: 297 },
@@ -12,12 +14,13 @@ const SIZES = {
 
 const SHORT_SIDE_PX = 1240; // sisi pendek hasil scan (A4 kira-kira 150 dpi)
 const JPEG_QUALITY = 0.8;
-const DETECT_WIDTH = 480; // lebar frame untuk deteksi, supaya ringan
-const DETECT_INTERVAL_MS = 120;
+const DETECT_WIDTH = 360; // lebar frame untuk deteksi, supaya ringan
+const DETECT_INTERVAL_MS = 200;
 const MIN_AREA_RATIO = 0.15; // kertas harus menutupi minimal 15% frame
 const STABLE_FRAMES = 4;
 const MOVE_TOLERANCE = 0.02; // pergeseran sudut maksimum (rasio lebar frame)
 const MAX_MISSES = 3;
+const EDGE_MARGIN_RATIO = 0.02; // sudut yang lebih dekat dari ini ke tepi frame dianggap terpotong
 
 const CORNER_KEYS = [
   "topLeftCorner",
@@ -37,37 +40,66 @@ function quadArea(q) {
   return Math.abs(sum) / 2;
 }
 
+// Pilih alamat opencv.js yang benar-benar ada. Di server dev Vite, file yang tidak
+// ada dijawab dengan index.html (status 200), jadi tipe kontennya ikut dicek.
+async function pilihSumber(src) {
+  if (/^https?:\/\//.test(src)) return src;
+  try {
+    const res = await fetch(src, { method: "HEAD" });
+    if (res.ok && /javascript/i.test(res.headers.get("content-type") || "")) return src;
+  } catch {
+    // lanjut ke cadangan
+  }
+  return OPENCV_CDN;
+}
+
+// Tunggu sampai cv.Mat tersedia. Sengaja memakai polling dan tidak me-resolve dengan
+// objek cv itu sendiri: pada sebagian build cv bersifat "thenable", dan me-resolve
+// dengannya membuat promise menggantung selamanya.
+function tungguOpenCV() {
+  return new Promise((resolve, reject) => {
+    const mulai = Date.now();
+    let terhubung = false;
+    const cek = () => {
+      const cv = window.cv;
+      if (cv && cv.Mat) {
+        resolve();
+        return;
+      }
+      if (cv && typeof cv.then === "function" && !terhubung) {
+        terhubung = true;
+        cv.then((modul) => {
+          if (modul && modul.Mat) window.cv = modul;
+        });
+      }
+      if (Date.now() - mulai > LOAD_TIMEOUT_MS) {
+        reject(new Error("OpenCV terlalu lama dimuat"));
+        return;
+      }
+      setTimeout(cek, 150);
+    };
+    cek();
+  });
+}
+
 let opencvPromise = null;
 function loadOpenCV(src) {
   if (opencvPromise) return opencvPromise;
-  opencvPromise = new Promise((resolve, reject) => {
-    if (window.cv && window.cv.Mat) {
-      resolve(window.cv);
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = src;
-    script.async = true;
-    script.onload = () => {
-      const cv = window.cv;
-      if (cv && cv.Mat) {
-        resolve(cv);
-      } else if (cv && typeof cv.then === "function") {
-        cv.then((ready) => {
-          window.cv = ready;
-          resolve(ready);
-        });
-      } else if (cv) {
-        cv.onRuntimeInitialized = () => resolve(window.cv);
-      } else {
-        reject(new Error("OpenCV tidak tersedia"));
-      }
-    };
-    script.onerror = () => {
-      opencvPromise = null;
-      reject(new Error("OpenCV gagal dimuat"));
-    };
-    document.body.appendChild(script);
+  opencvPromise = (async () => {
+    if (window.cv && window.cv.Mat) return;
+    const url = await pilihSumber(src);
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = url;
+      script.async = true;
+      script.onload = resolve;
+      script.onerror = () => reject(new Error("OpenCV gagal dimuat"));
+      document.body.appendChild(script);
+    });
+    await tungguOpenCV();
+  })().catch((err) => {
+    opencvPromise = null;
+    throw err;
   });
   return opencvPromise;
 }
@@ -87,7 +119,17 @@ function detectQuad(scanner, canvas) {
     if (quadArea(quad) < canvas.width * canvas.height * MIN_AREA_RATIO) {
       return null;
     }
-    return quad;
+    // Jika ada sudut yang menempel di tepi frame, kertas kemungkinan terpotong
+    // dan hasil pelurusan perspektif tidak bisa dipercaya.
+    const margin = canvas.width * EDGE_MARGIN_RATIO;
+    const touchesEdge = quad.some(
+      (p) =>
+        p.x < margin ||
+        p.y < margin ||
+        p.x > canvas.width - margin ||
+        p.y > canvas.height - margin
+    );
+    return { quad, touchesEdge };
   } catch {
     return null;
   } finally {
@@ -96,7 +138,7 @@ function detectQuad(scanner, canvas) {
   }
 }
 
-function drawOverlay(canvas, video, quad, scale, locked) {
+function drawOverlay(canvas, video, quad, scale, locked, warn) {
   const dpr = window.devicePixelRatio || 1;
   const cw = canvas.clientWidth;
   const ch = canvas.clientHeight;
@@ -123,11 +165,15 @@ function drawOverlay(canvas, video, quad, scale, locked) {
     else ctx.lineTo(x, y);
   });
   ctx.closePath();
-  ctx.fillStyle = locked ? "rgba(63,191,117,0.16)" : "rgba(227,163,58,0.14)";
+  ctx.fillStyle = warn
+    ? "rgba(229,103,79,0.14)"
+    : locked
+    ? "rgba(63,191,117,0.16)"
+    : "rgba(227,163,58,0.14)";
   ctx.fill();
   ctx.lineWidth = 3;
   ctx.lineJoin = "round";
-  ctx.strokeStyle = locked ? "#3fbf75" : "#e3a33a";
+  ctx.strokeStyle = warn ? "#e5674f" : locked ? "#3fbf75" : "#e3a33a";
   ctx.stroke();
 }
 
@@ -192,6 +238,7 @@ export default function DocumentScanner({
   const scannerRef = useRef(null);
   const streamRef = useRef(null);
   const quadRef = useRef(null);
+  const edgeRef = useRef(false);
 
   const [cvStatus, setCvStatus] = useState("loading"); // loading | ready | failed
   const [live, setLive] = useState(false);
@@ -298,8 +345,9 @@ export default function DocumentScanner({
         work.height = Math.round(video.videoHeight * scale);
         wctx.drawImage(video, 0, 0, work.width, work.height);
 
-        const quad = detectQuad(scannerRef.current, work);
-        if (quad) {
+        const hasil = detectQuad(scannerRef.current, work);
+        if (hasil) {
+          const { quad } = hasil;
           misses = 0;
           if (prev) {
             const moved = Math.max(...quad.map((p, i) => dist(p, prev[i]))) / DETECT_WIDTH;
@@ -307,15 +355,18 @@ export default function DocumentScanner({
           }
           prev = quad;
           quadRef.current = quad;
+          edgeRef.current = hasil.touchesEdge;
         } else if (++misses >= MAX_MISSES) {
           prev = null;
           stable = 0;
           quadRef.current = null;
+          edgeRef.current = false;
         }
 
-        const locked = !!quadRef.current && stable >= STABLE_FRAMES;
-        setDetect(quadRef.current ? (locked ? "locked" : "found") : "none");
-        drawOverlay(overlay, video, quadRef.current, scale, locked);
+        const touching = !!quadRef.current && edgeRef.current;
+        const locked = !!quadRef.current && !touching && stable >= STABLE_FRAMES;
+        setDetect(!quadRef.current ? "none" : touching ? "edge" : locked ? "locked" : "found");
+        drawOverlay(overlay, video, quadRef.current, scale, locked, touching);
       }
       timer = setTimeout(tick, DETECT_INTERVAL_MS);
     };
@@ -325,6 +376,7 @@ export default function DocumentScanner({
       stopped = true;
       clearTimeout(timer);
       quadRef.current = null;
+      edgeRef.current = false;
       setDetect("none");
     };
   }, [cvStatus, live, inCamera]);
@@ -344,9 +396,10 @@ export default function DocumentScanner({
 
       const size = SIZES[sizeKey];
       const quad = quadRef.current;
+      const terpotong = edgeRef.current;
       let page = null;
 
-      if (cvStatus === "ready" && quad) {
+      if (cvStatus === "ready" && quad && !terpotong) {
         const width = (dist(quad[0], quad[1]) + dist(quad[3], quad[2])) / 2;
         const height = (dist(quad[0], quad[3]) + dist(quad[1], quad[2])) / 2;
         const landscape = width > height;
@@ -354,7 +407,17 @@ export default function DocumentScanner({
         const wpx = landscape ? Math.round(SHORT_SIDE_PX * ratio) : SHORT_SIDE_PX;
         const hpx = landscape ? SHORT_SIDE_PX : Math.round(SHORT_SIDE_PX * ratio);
         try {
-          const out = scannerRef.current.extractPaper(full, wpx, hpx);
+          // Pakai sudut dari deteksi live (diskalakan ke resolusi penuh) supaya hasil
+          // sama persis dengan kotak yang dilihat pengguna, dan tanpa deteksi ulang.
+          const k = full.width / DETECT_WIDTH;
+          const pt = (p) => ({ x: p.x * k, y: p.y * k });
+          const corners = {
+            topLeftCorner: pt(quad[0]),
+            topRightCorner: pt(quad[1]),
+            bottomRightCorner: pt(quad[2]),
+            bottomLeftCorner: pt(quad[3]),
+          };
+          const out = scannerRef.current.extractPaper(full, wpx, hpx, corners);
           if (out && out.width) {
             page = {
               url: out.toDataURL("image/jpeg", JPEG_QUALITY),
@@ -384,8 +447,12 @@ export default function DocumentScanner({
           ph: landscape ? size.w : size.h,
         };
         setNotice(
-          cvStatus === "ready"
+          cvStatus === "ready" && terpotong
+            ? "Kertas terpotong di tepi bingkai, jadi halaman disimpan apa adanya. Mundurkan kamera sampai seluruh kertas terlihat, lalu ambil ulang."
+            : cvStatus === "ready"
             ? "Kertas tidak terdeteksi saat foto diambil, jadi halaman disimpan apa adanya."
+            : cvStatus === "loading"
+            ? "Deteksi tepi belum selesai dimuat, jadi halaman disimpan apa adanya."
             : "Halaman disimpan tanpa pelurusan karena deteksi tepi tidak termuat."
         );
       }
@@ -437,9 +504,11 @@ export default function DocumentScanner({
   if (viewIndex !== null) {
     status = `Halaman ${viewIndex + 1} dari ${pages.length}`;
   } else if (cvStatus === "loading") {
-    status = "Memuat deteksi tepi";
+    status = "Memuat deteksi tepi (sekitar 9 MB, hanya sekali). Kamera sudah bisa dipakai.";
   } else if (cvStatus === "failed") {
     status = "Deteksi tepi tidak termuat. Foto diambil tanpa pelurusan.";
+  } else if (detect === "edge") {
+    status = "Seluruh kertas harus terlihat di dalam bingkai";
   } else if (detect === "locked") {
     status = "Siap diambil";
   } else if (detect === "found") {
