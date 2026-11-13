@@ -315,6 +315,7 @@ export default function DocumentScanner({
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
+  const [reloadKey, setReloadKey] = useState(0); // penanda percobaan muat ulang OpenCV
 
   // Muat OpenCV hanya saat scanner dibuka
   useEffect(() => {
@@ -335,7 +336,25 @@ export default function DocumentScanner({
     return () => {
       cancelled = true;
     };
-  }, [opencvSrc]);
+  }, [opencvSrc, reloadKey]);
+
+  // Tutup dengan Escape; bila sedang melihat halaman, kembali ke kamera dulu
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      if (viewIndex !== null) setViewIndex(null);
+      else if (onClose) onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, viewIndex]);
+
+  function muatUlangDeteksi() {
+    setNotice("");
+    setCvStatus("loading");
+    setReloadKey((k) => k + 1);
+  }
 
   // Kamera
   useEffect(() => {
@@ -446,7 +465,8 @@ export default function DocumentScanner({
 
   function capture() {
     const video = videoRef.current;
-    if (!video || !video.videoWidth || busy) return;
+    // Tunggu deteksi tepi siap dulu — mencegah halaman tersimpan tanpa pelurusan
+    if (!video || !video.videoWidth || busy || cvStatus === "loading") return;
     setBusy(true);
     setNotice("");
 
@@ -554,7 +574,8 @@ export default function DocumentScanner({
   } else if (cvStatus === "loading") {
     status = "Memuat deteksi tepi";
   } else if (cvStatus === "failed") {
-    status = "Deteksi tepi tidak termuat. Foto diambil tanpa pelurusan.";
+    status =
+      'Deteksi tepi gagal dimuat — tekan "Muat ulang deteksi", atau foto tanpa pelurusan.';
   } else if (detect === "locked") {
     status = "Siap diambil";
   } else if (detect === "found") {
@@ -635,14 +656,25 @@ export default function DocumentScanner({
                 Ganti kamera
               </button>
             )}
+            {cvStatus === "failed" && (
+              <button
+                type="button"
+                className="ds-btn ds-btn--quiet"
+                onClick={muatUlangDeteksi}
+              >
+                Muat ulang deteksi
+              </button>
+            )}
             <button
               type="button"
               className="ds-btn ds-btn--primary"
               onClick={capture}
-              disabled={!live || busy}
+              disabled={!live || busy || cvStatus === "loading"}
             >
               {busy
                 ? "Memproses"
+                : cvStatus === "loading"
+                ? "Menyiapkan deteksi tepi…"
                 : retakeAt !== null
                 ? `Ambil ulang halaman ${retakeAt + 1}`
                 : "Ambil halaman"}
