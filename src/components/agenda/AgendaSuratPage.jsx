@@ -17,6 +17,33 @@ async function bukaBerkas(url) {
   }
 }
 
+// Web app Apps Script yang sama dengan modul Dokumen: mengunggah berkas ke
+// Google Drive. XHR dipakai alih-alih fetch karena GAS menjawab dengan
+// redirect 302 yang bermasalah diikuti fetch. group:true supaya TIDAK ikut
+// membuat record di buku dokumen — lampiran agenda cukup menautkan hasilnya.
+const GAS_URL =
+  "https://script.google.com/macros/s/AKfycbyjrDE_5NnsTsKSyRvEwLLMJH3lWeGsg7jpM44btardExAFX1Vxvp246pazjQdH4UL5/exec";
+
+function gasUpload(payload) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", GAS_URL);
+    xhr.timeout = 45000;
+    xhr.onload = () => {
+      try {
+        const json = JSON.parse(xhr.responseText);
+        if (json && json.error) reject(new Error(json.error));
+        else resolve(json);
+      } catch {
+        reject(new Error("Balasan GAS bukan JSON"));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Jaringan ke GAS gagal"));
+    xhr.ontimeout = () => reject(new Error("Timeout mengunggah ke Google Drive"));
+    xhr.send(JSON.stringify(payload));
+  });
+}
+
 const KODE_KLASIFIKASI_LIST = [
   { kode: "050", label: "050 - Perencanaan Pembangunan Daerah" },
   { kode: "005", label: "005 - Undangan & Rapat Dinas" },
@@ -599,7 +626,8 @@ export default function AgendaSuratPage({ user, showToast }) {
         kode_klasifikasi: "050",
         jumlah_lampiran: "1 Berkas",
         file_url: "",
-        file_name: ""
+        file_name: "",
+        drive_url: ""
       }
     });
   };
@@ -619,6 +647,7 @@ export default function AgendaSuratPage({ user, showToast }) {
         jumlah_lampiran: it.jumlah_lampiran || "—",
         file_url: it.file_url || "",
         file_name: it.file_name || "",
+        drive_url: it.drive_url || "",
         status: it.status || "Diterima"
       }
     });
@@ -2182,7 +2211,12 @@ export default function AgendaSuratPage({ user, showToast }) {
                     )}
                     <button
                       type="button"
-                      onClick={() => setModalMasuk((prev) => ({ ...prev, data: { ...prev.data, file_url: "", file_name: "" } }))}
+                      onClick={() =>
+                        setModalMasuk((prev) => ({
+                          ...prev,
+                          data: { ...prev.data, file_url: "", file_name: "", drive_url: "" },
+                        }))
+                      }
                       style={{
                         padding: "4px 8px",
                         borderRadius: 6,
@@ -2202,6 +2236,27 @@ export default function AgendaSuratPage({ user, showToast }) {
                     </button>
                   </div>
                 </div>
+              )}
+
+              {modalMasuk.data.drive_url && (
+                <a
+                  href={modalMasuk.data.drive_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    color: T.primary,
+                    textDecoration: "none",
+                    width: "fit-content"
+                  }}
+                >
+                  <Icon name="link" size={12} />
+                  <span>Salinan Google Drive — buka di tab baru</span>
+                </a>
               )}
             </div>
 
@@ -3084,17 +3139,52 @@ export default function AgendaSuratPage({ user, showToast }) {
               reader.onerror = () => reject(reader.error);
               reader.readAsDataURL(file);
             });
-            // Batas body server 10 MB; data URL ~33% lebih besar dari file aslinya
-            if (dataUrl.length > 9 * 1024 * 1024) {
+
+            // Salinan ke Google Drive — best effort, kegagalan tidak membatalkan
+            // lampiran karena data URL lokal tetap tersedia sebagai cadangan.
+            let driveUrl = "";
+            try {
+              const res = await gasUpload({
+                action: "direct",
+                group: true,
+                file: dataUrl.split(",")[1],
+                filename: file.name,
+                mimeType: "application/pdf",
+                title: file.name.replace(/\.pdf$/i, ""),
+              });
+              if (res && res.fileUrl) driveUrl = res.fileUrl;
+            } catch (_) {
+              /* tetap simpan lokal */
+            }
+
+            // Batas body server 10 MB; data URL ~33% lebih besar dari file aslinya.
+            // Bila data URL terlalu besar tetapi salinan Drive berhasil, pakai
+            // tautan Drive sebagai berkas utama supaya halaman banyak tetap muat.
+            const terlaluBesar = dataUrl.length > 9 * 1024 * 1024;
+            if (terlaluBesar && !driveUrl) {
               throw Object.assign(new Error("PDF terlalu besar"), {
                 userMessage: "PDF terlalu besar untuk disimpan (maksimal sekitar 6 MB). Kurangi jumlah halaman, lalu simpan lagi.",
               });
             }
             setModalMasuk((prev) =>
-              prev ? { ...prev, data: { ...prev.data, file_url: dataUrl, file_name: file.name } } : prev
+              prev
+                ? {
+                    ...prev,
+                    data: {
+                      ...prev.data,
+                      file_url: terlaluBesar ? driveUrl : dataUrl,
+                      file_name: file.name,
+                      drive_url: driveUrl,
+                    },
+                  }
+                : prev
             );
             setModalScan(false);
-            notif(`PDF ${info.pageCount} halaman terlampir. Klik "Simpan Surat Masuk" untuk menyimpan.`);
+            notif(
+              driveUrl
+                ? `PDF ${info.pageCount} halaman terlampir dan tersalin ke Google Drive. Klik "Simpan Surat Masuk" untuk mencatatnya.`
+                : `PDF ${info.pageCount} halaman terlampir (unggah Drive dilewati). Klik "Simpan Surat Masuk" untuk menyimpan.`
+            );
           }}
         />
       )}

@@ -186,7 +186,8 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
         kode_klasifikasi = '005',
         jumlah_lampiran = '—',
         file_url = null,
-        file_name = null
+        file_name = null,
+        drive_url = null
       } = req.body;
 
       if (!nomor_surat_asli || !asal_surat || !perihal) {
@@ -205,10 +206,10 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
 
       const insertRes = await queryDB(
         `INSERT INTO agenda_surat_masuk 
-         (tahun, nomor_agenda, tanggal_terima, nomor_surat_asli, tanggal_surat, asal_surat, perihal, sifat, kode_klasifikasi, jumlah_lampiran, file_url, file_name, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         (tahun, nomor_agenda, tanggal_terima, nomor_surat_asli, tanggal_surat, asal_surat, perihal, sifat, kode_klasifikasi, jumlah_lampiran, file_url, file_name, drive_url, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          RETURNING *`,
-        [tahun, nomor_agenda, tanggal_terima, nomor_surat_asli, tanggal_surat, asal_surat, perihal, sifat, kode_klasifikasi, jumlah_lampiran, file_url, file_name, userCreator]
+        [tahun, nomor_agenda, tanggal_terima, nomor_surat_asli, tanggal_surat, asal_surat, perihal, sifat, kode_klasifikasi, jumlah_lampiran, file_url, file_name, drive_url, userCreator]
       );
 
       res.json({ ok: true, item: insertRes[0] });
@@ -233,6 +234,7 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
         jumlah_lampiran,
         file_url,
         file_name,
+        drive_url,
         status
       } = req.body;
 
@@ -249,10 +251,11 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
              file_url = COALESCE($9, file_url),
              file_name = COALESCE($10, file_name),
              status = COALESCE($11, status),
+             drive_url = COALESCE($12, drive_url),
              updated_at = NOW()
-         WHERE id = $12
+         WHERE id = $13
          RETURNING *`,
-        [nomor_surat_asli, tanggal_surat, tanggal_terima, asal_surat, perihal, sifat, kode_klasifikasi, jumlah_lampiran, file_url, file_name, status, id]
+        [nomor_surat_asli, tanggal_surat, tanggal_terima, asal_surat, perihal, sifat, kode_klasifikasi, jumlah_lampiran, file_url, file_name, status, drive_url, id]
       );
 
       if (!upRes.length) return res.status(404).json({ ok: false, message: 'Surat masuk tidak ditemukan' });

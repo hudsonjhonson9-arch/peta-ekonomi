@@ -12,15 +12,18 @@ const SIZES = {
   F4: { label: "F4", w: 215, h: 330 },
 };
 
-const SHORT_SIDE_PX = 1240; // sisi pendek hasil scan (A4 kira-kira 150 dpi)
+const SHORT_SIDE_PX = 1654; // sisi pendek hasil scan (A4 kira-kira 200 dpi, setara pindaian kamera HP)
 const JPEG_QUALITY = 0.8;
-const DETECT_WIDTH = 360; // lebar frame untuk deteksi, supaya ringan
+const DETECT_WIDTH = 440; // lebar frame untuk deteksi: presisi sudut lebih baik, masih ringan
 const DETECT_INTERVAL_MS = 200;
 const MIN_AREA_RATIO = 0.15; // kertas harus menutupi minimal 15% frame
 const STABLE_FRAMES = 4;
 const MOVE_TOLERANCE = 0.02; // pergeseran sudut maksimum (rasio lebar frame)
 const MAX_MISSES = 3;
 const EDGE_MARGIN_RATIO = 0.02; // sudut yang lebih dekat dari ini ke tepi frame dianggap terpotong
+const SMOOTH_ALPHA = 0.4; // EMA kotak tampilan, supaya tidak berkedip / pindah-pindah
+const SMOOTH_MIN_HITS = 2; // deteksi berturut sebelum kotak mulai ditampilkan
+const EDGE_EXIT_FRAMES = 2; // frame bersih berturut sebelum status "tepi" dilepas (anti-flap)
 
 const CORNER_KEYS = [
   "topLeftCorner",
@@ -156,25 +159,49 @@ function drawOverlay(canvas, video, quad, scale, locked, warn) {
   const ox = (cw - video.videoWidth * s) / 2;
   const oy = (ch - video.videoHeight * s) / 2;
   const k = s / scale;
+  const pts = quad.map((p) => ({ x: ox + p.x * k, y: oy + p.y * k }));
+  const color = warn ? "#e5674f" : locked ? "#3fbf75" : "#e3a33a";
 
+  // Redupkan area di luar kertas supaya fokus ke dokumen (gaya kamera ponsel)
   ctx.beginPath();
-  quad.forEach((p, i) => {
-    const x = ox + p.x * k;
-    const y = oy + p.y * k;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
+  ctx.rect(0, 0, cw, ch);
+  pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
   ctx.closePath();
-  ctx.fillStyle = warn
-    ? "rgba(229,103,79,0.14)"
-    : locked
-    ? "rgba(63,191,117,0.16)"
-    : "rgba(227,163,58,0.14)";
-  ctx.fill();
-  ctx.lineWidth = 3;
+  ctx.fillStyle = "rgba(0,0,0,0.42)";
+  ctx.fill("evenodd");
+
+  // Garis tipis di sekeliling kertas
+  ctx.beginPath();
+  pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+  ctx.closePath();
+  ctx.globalAlpha = 0.85;
+  ctx.lineWidth = 1.5;
   ctx.lineJoin = "round";
-  ctx.strokeStyle = warn ? "#e5674f" : locked ? "#3fbf75" : "#e3a33a";
+  ctx.strokeStyle = color;
   ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // Kurung sudut (bentuk L) mengikuti arah tepi kertas, seperti garis bidik kamera HP
+  const arm = Math.max(20, Math.min(cw, ch) * 0.05);
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  ctx.strokeStyle = color;
+  for (let i = 0; i < 4; i++) {
+    const c = pts[i];
+    const to = (t) => {
+      const dx = t.x - c.x;
+      const dy = t.y - c.y;
+      const len = Math.hypot(dx, dy) || 1;
+      return { x: c.x + (dx / len) * arm, y: c.y + (dy / len) * arm };
+    };
+    const a = to(pts[(i + 3) % 4]);
+    const b = to(pts[(i + 1) % 4]);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(c.x, c.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
 }
 
 function buildPdf(pages) {
@@ -239,6 +266,7 @@ export default function DocumentScanner({
   const streamRef = useRef(null);
   const quadRef = useRef(null);
   const edgeRef = useRef(false);
+  const busyRef = useRef(false); // dibaca loop deteksi supaya tidak berebut saat memproses foto
 
   const [cvStatus, setCvStatus] = useState("loading"); // loading | ready | failed
   const [live, setLive] = useState(false);
@@ -249,10 +277,12 @@ export default function DocumentScanner({
   const [pages, setPages] = useState([]);
   const [viewIndex, setViewIndex] = useState(null);
   const [retakeAt, setRetakeAt] = useState(null);
-  const [detect, setDetect] = useState("none"); // none | found | locked
+  const [detect, setDetect] = useState("none"); // none | found | locked | edge
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
+  const [flashing, setFlashing] = useState(false);
+  const [flashN, setFlashN] = useState(0);
 
   // Muat OpenCV hanya saat scanner dibuka
   useEffect(() => {
@@ -286,8 +316,11 @@ export default function DocumentScanner({
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: facing },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
+            // ideal: perangkat memilih mode terbaik yang dimilikinya (HP biasanya
+            // menawarkan 4K), dan tetap menurun dengan mulus bila tidak tersedia.
+            width: { ideal: 3840 },
+            height: { ideal: 2160 },
+            frameRate: { ideal: 30 },
           },
           audio: false,
         });
@@ -313,6 +346,21 @@ export default function DocumentScanner({
     };
   }, [facing]);
 
+  // Esc: keluar dari mode lihat halaman dulu, baru tutup scanner
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      if (viewIndex !== null) {
+        setViewIndex(null);
+        setRetakeAt(null);
+      } else if (onClose) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [viewIndex, onClose]);
+
   useEffect(
     () => () => {
       if (streamRef.current) {
@@ -334,12 +382,20 @@ export default function DocumentScanner({
     let prev = null;
     let stable = 0;
     let misses = 0;
+    let hits = 0;
+    let edgeExit = 0;
 
     const tick = () => {
       if (stopped) return;
+      // Jangan makan CPU saat tab tersembunyi atau saat sedang memproses foto
+      if (document.hidden || busyRef.current) {
+        timer = setTimeout(tick, 250);
+        return;
+      }
       const video = videoRef.current;
       const overlay = overlayRef.current;
       if (video && overlay && video.videoWidth) {
+        const mulai = performance.now();
         const scale = DETECT_WIDTH / video.videoWidth;
         work.width = DETECT_WIDTH;
         work.height = Math.round(video.videoHeight * scale);
@@ -347,18 +403,38 @@ export default function DocumentScanner({
 
         const hasil = detectQuad(scannerRef.current, work);
         if (hasil) {
-          const { quad } = hasil;
           misses = 0;
+          hits = Math.min(hits + 1, 99);
+          const { quad } = hasil;
           if (prev) {
             const moved = Math.max(...quad.map((p, i) => dist(p, prev[i]))) / DETECT_WIDTH;
             stable = moved < MOVE_TOLERANCE ? stable + 1 : 0;
           }
           prev = quad;
-          quadRef.current = quad;
-          edgeRef.current = hasil.touchesEdge;
+          // Tampilkan kotak hanya setelah beberapa frame berturut, lalu haluskan
+          // dengan EMA supaya tidak berkedip / pindah-pindah antar frame.
+          if (hits >= SMOOTH_MIN_HITS) {
+            if (!quadRef.current) {
+              quadRef.current = quad.map((p) => ({ ...p }));
+            } else {
+              quadRef.current = quadRef.current.map((p, i) => ({
+                x: p.x + (quad[i].x - p.x) * SMOOTH_ALPHA,
+                y: p.y + (quad[i].y - p.y) * SMOOTH_ALPHA,
+              }));
+            }
+            // Masuk status "tepi" langsung, keluar pelan (anti-flap di batas margin)
+            if (hasil.touchesEdge) {
+              edgeRef.current = true;
+              edgeExit = 0;
+            } else if (++edgeExit >= EDGE_EXIT_FRAMES) {
+              edgeRef.current = false;
+            }
+          }
         } else if (++misses >= MAX_MISSES) {
           prev = null;
           stable = 0;
+          hits = 0;
+          edgeExit = 0;
           quadRef.current = null;
           edgeRef.current = false;
         }
@@ -367,6 +443,15 @@ export default function DocumentScanner({
         const locked = !!quadRef.current && !touching && stable >= STABLE_FRAMES;
         setDetect(!quadRef.current ? "none" : touching ? "edge" : locked ? "locked" : "found");
         drawOverlay(overlay, video, quadRef.current, scale, locked, touching);
+
+        // Interval adaptif: kalau deteksi lambat di perangkat ini, jeda lebih lama
+        // supaya UI tetap responsif (bisa menekan tombol dengan nyaman).
+        const durasi = performance.now() - mulai;
+        timer = setTimeout(
+          tick,
+          durasi > 55 ? Math.min(450, Math.round(durasi * 4)) : DETECT_INTERVAL_MS
+        );
+        return;
       }
       timer = setTimeout(tick, DETECT_INTERVAL_MS);
     };
@@ -383,88 +468,98 @@ export default function DocumentScanner({
 
   function capture() {
     const video = videoRef.current;
-    if (!video || !video.videoWidth || busy) return;
+    if (!video || !video.videoWidth || busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setNotice("");
+    // kilat putih sesaat, seperti rana kamera HP
+    setFlashN((n) => n + 1);
+    setFlashing(true);
+    setTimeout(() => setFlashing(false), 360);
 
     // beri waktu UI menampilkan "Memproses" sebelum pekerjaan berat dimulai
     setTimeout(() => {
-      const full = document.createElement("canvas");
-      full.width = video.videoWidth;
-      full.height = video.videoHeight;
-      full.getContext("2d").drawImage(video, 0, 0);
+      try {
+        const full = document.createElement("canvas");
+        full.width = video.videoWidth;
+        full.height = video.videoHeight;
+        full.getContext("2d").drawImage(video, 0, 0);
 
-      const size = SIZES[sizeKey];
-      const quad = quadRef.current;
-      const terpotong = edgeRef.current;
-      let page = null;
+        const size = SIZES[sizeKey];
+        const quad = quadRef.current;
+        const terpotong = edgeRef.current;
+        let page = null;
 
-      if (cvStatus === "ready" && quad && !terpotong) {
-        const width = (dist(quad[0], quad[1]) + dist(quad[3], quad[2])) / 2;
-        const height = (dist(quad[0], quad[3]) + dist(quad[1], quad[2])) / 2;
-        const landscape = width > height;
-        const ratio = size.h / size.w;
-        const wpx = landscape ? Math.round(SHORT_SIDE_PX * ratio) : SHORT_SIDE_PX;
-        const hpx = landscape ? SHORT_SIDE_PX : Math.round(SHORT_SIDE_PX * ratio);
-        try {
-          // Pakai sudut dari deteksi live (diskalakan ke resolusi penuh) supaya hasil
-          // sama persis dengan kotak yang dilihat pengguna, dan tanpa deteksi ulang.
-          const k = full.width / DETECT_WIDTH;
-          const pt = (p) => ({ x: p.x * k, y: p.y * k });
-          const corners = {
-            topLeftCorner: pt(quad[0]),
-            topRightCorner: pt(quad[1]),
-            bottomRightCorner: pt(quad[2]),
-            bottomLeftCorner: pt(quad[3]),
-          };
-          const out = scannerRef.current.extractPaper(full, wpx, hpx, corners);
-          if (out && out.width) {
-            page = {
-              url: out.toDataURL("image/jpeg", JPEG_QUALITY),
-              w: out.width,
-              h: out.height,
-              pw: landscape ? size.h : size.w,
-              ph: landscape ? size.w : size.h,
+        if (cvStatus === "ready" && quad && !terpotong) {
+          const width = (dist(quad[0], quad[1]) + dist(quad[3], quad[2])) / 2;
+          const height = (dist(quad[0], quad[3]) + dist(quad[1], quad[2])) / 2;
+          const landscape = width > height;
+          const ratio = size.h / size.w;
+          const wpx = landscape ? Math.round(SHORT_SIDE_PX * ratio) : SHORT_SIDE_PX;
+          const hpx = landscape ? SHORT_SIDE_PX : Math.round(SHORT_SIDE_PX * ratio);
+          try {
+            // Pakai sudut dari deteksi live (diskalakan ke resolusi penuh) supaya hasil
+            // sama persis dengan kotak yang dilihat pengguna, dan tanpa deteksi ulang.
+            const k = full.width / DETECT_WIDTH;
+            const pt = (p) => ({ x: p.x * k, y: p.y * k });
+            const corners = {
+              topLeftCorner: pt(quad[0]),
+              topRightCorner: pt(quad[1]),
+              bottomRightCorner: pt(quad[2]),
+              bottomLeftCorner: pt(quad[3]),
             };
+            const out = scannerRef.current.extractPaper(full, wpx, hpx, corners);
+            if (out && out.width) {
+              page = {
+                url: out.toDataURL("image/jpeg", JPEG_QUALITY),
+                w: out.width,
+                h: out.height,
+                pw: landscape ? size.h : size.w,
+                ph: landscape ? size.w : size.h,
+              };
+            }
+          } catch {
+            page = null;
           }
-        } catch {
-          page = null;
         }
-      }
 
-      if (!page) {
-        const m = Math.min(1, 1754 / Math.max(full.width, full.height));
-        const raw = document.createElement("canvas");
-        raw.width = Math.round(full.width * m);
-        raw.height = Math.round(full.height * m);
-        raw.getContext("2d").drawImage(full, 0, 0, raw.width, raw.height);
-        const landscape = raw.width > raw.height;
-        page = {
-          url: raw.toDataURL("image/jpeg", JPEG_QUALITY),
-          w: raw.width,
-          h: raw.height,
-          pw: landscape ? size.h : size.w,
-          ph: landscape ? size.w : size.h,
-        };
-        setNotice(
-          cvStatus === "ready" && terpotong
-            ? "Kertas terpotong di tepi bingkai, jadi halaman disimpan apa adanya. Mundurkan kamera sampai seluruh kertas terlihat, lalu ambil ulang."
-            : cvStatus === "ready"
-            ? "Kertas tidak terdeteksi saat foto diambil, jadi halaman disimpan apa adanya."
-            : cvStatus === "loading"
-            ? "Deteksi tepi belum selesai dimuat, jadi halaman disimpan apa adanya."
-            : "Halaman disimpan tanpa pelurusan karena deteksi tepi tidak termuat."
-        );
-      }
+        if (!page) {
+          const m = Math.min(1, 2480 / Math.max(full.width, full.height));
+          const raw = document.createElement("canvas");
+          raw.width = Math.round(full.width * m);
+          raw.height = Math.round(full.height * m);
+          raw.getContext("2d").drawImage(full, 0, 0, raw.width, raw.height);
+          const landscape = raw.width > raw.height;
+          page = {
+            url: raw.toDataURL("image/jpeg", JPEG_QUALITY),
+            w: raw.width,
+            h: raw.height,
+            pw: landscape ? size.h : size.w,
+            ph: landscape ? size.w : size.h,
+          };
+          setNotice(
+            cvStatus === "ready" && terpotong
+              ? "Kertas terpotong di tepi bingkai, jadi halaman disimpan apa adanya. Mundurkan kamera sampai seluruh kertas terlihat, lalu ambil ulang."
+              : cvStatus === "ready"
+              ? "Kertas tidak terdeteksi saat foto diambil, jadi halaman disimpan apa adanya."
+              : cvStatus === "loading"
+              ? "Deteksi tepi belum selesai dimuat, jadi halaman disimpan apa adanya."
+              : "Halaman disimpan tanpa pelurusan karena deteksi tepi tidak termuat."
+          );
+        }
 
-      if (retakeAt !== null) {
-        setPages((prev) => prev.map((p, i) => (i === retakeAt ? page : p)));
-        setViewIndex(retakeAt);
-        setRetakeAt(null);
-      } else {
-        setPages((prev) => [...prev, page]);
+        if (retakeAt !== null) {
+          setPages((prev) => prev.map((p, i) => (i === retakeAt ? page : p)));
+          setViewIndex(retakeAt);
+          setRetakeAt(null);
+        } else {
+          setPages((prev) => [...prev, page]);
+        }
+      } finally {
+        // selalu lepas kunci, walau ada error, supaya tombol tidak macet
+        busyRef.current = false;
+        setBusy(false);
       }
-      setBusy(false);
     }, 30);
   }
 
@@ -501,41 +596,19 @@ export default function DocumentScanner({
   }
 
   let status = "";
-  if (viewIndex !== null) {
-    status = `Halaman ${viewIndex + 1} dari ${pages.length}`;
-  } else if (cvStatus === "loading") {
-    status = "Memuat deteksi tepi (sekitar 9 MB, hanya sekali). Kamera sudah bisa dipakai.";
-  } else if (cvStatus === "failed") {
-    status = "Deteksi tepi tidak termuat. Foto diambil tanpa pelurusan.";
-  } else if (detect === "edge") {
-    status = "Seluruh kertas harus terlihat di dalam bingkai";
-  } else if (detect === "locked") {
-    status = "Siap diambil";
-  } else if (detect === "found") {
-    status = "Kertas terdeteksi. Tahan kamera tetap diam.";
-  } else {
-    status = "Arahkan kamera ke kertas";
-  }
+  if (camError) status = "Kamera bermasalah";
+  else if (busy) status = "Memproses foto…";
+  else if (cvStatus === "loading") status = "Memuat deteksi tepi (9 MB, sekali saja) — kamera bisa langsung dipakai";
+  else if (cvStatus === "failed") status = "Deteksi tepi tidak termuat — foto tanpa pelurusan";
+  else if (detect === "edge") status = "Mundurkan — seluruh kertas harus terlihat";
+  else if (detect === "locked") status = "Siap diambil";
+  else if (detect === "found") status = "Kertas terdeteksi — tahan diam";
+  else status = "Arahkan kamera ke kertas";
+
+  const lastPage = pages.length ? pages[pages.length - 1] : null;
 
   return (
     <div className="ds-root" role="dialog" aria-modal="true" aria-label="Pindai surat">
-      <header className="ds-head">
-        <h2 className="ds-title">Pindai surat</h2>
-        <label className="ds-size">
-          <span>Ukuran kertas</span>
-          <select value={sizeKey} onChange={(e) => setSizeKey(e.target.value)}>
-            {Object.entries(SIZES).map(([key, s]) => (
-              <option key={key} value={key}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button type="button" className="ds-btn ds-btn--quiet" onClick={onClose}>
-          Tutup
-        </button>
-      </header>
-
       <div className="ds-stagewrap">
         <div className="ds-stage" hidden={!inCamera}>
           <video ref={videoRef} className="ds-video" playsInline muted />
@@ -544,117 +617,170 @@ export default function DocumentScanner({
         {!inCamera && pages[viewIndex] && (
           <img className="ds-preview" src={pages[viewIndex].url} alt={`Halaman ${viewIndex + 1}`} />
         )}
-        {camError && inCamera && (
-          <p className="ds-error" role="alert">
-            {camError}
-          </p>
-        )}
-        {!camError && (
-          <p className={`ds-status ds-status--${inCamera ? detect : "none"}`} aria-live="polite">
-            {status}
-          </p>
-        )}
-      </div>
 
-      <footer className="ds-foot">
-        {pages.length > 0 && (
-          <ol className="ds-strip" aria-label="Halaman yang sudah diambil">
-            {pages.map((p, i) => (
-              <li key={i}>
-                <button
-                  type="button"
-                  className={`ds-thumb${viewIndex === i ? " is-active" : ""}`}
-                  onClick={() => {
-                    setRetakeAt(null);
-                    setViewIndex(i);
-                  }}
-                  aria-label={`Lihat halaman ${i + 1}`}
-                >
-                  <img src={p.url} alt="" />
-                  <span>{i + 1}</span>
-                </button>
-              </li>
-            ))}
-          </ol>
-        )}
-
-        {inCamera ? (
-          <div className="ds-actions">
-            {manyCams && (
+        {/* Bilah atas ala kamera ponsel */}
+        <div className="ds-topbar">
+          {inCamera ? (
+            <>
+              <button type="button" className="ds-iconbtn" onClick={onClose} aria-label="Tutup pemindai">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+              <span className={`ds-pill ds-pill--${camError ? "none" : detect}`} aria-live="polite">
+                <span className="ds-dot" aria-hidden="true" />
+                <span className="ds-pilltext">{status}</span>
+              </span>
+              <label className="ds-size">
+                <span>Ukuran</span>
+                <select value={sizeKey} onChange={(e) => setSizeKey(e.target.value)} aria-label="Ukuran kertas">
+                  {Object.entries(SIZES).map(([key, s]) => (
+                    <option key={key} value={key}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          ) : (
+            <>
               <button
                 type="button"
-                className="ds-btn ds-btn--quiet"
-                onClick={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
+                className="ds-iconbtn"
+                onClick={() => {
+                  setRetakeAt(null);
+                  setViewIndex(null);
+                }}
+                aria-label="Kembali ke kamera"
               >
-                Ganti kamera
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
               </button>
-            )}
-            <button
-              type="button"
-              className="ds-btn ds-btn--primary"
-              onClick={capture}
-              disabled={!live || busy}
-            >
-              {busy
-                ? "Memproses"
-                : retakeAt !== null
-                ? `Ambil ulang halaman ${retakeAt + 1}`
-                : "Ambil halaman"}
-            </button>
-            <button
-              type="button"
-              className="ds-btn ds-btn--outline"
-              onClick={save}
-              disabled={!pages.length || saving || busy}
-            >
-              {saving
-                ? "Menyimpan"
-                : `Simpan PDF${pages.length ? ` (${pages.length} halaman)` : ""}`}
-            </button>
-          </div>
-        ) : (
-          <div className="ds-actions">
-            <button type="button" className="ds-btn ds-btn--primary" onClick={() => setViewIndex(null)}>
-              Kembali ke kamera
-            </button>
-            <button
-              type="button"
-              className="ds-btn ds-btn--outline"
-              onClick={() => {
-                setRetakeAt(viewIndex);
-                setViewIndex(null);
-              }}
-            >
-              Ambil ulang
-            </button>
-            <button
-              type="button"
-              className="ds-btn ds-btn--quiet"
-              onClick={() => movePage(viewIndex, -1)}
-              disabled={viewIndex === 0}
-            >
-              Pindah ke kiri
-            </button>
-            <button
-              type="button"
-              className="ds-btn ds-btn--quiet"
-              onClick={() => movePage(viewIndex, 1)}
-              disabled={viewIndex === pages.length - 1}
-            >
-              Pindah ke kanan
-            </button>
-            <button type="button" className="ds-btn ds-btn--danger" onClick={() => removePage(viewIndex)}>
-              Hapus halaman
+              <span className="ds-pill ds-pill--locked">
+                <span className="ds-dot" aria-hidden="true" />
+                Halaman {viewIndex + 1} / {pages.length}
+              </span>
+              <span className="ds-iconbtn ds-iconbtn--ghost" aria-hidden="true" />
+            </>
+          )}
+        </div>
+
+        {camError && inCamera && (
+          <div className="ds-errbox" role="alert">
+            <p className="ds-error">{camError}</p>
+            <button type="button" className="ds-btn ds-btn--quiet" onClick={() => window.location.reload()}>
+              Muat ulang halaman
             </button>
           </div>
         )}
 
-        {notice && (
-          <p className="ds-notice" role="status">
-            {notice}
-          </p>
-        )}
-      </footer>
+        {/* Bilah bawah: strip halaman, kendali rana, dan simpan */}
+        <div className="ds-botbar">
+          {pages.length > 0 && (
+            <ol className="ds-strip" aria-label="Halaman yang sudah diambil">
+              {pages.map((p, i) => (
+                <li key={i}>
+                  <button
+                    type="button"
+                    className={`ds-thumb${viewIndex === i ? " is-active" : ""}`}
+                    onClick={() => {
+                      setRetakeAt(null);
+                      setViewIndex(i);
+                    }}
+                    aria-label={`Lihat halaman ${i + 1}`}
+                  >
+                    <img src={p.url} alt="" />
+                    <span>{i + 1}</span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          )}
+
+          {notice && (
+            <p className="ds-notice" role="status">
+              {notice}
+            </p>
+          )}
+
+          {inCamera ? (
+            <div className="ds-controls">
+              <button
+                type="button"
+                className="ds-roundbtn"
+                onClick={() => lastPage && setViewIndex(pages.length - 1)}
+                disabled={!lastPage}
+                aria-label="Lihat halaman terakhir"
+              >
+                {lastPage && <img src={lastPage.url} alt="" />}
+                {pages.length > 0 && <span className="ds-badge">{pages.length}</span>}
+              </button>
+
+              <div className="ds-shutterwrap">
+                {retakeAt !== null && (
+                  <button type="button" className="ds-chip" onClick={() => setRetakeAt(null)}>
+                    Ambil ulang halaman {retakeAt + 1}
+                    <span aria-hidden="true">×</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={`ds-shutter${busy ? " is-busy" : ""}`}
+                  onClick={capture}
+                  disabled={!live || busy}
+                  aria-label={retakeAt !== null ? `Ambil ulang halaman ${retakeAt + 1}` : "Ambil halaman"}
+                >
+                  <span className="ds-shutter-inner" />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="ds-roundbtn"
+                onClick={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
+                disabled={!manyCams}
+                aria-label="Ganti kamera depan atau belakang"
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                  <polyline points="21 3 21 9 15 9" />
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <div className="ds-controls ds-controls--review">
+              <button type="button" className="ds-actbtn" onClick={() => movePage(viewIndex, -1)} disabled={viewIndex === 0}>
+                ◀ Kiri
+              </button>
+              <button
+                type="button"
+                className="ds-actbtn"
+                onClick={() => {
+                  setRetakeAt(viewIndex);
+                  setViewIndex(null);
+                }}
+              >
+                Ambil ulang
+              </button>
+              <button type="button" className="ds-actbtn ds-actbtn--danger" onClick={() => removePage(viewIndex)}>
+                Hapus
+              </button>
+              <button type="button" className="ds-actbtn" onClick={() => movePage(viewIndex, 1)} disabled={viewIndex === pages.length - 1}>
+                Kanan ▶
+              </button>
+            </div>
+          )}
+
+          {pages.length > 0 && (
+            <button type="button" className="ds-save" onClick={save} disabled={saving || busy}>
+              {saving ? "Menyimpan…" : `Simpan PDF (${pages.length} halaman)`}
+            </button>
+          )}
+        </div>
+
+        {flashing && <div key={flashN} className="ds-flash" aria-hidden="true" />}
+      </div>
     </div>
   );
 }

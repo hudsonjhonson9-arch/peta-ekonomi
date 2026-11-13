@@ -588,6 +588,8 @@ jalankanMigration('tahap_2', [
   .then(() => jalankanMigration('tahap_24', [], true))
   .then(() => jalankanMigration('tahap_25', [], true))
   .then(() => jalankanMigration('tahap_26', ['agenda_surat_masuk', 'agenda_disposisi', 'agenda_surat_keluar', 'agenda_sppd']))
+  // Kolom baru (bukan tabel), jadi tanpaFallback: kegagalan harus terlihat di log.
+  .then(() => jalankanMigration('tahap_27', [], true))
   .then(jalankanSeed)
   // Impor bawaan standar harga SIPD (db/standar_harga_sipd_<jenis>_<tahun>.xlsx).
   // Setelah tahap_13 karena merge-nya menarget index unik tahap_13. Gagal di

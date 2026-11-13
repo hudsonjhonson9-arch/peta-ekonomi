@@ -1,23 +1,20 @@
 .ds-root {
   --ds-ink: #18212b;
-  --ds-ink-soft: #4a5766;
   --ds-line: #c9d0d8;
-  --ds-ground: #eceff2;
-  --ds-white: #ffffff;
   --ds-blue: #1f5fbf;
   --ds-blue-dark: #194c99;
   --ds-found: #e3a33a;
   --ds-locked: #3fbf75;
-  --ds-danger: #a3281f;
+  --ds-edge: #e5674f;
   --ds-radius: 4px;
 
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  z-index: 100000;
   display: flex;
   flex-direction: column;
-  background: var(--ds-ground);
-  color: var(--ds-ink);
+  background: #000;
+  color: #fff;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 15px;
   line-height: 1.4;
@@ -29,42 +26,7 @@
   box-sizing: border-box;
 }
 
-/* Header */
-.ds-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  padding-top: max(10px, env(safe-area-inset-top));
-  background: var(--ds-white);
-  border-bottom: 1px solid var(--ds-line);
-}
-
-.ds-title {
-  margin: 0;
-  margin-right: auto;
-  font-size: 17px;
-  font-weight: 600;
-}
-
-.ds-size {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--ds-ink-soft);
-}
-
-.ds-size select {
-  min-height: 40px;
-  padding: 0 10px;
-  border: 1px solid var(--ds-line);
-  border-radius: var(--ds-radius);
-  background: var(--ds-white);
-  color: var(--ds-ink);
-  font: inherit;
-}
-
-/* Area kamera */
+/* Panggung kamera */
 .ds-stagewrap {
   position: relative;
   flex: 1;
@@ -72,7 +34,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--ds-ink);
+  background: #000;
+  overflow: hidden;
 }
 
 .ds-stage {
@@ -104,70 +67,194 @@
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  background: var(--ds-white);
 }
 
-.ds-status {
+/* Bilah atas mengambang */
+.ds-topbar {
   position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
-  margin: 0;
-  padding: 8px 12px;
-  border-left: 4px solid var(--ds-line);
-  border-radius: var(--ds-radius);
-  background: rgba(24, 33, 43, 0.86);
-  color: var(--ds-white);
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: max-content 1fr max-content;
+  align-items: center;
+  gap: 10px;
+  padding: calc(12px + env(safe-area-inset-top)) 14px 18px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0));
+  pointer-events: none;
 }
 
-.ds-status--found {
-  border-left-color: var(--ds-found);
+.ds-topbar > * {
+  pointer-events: auto;
 }
 
-.ds-status--locked {
-  border-left-color: var(--ds-locked);
+.ds-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #fff;
+  cursor: pointer;
 }
 
-.ds-status--edge {
-  border-left-color: #e5674f;
+.ds-iconbtn:hover {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.ds-iconbtn--ghost {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.ds-pill {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(52vw, 380px);
+  min-width: 0;
+  padding: 7px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #fff;
+  font-size: 12.5px;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.ds-pilltext {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9aa4b0;
+}
+
+.ds-pill--found .ds-dot {
+  background: var(--ds-found);
+}
+
+.ds-pill--locked .ds-dot {
+  background: var(--ds-locked);
+}
+
+.ds-pill--edge .ds-dot {
+  background: var(--ds-edge);
+}
+
+.ds-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  font-size: 12px;
+}
+
+.ds-size span {
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.ds-size select {
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  color-scheme: dark;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* Galeri kamera error */
+.ds-errbox {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
 }
 
 .ds-error {
-  max-width: 34ch;
+  max-width: 36ch;
   margin: 0;
-  padding: 16px;
-  color: var(--ds-white);
-  text-align: left;
+  color: #fff;
+  font-size: 14.5px;
+  line-height: 1.5;
+  text-align: center;
 }
 
-/* Bagian bawah */
-.ds-foot {
-  padding: 10px 16px;
-  padding-bottom: max(12px, env(safe-area-inset-bottom));
-  background: var(--ds-white);
-  border-top: 1px solid var(--ds-line);
+/* Bilah bawah mengambang */
+.ds-botbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 22px 14px calc(14px + env(safe-area-inset-bottom));
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.78) 0%,
+    rgba(0, 0, 0, 0.5) 55%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  pointer-events: none;
 }
 
+.ds-botbar > * {
+  pointer-events: auto;
+}
+
+/* Strip halaman */
 .ds-strip {
   display: flex;
   gap: 8px;
-  margin: 0 0 10px;
-  padding: 0 0 4px;
+  margin: 0;
+  padding: 2px;
   list-style: none;
   overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.4) transparent;
 }
 
 .ds-thumb {
   position: relative;
   display: block;
-  width: 52px;
-  height: 72px;
+  width: 48px;
+  height: 66px;
   padding: 0;
-  border: 2px solid var(--ds-line);
-  border-radius: var(--ds-radius);
-  background: var(--ds-ground);
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  border-radius: 5px;
+  background: #111;
   overflow: hidden;
   cursor: pointer;
+  flex: none;
 }
 
 .ds-thumb img {
@@ -183,35 +270,260 @@
   bottom: 0;
   min-width: 18px;
   padding: 0 4px;
-  background: var(--ds-ink);
-  color: var(--ds-white);
-  font-size: 12px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
 
 .ds-thumb.is-active {
-  border-color: var(--ds-blue);
+  border-color: #58a6ff;
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.4);
 }
 
-.ds-actions {
+/* Kendali */
+.ds-controls {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px;
+}
+
+.ds-controls--review {
   flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
 }
 
-.ds-notice {
-  margin: 10px 0 0;
-  color: var(--ds-ink-soft);
+.ds-roundbtn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  padding: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+  flex: none;
 }
 
-/* Tombol */
+.ds-roundbtn img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.ds-roundbtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.ds-roundbtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.ds-badge {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ds-ink);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 19px;
+  text-align: center;
+}
+
+/* Rana besar di tengah, seperti kamera ponsel */
+.ds-shutterwrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 78px;
+}
+
+.ds-shutter {
+  display: block;
+  width: 76px;
+  height: 76px;
+  padding: 4px;
+  border: 4px solid rgba(255, 255, 255, 0.95);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.ds-shutter:not(:disabled):active {
+  transform: scale(0.95);
+}
+
+.ds-shutter:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ds-shutter-inner {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.12s ease;
+}
+
+.ds-shutter:not(:disabled):active .ds-shutter-inner {
+  transform: scale(0.88);
+}
+
+.ds-shutter.is-busy .ds-shutter-inner {
+  background: transparent;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  animation: ds-spin 0.8s linear infinite;
+}
+
+@keyframes ds-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ds-chip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ds-chip:hover {
+  background: rgba(0, 0, 0, 0.85);
+}
+
+/* Tombol aksi mode lihat halaman */
+.ds-actbtn {
+  min-height: 40px;
+  padding: 0 13px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ds-actbtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.ds-actbtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.ds-actbtn--danger {
+  color: #ff9a90;
+  border-color: rgba(240, 120, 110, 0.6);
+  background: rgba(163, 40, 31, 0.3);
+}
+
+.ds-actbtn--danger:hover:not(:disabled) {
+  background: rgba(163, 40, 31, 0.5);
+}
+
+/* Simpan PDF */
+.ds-save {
+  width: 100%;
+  min-height: 46px;
+  border: none;
+  border-radius: 999px;
+  background: var(--ds-blue);
+  color: #fff;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.ds-save:hover:not(:disabled) {
+  background: var(--ds-blue-dark);
+}
+
+.ds-save:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Peringatan di atas kendali */
+.ds-notice {
+  margin: 0;
+  padding: 7px 11px;
+  border: 1px solid rgba(255, 213, 120, 0.35);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #ffe0a3;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+/* Kilat rana */
+.ds-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  background: #fff;
+  pointer-events: none;
+  animation: ds-flash-anim 0.34s ease-out forwards;
+}
+
+@keyframes ds-flash-anim {
+  from {
+    opacity: 0.95;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Tombol generik (dipakai kotak galat kamera) */
 .ds-btn {
   min-height: 44px;
   padding: 0 16px;
   border: 1px solid transparent;
-  border-radius: var(--ds-radius);
+  border-radius: 10px;
   font: inherit;
+  font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -221,47 +533,27 @@
   cursor: not-allowed;
 }
 
-.ds-btn--primary {
-  flex: 1 1 160px;
-  background: var(--ds-blue);
-  color: var(--ds-white);
-}
-
-.ds-btn--primary:hover:not(:disabled) {
-  background: var(--ds-blue-dark);
-}
-
-.ds-btn--outline {
-  flex: 1 1 160px;
-  border-color: var(--ds-ink);
-  background: var(--ds-white);
-  color: var(--ds-ink);
-}
-
 .ds-btn--quiet {
-  border-color: var(--ds-line);
-  background: var(--ds-white);
-  color: var(--ds-ink);
-  font-weight: 500;
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
 
-.ds-btn--danger {
-  border-color: var(--ds-danger);
-  background: var(--ds-white);
-  color: var(--ds-danger);
+.ds-btn--quiet:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .ds-root :focus-visible {
-  outline: 3px solid var(--ds-blue);
+  outline: 3px solid #58a6ff;
   outline-offset: 2px;
-}
-
-.ds-stagewrap :focus-visible {
-  outline-color: var(--ds-white);
 }
 
 @media (max-width: 480px) {
   .ds-size span {
     display: none;
+  }
+
+  .ds-pill {
+    max-width: 56vw;
   }
 }
