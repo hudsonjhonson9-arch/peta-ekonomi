@@ -180,6 +180,14 @@ function loadOpenCV(sumber, timeoutMs = OPENCV_TIMEOUT_MS) {
   return opencvPromise;
 }
 
+// Muat OpenCV sejak halaman aplikasi dibuka, mengikuti saran wiki jscanify
+// ("OpenCV.js can take some time to load" — mulai muat lebih awal). Modul ini
+// ikut terimpor saat aplikasi start, jadi saat modal "Pindai surat" dibuka,
+// deteksi tepi biasanya sudah siap: tidak ada lagi jeda "Memuat deteksi tepi"
+// atau halaman tersimpan tanpa pelurusan. Gagal di sini tidak fatal — promise
+// direset dan modal mencoba lagi saat dibuka.
+loadOpenCV(sumberOpenCVBawaan()).catch(() => {});
+
 // Mengembalikan 4 titik sudut (kiri-atas, kanan-atas, kanan-bawah, kiri-bawah)
 // dalam koordinat canvas deteksi, atau null jika kertas tidak ditemukan.
 function detectQuad(scanner, canvas) {
