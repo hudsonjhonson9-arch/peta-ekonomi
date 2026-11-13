@@ -10,8 +10,12 @@
  * gagal di image Docker node:alpine. Versi browser hanya butuh file ini plus
  * OpenCV.js yang dimuat sebagai global `window.cv`.
  *
- * Perubahan dari aslinya: objek hasil contours.get(i) kini dilepas (delete) agar
- * memori WebAssembly tidak terus bertambah selama kamera terbuka.
+ * Perubahan dari aslinya:
+ * - objek hasil contours.get(i) kini dilepas (delete) agar memori WebAssembly
+ *   tidak terus bertambah selama kamera terbuka;
+ * - bila hasil jauh lebih kecil dari kertas di sumber, sumber diperkecil dulu
+ *   dengan INTER_AREA sebelum warpPerspective supaya teks tidak buram karena
+ *   undersampling (warp INTER_LINEAR melewatkan piksel saat mengecil).
  *
  * MIT License
  *
@@ -113,13 +117,45 @@ export default class Jscanify {
       return null;
     }
 
+    // Hasil biasanya jauh lebih kecil dari kertas di frame penuh (mis. 4K → 1654px).
+    // WarpPerspective INTER_LINEAR langsung ke ukuran kecil melewatkan piksel
+    // (undersampling) sehingga teks jadi lembut. Perkecil sumber dulu dengan
+    // INTER_AREA (rata-rata piksel = anti-alias benar), baru warp mendekati 1:1.
+    let src = img;
+    let tl = { x: topLeftCorner.x, y: topLeftCorner.y };
+    let tr = { x: topRightCorner.x, y: topRightCorner.y };
+    let bl = { x: bottomLeftCorner.x, y: bottomLeftCorner.y };
+    let br = { x: bottomRightCorner.x, y: bottomRightCorner.y };
+    const lebarSumber =
+      (Math.hypot(tr.x - tl.x, tr.y - tl.y) + Math.hypot(br.x - bl.x, br.y - bl.y)) / 2;
+    const faktor = resultWidth > 0 ? lebarSumber / resultWidth : 1;
+    let kecil = null;
+    if (faktor > 1.15) {
+      const skala = 1 / faktor;
+      kecil = new cv.Mat();
+      cv.resize(
+        img,
+        kecil,
+        new cv.Size(Math.max(1, Math.round(img.cols * skala)), Math.max(1, Math.round(img.rows * skala))),
+        0,
+        0,
+        cv.INTER_AREA
+      );
+      src = kecil;
+      const perkecil = (p) => ({ x: p.x * skala, y: p.y * skala });
+      tl = perkecil(tl);
+      tr = perkecil(tr);
+      bl = perkecil(bl);
+      br = perkecil(br);
+    }
+
     const warpedDst = new cv.Mat();
     const dsize = new cv.Size(resultWidth, resultHeight);
     const srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-      topLeftCorner.x, topLeftCorner.y,
-      topRightCorner.x, topRightCorner.y,
-      bottomLeftCorner.x, bottomLeftCorner.y,
-      bottomRightCorner.x, bottomRightCorner.y,
+      tl.x, tl.y,
+      tr.x, tr.y,
+      bl.x, bl.y,
+      br.x, br.y,
     ]);
     const dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
       0, 0,
@@ -129,9 +165,10 @@ export default class Jscanify {
     ]);
 
     const M = cv.getPerspectiveTransform(srcTri, dstTri);
-    cv.warpPerspective(img, warpedDst, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+    cv.warpPerspective(src, warpedDst, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
     cv.imshow(canvas, warpedDst);
 
+    if (kecil) kecil.delete();
     img.delete();
     warpedDst.delete();
     srcTri.delete();

@@ -13,7 +13,7 @@ const SIZES = {
 };
 
 const SHORT_SIDE_PX = 1654; // sisi pendek hasil scan (A4 kira-kira 200 dpi, setara pindaian kamera HP)
-const JPEG_QUALITY = 0.8;
+const JPEG_QUALITY = 0.9; // kualitas lebih tinggi dari sebelumnya (0.8) supaya teks tegas
 const DETECT_WIDTH = 440; // lebar frame untuk deteksi: presisi sudut lebih baik, masih ringan
 const DETECT_INTERVAL_MS = 200;
 const MIN_AREA_RATIO = 0.15; // kertas harus menutupi minimal 15% frame
@@ -221,6 +221,24 @@ function buildPdf(pages) {
     pdf.addImage(p.url, "JPEG", (p.pw - w) / 2, (p.ph - h) / 2, w, h, undefined, "FAST");
   });
   return pdf.output("blob");
+}
+
+// Kontras ringan supaya teks hasil pindai terbaca lebih tegas. ctx.filter tidak
+// didukung di browser lama — tetap aman, gambarnya dilewati tanpa error.
+function tingkatkanKetajaman(canvas) {
+  try {
+    const tmp = document.createElement("canvas");
+    tmp.width = canvas.width;
+    tmp.height = canvas.height;
+    tmp.getContext("2d").drawImage(canvas, 0, 0);
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.filter = "contrast(1.12) brightness(1.03)";
+    ctx.drawImage(tmp, 0, 0);
+    ctx.filter = "none";
+  } catch {
+    /* biarkan apa adanya */
+  }
 }
 
 function timestamp() {
@@ -495,12 +513,17 @@ export default function DocumentScanner({
           const height = (dist(quad[0], quad[3]) + dist(quad[1], quad[2])) / 2;
           const landscape = width > height;
           const ratio = size.h / size.w;
-          const wpx = landscape ? Math.round(SHORT_SIDE_PX * ratio) : SHORT_SIDE_PX;
-          const hpx = landscape ? SHORT_SIDE_PX : Math.round(SHORT_SIDE_PX * ratio);
+          const k = full.width / DETECT_WIDTH;
+          // Target 200 dpi, tapi jangan melebihi piksel kertas di sumber lebih
+          // dari 20% — memperbesar gambar kecil justru membuat hasil buram.
+          const wTarget = landscape ? SHORT_SIDE_PX * ratio : SHORT_SIDE_PX;
+          const hTarget = landscape ? SHORT_SIDE_PX : SHORT_SIDE_PX * ratio;
+          const skala = Math.min(1, (width * k * 1.2) / wTarget, (height * k * 1.2) / hTarget);
+          const wpx = Math.max(1, Math.round(wTarget * skala));
+          const hpx = Math.max(1, Math.round(hTarget * skala));
           try {
             // Pakai sudut dari deteksi live (diskalakan ke resolusi penuh) supaya hasil
             // sama persis dengan kotak yang dilihat pengguna, dan tanpa deteksi ulang.
-            const k = full.width / DETECT_WIDTH;
             const pt = (p) => ({ x: p.x * k, y: p.y * k });
             const corners = {
               topLeftCorner: pt(quad[0]),
@@ -510,6 +533,7 @@ export default function DocumentScanner({
             };
             const out = scannerRef.current.extractPaper(full, wpx, hpx, corners);
             if (out && out.width) {
+              tingkatkanKetajaman(out);
               page = {
                 url: out.toDataURL("image/jpeg", JPEG_QUALITY),
                 w: out.width,
@@ -528,7 +552,11 @@ export default function DocumentScanner({
           const raw = document.createElement("canvas");
           raw.width = Math.round(full.width * m);
           raw.height = Math.round(full.height * m);
-          raw.getContext("2d").drawImage(full, 0, 0, raw.width, raw.height);
+          const rctx = raw.getContext("2d");
+          rctx.imageSmoothingEnabled = true;
+          rctx.imageSmoothingQuality = "high";
+          rctx.drawImage(full, 0, 0, raw.width, raw.height);
+          tingkatkanKetajaman(raw);
           const landscape = raw.width > raw.height;
           page = {
             url: raw.toDataURL("image/jpeg", JPEG_QUALITY),

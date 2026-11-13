@@ -718,7 +718,8 @@ export default function AgendaSuratPage({ user, showToast }) {
                   data: {
                     ...prev.data,
                     file_url: compressed,
-                    file_name: file.name
+                    file_name: file.name,
+                    drive_url: ""
                   }
                 }
               : prev
@@ -737,7 +738,8 @@ export default function AgendaSuratPage({ user, showToast }) {
                 data: {
                   ...prev.data,
                   file_url: ev.target.result,
-                  file_name: file.name
+                  file_name: file.name,
+                  drive_url: ""
                 }
               }
             : prev
@@ -1926,10 +1928,10 @@ export default function AgendaSuratPage({ user, showToast }) {
           maxWidth={600}
         >
           <form onSubmit={simpanSuratMasuk} style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
-                  Nomor Surat Asli *
+                  Nomor Surat Asli <span style={{ color: T.danger }}>*</span>
                 </label>
                 <input
                   type="text"
@@ -1943,7 +1945,7 @@ export default function AgendaSuratPage({ user, showToast }) {
 
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
-                  Asal Instansi Pengirim *
+                  Asal Instansi Pengirim <span style={{ color: T.danger }}>*</span>
                 </label>
                 <input
                   type="text"
@@ -1956,7 +1958,7 @@ export default function AgendaSuratPage({ user, showToast }) {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Tanggal Surat Asli
@@ -1982,7 +1984,7 @@ export default function AgendaSuratPage({ user, showToast }) {
 
             <div>
               <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
-                Perihal Surat *
+                Perihal Surat <span style={{ color: T.danger }}>*</span>
               </label>
               <textarea
                 required
@@ -1994,7 +1996,9 @@ export default function AgendaSuratPage({ user, showToast }) {
               />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            {/* Sifat & jumlah lampiran berdampingan; Kode Klasifikasi sendiri di
+                baris penuh supaya label panjangnya tidak terpotong di layar sempit. */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Sifat Surat
@@ -2015,23 +2019,6 @@ export default function AgendaSuratPage({ user, showToast }) {
 
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
-                  Kode Klasifikasi
-                </label>
-                <Select
-                  fullWidth
-                  size="md"
-                  searchable
-                  value={modalMasuk.data.kode_klasifikasi}
-                  onChange={(v) => setModalMasuk({ ...modalMasuk, data: { ...modalMasuk.data, kode_klasifikasi: v } })}
-                  options={KODE_KLASIFIKASI_LIST.map((k) => ({
-                    value: k.kode,
-                    label: `${k.kode} - ${k.label.split("- ")[1] || k.label}`,
-                  }))}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Jumlah Lampiran
                 </label>
                 <input
@@ -2042,6 +2029,23 @@ export default function AgendaSuratPage({ user, showToast }) {
                   style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
                 />
               </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
+                Kode Klasifikasi
+              </label>
+              <Select
+                fullWidth
+                size="md"
+                searchable
+                value={modalMasuk.data.kode_klasifikasi}
+                onChange={(v) => setModalMasuk({ ...modalMasuk, data: { ...modalMasuk.data, kode_klasifikasi: v } })}
+                options={KODE_KLASIFIKASI_LIST.map((k) => ({
+                  value: k.kode,
+                  label: `${k.kode} - ${k.label.split("- ")[1] || k.label}`,
+                }))}
+              />
             </div>
 
             {/* Lampiran Media Foto Fisik / Unggah Berkas */}
@@ -2067,12 +2071,12 @@ export default function AgendaSuratPage({ user, showToast }) {
               </div>
 
               {/* 3 Opsi Input Media */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
                 <button
                   type="button"
                   onClick={() => setModalScan(true)}
                   style={{
-                    padding: "9px 12px",
+                    padding: "9px 8px",
                     borderRadius: 8,
                     border: `1.5px solid ${modalMasuk.data.file_url?.startsWith("data:") ? T.primary : T.border}`,
                     background: isDark ? "#1E293B" : "#fff",
@@ -2084,6 +2088,7 @@ export default function AgendaSuratPage({ user, showToast }) {
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 6,
+                    whiteSpace: "nowrap",
                     transition: "all 0.15s ease"
                   }}
                 >
@@ -2093,7 +2098,7 @@ export default function AgendaSuratPage({ user, showToast }) {
 
                 <label
                   style={{
-                    padding: "9px 12px",
+                    padding: "9px 8px",
                     borderRadius: 8,
                     border: `1.5px solid ${T.border}`,
                     background: isDark ? "#1E293B" : "#fff",
@@ -2105,6 +2110,7 @@ export default function AgendaSuratPage({ user, showToast }) {
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 6,
+                    whiteSpace: "nowrap",
                     transition: "all 0.15s ease"
                   }}
                 >
@@ -2126,12 +2132,12 @@ export default function AgendaSuratPage({ user, showToast }) {
                     if (u !== null) {
                       setModalMasuk((prev) => ({
                         ...prev,
-                        data: { ...prev.data, file_url: u, file_name: u ? "Tautan Berkas Cloud" : "" }
+                        data: { ...prev.data, file_url: u, file_name: u ? "Tautan Berkas Cloud" : "", drive_url: "" }
                       }));
                     }
                   }}
                   style={{
-                    padding: "9px 12px",
+                    padding: "9px 8px",
                     borderRadius: 8,
                     border: `1.5px solid ${T.border}`,
                     background: isDark ? "#1E293B" : "#fff",
@@ -2143,6 +2149,7 @@ export default function AgendaSuratPage({ user, showToast }) {
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 6,
+                    whiteSpace: "nowrap",
                     transition: "all 0.15s ease"
                   }}
                 >
@@ -2283,14 +2290,14 @@ export default function AgendaSuratPage({ user, showToast }) {
               <button
                 type="button"
                 onClick={() => setModalMasuk(null)}
-                style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.bg, color: T.text, cursor: "pointer", fontSize: 13 }}
+                style={{ padding: "10px 18px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.bg, color: T.text, cursor: "pointer", fontSize: 13 }}
               >
                 Batal
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: T.primary, color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, opacity: submitting ? 0.7 : 1 }}
+                style={{ padding: "10px 22px", borderRadius: 8, border: "none", background: T.primary, color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, opacity: submitting ? 0.7 : 1 }}
               >
                 {submitting ? "Menyimpan..." : "Simpan Surat Masuk"}
               </button>
@@ -2519,7 +2526,7 @@ export default function AgendaSuratPage({ user, showToast }) {
                     : "Formulir Lembar Disposisi Pertama"}
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
                   <div>
                     <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                       Pemberi Disposisi *
@@ -2566,7 +2573,7 @@ export default function AgendaSuratPage({ user, showToast }) {
                         <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", marginBottom: 4, letterSpacing: "0.02em" }}>
                           {grup.kategori}
                         </div>
-                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 6 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 6 }}>
                           {grup.items.map((opt) => {
                             const checked = modalDisposisi.form.diteruskan_kepada.includes(opt);
                             return (
@@ -2598,7 +2605,7 @@ export default function AgendaSuratPage({ user, showToast }) {
                   <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 6 }}>
                     Petunjuk / Arahan Tindak Lanjut:
                   </label>
-                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 6, background: T.bg, padding: 10, borderRadius: 8, border: `1px solid ${T.border}` }}>
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 6, background: T.bg, padding: 10, borderRadius: 8, border: `1px solid ${T.border}` }}>
                     {ARAHAN_OPTIONS.map((opt) => {
                       const checked = modalDisposisi.form.arahan.includes(opt);
                       return (
@@ -2640,7 +2647,7 @@ export default function AgendaSuratPage({ user, showToast }) {
                   />
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
                   <div>
                     <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                       Batas Waktu Tindak Lanjut (Opsional)
@@ -2751,7 +2758,7 @@ export default function AgendaSuratPage({ user, showToast }) {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Kode Klasifikasi *
@@ -2826,7 +2833,7 @@ export default function AgendaSuratPage({ user, showToast }) {
               />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Bidang Pengonsep *
@@ -2854,7 +2861,7 @@ export default function AgendaSuratPage({ user, showToast }) {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Sifat Surat
@@ -2892,7 +2899,7 @@ export default function AgendaSuratPage({ user, showToast }) {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
                   Tautan Draf Surat (Docs/Drive)

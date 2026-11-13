@@ -1,0 +1,10 @@
+/* Kontrol form memakai font aplikasi, bukan font bawaan browser.
+   Di sebagian perangkat (mis. Android) font input bawaan terlihat seperti
+   monospace sehingga label (sans-serif) dan isi form tidak konsisten.
+   Aturan inline di komponen tetap menang bila menyetel font sendiri. */
+input,
+textarea,
+select,
+button {
+  font-family: inherit;
+}
