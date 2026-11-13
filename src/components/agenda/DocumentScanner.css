@@ -129,6 +129,9 @@
 .ds-status--locked {
   border-left-color: var(--ds-locked);
 }
+.ds-status--tepi {
+  border-left-color: var(--ds-danger);
+}
 
 .ds-error {
   max-width: 34ch;

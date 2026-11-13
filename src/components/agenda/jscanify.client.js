@@ -62,7 +62,11 @@ export default class Jscanify {
     let maxArea = 0;
     let maxContourIndex = -1;
     for (let i = 0; i < contours.size(); ++i) {
-      const area = cv.contourArea(contours.get(i));
+      // get(i) membuat header Mat baru setiap dipanggil — lepas setelah
+      // dipakai, kalau tidak loop ini membocorkan memori (analisis bagian G).
+      const c = contours.get(i);
+      const area = cv.contourArea(c);
+      c.delete();
       if (area > maxArea) {
         maxArea = area;
         maxContourIndex = i;

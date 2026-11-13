@@ -31,8 +31,8 @@ const SIZES = {
 
 const SHORT_SIDE_PX = 1240; // sisi pendek hasil scan (A4 kira-kira 150 dpi)
 const JPEG_QUALITY = 0.8;
-const DETECT_WIDTH = 480; // lebar frame untuk deteksi, supaya ringan
-const DETECT_INTERVAL_MS = 120;
+const DETECT_WIDTH = 360; // lebar frame deteksi — lebih kecil jauh lebih ringan
+const DETECT_INTERVAL_MS = 250;
 const MIN_AREA_RATIO = 0.15; // kertas harus menutupi minimal 15% frame
 const STABLE_FRAMES = 4;
 const MOVE_TOLERANCE = 0.02; // pergeseran sudut maksimum (rasio lebar frame)
@@ -122,7 +122,9 @@ function muatSkrip(src) {
 }
 
 async function muatOpenCV(sumber, batas) {
-  if (cvSiap()) return window.cv;
+  // Jangan resolve dengan objek cv — pada sebagian build cv thenable sehingga
+  // promise menggantung selamanya (analisis bagian A).
+  if (cvSiap()) return;
   if (!sumber || !sumber.length) throw new Error("Sumber OpenCV kosong");
 
   const sisa = () => batas - Date.now();
@@ -139,13 +141,20 @@ async function muatOpenCV(sumber, batas) {
     try {
       await denganBatas(muatSkrip(src), Math.min(OPENCV_SKRIP_TIMEOUT_MS, sisa()));
       skripBerhasil.add(src);
-      adaSkrip = true;
     } catch (err) {
       // Bila waktu habis, kemungkinan skrip masih menggantung di jaringan;
       // jangan diminta ulang agar percobaan berikutnya tidak ikut tersendat.
       if (err && err.waktuHabis) skripGagal.add(src);
       continue; // sumber ini gagal — lanjut ke sumber berikutnya
     }
+    // Terkirim tapi window.cv tidak ada = isinya bukan opencv.js (mis. server
+    // SPA menjawab file hilang dengan index.html status 200). Jangan buang
+    // waktu grace — langsung coba sumber berikutnya (analisis bagian B).
+    if (!window.cv) {
+      skripBerhasil.delete(src);
+      continue;
+    }
+    adaSkrip = true;
     // Skrip sudah dieksekusi; tunggu runtime dulu sebelum memuat versi lain
     // supaya tidak ada dua instance OpenCV sekaligus.
     const tungguSampai = Date.now() + Math.min(OPENCV_GRACE_MS, sisa());
@@ -166,7 +175,7 @@ async function muatOpenCV(sumber, batas) {
   while (!cvSiap() && sisa() > 0) {
     await tunggu(CV_POLL_MS);
   }
-  if (cvSiap()) return window.cv;
+  if (cvSiap()) return; // resolve tanpa nilai — jangan kirim thenable cv
   throw new Error("OpenCV tidak siap dalam batas waktu");
 }
 
@@ -180,16 +189,27 @@ function loadOpenCV(sumber, timeoutMs = OPENCV_TIMEOUT_MS) {
   return opencvPromise;
 }
 
-// Muat OpenCV sejak halaman aplikasi dibuka, mengikuti saran wiki jscanify
+// Muat OpenCV sejak aplikasi dibuka, mengikuti saran wiki jscanify
 // ("OpenCV.js can take some time to load" — mulai muat lebih awal). Modul ini
 // ikut terimpor saat aplikasi start, jadi saat modal "Pindai surat" dibuka,
 // deteksi tepi biasanya sudah siap: tidak ada lagi jeda "Memuat deteksi tepi"
-// atau halaman tersimpan tanpa pelurusan. Gagal di sini tidak fatal — promise
+// atau halaman tersimpan tanpa pelurusan. Dijadwalkan saat browser menganggur
+// (requestIdleCallback) supaya unduhan 9MB + inisialisasi WASM tidak
+// memperlambat tombol-tombol di awal. Gagal memuat tidak fatal — promise
 // direset dan modal mencoba lagi saat dibuka.
-loadOpenCV(sumberOpenCVBawaan()).catch(() => {});
+function jadwalkanPreloadOpenCV() {
+  const jalan = () => loadOpenCV(sumberOpenCVBawaan()).catch(() => {});
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(() => jalan(), { timeout: 8000 });
+  } else {
+    setTimeout(jalan, 2000);
+  }
+}
+jadwalkanPreloadOpenCV();
 
-// Mengembalikan 4 titik sudut (kiri-atas, kanan-atas, kanan-bawah, kiri-bawah)
-// dalam koordinat canvas deteksi, atau null jika kertas tidak ditemukan.
+// Mengembalikan { quad, tepi }: 4 titik sudut dalam koordinat canvas deteksi
+// plus penanda sudut yang menyentuh tepi bingkai, atau null bila kertas tidak
+// ditemukan.
 function detectQuad(scanner, canvas) {
   const cv = window.cv;
   const img = cv.imread(canvas);
@@ -203,7 +223,19 @@ function detectQuad(scanner, canvas) {
     if (quadArea(quad) < canvas.width * canvas.height * MIN_AREA_RATIO) {
       return null;
     }
-    return quad;
+    // Sudut yang menempel di tepi bingkai = kertas terpotong, kontur tidak
+    // tertutup, dan rawan salah pilih (mis. bingkai tabel di dalam kertas).
+    // Tandai tidak valid supaya pengguna diminta membenahi framing
+    // (analisis bagian D, E, F).
+    const margin = canvas.width * 0.02;
+    const tepi = quad.some(
+      (p) =>
+        p.x < margin ||
+        p.y < margin ||
+        p.x > canvas.width - margin ||
+        p.y > canvas.height - margin
+    );
+    return { quad, tepi };
   } catch {
     return null;
   } finally {
@@ -212,7 +244,7 @@ function detectQuad(scanner, canvas) {
   }
 }
 
-function drawOverlay(canvas, video, quad, scale, locked) {
+function drawOverlay(canvas, video, quad, scale, locked, tepi) {
   const dpr = window.devicePixelRatio || 1;
   const cw = canvas.clientWidth;
   const ch = canvas.clientHeight;
@@ -239,11 +271,15 @@ function drawOverlay(canvas, video, quad, scale, locked) {
     else ctx.lineTo(x, y);
   });
   ctx.closePath();
-  ctx.fillStyle = locked ? "rgba(63,191,117,0.16)" : "rgba(227,163,58,0.14)";
+  ctx.fillStyle = tepi
+    ? "rgba(163,40,31,0.14)"
+    : locked
+    ? "rgba(63,191,117,0.16)"
+    : "rgba(227,163,58,0.14)";
   ctx.fill();
   ctx.lineWidth = 3;
   ctx.lineJoin = "round";
-  ctx.strokeStyle = locked ? "#3fbf75" : "#e3a33a";
+  ctx.strokeStyle = tepi ? "#a3281f" : locked ? "#3fbf75" : "#e3a33a";
   ctx.stroke();
 }
 
@@ -319,7 +355,7 @@ export default function DocumentScanner({
   const [pages, setPages] = useState([]);
   const [viewIndex, setViewIndex] = useState(null);
   const [retakeAt, setRetakeAt] = useState(null);
-  const [detect, setDetect] = useState("none"); // none | found | locked
+  const [detect, setDetect] = useState("none"); // none | found | locked | tepi
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
@@ -432,6 +468,12 @@ export default function DocumentScanner({
 
     const tick = () => {
       if (stopped) return;
+      // Tab disembunyikan = tidak ada yang melihat overlay, jangan buang CPU.
+      if (document.hidden) {
+        timer = setTimeout(tick, DETECT_INTERVAL_MS);
+        return;
+      }
+      const t0 = performance.now();
       const video = videoRef.current;
       const overlay = overlayRef.current;
       if (video && overlay && video.videoWidth) {
@@ -440,26 +482,31 @@ export default function DocumentScanner({
         work.height = Math.round(video.videoHeight * scale);
         wctx.drawImage(video, 0, 0, work.width, work.height);
 
-        const quad = detectQuad(scannerRef.current, work);
-        if (quad) {
+        const hasil = detectQuad(scannerRef.current, work);
+        if (hasil) {
           misses = 0;
           if (prev) {
-            const moved = Math.max(...quad.map((p, i) => dist(p, prev[i]))) / DETECT_WIDTH;
-            stable = moved < MOVE_TOLERANCE ? stable + 1 : 0;
+            const moved = Math.max(...hasil.quad.map((p, i) => dist(p, prev[i]))) / DETECT_WIDTH;
+            stable = hasil.tepi || moved >= MOVE_TOLERANCE ? 0 : stable + 1;
           }
-          prev = quad;
-          quadRef.current = quad;
+          prev = hasil.quad;
+          quadRef.current = hasil;
         } else if (++misses >= MAX_MISSES) {
           prev = null;
           stable = 0;
           quadRef.current = null;
         }
 
-        const locked = !!quadRef.current && stable >= STABLE_FRAMES;
-        setDetect(quadRef.current ? (locked ? "locked" : "found") : "none");
-        drawOverlay(overlay, video, quadRef.current, scale, locked);
+        const kini = quadRef.current;
+        const locked = !!kini && !kini.tepi && stable >= STABLE_FRAMES;
+        setDetect(!kini ? "none" : kini.tepi ? "tepi" : locked ? "locked" : "found");
+        drawOverlay(overlay, video, kini ? kini.quad : null, scale, locked, !!kini && kini.tepi);
       }
-      timer = setTimeout(tick, DETECT_INTERVAL_MS);
+      // Deteksi yang habis waktu diprosesnya membuat jeda berikutnya ikut
+      // diperpanjang, supaya main thread selalu punya sisa waktu untuk
+      // tombol-tombol UI (anti "berat/susah ditekan" di perangkat lambat).
+      const durasi = performance.now() - t0;
+      timer = setTimeout(tick, Math.max(DETECT_INTERVAL_MS, durasi * 2));
     };
     tick();
 
@@ -486,7 +533,7 @@ export default function DocumentScanner({
       full.getContext("2d").drawImage(video, 0, 0);
 
       const size = SIZES[sizeKey];
-      const quad = quadRef.current;
+      const quad = quadRef.current ? quadRef.current.quad : null;
       let page = null;
 
       if (cvStatus === "ready" && quad) {
@@ -497,7 +544,17 @@ export default function DocumentScanner({
         const wpx = landscape ? Math.round(SHORT_SIDE_PX * ratio) : SHORT_SIDE_PX;
         const hpx = landscape ? SHORT_SIDE_PX : Math.round(SHORT_SIDE_PX * ratio);
         try {
-          const out = scannerRef.current.extractPaper(full, wpx, hpx);
+          // Pakai sudut deteksi live yang diskalakan ke resolusi penuh:
+          // hasil scan persis seperti yang dilihat pengguna, dan deteksi ulang
+          // yang mahal pada frame besar tidak dijalankan (analisis bagian H).
+          const k = full.width / DETECT_WIDTH;
+          const pt = (q) => ({ x: q.x * k, y: q.y * k });
+          const out = scannerRef.current.extractPaper(full, wpx, hpx, {
+            topLeftCorner: pt(quad[0]),
+            topRightCorner: pt(quad[1]),
+            bottomRightCorner: pt(quad[2]),
+            bottomLeftCorner: pt(quad[3]),
+          });
           if (out && out.width) {
             page = {
               url: out.toDataURL("image/jpeg", JPEG_QUALITY),
@@ -584,6 +641,8 @@ export default function DocumentScanner({
   } else if (cvStatus === "failed") {
     status =
       'Deteksi tepi gagal dimuat — tekan "Muat ulang deteksi", atau foto tanpa pelurusan.';
+  } else if (detect === "tepi") {
+    status = "Seluruh kertas harus terlihat di dalam bingkai";
   } else if (detect === "locked") {
     status = "Siap diambil";
   } else if (detect === "found") {
