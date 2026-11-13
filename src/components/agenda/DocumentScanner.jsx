@@ -3,7 +3,26 @@ import jsPDF from "jspdf";
 import Jscanify from "./jscanify.client.js";
 import "./DocumentScanner.css";
 
-const OPENCV_SRC = "https://docs.opencv.org/4.7.0/opencv.js";
+const OPENCV_CDN = "https://docs.opencv.org/4.7.0/opencv.js";
+const OPENCV_CDN_CADANGAN =
+  "https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.12.0-release.1/dist/opencv.js";
+
+// Batas waktu agar status "Memuat deteksi tepi" selalu berakhir siap atau gagal,
+// tidak pernah nyangkut bila CDN lambat/terblokir atau runtime wasm gagal.
+const OPENCV_TIMEOUT_MS = 35000; // total sampai cv.Mat siap
+const OPENCV_SKRIP_TIMEOUT_MS = 20000; // unduhan satu berkas skrip
+const OPENCV_GRACE_MS = 12000; // waktu tunggu runtime setelah skrip dieksekusi
+const CV_POLL_MS = 120;
+
+// Urutan sumber: host sendiri dulu (cepat, tidak bergantung CDN luar),
+// baru CDN resmi, lalu CDN cadangan bila yang sebelumnya diblokir/lambat.
+function sumberOpenCVBawaan() {
+  return [
+    `${import.meta.env.BASE_URL || "/"}opencv.js`,
+    OPENCV_CDN,
+    OPENCV_CDN_CADANGAN,
+  ];
+}
 
 const SIZES = {
   A4: { label: "A4", w: 210, h: 297 },
@@ -38,36 +57,125 @@ function quadArea(q) {
 }
 
 let opencvPromise = null;
-function loadOpenCV(src) {
-  if (opencvPromise) return opencvPromise;
-  opencvPromise = new Promise((resolve, reject) => {
-    if (window.cv && window.cv.Mat) {
-      resolve(window.cv);
+const skripTertunda = new Map(); // src -> promise skrip yang sedang dimuat
+const skripBerhasil = new Set(); // src yang sudah pernah dieksekusi halaman
+const skripGagal = new Set(); // src yang dimuatnya menggantung — jangan diminta ulang
+
+// OpenCV.js baru bisa dipakai setelah runtime wasm + embind selesai, yang
+// menandai kemunculan cv.Mat. Pengecekan ini dipakai berulang (polling) supaya
+// tidak bergantung pada event onRuntimeInitialized yang bisa terlewat.
+function cvSiap() {
+  const cv = window.cv;
+  return !!(cv && typeof cv.Mat === "function");
+}
+
+function tunggu(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Selesaikan promise asli, atau tolak bila waktu habis — skrip yang menggantung
+// (mis. diblokir firewall tanpa respons) tidak boleh menggantungkan promise utama.
+function denganBatas(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const tolakWaktu = () => {
+      const err = new Error("Waktu memuat habis");
+      err.waktuHabis = true;
+      reject(err);
+    };
+    if (ms <= 0) {
+      tolakWaktu();
       return;
     }
-    const script = document.createElement("script");
-    script.src = src;
-    script.async = true;
-    script.onload = () => {
-      const cv = window.cv;
-      if (cv && cv.Mat) {
-        resolve(cv);
-      } else if (cv && typeof cv.then === "function") {
-        cv.then((ready) => {
-          window.cv = ready;
-          resolve(ready);
-        });
-      } else if (cv) {
-        cv.onRuntimeInitialized = () => resolve(window.cv);
-      } else {
-        reject(new Error("OpenCV tidak tersedia"));
+    const timer = setTimeout(tolakWaktu, ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
       }
+    );
+  });
+}
+
+function muatSkrip(src) {
+  if (skripBerhasil.has(src)) return Promise.resolve(src);
+  const tertunda = skripTertunda.get(src);
+  if (tertunda) return tertunda;
+  const promise = new Promise((resolve, reject) => {
+    const skrip = document.createElement("script");
+    skrip.src = src;
+    skrip.async = true;
+    skrip.onload = () => resolve(src);
+    skrip.onerror = () => {
+      skrip.remove();
+      reject(new Error(`Skrip gagal dimuat: ${src}`));
     };
-    script.onerror = () => {
-      opencvPromise = null;
-      reject(new Error("OpenCV gagal dimuat"));
-    };
-    document.body.appendChild(script);
+    document.head.appendChild(skrip);
+  });
+  skripTertunda.set(src, promise);
+  const hapus = () => skripTertunda.delete(src);
+  promise.then(hapus, hapus);
+  return promise;
+}
+
+async function muatOpenCV(sumber, batas) {
+  if (cvSiap()) return window.cv;
+  if (!sumber || !sumber.length) throw new Error("Sumber OpenCV kosong");
+
+  const sisa = () => batas - Date.now();
+  let adaSkrip = false;
+
+  for (let i = 0; i < sumber.length && !cvSiap(); i++) {
+    if (sisa() <= 0) break;
+    const src = sumber[i];
+    if (skripGagal.has(src)) continue; // sudah pernah menggantung — lewati
+    if (skripBerhasil.has(src)) {
+      adaSkrip = true;
+      continue;
+    }
+    try {
+      await denganBatas(muatSkrip(src), Math.min(OPENCV_SKRIP_TIMEOUT_MS, sisa()));
+      skripBerhasil.add(src);
+      adaSkrip = true;
+    } catch (err) {
+      // Bila waktu habis, kemungkinan skrip masih menggantung di jaringan;
+      // jangan diminta ulang agar percobaan berikutnya tidak ikut tersendat.
+      if (err && err.waktuHabis) skripGagal.add(src);
+      continue; // sumber ini gagal — lanjut ke sumber berikutnya
+    }
+    // Skrip sudah dieksekusi; tunggu runtime dulu sebelum memuat versi lain
+    // supaya tidak ada dua instance OpenCV sekaligus.
+    const tungguSampai = Date.now() + Math.min(OPENCV_GRACE_MS, sisa());
+    while (!cvSiap() && Date.now() < tungguSampai) {
+      await tunggu(CV_POLL_MS);
+    }
+  }
+
+  // Bila ada skrip yang masih menggantung di jaringan, tetap beri kesempatan
+  // sampai batas waktu; hanya gagal seketika bila memang tak ada yang terkirim.
+  const adaMenggantung = sumber.some((s) => skripGagal.has(s));
+  if (!cvSiap() && !adaSkrip && !window.cv && !adaMenggantung) {
+    throw new Error("Semua sumber OpenCV gagal dimuat");
+  }
+
+  // Runtime siap belakangan; polling menjamin status berakhir "ready" atau
+  // "failed" sesuai batas waktu — tidak pernah nyangkut di "Memuat deteksi tepi".
+  while (!cvSiap() && sisa() > 0) {
+    await tunggu(CV_POLL_MS);
+  }
+  if (cvSiap()) return window.cv;
+  throw new Error("OpenCV tidak siap dalam batas waktu");
+}
+
+function loadOpenCV(sumber, timeoutMs = OPENCV_TIMEOUT_MS) {
+  if (opencvPromise) return opencvPromise;
+  const batas = Date.now() + timeoutMs;
+  opencvPromise = muatOpenCV(sumber, batas).catch((err) => {
+    opencvPromise = null; // scanner dibuka ulang = boleh coba memuat lagi
+    throw err;
   });
   return opencvPromise;
 }
@@ -178,14 +286,15 @@ function cameraErrorMessage(err) {
  * - onClose(): dipanggil saat tombol Tutup ditekan.
  * - fileName: awalan nama file, default "scan-surat".
  * - defaultSize: "A4" | "F4".
- * - opencvSrc: alamat opencv.js. Disarankan di-host sendiri (mis. "/opencv.js").
+ * - opencvSrc: string | string[] — alamat berkas opencv.js. Default: host
+ *   sendiri (BASE_URL + "opencv.js") lalu dua CDN cadangan.
  */
 export default function DocumentScanner({
   onSave,
   onClose,
   fileName = "scan-surat",
   defaultSize = "A4",
-  opencvSrc = OPENCV_SRC,
+  opencvSrc,
 }) {
   const videoRef = useRef(null);
   const overlayRef = useRef(null);
@@ -210,7 +319,13 @@ export default function DocumentScanner({
   // Muat OpenCV hanya saat scanner dibuka
   useEffect(() => {
     let cancelled = false;
-    loadOpenCV(opencvSrc)
+    const sumber =
+      Array.isArray(opencvSrc) && opencvSrc.length
+        ? opencvSrc
+        : typeof opencvSrc === "string" && opencvSrc
+        ? [opencvSrc]
+        : sumberOpenCVBawaan();
+    loadOpenCV(sumber)
       .then(() => {
         if (cancelled) return;
         scannerRef.current = new Jscanify();
