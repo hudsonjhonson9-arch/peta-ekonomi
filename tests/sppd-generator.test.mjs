@@ -309,11 +309,14 @@ test('Tingkat Biaya per personil & Struktur Baris Tabel Lembar I (Sesuai Templat
   assert.equal(tagsP2.TingkatBiaya, 'Tingkat D');
 
   const htmlP1 = bangunHtmlSPPD(mockItem, null);
-  assert.ok(htmlP1.includes('a. Pangkat dan Golongan'), 'HTML harus memuat poin 3.a');
-  assert.ok(htmlP1.includes('b. Jabatan / Instansi'), 'HTML harus memuat poin 3.b');
-  assert.ok(htmlP1.includes('c. Tingkat Biaya Perjalanan Dinas'), 'HTML harus memuat poin 3.c');
-  assert.ok(htmlP1.includes('c. Tingkat B'), 'HTML Personil 1 harus menampilkan Tingkat B');
+  assert.ok(htmlP1.includes('Pangkat dan Golongan'), 'HTML harus memuat poin 3 label Pangkat dan Golongan');
+  assert.ok(htmlP1.includes('Jabatan / Instansi'), 'HTML harus memuat poin 3 label Jabatan / Instansi');
+  assert.ok(htmlP1.includes('Tingkat Biaya Perjalanan Dinas'), 'HTML harus memuat poin 3 label Tingkat Biaya');
+  assert.ok(htmlP1.includes('Tingkat B'), 'HTML Personil 1 harus menampilkan Tingkat B');
+  assert.ok(htmlP1.includes('>a.</td>'), 'HTML 4-kolom memuat cell sub-kolom a.');
+  assert.ok(htmlP1.includes('>b.</td>'), 'HTML 4-kolom memuat cell sub-kolom b.');
+  assert.ok(htmlP1.includes('>c.</td>'), 'HTML 4-kolom memuat cell sub-kolom c.');
 
   const htmlP2 = bangunHtmlSPPD(mockItem, mockItem.pengikut[0]);
-  assert.ok(htmlP2.includes('c. Tingkat D'), 'HTML Personil 2 harus menampilkan Tingkat D');
+  assert.ok(htmlP2.includes('Tingkat D'), 'HTML Personil 2 harus menampilkan Tingkat D');
 });

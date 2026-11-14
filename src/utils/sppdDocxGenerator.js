@@ -655,14 +655,14 @@ export function bangunHtmlSPPD(it, person = null) {
   const t = bangunTagsSPPD(it, person);
 
   return `
-    <div style="font-family: Arial, 'Times New Roman', sans-serif; color: #000; background: #fff; padding: 4px 8px; max-width: 780px; margin: 0 auto; line-height: 1.35; box-sizing: border-box;">
+    <div style="font-family: Arial, 'Times New Roman', sans-serif; color: #000; background: #fff; padding: 2px 4px; max-width: 780px; margin: 0 auto; line-height: 1.25; box-sizing: border-box;">
       <!-- ══ LEMBAR I: RINCIAN SPPD ══ -->
-      <div class="sppd-page-1" style="padding-bottom: 18px;">
+      <div class="sppd-page-1" style="padding-bottom: 8px;">
         <!-- Kop Surat Resmi (Dengan Logo Lambang Kabupaten Sumba Barat) -->
         ${renderKopHtml(t, true)}
 
         <!-- Nomor & Lembar ke -->
-        <table style="width: 100%; font-size: 9.5pt; margin-bottom: 6px; border-collapse: collapse;">
+        <table style="width: 100%; font-size: 9pt; margin-bottom: 4px; border-collapse: collapse;">
           <tr>
             <td style="width: 55%;"></td>
             <td style="width: 45%;">
@@ -680,118 +680,148 @@ export function bangunHtmlSPPD(it, person = null) {
           <div style="font-size: 11.5pt; font-weight: bold; text-decoration: underline; letter-spacing: 0.5px;">SURAT PERJALANAN DINAS (SPD)</div>
         </div>
 
-        <!-- Tabel Isian 10 Poin (Sesuai Format Resmi Template SPPD — Tiap Sub-poin di Baris Masing-masing) -->
-        <table style="width: 100%; border: 1px solid #000; border-collapse: collapse; font-size: 9.5pt;">
+        <!-- Tabel Isian 10 Poin (Format Resmi 4 Kolom Sesuai Template SPPD Docx) -->
+        <table style="width: 100%; border: 1px solid #000; border-collapse: collapse; font-size: 9pt; table-layout: fixed;">
+          <colgroup>
+            <col style="width: 26px;" />
+            <col style="width: 220px;" />
+            <col style="width: 22px;" />
+            <col style="width: auto;" />
+          </colgroup>
           <tr>
-            <td style="border: 1px solid #000; width: 28px; text-align: center; vertical-align: top; padding: 4px 5px;">1.</td>
-            <td style="border: 1px solid #000; width: 42%; vertical-align: top; padding: 4px 6px;">Pengguna Anggaran / Kuasa Pengguna Anggaran</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px; font-weight: bold;">${t.KpaNama}</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 4px;">1.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">Pengguna Anggaran / Kuasa Pengguna Anggaran</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 2px;">:</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px; font-weight: bold;">${t.KpaNama}</td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;">2.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">Nama / NIP Pegawai yang melaksanakan perjalanan Dinas</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 4px;">2.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">Nama / NIP Pegawai yang melaksanakan perjalanan Dinas</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 2px;">:</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">
               <b>${t.Nama}</b><br/>
               NIP. ${t.NIP}
             </td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;">3.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">a. Pangkat dan Golongan</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">a. ${t.PangkatGolongan}</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 4px;">3.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">Pangkat dan Golongan</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 2px;">a.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">${t.PangkatGolongan}</td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;"></td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">b. Jabatan / Instansi</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">b. ${t.JabatanInstansi}</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 4px;"></td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">Jabatan / Instansi</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 2px;">b.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">${t.JabatanInstansi}</td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;"></td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">c. Tingkat Biaya Perjalanan Dinas</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">c. ${t.TingkatBiaya}</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 4px;"></td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">Tingkat Biaya Perjalanan Dinas</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 2px;">c.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">${t.TingkatBiaya}</td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;">4.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">Maksud perjalanan dinas</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px; text-align: justify;">${t.Maksud}</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 4px;">4.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">Maksud perjalanan dinas</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 2px;">:</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px; text-align: justify;">${t.Maksud}</td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;">5.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">Alat angkut yang digunakan</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">${t.AlatAngkut}</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 4px;">5.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">Alat angkut yang digunakan</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 2px;">:</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">${t.AlatAngkut}</td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;">6.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">a. Tempat berangkat</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">a. ${t.TempatBerangkat}</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 4px;">6.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">Tempat berangkat</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 2px;">a.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">${t.TempatBerangkat}</td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;"></td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">b. Tempat tujuan</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">b. ${t.TempatTujuan}</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 4px;"></td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">Tempat tujuan</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 2px;">b.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">${t.TempatTujuan}</td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;">7.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">a. Lamanya perjalanan dinas</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">a. ${t.LamaHari}</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 4px;">7.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">Lamanya perjalanan dinas</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 2px;">a.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">${t.LamaHari}</td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;"></td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">b. Tanggal berangkat</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">b. ${t.TanggalBerangkat}</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 4px;"></td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">Tanggal berangkat</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 2px;">b.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">${t.TanggalBerangkat}</td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;"></td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">c. Tanggal harus kembali</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">c. ${t.TanggalKembali}</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 4px;"></td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">Tanggal harus kembali</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 2px;">c.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">${t.TanggalKembali}</td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;">8.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">
-              Pengikut : Nama<br/>
-              <span style="padding-left: 10px;">1.</span><br/>
-              <span style="padding-left: 10px;">2.</span>
-            </td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">
-              <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 4px;">8.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">Pengikut : Nama</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 2px;"></td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 0;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 8.5pt;">
                 <tr>
-                  <td style="width: 50%; border-bottom: 1px solid #000; padding-bottom: 2px;">Tanggal Lahir</td>
-                  <td style="width: 50%; border-bottom: 1px solid #000; padding-bottom: 2px; padding-left: 6px; border-left: 1px solid #000;">Keterangan</td>
-                </tr>
-                <tr>
-                  <td style="height: 28px;"></td>
-                  <td style="border-left: 1px solid #000;"></td>
+                  <td style="width: 50%; border-right: 1px solid #000; text-align: center; padding: 2px 4px;">Tanggal Lahir</td>
+                  <td style="width: 50%; text-align: center; padding: 2px 4px;">Keterangan</td>
                 </tr>
               </table>
             </td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;">9.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">Pembebanan anggaran</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;"></td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 4px;"></td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px; line-height: 1.3;">
+              1.<br/>2.<br/>3.<br/>4.<br/>5.
+            </td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 2px;"></td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 0;">
+              <table style="width: 100%; height: 100%; min-height: 48px; border-collapse: collapse; font-size: 8.5pt;">
+                <tr>
+                  <td style="width: 50%; border-right: 1px solid #000;">&nbsp;</td>
+                  <td style="width: 50%;">&nbsp;</td>
+                </tr>
+              </table>
+            </td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;"></td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">a. Instansi</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">a. ${t.Instansi}</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 4px;">9.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">Pembebanan anggaran</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 2px;">:</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;"></td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;"></td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">b. Mata anggaran</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">b. ${t.MataAnggaran}</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 4px;"></td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">Instansi</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 2px;">a.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">${t.Instansi}</td>
           </tr>
           <tr>
-            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;">10.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">Keterangan lain-lain</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">-</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 4px;"></td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">Mata anggaran</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 2px;">b.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">${t.MataAnggaran}</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 4px;">10.</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">Keterangan lain-lain</td>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 3px 2px;">:</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 3px 6px;">-</td>
           </tr>
         </table>
 
         <!-- Tanda Tangan & Paraf Lembar I -->
-        <table style="width: 100%; font-size: 9.5pt; margin-top: 12px; border-collapse: collapse;">
+        <table style="width: 100%; font-size: 9pt; margin-top: 10px; border-collapse: collapse;">
           <tr>
-            <td style="width: 46%; vertical-align: bottom; padding-right: 10px;">
-              <table style="border: 1px solid #000; border-collapse: collapse; font-size: 8pt; width: 220px;">
+            <td style="width: 44%; vertical-align: bottom; padding-right: 10px;">
+              <table style="border: 1px solid #000; border-collapse: collapse; font-size: 8pt; width: 210px;">
                 <tr>
                   <th style="border: 1px solid #000; padding: 2px 4px; text-align: center; width: 24px;">NO</th>
                   <th style="border: 1px solid #000; padding: 2px 5px; text-align: center;" colspan="2">Paraf Hirarki</th>
@@ -799,7 +829,7 @@ export function bangunHtmlSPPD(it, person = null) {
                 <tr>
                   <td style="border: 1px solid #000; text-align: center; padding: 2px;">1.</td>
                   <td style="border: 1px solid #000; padding: 2px 5px;">${t.Paraf1}</td>
-                  <td style="border: 1px solid #000; width: 38px;"></td>
+                  <td style="border: 1px solid #000; width: 34px;"></td>
                 </tr>
                 <tr>
                   <td style="border: 1px solid #000; text-align: center; padding: 2px;">2.</td>
@@ -813,10 +843,10 @@ export function bangunHtmlSPPD(it, person = null) {
                 </tr>
               </table>
             </td>
-            <td style="width: 54%; vertical-align: top; padding-left: 16px;">
-              <table style="border-collapse: collapse; font-size: 9.5pt; margin-bottom: 4px;">
+            <td style="width: 56%; vertical-align: top; padding-left: 12px;">
+              <table style="border-collapse: collapse; font-size: 9pt; margin-bottom: 3px;">
                 <tr>
-                  <td style="width: 90px;">Ditetapkan di</td>
+                  <td style="width: 85px;">Ditetapkan di</td>
                   <td style="width: 10px; text-align: center;">:</td>
                   <td>${t.DitetapkanDi}</td>
                 </tr>
@@ -826,11 +856,11 @@ export function bangunHtmlSPPD(it, person = null) {
                   <td>${t.TanggalPenetapan}</td>
                 </tr>
               </table>
-              <div style="text-align: center; font-weight: bold; margin-top: 4px; line-height: 1.25;">
+              <div style="text-align: center; font-weight: bold; margin-top: 3px; line-height: 1.25; font-size: 9pt;">
                 ${t.JabatanTtd}<br/>KABUPATEN SUMBA BARAT,
               </div>
-              <div style="height: 46px;"></div>
-              <div style="text-align: center;">
+              <div style="height: 38px;"></div>
+              <div style="text-align: center; font-size: 9pt;">
                 <div style="font-weight: bold; text-decoration: underline;">${t.KepalaNama}</div>
                 <div>${t.KepalaPangkat}</div>
                 <div>NIP. ${t.KepalaNIP}</div>
@@ -848,19 +878,19 @@ export function bangunHtmlSPPD(it, person = null) {
       </div>
 
       <!-- ══ LEMBAR II: VISUM & PENGESAHAN (ROMAWI I s/d VI) ══ -->
-      <div style="page-break-before: always; break-before: page;" class="sppd-page-2">
-        <table style="width: 100%; border: 1px solid #000; border-collapse: collapse; font-size: 9pt; table-layout: fixed;">
+      <div style="page-break-before: always; break-before: page; box-sizing: border-box;" class="sppd-page-2">
+        <table style="width: 100%; border: 1px solid #000; border-collapse: collapse; font-size: 8.5pt; table-layout: fixed; line-height: 1.25;">
           <!-- Baris Romawi I -->
           <tr>
-            <td style="border: 1px solid #000; width: 48%; vertical-align: top; padding: 6px 8px;">
+            <td style="border: 1px solid #000; width: 48%; vertical-align: top; padding: 4px 6px;">
               &nbsp;
             </td>
-            <td style="border: 1px solid #000; width: 52%; vertical-align: top; padding: 6px 8px;">
-              <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+            <td style="border: 1px solid #000; width: 52%; vertical-align: top; padding: 4px 6px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 8.5pt;">
                 <tr>
-                  <td style="width: 18px; vertical-align: top; font-weight: bold;">I.</td>
-                  <td style="width: 105px; vertical-align: top;">Berangkat dari<br/><span style="font-size: 8pt;">(Tempat Kedudukan)</span></td>
-                  <td style="width: 10px; vertical-align: top;">:</td>
+                  <td style="width: 16px; vertical-align: top; font-weight: bold;">I.</td>
+                  <td style="width: 95px; vertical-align: top;">Berangkat dari<br/><span style="font-size: 7.5pt;">(Tempat Kedudukan)</span></td>
+                  <td style="width: 8px; vertical-align: top;">:</td>
                   <td style="vertical-align: top; font-weight: bold;">${t.TempatBerangkatRomawiI}</td>
                 </tr>
                 <tr>
@@ -876,9 +906,9 @@ export function bangunHtmlSPPD(it, person = null) {
                   <td style="vertical-align: top;">${t.TanggalBerangkatRomawiI}</td>
                 </tr>
               </table>
-              <div style="text-align: center; margin-top: 6px;">
-                <div style="font-weight: bold; line-height: 1.25;">${(t.PPTKJabatan || "KEPALA BIDANG PPE").toUpperCase()},</div>
-                <div style="height: 40px;"></div>
+              <div style="text-align: center; margin-top: 4px;">
+                <div style="font-weight: bold; line-height: 1.2;">${(t.PPTKJabatan || "KEPALA BIDANG PPE").toUpperCase()},</div>
+                <div style="height: 28px;"></div>
                 <div style="font-weight: bold; text-decoration: underline;">${t.BidangNama}</div>
                 <div>NIP. ${t.BidangNIP}</div>
               </div>
@@ -887,12 +917,12 @@ export function bangunHtmlSPPD(it, person = null) {
 
           <!-- Baris Romawi II -->
           <tr>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 6px 8px;">
-              <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 8.5pt;">
                 <tr>
-                  <td style="width: 22px; vertical-align: top; font-weight: bold;">II.</td>
-                  <td style="width: 75px; vertical-align: top;">Tiba di</td>
-                  <td style="width: 10px; vertical-align: top;">:</td>
+                  <td style="width: 18px; vertical-align: top; font-weight: bold;">II.</td>
+                  <td style="width: 70px; vertical-align: top;">Tiba di</td>
+                  <td style="width: 8px; vertical-align: top;">:</td>
                   <td style="vertical-align: top;">${t.TempatTujuan}</td>
                 </tr>
                 <tr>
@@ -903,20 +933,20 @@ export function bangunHtmlSPPD(it, person = null) {
                 </tr>
                 <tr>
                   <td></td>
-                  <td colspan="3" style="padding-top: 2px;">Kepala / Pejabat :</td>
+                  <td colspan="3" style="padding-top: 1px;">Kepala / Pejabat :</td>
                 </tr>
               </table>
-              <div style="height: 42px;"></div>
-              <div style="text-align: center;">
+              <div style="height: 28px;"></div>
+              <div style="text-align: center; font-size: 8.5pt;">
                 ( ............................................................ )<br/>
                 <span style="display: inline-block; width: 85%; text-align: left;">NIP.</span>
               </div>
             </td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 6px 8px;">
-              <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 8.5pt;">
                 <tr>
-                  <td style="width: 90px; vertical-align: top;">Berangkat dari</td>
-                  <td style="width: 10px; vertical-align: top;">:</td>
+                  <td style="width: 85px; vertical-align: top;">Berangkat dari</td>
+                  <td style="width: 8px; vertical-align: top;">:</td>
                   <td style="vertical-align: top;">${t.TempatTujuan}</td>
                 </tr>
                 <tr>
@@ -930,11 +960,11 @@ export function bangunHtmlSPPD(it, person = null) {
                   <td style="vertical-align: top;">${t.TanggalKembali}</td>
                 </tr>
                 <tr>
-                  <td colspan="3" style="padding-top: 2px;">Kepala / Pejabat :</td>
+                  <td colspan="3" style="padding-top: 1px;">Kepala / Pejabat :</td>
                 </tr>
               </table>
-              <div style="height: 32px;"></div>
-              <div style="text-align: center;">
+              <div style="height: 24px;"></div>
+              <div style="text-align: center; font-size: 8.5pt;">
                 ( ............................................................ )<br/>
                 <span style="display: inline-block; width: 85%; text-align: left;">NIP.</span>
               </div>
@@ -943,12 +973,12 @@ export function bangunHtmlSPPD(it, person = null) {
 
           <!-- Baris Romawi III -->
           <tr>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 6px 8px;">
-              <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 8.5pt;">
                 <tr>
-                  <td style="width: 22px; vertical-align: top; font-weight: bold;">III.</td>
-                  <td style="width: 75px; vertical-align: top;">Tiba di</td>
-                  <td style="width: 10px; vertical-align: top;">:</td>
+                  <td style="width: 18px; vertical-align: top; font-weight: bold;">III.</td>
+                  <td style="width: 70px; vertical-align: top;">Tiba di</td>
+                  <td style="width: 8px; vertical-align: top;">:</td>
                   <td style="vertical-align: top;"></td>
                 </tr>
                 <tr>
@@ -959,20 +989,20 @@ export function bangunHtmlSPPD(it, person = null) {
                 </tr>
                 <tr>
                   <td></td>
-                  <td colspan="3" style="padding-top: 2px;">Kepala / Pejabat :</td>
+                  <td colspan="3" style="padding-top: 1px;">Kepala / Pejabat :</td>
                 </tr>
               </table>
-              <div style="height: 38px;"></div>
-              <div style="text-align: center;">
+              <div style="height: 24px;"></div>
+              <div style="text-align: center; font-size: 8.5pt;">
                 ( ............................................................ )<br/>
                 <span style="display: inline-block; width: 85%; text-align: left;">NIP.</span>
               </div>
             </td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 6px 8px;">
-              <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 8.5pt;">
                 <tr>
-                  <td style="width: 90px; vertical-align: top;">Berangkat dari</td>
-                  <td style="width: 10px; vertical-align: top;">:</td>
+                  <td style="width: 85px; vertical-align: top;">Berangkat dari</td>
+                  <td style="width: 8px; vertical-align: top;">:</td>
                   <td style="vertical-align: top;"></td>
                 </tr>
                 <tr>
@@ -986,11 +1016,11 @@ export function bangunHtmlSPPD(it, person = null) {
                   <td style="vertical-align: top;"></td>
                 </tr>
                 <tr>
-                  <td colspan="3" style="padding-top: 2px;">Kepala / Pejabat :</td>
+                  <td colspan="3" style="padding-top: 1px;">Kepala / Pejabat :</td>
                 </tr>
               </table>
-              <div style="height: 28px;"></div>
-              <div style="text-align: center;">
+              <div style="height: 22px;"></div>
+              <div style="text-align: center; font-size: 8.5pt;">
                 ( ............................................................ )<br/>
                 <span style="display: inline-block; width: 85%; text-align: left;">NIP.</span>
               </div>
@@ -999,26 +1029,26 @@ export function bangunHtmlSPPD(it, person = null) {
 
           <!-- Baris Romawi IV -->
           <tr>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 6px 8px;">
-              <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 8.5pt;">
                 <tr>
-                  <td style="width: 24px; vertical-align: top; font-weight: bold;">IV.</td>
-                  <td style="width: 72px; vertical-align: top;">Tiba<br/>pada<br/>Tanggal</td>
-                  <td style="width: 10px; vertical-align: top;">:<br/>:</td>
+                  <td style="width: 20px; vertical-align: top; font-weight: bold;">IV.</td>
+                  <td style="width: 65px; vertical-align: top;">Tiba<br/>pada<br/>Tanggal</td>
+                  <td style="width: 8px; vertical-align: top;">:<br/>:</td>
                   <td style="vertical-align: top;">${t.TempatBerangkat}<br/>${t.TanggalKembali}</td>
                 </tr>
               </table>
-              <div style="text-align: center; margin-top: 10px;">
-                <div style="font-weight: bold; line-height: 1.25;">
+              <div style="text-align: center; margin-top: 6px;">
+                <div style="font-weight: bold; line-height: 1.2;">
                   ${t.SekretarisJabatan}<br/>KABUPATEN SUMBA BARAT
                 </div>
-                <div style="height: 44px;"></div>
+                <div style="height: 28px;"></div>
                 <div style="font-weight: bold; text-decoration: underline;">${t.SekretarisNama}</div>
                 <div style="font-weight: bold;">NIP. ${t.SekretarisNIP}</div>
               </div>
             </td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 6px 8px;">
-              <div style="text-align: justify; line-height: 1.35; font-size: 9pt;">
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">
+              <div style="text-align: justify; line-height: 1.3; font-size: 8.5pt;">
                 Telah diperiksa, dengan keterangan bahwa perjalanan tersebut diatas benar dilakukan atas perintahnya dan semata-mata untuk kepentingan jabatan dalam waktu yang sesingkat-singkatnya.
               </div>
             </td>
@@ -1026,22 +1056,22 @@ export function bangunHtmlSPPD(it, person = null) {
 
           <!-- Baris Romawi V & VI -->
           <tr>
-            <td colspan="2" style="border: 1px solid #000; padding: 5px 8px; font-size: 9pt; line-height: 1.35;">
-              <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+            <td colspan="2" style="border: 1px solid #000; padding: 3px 6px; font-size: 8.5pt; line-height: 1.25;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 8.5pt;">
                 <tr>
-                  <td style="width: 24px; vertical-align: top;">V.</td>
+                  <td style="width: 20px; vertical-align: top; font-weight: bold;">V.</td>
                   <td style="vertical-align: top;">Catatan Lain-lain</td>
                 </tr>
               </table>
             </td>
           </tr>
           <tr>
-            <td colspan="2" style="border: 1px solid #000; padding: 5px 8px; font-size: 9pt; line-height: 1.35;">
-              <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+            <td colspan="2" style="border: 1px solid #000; padding: 3px 6px; font-size: 8.5pt; line-height: 1.25;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 8.5pt;">
                 <tr>
-                  <td style="width: 24px; vertical-align: top;">VI.</td>
+                  <td style="width: 20px; vertical-align: top; font-weight: bold;">VI.</td>
                   <td style="vertical-align: top; text-align: justify;">
-                    PERHATIAN:<br/>
+                    <b>PERHATIAN:</b><br/>
                     Pengguna Anggaran/Kuasa Pengguna Anggaran yang menerbitkan SPD, pejabat/pegawai/pihak lain yang melakukan perjalanan dinas, para pejabat yang mengesahkan tanggal berangkat/tiba serta bendahara pengeluaran bertanggung jawab berdasarkan peraturan-peraturan Keuangan Daerah apabila Negara menderita rugi akibat kesalahan kelalaian dan kearsipannya.
                   </td>
                 </tr>
@@ -1129,7 +1159,8 @@ export async function unduhSuratTugasPdf(it, opts = {}) {
 
   const cleanNo = (it.nomor_spt || it.nomor_register || "SPT").replace(/[\/\\?%*:|"<>]/g, "_");
   const opt = {
-    margin: [10, 12, 10, 12],
+    margin: [8, 10, 8, 10],
+    pagebreak: { mode: ["css", "legacy"] },
     filename: `Surat_Tugas_${cleanNo}_${paper.key}.pdf`,
     image: { type: "jpeg", quality: 0.98 },
     html2canvas: {
@@ -1169,8 +1200,8 @@ export async function unduhSppdPdf(it, person = null, opts = {}) {
   const targetNama = (person?.nama || it.pelaksana_nama || "Pelaksana").replace(/[\/\\?%*:|"<>]/g, "_");
   const cleanNo = (it.nomor_sppd || it.nomor_register || "SPPD").replace(/[\/\\?%*:|"<>]/g, "_");
   const opt = {
-    margin: [8, 12, 8, 12],
-    pagebreak: { mode: ["css"], avoid: "tr" },
+    margin: [6, 8, 6, 8],
+    pagebreak: { mode: ["css", "legacy"] },
     filename: `SPPD_${cleanNo}_${targetNama}_${paper.key}.pdf`,
     image: { type: "jpeg", quality: 0.98 },
     html2canvas: {
