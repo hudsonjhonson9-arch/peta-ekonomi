@@ -386,6 +386,56 @@ function OptionRow({ o, on, isHover, onSelect, onHover, T, fSize }) {
   );
 }
 
+// ── Parser Pintar Multi-Nilai (Preserve Gelar Akademik & Nama Bidang) ────────
+// Memisahkan multi-nilai dengan pemisah utama titik-koma (;) atau newline (\n),
+// sehingga tanda koma di dalam gelar akademik pegawai (mis: "Nama, SE., M.Acc., CA")
+// atau nama bidang (mis: "Bidang Perencanaan, Pengendalian...") tidak terpotong.
+export function parseMultiValue(raw, knownOptions = []) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.map(s => String(s || "").trim()).filter(Boolean);
+  const str = String(raw).trim();
+  if (!str) return [];
+
+  // 1. Jika mengandung titik-koma (;), pasti pemisahnya adalah titik-koma
+  if (str.includes(";")) {
+    return str.split(/;\s*/).map(s => s.trim()).filter(Boolean);
+  }
+
+  // 2. Jika mengandung newline (\n)
+  if (str.includes("\n")) {
+    return str.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  }
+
+  // 3. Jika ada knownOptions, cocokkan nama-nama yang diketahui
+  if (Array.isArray(knownOptions) && knownOptions.length > 0) {
+    const listNames = knownOptions
+      .map(o => (typeof o === "string" ? o : (o.value || o.label || o.nama || o.name || o.username || "")))
+      .map(s => String(s || "").trim())
+      .filter(Boolean);
+
+    // Cek apakah string ini persis 1 nama utuh dari opsi
+    const exact = listNames.find(n => n.toLowerCase() === str.toLowerCase());
+    if (exact) return [exact];
+
+    // Cek jika beberapa nama knownOptions tergabung dengan koma (legacy)
+    const sorted = [...new Set(listNames)].sort((a, b) => b.length - a.length);
+    const found = [];
+    for (const name of sorted) {
+      if (name && str.toLowerCase().includes(name.toLowerCase())) {
+        const idx = str.toLowerCase().indexOf(name.toLowerCase());
+        found.push({ name, idx });
+      }
+    }
+    if (found.length > 1) {
+      found.sort((a, b) => a.idx - b.idx);
+      return found.map(f => f.name);
+    }
+  }
+
+  // 4. Default: kembalikan string utuh sebagai 1 entitas (jangan pecah koma gelar)
+  return [str];
+}
+
 // ── Custom MultiSelect (UI/UX Pro Max Anti-Slop) ────────────────────────────
 // Dropdown multi-pilih dengan chip/badge interaktif:
 // - Mendukung memilih lebih dari 1 opsi (mis. Penanggung Jawab / PIC, Bidang)
@@ -416,14 +466,10 @@ export function MultiSelect({
   const inputRef = useRef(null);
   const panelRef = useRef(null);
 
-  // Normalisasi values: bisa berupa array string atau string berkoma ("A, B")
+  // Normalisasi values menggunakan parser pintar titik-koma
   const currentValues = useMemo(() => {
-    if (Array.isArray(values)) return values.map(v => String(v || "").trim()).filter(Boolean);
-    if (typeof values === "string" && values.trim()) {
-      return values.split(/,\s*/).map(v => v.trim()).filter(Boolean);
-    }
-    return [];
-  }, [values]);
+    return parseMultiValue(values, options);
+  }, [values, options]);
 
   // Normalisasi opsi
   const flatOptions = useMemo(() => {

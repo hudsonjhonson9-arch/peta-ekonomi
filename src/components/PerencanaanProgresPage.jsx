@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { ThemeContext } from "../App.jsx";
-import { Icon, Select, MultiSelect, DateRangePicker } from "./ui.jsx";
+import { Icon, Select, MultiSelect, parseMultiValue, DateRangePicker } from "./ui.jsx";
 import UploadForm from "./UploadForm.jsx";
 
 const DOKUMEN_OPTIONS = [
@@ -106,7 +106,7 @@ export default function PerencanaanProgresPage({
         bidang: u.bidang || "",
       }))
       .filter((o) => o.value);
-    const curPICS = (modal?.data?.pic_nama || "").split(/,\s*/).map((s) => s.trim()).filter(Boolean);
+    const curPICS = parseMultiValue(modal?.data?.pic_nama, list);
     for (const cur of curPICS) {
       if (cur && !list.some((o) => o.value.toLowerCase() === cur.toLowerCase())) {
         list.unshift({ value: cur, label: cur, bidang: "" });
@@ -133,7 +133,7 @@ export default function PerencanaanProgresPage({
         list.push({ value: val, label: val });
       }
     }
-    const curBidangs = (modal?.data?.pic_bidang || "").split(/,\s*/).map((s) => s.trim()).filter(Boolean);
+    const curBidangs = parseMultiValue(modal?.data?.pic_bidang, list);
     for (const cur of curBidangs) {
       if (cur && !seen.has(cur.toLowerCase())) {
         seen.add(cur.toLowerCase());
@@ -542,7 +542,7 @@ export default function PerencanaanProgresPage({
                       <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                         {it.pic_nama ? (
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
-                            {it.pic_nama.split(/,\s*/).filter(Boolean).map((p, idx) => (
+                            {parseMultiValue(it.pic_nama, userOptions).map((p, idx) => (
                               <span key={idx} style={{
                                 fontSize: 11,
                                 fontWeight: 600,
@@ -562,7 +562,7 @@ export default function PerencanaanProgresPage({
                         ) : null}
                         {it.pic_bidang ? (
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
-                            {it.pic_bidang.split(/,\s*/).filter(Boolean).map((b, idx) => (
+                            {parseMultiValue(it.pic_bidang, bidangOptions).map((b, idx) => (
                               <span key={idx} style={{
                                 fontSize: 10,
                                 color: isDark ? "#CBD5E1" : "#475569",
@@ -697,7 +697,7 @@ export default function PerencanaanProgresPage({
                         <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 4 }}>
                           {it.pic_nama && (
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
-                              {it.pic_nama.split(/,\s*/).filter(Boolean).map((p, idx) => (
+                              {parseMultiValue(it.pic_nama, userOptions).map((p, idx) => (
                                 <span key={idx} style={{
                                   fontSize: 10.5,
                                   fontWeight: 600,
@@ -893,14 +893,14 @@ export default function PerencanaanProgresPage({
                 </div>
                 <MultiSelect
                   values={modal.data.pic_nama}
-                  onChange={(nextArr) => setModal({ ...modal, data: { ...modal.data, pic_nama: nextArr.join(", ") } })}
+                  onChange={(nextArr) => setModal({ ...modal, data: { ...modal.data, pic_nama: nextArr.join("; ") } })}
                   onItemAdd={(val, opt) => {
                     if (opt?.bidang) {
-                      const curBid = (modal.data.pic_bidang || "").split(/,\s*/).map((s) => s.trim()).filter(Boolean);
+                      const curBid = parseMultiValue(modal.data.pic_bidang, bidangOptions);
                       if (!curBid.some((b) => b.toLowerCase() === opt.bidang.toLowerCase())) {
                         setModal((prev) => ({
                           ...prev,
-                          data: { ...prev.data, pic_bidang: [...curBid, opt.bidang].join(", ") },
+                          data: { ...prev.data, pic_bidang: [...curBid, opt.bidang].join("; ") },
                         }));
                       }
                     }
@@ -917,7 +917,7 @@ export default function PerencanaanProgresPage({
                 </div>
                 <MultiSelect
                   values={modal.data.pic_bidang}
-                  onChange={(nextArr) => setModal({ ...modal, data: { ...modal.data, pic_bidang: nextArr.join(", ") } })}
+                  onChange={(nextArr) => setModal({ ...modal, data: { ...modal.data, pic_bidang: nextArr.join("; ") } })}
                   options={bidangOptions}
                   placeholder="Pilih atau ketik bidang..."
                   badgeVariant="neutral"
