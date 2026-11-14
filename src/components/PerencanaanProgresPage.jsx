@@ -19,50 +19,55 @@ const KANBAN_COLS = [
 ];
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-const DAY_W = 20;
+const ZOOM_LEVELS = [
+  { id: "fit", label: "Ringkas", dayW: 6 },
+  { id: "week", label: "Sedang", dayW: 12 },
+  { id: "day", label: "Harian", dayW: 22 },
+  { id: "detail", label: "Detail", dayW: 32 },
+];
 
 const toYMD = (d) => (d ? String(d).slice(0, 10) : "");
 
-function buildDayTimeline(hasPreYear, tahun) {
-  const startYear = hasPreYear ? tahun - 1 : tahun;
-  const startMonth = hasPreYear ? 10 : 0; // 0-based: 10 = Nov
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const months = [];
-  const days = [];
-  let y = startYear;
-  let m = startMonth;
-  while (y < tahun || (y === tahun && m <= 11)) {
-    const numDays = new Date(y, m + 1, 0).getDate();
-    const mDays = [];
-    for (let d = 1; d <= numDays; d++) {
-      const mm = String(m + 1).padStart(2, "0");
-      const dd = String(d).padStart(2, "0");
-      const dateStr = `${y}-${mm}-${dd}`;
-      const dow = new Date(y, m, d).getDay();
-      const obj = { dateStr, day: d, isWeekend: dow === 0 || dow === 6, isToday: dateStr === todayStr };
-      mDays.push(obj);
-      days.push(obj);
-    }
-    months.push({ key: `${y}-${m}`, label: `${MONTHS[m]} ${y}`, days: mDays });
-    m++;
-    if (m > 11) {
-      m = 0;
-      y++;
-    }
+function buildDayTimeline(startStr, endStr) {
+  const sDate = new Date(`${startStr}T00:00:00`);
+  const eDate = new Date(`${endStr}T00:00:00`);
+  if (Number.isNaN(sDate.getTime()) || Number.isNaN(eDate.getTime()) || eDate < sDate) {
+    return { months: [], days: [], startStr, endStr };
   }
-  return { months, days, startStr: days[0]?.dateStr, endStr: days[days.length - 1]?.dateStr };
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const monthsMap = new Map();
+  const days = [];
+  const cur = new Date(sDate);
+  let guard = 0;
+  while (cur <= eDate && guard < 1100) {
+    guard++;
+    const y = cur.getFullYear();
+    const m = cur.getMonth();
+    const d = cur.getDate();
+    const dow = cur.getDay();
+    const dateStr = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const obj = { dateStr, day: d, isWeekend: dow === 0 || dow === 6, isToday: dateStr === todayStr };
+    days.push(obj);
+    const mKey = `${y}-${m}`;
+    if (!monthsMap.has(mKey)) {
+      monthsMap.set(mKey, { key: mKey, label: `${MONTHS[m]} ${y}`, days: [] });
+    }
+    monthsMap.get(mKey).days.push(obj);
+    cur.setDate(cur.getDate() + 1);
+  }
+  return { months: [...monthsMap.values()], days, startStr, endStr };
 }
 
-function ganttDayRect(tglMulai, tglSelesai, startStr, totalDays) {
+function ganttDayRect(tglMulai, tglSelesai, startStr, totalDays, dayW) {
   const s0 = new Date(`${startStr}T00:00:00`).getTime();
   const s = new Date(`${toYMD(tglMulai)}T00:00:00`).getTime();
   const e = new Date(`${toYMD(tglSelesai)}T00:00:00`).getTime();
-  if (Number.isNaN(s) || Number.isNaN(e) || Number.isNaN(s0)) return { leftPx: 0, widthPx: DAY_W * 5 };
+  if (Number.isNaN(s) || Number.isNaN(e) || Number.isNaN(s0) || totalDays === 0) return { leftPx: 0, widthPx: dayW * 5 };
   const startIdx = Math.max(0, Math.min(totalDays - 1, Math.round((s - s0) / 86400000)));
   const endIdx = Math.max(startIdx, Math.min(totalDays - 1, Math.round((e - s0) / 86400000)));
   return {
-    leftPx: startIdx * DAY_W,
-    widthPx: Math.max(DAY_W, (endIdx - startIdx + 1) * DAY_W),
+    leftPx: startIdx * dayW,
+    widthPx: Math.max(dayW, (endIdx - startIdx + 1) * dayW),
   };
 }
 
@@ -87,6 +92,11 @@ export default function PerencanaanProgresPage({
   const [showUpload, setShowUpload] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dragId, setDragId] = useState(null);
+  const [zoomIdx, setZoomIdx] = useState(2); // default "Harian" (22px)
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+
+  const dayW = ZOOM_LEVELS[zoomIdx]?.dayW || 22;
 
   const userOptions = useMemo(() => {
     const list = (Array.isArray(users) ? users : [])
@@ -104,8 +114,8 @@ export default function PerencanaanProgresPage({
   }, [users, modal?.data?.pic_nama]);
 
   const bidangOptions = useMemo(() => {
-    const seen = new Set();
-    const list = [];
+    const seen = new Set(["Semua Bidang"]);
+    const list = [{ value: "Semua Bidang", label: "Semua Bidang" }];
     for (const b of Array.isArray(bidangs) ? bidangs : []) {
       const val = typeof b === "string" ? b : (b?.nama || b?.name || b?.label || "");
       if (val && !seen.has(val)) {
@@ -115,7 +125,7 @@ export default function PerencanaanProgresPage({
     }
     const cur = modal?.data?.pic_bidang;
     if (cur && !seen.has(cur)) {
-      list.unshift({ value: cur, label: cur });
+      list.push({ value: cur, label: cur });
     }
     return list;
   }, [bidangs, modal?.data?.pic_bidang]);
@@ -154,10 +164,26 @@ export default function PerencanaanProgresPage({
     return { total, done, active, avg };
   }, [items]);
 
-  const timeline = useMemo(() => {
-    const hasPreYear = filtered.some((i) => toYMD(i.tgl_mulai) < `${tahun}-01-01`);
-    return buildDayTimeline(hasPreYear, tahun);
+  const defaultRange = useMemo(() => {
+    const valid = filtered.filter((i) => toYMD(i.tgl_mulai) && toYMD(i.tgl_selesai));
+    if (!valid.length) return { start: `${tahun}-01-01`, end: `${tahun}-12-31` };
+    let minS = toYMD(valid[0].tgl_mulai);
+    let maxE = toYMD(valid[0].tgl_selesai);
+    for (const it of valid) {
+      const s = toYMD(it.tgl_mulai);
+      const e = toYMD(it.tgl_selesai);
+      if (s < minS) minS = s;
+      if (e > maxE) maxE = e;
+    }
+    return { start: minS, end: maxE };
   }, [filtered, tahun]);
+
+  const activeStart = customStart || defaultRange.start;
+  const activeEnd = customEnd || defaultRange.end;
+
+  const timeline = useMemo(() => {
+    return buildDayTimeline(activeStart, activeEnd);
+  }, [activeStart, activeEnd]);
 
   const openAdd = () => {
     setModal({
@@ -353,7 +379,7 @@ export default function PerencanaanProgresPage({
         ))}
       </div>
 
-      {/* Search Bar */}
+      {/* Search & Gantt Controls Bar */}
       {items.length > 0 && (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <input
@@ -361,11 +387,65 @@ export default function PerencanaanProgresPage({
             placeholder="Cari tahapan, pasal Permendagri, PIC, atau bidang..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{ ...inputStyle, maxWidth: 360 }}
+            style={{ ...inputStyle, maxWidth: 320 }}
           />
-          <div style={{ fontSize: 12, color: T.textMuted }}>
-            Menampilkan {filtered.length} dari {items.length} tahapan • Klik item untuk memperbarui progres
-          </div>
+          {viewMode === "gantt" ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: cardBg, border: `1px solid ${T.border}`, borderRadius: 8, padding: "4px 8px" }}>
+                <span style={{ fontSize: 11.5, color: T.textSecondary, fontWeight: 600 }}>Rentang</span>
+                <input
+                  type="date"
+                  value={activeStart}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                  style={{ border: "none", background: "transparent", color: T.text, fontSize: 12, fontVariantNumeric: "tabular-nums", outline: "none" }}
+                />
+                <span style={{ fontSize: 11.5, color: T.textMuted }}>s.d.</span>
+                <input
+                  type="date"
+                  value={activeEnd}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  style={{ border: "none", background: "transparent", color: T.text, fontSize: 12, fontVariantNumeric: "tabular-nums", outline: "none" }}
+                />
+                {(customStart || customEnd) && (
+                  <button
+                    type="button"
+                    onClick={() => { setCustomStart(""); setCustomEnd(""); }}
+                    style={{ border: "none", background: isDark ? "rgba(255,255,255,0.08)" : "#F1F5F9", color: T.textSecondary, borderRadius: 5, padding: "2px 7px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: "inline-flex", alignItems: "center", border: `1px solid ${T.border}`, borderRadius: 8, background: cardBg, overflow: "hidden" }}>
+                <button
+                  type="button"
+                  title="Perkecil timeline (Zoom Out)"
+                  disabled={zoomIdx <= 0}
+                  onClick={() => setZoomIdx((z) => Math.max(0, z - 1))}
+                  style={{ height: 32, width: 30, border: "none", background: "transparent", color: zoomIdx <= 0 ? T.textMuted : T.text, fontWeight: 700, fontSize: 14, cursor: zoomIdx <= 0 ? "default" : "pointer" }}
+                >
+                  −
+                </button>
+                <span style={{ padding: "0 8px", fontSize: 11.5, fontWeight: 600, color: T.textSecondary, borderLeft: `1px solid ${T.border}`, borderRight: `1px solid ${T.border}`, whiteSpace: "nowrap" }}>
+                  {ZOOM_LEVELS[zoomIdx]?.label}
+                </span>
+                <button
+                  type="button"
+                  title="Perbesar timeline (Zoom In)"
+                  disabled={zoomIdx >= ZOOM_LEVELS.length - 1}
+                  onClick={() => setZoomIdx((z) => Math.min(ZOOM_LEVELS.length - 1, z + 1))}
+                  style={{ height: 32, width: 30, border: "none", background: "transparent", color: zoomIdx >= ZOOM_LEVELS.length - 1 ? T.textMuted : T.text, fontWeight: 700, fontSize: 14, cursor: zoomIdx >= ZOOM_LEVELS.length - 1 ? "default" : "pointer" }}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: T.textMuted }}>
+              Menampilkan {filtered.length} dari {items.length} tahapan • Klik item untuk memperbarui progres
+            </div>
+          )}
         </div>
       )}
 
@@ -377,7 +457,7 @@ export default function PerencanaanProgresPage({
       ) : viewMode === "gantt" ? (
         /* ── TABEL GANTT (Detail Per Tanggal & Bulan, Horizontal Scroll + Sticky Kolom Kiri) ── */
         <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 10, overflowX: "auto", boxShadow: T.shadowSm }}>
-          <table style={{ width: 590 + timeline.days.length * DAY_W, borderCollapse: "collapse", fontSize: 12.5, tableLayout: "fixed" }}>
+          <table style={{ width: 606 + timeline.days.length * dayW, borderCollapse: "collapse", fontSize: 12.5, tableLayout: "fixed" }}>
             <thead>
               <tr style={{ background: isDark ? "#1E293B" : "#F8FAFC", borderBottom: `1px solid ${T.border}` }}>
                 <th rowSpan={2} style={{ position: "sticky", left: 0, zIndex: 3, background: isDark ? "#1E293B" : "#F8FAFC", textAlign: "left", padding: "10px 12px", width: 290, fontWeight: 700, color: T.textSecondary, borderRight: `1px solid ${T.border}` }}>
@@ -389,7 +469,7 @@ export default function PerencanaanProgresPage({
                 <th rowSpan={2} style={{ position: "sticky", left: 420, zIndex: 3, background: isDark ? "#1E293B" : "#F8FAFC", textAlign: "left", padding: "10px 8px", width: 110, fontWeight: 700, color: T.textSecondary, borderRight: `1px solid ${T.border}` }}>
                   Status
                 </th>
-                <th rowSpan={2} style={{ position: "sticky", left: 530, zIndex: 3, background: isDark ? "#1E293B" : "#F8FAFC", textAlign: "right", padding: "10px 10px", width: 60, fontWeight: 700, color: T.textSecondary, borderRight: `2px solid ${T.border}` }}>
+                <th rowSpan={2} style={{ position: "sticky", left: 530, zIndex: 3, background: isDark ? "#1E293B" : "#F8FAFC", textAlign: "right", padding: "10px 10px", width: 76, whiteSpace: "nowrap", fontWeight: 700, color: T.textSecondary, borderRight: `2px solid ${T.border}` }}>
                   Progres
                 </th>
                 {timeline.months.map((m) => (
@@ -412,30 +492,33 @@ export default function PerencanaanProgresPage({
                 ))}
               </tr>
               <tr style={{ background: isDark ? "#1E293B" : "#F8FAFC", borderBottom: `1px solid ${T.border}` }}>
-                {timeline.days.map((d) => (
-                  <th
-                    key={d.dateStr}
-                    style={{
-                      width: DAY_W,
-                      padding: "4px 0",
-                      textAlign: "center",
-                      fontSize: 10,
-                      fontWeight: d.isToday ? 800 : 600,
-                      fontVariantNumeric: "tabular-nums",
-                      color: d.isToday ? "#fff" : (d.isWeekend ? T.textMuted : T.textSecondary),
-                      background: d.isToday ? T.primary : (d.isWeekend ? (isDark ? "rgba(255,255,255,0.03)" : "#F1F5F9") : "transparent"),
-                      borderRight: `1px solid ${isDark ? "rgba(255,255,255,0.05)" : "#E2E8F0"}`,
-                    }}
-                  >
-                    {d.day}
-                  </th>
-                ))}
+                {timeline.days.map((d) => {
+                  const showNum = dayW >= 16 || d.day === 1 || d.day % 5 === 0;
+                  return (
+                    <th
+                      key={d.dateStr}
+                      style={{
+                        width: dayW,
+                        padding: "4px 0",
+                        textAlign: "center",
+                        fontSize: 10,
+                        fontWeight: d.isToday ? 800 : 600,
+                        fontVariantNumeric: "tabular-nums",
+                        color: d.isToday ? "#fff" : (d.isWeekend ? T.textMuted : T.textSecondary),
+                        background: d.isToday ? T.primary : (d.isWeekend ? (isDark ? "rgba(255,255,255,0.03)" : "#F1F5F9") : "transparent"),
+                        borderRight: `1px solid ${isDark ? "rgba(255,255,255,0.05)" : "#E2E8F0"}`,
+                      }}
+                    >
+                      {showNum ? d.day : ""}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
               {filtered.map((it) => {
                 const meta = colMeta(it.status);
-                const rect = ganttDayRect(it.tgl_mulai, it.tgl_selesai, timeline.startStr, timeline.days.length);
+                const rect = ganttDayRect(it.tgl_mulai, it.tgl_selesai, timeline.startStr, timeline.days.length, dayW);
                 const pct = Number(it.progres_persen) || 0;
                 const stickyBg = cardBg;
                 return (
@@ -481,7 +564,7 @@ export default function PerencanaanProgresPage({
                           <div
                             key={d.dateStr}
                             style={{
-                              width: DAY_W,
+                              width: dayW,
                               flexShrink: 0,
                               background: d.isToday ? "rgba(37,99,235,0.08)" : (d.isWeekend ? (isDark ? "rgba(255,255,255,0.02)" : "#F8FAFC") : "transparent"),
                               borderRight: `1px solid ${isDark ? "rgba(255,255,255,0.03)" : "#F1F5F9"}`,
@@ -617,7 +700,7 @@ export default function PerencanaanProgresPage({
       {modal && (
         <div
           onClick={() => setModal(null)}
-          style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 900, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
         >
           <form
             onClick={(e) => e.stopPropagation()}
