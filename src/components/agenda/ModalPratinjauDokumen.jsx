@@ -299,7 +299,7 @@ export default function ModalPratinjauDokumen({ item, defaultTab = "spt", defaul
               ))}
             </div>
             <div style={{ fontSize: 11.5, color: T.textSecondary }}>
-              Pengesah Romawi I: <strong style={{ color: T.text }}>{currentPerson?.pptk_jabatan || wewenangObj?.bidang?.jabatan || "Kepala Bidang PPE"}</strong> ({currentPerson?.pptk_nama || wewenangObj?.bidang?.nama || "BERLIAN MAGU WERU,S.Sos"})
+              Pengesah Romawi I: <strong style={{ color: T.text }}>{currentPerson?.pptk_jabatan || wewenangObj?.bidang?.jabatan || "-"}</strong> ({currentPerson?.pptk_nama || wewenangObj?.bidang?.nama || "-"})
             </div>
           </div>
         )}

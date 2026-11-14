@@ -439,9 +439,9 @@ export default function AgendaSppdPage({ user, showToast }) {
         pelaksana_nama: me?.nama || user?.name || "",
         pelaksana_pangkat: me?.pangkat || "",
         pelaksana_jabatan: me?.jabatan || "",
-        pelaksana_pptk_jabatan: defBidang.jabatan || "Kepala Bidang PPE",
-        pelaksana_pptk_nama: defBidang.nama || "BERLIAN MAGU WERU,S.Sos",
-        pelaksana_pptk_nip: defBidang.nip || "19690619 200903 1 001",
+        pelaksana_pptk_jabatan: "",
+        pelaksana_pptk_nama: "",
+        pelaksana_pptk_nip: "",
         pengikut: [],
         maksud_perjalanan: "",
         tempat_berangkat: "Waikabubak",
@@ -507,15 +507,15 @@ export default function AgendaSppdPage({ user, showToast }) {
         pelaksana_nama: it.pelaksana_nama || "",
         pelaksana_pangkat: it.pelaksana_pangkat || "",
         pelaksana_jabatan: it.pelaksana_jabatan || "",
-        pelaksana_pptk_jabatan: p1Pptk.jabatan || defBidang.jabatan || "Kepala Bidang PPE",
-        pelaksana_pptk_nama: p1Pptk.nama || defBidang.nama || "BERLIAN MAGU WERU,S.Sos",
-        pelaksana_pptk_nip: p1Pptk.nip || defBidang.nip || "19690619 200903 1 001",
+        pelaksana_pptk_jabatan: p1Pptk.jabatan || "",
+        pelaksana_pptk_nama: p1Pptk.nama || "",
+        pelaksana_pptk_nip: p1Pptk.nip || "",
         pengikut: parsedPengikut.map((p) => ({
           ...p,
           tingkat_biaya: p.tingkat_biaya || it.tingkat_biaya || (it.jenis_sppd === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C"),
-          pptk_jabatan: p.pptk_jabatan || defBidang.jabatan || "Kepala Bidang PPE",
-          pptk_nama: p.pptk_nama || defBidang.nama || "BERLIAN MAGU WERU,S.Sos",
-          pptk_nip: p.pptk_nip || defBidang.nip || "19690619 200903 1 001"
+          pptk_jabatan: p.pptk_jabatan || "",
+          pptk_nama: p.pptk_nama || "",
+          pptk_nip: p.pptk_nip || ""
         })),
         maksud_perjalanan: it.maksud_perjalanan || "",
         tempat_berangkat: it.tempat_berangkat || "Waikabubak",
@@ -571,9 +571,9 @@ export default function AgendaSppdPage({ user, showToast }) {
         bidang: data.wewenang?.bidang || wewenangConfig?.bidang,
         ktu: data.wewenang?.ktu || wewenangConfig?.ktu,
         pelaksana_pptk: {
-          jabatan: data.pelaksana_pptk_jabatan || wewenangConfig?.bidang?.jabatan || "Kepala Bidang PPE",
-          nama: data.pelaksana_pptk_nama || wewenangConfig?.bidang?.nama || "BERLIAN MAGU WERU,S.Sos",
-          nip: data.pelaksana_pptk_nip || wewenangConfig?.bidang?.nip || "19690619 200903 1 001",
+          jabatan: data.pelaksana_pptk_jabatan || "",
+          nama: data.pelaksana_pptk_nama || "",
+          nip: data.pelaksana_pptk_nip || "",
           tingkat_biaya: data.pelaksana_tingkat_biaya || data.tingkat_biaya || "Tingkat C"
         }
       };
@@ -801,11 +801,6 @@ export default function AgendaSppdPage({ user, showToast }) {
   const tambahPengikut = () => {
     if (!modalSppd) return;
     const cur = modalSppd.data.pengikut || [];
-    const defBidang = wewenangConfig?.bidang || {
-      jabatan: modalSppd.data.pelaksana_pptk_jabatan || "Kepala Bidang PPE",
-      nama: modalSppd.data.pelaksana_pptk_nama || "BERLIAN MAGU WERU,S.Sos",
-      nip: modalSppd.data.pelaksana_pptk_nip || "19690619 200903 1 001"
-    };
     setModalSppd({
       ...modalSppd,
       data: {
@@ -818,9 +813,9 @@ export default function AgendaSppdPage({ user, showToast }) {
             pangkat: "",
             jabatan: "",
             tingkat_biaya: modalSppd.data.tingkat_biaya || (modalSppd.data.jenis_sppd === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C"),
-            pptk_jabatan: defBidang.jabatan || "Kepala Bidang PPE",
-            pptk_nama: defBidang.nama || "BERLIAN MAGU WERU,S.Sos",
-            pptk_nip: defBidang.nip || "19690619 200903 1 001"
+            pptk_jabatan: "",
+            pptk_nama: "",
+            pptk_nip: ""
           }
         ]
       }
@@ -1741,7 +1736,7 @@ export default function AgendaSppdPage({ user, showToast }) {
                                 ...(p
                                   ? {
                                       pelaksana_pptk_nip: p.nip || "",
-                                      pelaksana_pptk_jabatan: p.jabatan || modalSppd.data.pelaksana_pptk_jabatan || "Kepala Bidang PPE"
+                                      pelaksana_pptk_jabatan: p.jabatan || modalSppd.data.pelaksana_pptk_jabatan || ""
                                     }
                                   : {})
                               }
@@ -1895,7 +1890,7 @@ export default function AgendaSppdPage({ user, showToast }) {
                                 ...(pg
                                   ? {
                                       pptk_nip: pg.nip || "",
-                                      pptk_jabatan: pg.jabatan || cur[idx].pptk_jabatan || "Kepala Bidang PPE"
+                                      pptk_jabatan: pg.jabatan || cur[idx].pptk_jabatan || ""
                                     }
                                   : {})
                               };

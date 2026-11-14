@@ -3053,28 +3053,6 @@ export default function AgendaSuratPage({ user, showToast }) {
                     fontVariantNumeric: "tabular-nums"
                   }}
                 />
-                <button
-                  type="button"
-                  onClick={() =>
-                    cekKetersediaanNomorKeluar(
-                      modalKeluar.data.nomor_surat ?? modalKeluar.previewNomor,
-                      modalKeluar.mode === "edit" ? modalKeluar.data.id : null
-                    )
-                  }
-                  style={{
-                    padding: "7px 14px",
-                    borderRadius: 6,
-                    border: `1px solid ${T.border}`,
-                    background: isDark ? "#1E293B" : "#FFFFFF",
-                    color: T.text,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    whiteSpace: "nowrap"
-                  }}
-                >
-                  Cek Nomor
-                </button>
               </div>
 
               {/* Indikator Status Cek Nomor Otomatis */}
