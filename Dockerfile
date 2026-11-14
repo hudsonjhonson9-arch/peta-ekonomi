@@ -9,13 +9,13 @@ COPY package*.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 ENV NODE_ENV=production
 COPY . .
-RUN NODE_OPTIONS="--max-old-space-size=1536" npm run build && npm prune --omit=dev
+RUN NODE_OPTIONS="--max-old-space-size=1024" npm run build
 
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
+RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --no-audit --no-fund
 COPY --from=builder /app/dist ./dist
 COPY server/ ./server/
 # Seed SQL dibaca server saat boot (jika pohon PKS masih kosong).
