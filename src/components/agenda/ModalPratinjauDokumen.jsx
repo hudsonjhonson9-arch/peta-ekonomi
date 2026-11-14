@@ -7,6 +7,8 @@ import {
   bangunHtmlSPPD,
   unduhSuratTugasDocx,
   unduhSppdDocx,
+  unduhSuratTugasPdf,
+  unduhSppdPdf,
   unduhBundleSppdZip,
   cetakSuratTugasWindow,
   cetakSppdWindow
@@ -15,16 +17,18 @@ import {
 /**
  * ModalPratinjauDokumen — Live A4 preview SPT & SPPD per personil
  * Props:
- *   item       — data SPPD/SPT record
- *   onClose    — callback tutup modal
- *   showToast  — fn(msg) untuk notifikasi
+ *   item             — data SPPD/SPT record
+ *   defaultTab       — "spt" | "sppd"
+ *   defaultPersonIdx — index personil awal
+ *   onClose          — callback tutup modal
+ *   showToast        — fn(msg) untuk notifikasi
  */
-export default function ModalPratinjauDokumen({ item, onClose, showToast }) {
+export default function ModalPratinjauDokumen({ item, defaultTab = "spt", defaultPersonIdx = 0, onClose, showToast }) {
   const { T } = useContext(ThemeContext);
   const isDark = useIsDark();
 
-  const [tab, setTab] = useState("spt"); // "spt" | "sppd"
-  const [personIdx, setPersonIdx] = useState(0);
+  const [tab, setTab] = useState(defaultTab); // "spt" | "sppd"
+  const [personIdx, setPersonIdx] = useState(defaultPersonIdx);
   const [busy, setBusy] = useState(false);
 
   const pengikutList = useMemo(() => {
@@ -72,6 +76,23 @@ export default function ModalPratinjauDokumen({ item, onClose, showToast }) {
       }
     } catch (err) {
       notif("Gagal: " + (err?.message || err));
+    } finally { setBusy(false); }
+  };
+
+  const handleUnduhPdf = async () => {
+    setBusy(true);
+    try {
+      if (tab === "spt") {
+        notif("Menyiapkan SPT (.pdf)…");
+        await unduhSuratTugasPdf(item);
+        notif("SPT (.pdf) berhasil diunduh.");
+      } else {
+        notif(`Menyiapkan SPPD ${currentPerson.nama} (.pdf)…`);
+        await unduhSppdPdf(item, currentPerson);
+        notif(`SPPD ${currentPerson.nama} (.pdf) berhasil diunduh.`);
+      }
+    } catch (err) {
+      notif("Gagal unduh PDF: " + (err?.message || err));
     } finally { setBusy(false); }
   };
 
@@ -135,6 +156,9 @@ export default function ModalPratinjauDokumen({ item, onClose, showToast }) {
           </Button>
           <Button variant="secondary" onClick={handleUnduhDocx} loading={busy} icon="download" size="sm">
             Unduh DOCX
+          </Button>
+          <Button variant="secondary" onClick={handleUnduhPdf} loading={busy} icon="file" size="sm">
+            Unduh PDF
           </Button>
           <Button variant="primary" onClick={handleUnduhZip} loading={busy} icon="download" size="sm">
             ZIP Lengkap

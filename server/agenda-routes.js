@@ -63,7 +63,13 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
       value JSONB NOT NULL,
       updated_at TIMESTAMP DEFAULT NOW()
     );
-    ALTER TABLE agenda_sppd ADD COLUMN IF NOT EXISTS penandatangan JSONB, ADD COLUMN IF NOT EXISTS paraf JSONB;
+    ALTER TABLE agenda_sppd
+      ADD COLUMN IF NOT EXISTS penandatangan JSONB,
+      ADD COLUMN IF NOT EXISTS paraf JSONB,
+      ADD COLUMN IF NOT EXISTS dasar_hukum TEXT,
+      ADD COLUMN IF NOT EXISTS tingkat_biaya VARCHAR(64),
+      ADD COLUMN IF NOT EXISTS ditetapkan_di VARCHAR(120),
+      ADD COLUMN IF NOT EXISTS wewenang JSONB;
   `).catch((e) => console.error('[Agenda] DDL wewenang/agenda_sppd gagal:', e.message));
 
   // ════════════════════════════════════════════════════════
@@ -695,7 +701,11 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
         file_sppd_url = null,
         surat_masuk_ref_id = null,
         penandatangan = null,
-        paraf = null
+        paraf = null,
+        dasar_hukum = null,
+        tingkat_biaya = null,
+        ditetapkan_di = null,
+        wewenang = null
       } = req.body;
 
       if (!pelaksana_nip || !pelaksana_nama || !maksud_perjalanan || !tempat_tujuan || !tanggal_berangkat || !tanggal_kembali) {
@@ -726,8 +736,9 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
           maksud_perjalanan, tempat_berangkat, tempat_tujuan, provinsi_tujuan, rute_perjalanan,
           alat_angkutan, tanggal_berangkat, tanggal_kembali, lama_hari,
           subkegiatan_id, subkegiatan_nama, kode_rekening, rincian_biaya, total_biaya,
-          file_spt_url, file_sppd_url, surat_masuk_ref_id, created_by, penandatangan, paraf)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25::jsonb, $26, $27, $28, $29, $30, $31::jsonb, $32::jsonb)
+          file_spt_url, file_sppd_url, surat_masuk_ref_id, created_by, penandatangan, paraf,
+          dasar_hukum, tingkat_biaya, ditetapkan_di, wewenang)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25::jsonb, $26, $27, $28, $29, $30, $31::jsonb, $32::jsonb, $33, $34, $35, $36::jsonb)
          RETURNING *`,
         [
           jenis_sppd, tahun, nomor_register, nomor_spt || nomor_register, nomor_sppd || nomor_register, tanggal_spt, pejabat_perintah,
@@ -736,7 +747,8 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
           alat_angkutan, tanggal_berangkat, tanggal_kembali, lama_hari,
           subkegiatan_id, subkegiatan_nama, kode_rekening, JSON.stringify(rincian_biaya), total_biaya,
           file_spt_url, file_sppd_url, surat_masuk_ref_id, userCreator,
-          penandatangan ? JSON.stringify(penandatangan) : null, paraf ? JSON.stringify(paraf) : null
+          penandatangan ? JSON.stringify(penandatangan) : null, paraf ? JSON.stringify(paraf) : null,
+          dasar_hukum, tingkat_biaya, ditetapkan_di, wewenang ? JSON.stringify(wewenang) : null
         ]
       );
 
@@ -777,7 +789,11 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
         file_spt_url,
         file_sppd_url,
         file_lhp_url,
-        status
+        status,
+        dasar_hukum,
+        tingkat_biaya,
+        ditetapkan_di,
+        wewenang
       } = req.body;
 
       // Hitung lama hari perjalanan jika tanggal berubah
@@ -820,6 +836,10 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
              status = COALESCE($27, status),
              penandatangan = CASE WHEN $29::jsonb IS NOT NULL THEN $29::jsonb ELSE penandatangan END,
              paraf = CASE WHEN $30::jsonb IS NOT NULL THEN $30::jsonb ELSE paraf END,
+             dasar_hukum = COALESCE($31, dasar_hukum),
+             tingkat_biaya = COALESCE($32, tingkat_biaya),
+             ditetapkan_di = COALESCE($33, ditetapkan_di),
+             wewenang = CASE WHEN $34::jsonb IS NOT NULL THEN $34::jsonb ELSE wewenang END,
              updated_at = NOW()
          WHERE id = $28
          RETURNING *`,
@@ -834,7 +854,11 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
           total_biaya, file_spt_url, file_sppd_url, file_lhp_url, status,
           id,
           req.body.penandatangan ? JSON.stringify(req.body.penandatangan) : null,
-          req.body.paraf ? JSON.stringify(req.body.paraf) : null
+          req.body.paraf ? JSON.stringify(req.body.paraf) : null,
+          dasar_hukum,
+          tingkat_biaya,
+          ditetapkan_di,
+          wewenang ? JSON.stringify(wewenang) : null
         ]
       );
 

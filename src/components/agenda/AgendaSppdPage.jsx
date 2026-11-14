@@ -71,13 +71,37 @@ export default function AgendaSppdPage({ user, showToast }) {
   const [isGeneratingDocx, setIsGeneratingDocx] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [pegawaiList, setPegawaiList] = useState([]);
+  const [wewenangConfig, setWewenangConfig] = useState(null);
 
   useEffect(() => {
     fetch("/api/agenda/pegawai-list")
       .then((r) => r.json())
       .then((j) => { if (j.ok) setPegawaiList(j.items || []); })
       .catch(() => {});
+    fetch("/api/agenda/wewenang")
+      .then((r) => r.json())
+      .then((j) => { if (j.success && j.data) setWewenangConfig(j.data); })
+      .catch(() => {});
   }, []);
+
+  // Gabungkan pengaturan wewenang global ke item agar preview & unduh selalu sesuai pengaturan
+  const enrichWithWewenang = (it) => {
+    if (!it || !wewenangConfig) return it;
+    return {
+      ...it,
+      penandatangan: it.penandatangan || wewenangConfig.kepala || null,
+      paraf: it.paraf || wewenangConfig.paraf || null,
+      wewenang: it.wewenang || {
+        sekretaris: wewenangConfig.sekretaris,
+        bidang: wewenangConfig.bidang,
+        ktu: wewenangConfig.ktu
+      }
+    };
+  };
+
+  const bukaPratinjau = (it, defaultTab = "spt", defaultPersonIdx = 0) => {
+    setModalPratinjau({ item: enrichWithWewenang(it), defaultTab, defaultPersonIdx });
+  };
 
 
   const notif = (msg) => {
@@ -220,6 +244,9 @@ export default function AgendaSppdPage({ user, showToast }) {
         nomor_spt: preview,
         nomor_sppd: preview,
         tanggal_spt: new Date().toISOString().split("T")[0],
+        ditetapkan_di: "Waikabubak",
+        dasar_hukum: `DPA Bapperida Kabupaten Sumba Barat TA ${tahun}`,
+        tingkat_biaya: selectedJenis === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C",
         pejabat_perintah: "Kepala BAPPERIDA",
         pelaksana_nip: user?.nip || "",
         pelaksana_nama: user?.name || "",
@@ -236,6 +263,13 @@ export default function AgendaSppdPage({ user, showToast }) {
         tanggal_kembali: new Date().toISOString().split("T")[0],
         subkegiatan_id: null,
         subkegiatan_nama: "Koordinasi dan Penyusunan Dokumen Perencanaan Pembangunan Daerah",
+        penandatangan: wewenangConfig?.kepala || null,
+        paraf: wewenangConfig?.paraf || null,
+        wewenang: wewenangConfig ? {
+          sekretaris: wewenangConfig.sekretaris,
+          bidang: wewenangConfig.bidang,
+          ktu: wewenangConfig.ktu
+        } : null,
         file_spt_url: "",
         file_sppd_url: ""
       }
@@ -259,6 +293,9 @@ export default function AgendaSppdPage({ user, showToast }) {
         nomor_spt: it.nomor_spt || it.nomor_register,
         nomor_sppd: it.nomor_sppd || it.nomor_register,
         tanggal_spt: it.tanggal_spt ? it.tanggal_spt.split("T")[0] : "",
+        ditetapkan_di: it.ditetapkan_di || it.tempat_berangkat || "Waikabubak",
+        dasar_hukum: it.dasar_hukum || `DPA Bapperida Kabupaten Sumba Barat TA ${it.tahun || tahun}`,
+        tingkat_biaya: it.tingkat_biaya || (it.jenis_sppd === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C"),
         pejabat_perintah: it.pejabat_perintah || "Kepala BAPPERIDA",
         pelaksana_nip: it.pelaksana_nip || "",
         pelaksana_nama: it.pelaksana_nama || "",
@@ -839,39 +876,14 @@ export default function AgendaSppdPage({ user, showToast }) {
 
                     <td style={{ padding: "11px 14px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: 5, justifyContent: "flex-end", alignItems: "center" }}>
-                        {/* Tombol Pratinjau Dokumen */}
+                        {/* Tombol Pratinjau & Unduh Dokumen (Preview langsung terbuka saat download) */}
                         <button
                           type="button"
-                          title="Pratinjau & Cetak SPT / SPPD"
-                          onClick={() => setModalPratinjau({ item: it })}
+                          title="Pratinjau, Unduh (.docx/.pdf/.zip) & Cetak SPT / SPPD"
+                          onClick={() => bukaPratinjau(it)}
                           style={{
                             height: 28,
-                            padding: "0 9px",
-                            borderRadius: 6,
-                            border: `1px solid ${isDark ? "rgba(16,185,129,0.4)" : "#A7F3D0"}`,
-                            background: isDark ? "rgba(5,150,105,0.15)" : "#ECFDF5",
-                            color: isDark ? "#34D399" : "#059669",
-                            fontSize: 11.5,
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 5,
-                            transition: "all 0.15s ease"
-                          }}
-                        >
-                          <Icon name="eye" size={12} />
-                          <span>Pratinjau</span>
-                        </button>
-
-                        {/* Tombol Cetak / Unduh Dokumen Resmi */}
-                        <button
-                          type="button"
-                          title="Cetak & Unduh Surat Tugas (SPT) dan SPPD (.docx)"
-                          onClick={() => setModalCetak({ item: it })}
-                          style={{
-                            height: 28,
-                            padding: "0 9px",
+                            padding: "0 10px",
                             borderRadius: 6,
                             border: `1px solid ${isDark ? "rgba(59,130,246,0.4)" : "#BFDBFE"}`,
                             background: isDark ? "rgba(37,99,235,0.15)" : "#EFF6FF",
@@ -886,7 +898,7 @@ export default function AgendaSppdPage({ user, showToast }) {
                           }}
                         >
                           <Icon name="download" size={12} />
-                          <span>Cetak</span>
+                          <span>Unduh / Pratinjau</span>
                         </button>
 
                         {/* Berkas SPJ & LHP */}
@@ -1154,6 +1166,19 @@ export default function AgendaSppdPage({ user, showToast }) {
                 />
               </div>
 
+              <div style={{ marginTop: 10 }}>
+                <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
+                  Dasar Hukum / Menimbang SPT <span style={{ fontWeight: 400, color: T.textMuted }}>(1 baris = 1 poin dasar)</span>
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder={`DPA Bapperida Kabupaten Sumba Barat TA ${tahun}`}
+                  value={modalSppd.data.dasar_hukum || ""}
+                  onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, dasar_hukum: e.target.value } })}
+                  style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12.5, resize: "vertical" }}
+                />
+              </div>
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 10 }}>
                 <div>
                   <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Tempat Berangkat</label>
@@ -1236,6 +1261,73 @@ export default function AgendaSppdPage({ user, showToast }) {
                     value={modalSppd.data.pejabat_perintah}
                     onChange={(v) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pejabat_perintah: v } })}
                     options={PEJABAT_PERINTAH_LIST.map((p) => ({ value: p, label: p }))}
+                  />
+                </div>
+              </div>
+
+              {/* Detail Nomor SPT/SPPD, Penetapan & Anggaran (seperti Perjalanan Dinas di Absen) */}
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 10, marginTop: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Nomor SPT</label>
+                  <input
+                    type="text"
+                    value={modalSppd.data.nomor_spt || ""}
+                    onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, nomor_spt: e.target.value } })}
+                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Nomor SPPD</label>
+                  <input
+                    type="text"
+                    value={modalSppd.data.nomor_sppd || ""}
+                    onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, nomor_sppd: e.target.value } })}
+                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Tingkat Biaya</label>
+                  <Select
+                    fullWidth
+                    size="sm"
+                    value={modalSppd.data.tingkat_biaya || "Tingkat C"}
+                    onChange={(v) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, tingkat_biaya: v } })}
+                    options={[
+                      { value: "Tingkat A", label: "Tingkat A" },
+                      { value: "Tingkat B", label: "Tingkat B" },
+                      { value: "Tingkat C", label: "Tingkat C" },
+                    ]}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 10, marginTop: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Ditetapkan Di</label>
+                  <input
+                    type="text"
+                    value={modalSppd.data.ditetapkan_di || "Waikabubak"}
+                    onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, ditetapkan_di: e.target.value } })}
+                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Tgl. Penetapan SPT</label>
+                  <DatePicker
+                    size="sm"
+                    value={modalSppd.data.tanggal_spt || ""}
+                    onChange={(val) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, tanggal_spt: val } })}
+                    placeholder="Tanggal penetapan..."
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Subkegiatan / Mata Anggaran</label>
+                  <input
+                    type="text"
+                    placeholder="Nama subkegiatan DPA..."
+                    value={modalSppd.data.subkegiatan_nama || ""}
+                    onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, subkegiatan_nama: e.target.value } })}
+                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12 }}
                   />
                 </div>
               </div>
@@ -1534,7 +1626,10 @@ export default function AgendaSppdPage({ user, showToast }) {
               </div>
 
               <div style={{ color: T.textSecondary, fontWeight: 600 }}>Nomor SPT:</div>
-              <div style={{ fontWeight: 700, color: T.text }}>{modalDetail.data.nomor_spt}</div>
+              <div style={{ fontWeight: 700, color: T.text }}>{modalDetail.data.nomor_spt || modalDetail.data.nomor_register}</div>
+
+              <div style={{ color: T.textSecondary, fontWeight: 600 }}>Nomor SPPD:</div>
+              <div style={{ fontWeight: 700, color: T.text }}>{modalDetail.data.nomor_sppd || modalDetail.data.nomor_register}</div>
 
               <div style={{ color: T.textSecondary, fontWeight: 600 }}>Pelaksana Utama:</div>
               <div>
@@ -1545,6 +1640,32 @@ export default function AgendaSppdPage({ user, showToast }) {
                 {modalDetail.data.pelaksana_jabatan && (
                   <div style={{ fontSize: 12, color: T.textMuted }}>{modalDetail.data.pelaksana_jabatan} • {modalDetail.data.pelaksana_pangkat}</div>
                 )}
+              </div>
+
+              {(() => {
+                let listP = [];
+                try { listP = Array.isArray(modalDetail.data.pengikut) ? modalDetail.data.pengikut : JSON.parse(modalDetail.data.pengikut || "[]"); } catch (_) {}
+                if (!listP.length) return null;
+                return (
+                  <>
+                    <div style={{ color: T.textSecondary, fontWeight: 600 }}>Personil Tambahan:</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {listP.map((p, idx) => (
+                        <div key={idx} style={{ fontSize: 12.5, color: T.text }}>
+                          <b>{idx + 2}. {p.nama}</b> {p.nip ? `(NIP: ${p.nip})` : ""}
+                          {(p.jabatan || p.pangkat) && (
+                            <div style={{ fontSize: 11.5, color: T.textMuted }}>{p.jabatan}{p.pangkat ? ` • ${p.pangkat}` : ""}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
+
+              <div style={{ color: T.textSecondary, fontWeight: 600 }}>Dasar Hukum SPT:</div>
+              <div style={{ color: T.text, fontSize: 12.5, whiteSpace: "pre-line", lineHeight: 1.45 }}>
+                {modalDetail.data.dasar_hukum || `DPA Bapperida Kabupaten Sumba Barat TA ${modalDetail.data.tahun || tahun}`}
               </div>
 
               <div style={{ color: T.textSecondary, fontWeight: 600 }}>Maksud Perjalanan:</div>
@@ -1567,6 +1688,14 @@ export default function AgendaSppdPage({ user, showToast }) {
 
               <div style={{ color: T.textSecondary, fontWeight: 600 }}>Subkegiatan:</div>
               <div style={{ color: T.text, fontSize: 12.5 }}>{modalDetail.data.subkegiatan_nama || "BAPPERIDA"}</div>
+
+              <div style={{ color: T.textSecondary, fontWeight: 600 }}>Tingkat Biaya:</div>
+              <div style={{ color: T.text }}>{modalDetail.data.tingkat_biaya || (modalDetail.data.jenis_sppd === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C")}</div>
+
+              <div style={{ color: T.textSecondary, fontWeight: 600 }}>Penetapan Surat:</div>
+              <div style={{ color: T.text }}>
+                {modalDetail.data.ditetapkan_di || modalDetail.data.tempat_berangkat || "Waikabubak"}, {modalDetail.data.tanggal_spt ? modalDetail.data.tanggal_spt.split("T")[0] : (modalDetail.data.tanggal_berangkat ? modalDetail.data.tanggal_berangkat.split("T")[0] : "—")}
+              </div>
 
               <div style={{ color: T.textSecondary, fontWeight: 600 }}>Pejabat Perintah:</div>
               <div style={{ color: T.text }}>{modalDetail.data.pejabat_perintah || "Kepala BAPPERIDA"}</div>
@@ -1614,32 +1743,14 @@ export default function AgendaSppdPage({ user, showToast }) {
                     <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text }}>Surat Perintah Tugas (SPT)</div>
                     <div style={{ fontSize: 11, color: T.textSecondary }}>No. {modalDetail.data.nomor_spt || modalDetail.data.nomor_register}</div>
                   </div>
-                  <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <button
                       type="button"
-                      disabled={isGeneratingDocx}
-                      onClick={() => unduhSPT(modalDetail.data)}
-                      style={{ padding: "6px 10px", borderRadius: 6, border: "none", background: T.primary, color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: isGeneratingDocx ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+                      onClick={() => { const d = modalDetail.data; setModalDetail(null); bukaPratinjau(d, "spt", 0); }}
+                      style={{ padding: "6px 12px", borderRadius: 6, border: "none", background: T.primary, color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
                     >
-                      <Icon name="file" size={12} />
-                      <span>Word (.docx)</span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isGeneratingDocx}
-                      onClick={() => unduhSPTPdf(modalDetail.data)}
-                      style={{ padding: "6px 10px", borderRadius: 6, border: "none", background: "#DC2626", color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: isGeneratingDocx ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
-                    >
-                      <Icon name="download" size={12} />
-                      <span>PDF (.pdf)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => cetakSPT(modalDetail.data)}
-                      style={{ padding: "6px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
-                    >
-                      <Icon name="externalLink" size={12} />
-                      <span>Cetak</span>
+                      <Icon name="eye" size={12} />
+                      <span>Pratinjau & Unduh SPT</span>
                     </button>
                   </div>
                 </div>
@@ -1647,35 +1758,17 @@ export default function AgendaSppdPage({ user, showToast }) {
                 {/* SPPD Utama Actions */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, background: T.card, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.border}` }}>
                   <div>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text }}>SPPD (Pelaksana Utama)</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text }}>SPPD (Semua Personil)</div>
                     <div style={{ fontSize: 11, color: T.textSecondary }}>{modalDetail.data.pelaksana_nama}</div>
                   </div>
-                  <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <button
                       type="button"
-                      disabled={isGeneratingDocx}
-                      onClick={() => unduhSPPD(modalDetail.data, null)}
-                      style={{ padding: "6px 10px", borderRadius: 6, border: "none", background: "#059669", color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: isGeneratingDocx ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+                      onClick={() => { const d = modalDetail.data; setModalDetail(null); bukaPratinjau(d, "sppd", 0); }}
+                      style={{ padding: "6px 12px", borderRadius: 6, border: "none", background: "#059669", color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
                     >
-                      <Icon name="file" size={12} />
-                      <span>Word (.docx)</span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isGeneratingDocx}
-                      onClick={() => unduhSPPDPdf(modalDetail.data, null)}
-                      style={{ padding: "6px 10px", borderRadius: 6, border: "none", background: "#DC2626", color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: isGeneratingDocx ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
-                    >
-                      <Icon name="download" size={12} />
-                      <span>PDF (.pdf)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => cetakSPPD(modalDetail.data, null)}
-                      style={{ padding: "6px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
-                    >
-                      <Icon name="externalLink" size={12} />
-                      <span>Cetak</span>
+                      <Icon name="eye" size={12} />
+                      <span>Pratinjau & Unduh SPPD</span>
                     </button>
                   </div>
                 </div>
@@ -2042,6 +2135,7 @@ export default function AgendaSppdPage({ user, showToast }) {
           pegawaiList={pegawaiList}
           showToast={showToast}
           onSaved={(data) => {
+            if (data) setWewenangConfig(data);
             notif("Wewenang diperbarui. Dokumen berikutnya akan menggunakan konfigurasi baru.");
           }}
         />
@@ -2051,6 +2145,8 @@ export default function AgendaSppdPage({ user, showToast }) {
       {modalPratinjau && (
         <ModalPratinjauDokumen
           item={modalPratinjau.item}
+          defaultTab={modalPratinjau.defaultTab || "spt"}
+          defaultPersonIdx={modalPratinjau.defaultPersonIdx || 0}
           onClose={() => setModalPratinjau(null)}
           showToast={showToast}
         />

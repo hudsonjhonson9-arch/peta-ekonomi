@@ -174,7 +174,7 @@ export function bangunTagsSPT(it) {
     dasarRows,
     pelaksana,
     Untuk: untuk,
-    DitetapkanDi: it.tempat_berangkat || "Waikabubak",
+    DitetapkanDi: it.ditetapkan_di || it.tempat_berangkat || "Waikabubak",
     TanggalSurat: tanggalID(it.tanggal_spt || it.tanggal_berangkat || new Date()),
     ...tagsTtdParaf(it)
   };
@@ -212,7 +212,7 @@ export function bangunTagsSPPD(it, person = null) {
     MataAnggaran: it.subkegiatan_nama
       ? `DPA Bapperida - ${it.subkegiatan_nama}`
       : `DPA Bapperida Kabupaten Sumba Barat TA ${tahun}`,
-    DitetapkanDi: it.tempat_berangkat || "Waikabubak",
+    DitetapkanDi: it.ditetapkan_di || it.tempat_berangkat || "Waikabubak",
     TanggalPenetapan: tanggalID(it.tanggal_spt || it.tanggal_berangkat || new Date()),
     SekretarisNama: sekretaris.nama || "IMANUEL MOSES KALEGOTAN, ST.,M.Si",
     SekretarisNIP: sekretaris.nip || "19800315 200501 1 011",
@@ -356,7 +356,7 @@ export function bangunHtmlSPT(it) {
           <td style="width: 90px; vertical-align: top; font-weight: bold;">Dasar</td>
           <td style="width: 15px; vertical-align: top; text-align: center;">:</td>
           <td style="vertical-align: top; line-height: 1.45;">
-            1. ${t.Dasar}
+            ${(t.dasarRows || []).map((d) => `<div>${d.No}. ${d.Teks}</div>`).join("") || `1. ${t.Dasar}`}
           </td>
         </tr>
       </table>
@@ -639,7 +639,7 @@ export function bangunHtmlSPPD(it, person = null) {
               I. Berangkat dari : ${t.TempatBerangkat}<br/>
               Ke : ${t.TempatTujuan}<br/>
               Pada Tanggal : ${t.TanggalBerangkat}<br/>
-              <div style="font-weight: bold; margin-top: 4px;">KEPALA BIDANG PERENCANAAN, PENGENDALIAN DAN EVALUASI,</div>
+              <div style="font-weight: bold; margin-top: 4px;">${(t.PPTKJabatan || "Kepala Bidang PPE").toUpperCase()},</div>
               <div style="height: 34px;"></div>
               <div style="font-weight: bold; text-decoration: underline;">${t.BidangNama}</div>
               <div>NIP. ${t.BidangNIP}</div>
