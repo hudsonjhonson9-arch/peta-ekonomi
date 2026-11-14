@@ -324,7 +324,7 @@ export function bangunTagsSPPD(it, person = null) {
     JabatanInstansi: jabatan,
     TingkatBiaya: person?.tingkat_biaya || it.tingkat_biaya || (it.jenis_sppd === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C"),
     Maksud: it.maksud_perjalanan || "-",
-    AlatAngkut: it.alat_angkutan || "Kendaraan Dinas / Darat",
+    AlatAngkut: person?.alat_angkutan || it.alat_angkutan || "Kendaraan Dinas / Darat",
     TempatBerangkat: tempatBerangkatUtama,
     TempatTujuan: tempatTujuanUtama,
     TempatBerangkatRomawiI: tempatBerangkatRomawiI,
@@ -992,52 +992,50 @@ export function bangunHtmlSPPD(it, person = null) {
             <td style="border: 1px solid #000; vertical-align: top; padding: 6px 8px;">
               <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
                 <tr>
-                  <td style="width: 22px; vertical-align: top; font-weight: bold;">IV.</td>
-                  <td style="width: 95px; vertical-align: top;">Tiba kembali di</td>
-                  <td style="width: 10px; vertical-align: top;">:</td>
-                  <td style="vertical-align: top;">${t.TempatBerangkat}</td>
-                </tr>
-                <tr>
-                  <td></td>
-                  <td style="vertical-align: top;">Pada Tanggal</td>
-                  <td style="vertical-align: top;">:</td>
-                  <td style="vertical-align: top;">${t.TanggalKembali}</td>
+                  <td style="width: 24px; vertical-align: top; font-weight: bold;">IV.</td>
+                  <td style="width: 72px; vertical-align: top;">Tiba<br/>pada<br/>Tanggal</td>
+                  <td style="width: 10px; vertical-align: top;">:<br/>:</td>
+                  <td style="vertical-align: top;">${t.TempatBerangkat}<br/>${t.TanggalKembali}</td>
                 </tr>
               </table>
-              <div style="text-align: center; margin-top: 8px;">
-                <div style="font-weight: bold; line-height: 1.25;">
-                  ${t.JabatanTtd}<br/>KABUPATEN SUMBA BARAT,
-                </div>
-                <div style="height: 42px;"></div>
-                <div style="font-weight: bold; text-decoration: underline;">${t.KepalaNama}</div>
-                <div>${t.KepalaPangkat}</div>
-                <div>NIP. ${t.KepalaNIP}</div>
-              </div>
-            </td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 6px 8px;">
-              <div style="text-align: justify; line-height: 1.3; font-size: 8.5pt;">
-                Telah diperiksa, dengan keterangan bahwa perjalanan tersebut diatas benar dilakukan atas perintahnya dan semata-mata untuk kepentingan jabatan dalam waktu yang sesingkat-singkatnya.
-              </div>
-              <div style="text-align: center; margin-top: 6px;">
+              <div style="text-align: center; margin-top: 10px;">
                 <div style="font-weight: bold; line-height: 1.25;">
                   ${t.SekretarisJabatan}<br/>KABUPATEN SUMBA BARAT
                 </div>
-                <div style="height: 40px;"></div>
+                <div style="height: 44px;"></div>
                 <div style="font-weight: bold; text-decoration: underline;">${t.SekretarisNama}</div>
-                <div>NIP. ${t.SekretarisNIP}</div>
+                <div style="font-weight: bold;">NIP. ${t.SekretarisNIP}</div>
+              </div>
+            </td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 6px 8px;">
+              <div style="text-align: justify; line-height: 1.35; font-size: 9pt;">
+                Telah diperiksa, dengan keterangan bahwa perjalanan tersebut diatas benar dilakukan atas perintahnya dan semata-mata untuk kepentingan jabatan dalam waktu yang sesingkat-singkatnya.
               </div>
             </td>
           </tr>
 
           <!-- Baris Romawi V & VI -->
           <tr>
-            <td colspan="2" style="border: 1px solid #000; padding: 6px 8px; font-size: 8.5pt; line-height: 1.35;">
-              <b>V. Catatan Lain-lain:</b>
+            <td colspan="2" style="border: 1px solid #000; padding: 5px 8px; font-size: 9pt; line-height: 1.35;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+                <tr>
+                  <td style="width: 24px; vertical-align: top;">V.</td>
+                  <td style="vertical-align: top;">Catatan Lain-lain</td>
+                </tr>
+              </table>
             </td>
           </tr>
           <tr>
-            <td colspan="2" style="border: 1px solid #000; padding: 6px 8px; font-size: 8.5pt; line-height: 1.35; text-align: justify;">
-              <b>VI. PERHATIAN:</b> Pengguna Anggaran / Kuasa Pengguna Anggaran yang menerbitkan SPD, pejabat/pegawai/pihak lain yang melakukan perjalanan dinas, para pejabat yang mengesahkan tanggal berangkat/tiba serta bendahara pengeluaran bertanggung jawab berdasarkan peraturan-peraturan Keuangan Daerah apabila Negara menderita rugi akibat kesalahan, kelalaian dan kealpaannya.
+            <td colspan="2" style="border: 1px solid #000; padding: 5px 8px; font-size: 9pt; line-height: 1.35;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+                <tr>
+                  <td style="width: 24px; vertical-align: top;">VI.</td>
+                  <td style="vertical-align: top; text-align: justify;">
+                    PERHATIAN:<br/>
+                    Pengguna Anggaran/Kuasa Pengguna Anggaran yang menerbitkan SPD, pejabat/pegawai/pihak lain yang melakukan perjalanan dinas, para pejabat yang mengesahkan tanggal berangkat/tiba serta bendahara pengeluaran bertanggung jawab berdasarkan peraturan-peraturan Keuangan Daerah apabila Negara menderita rugi akibat kesalahan kelalaian dan kearsipannya.
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
         </table>
@@ -1050,7 +1048,38 @@ export function bangunHtmlSPPD(it, person = null) {
 // 3. FUNGSI EKSPOR PDF LANGSUNG (html2pdf.js) & PRATINJAU CETAK (Print Window)
 // ═════════════════════════════════════════════════════════════════════════════
 
-export async function unduhSuratTugasPdf(it) {
+export const UKURAN_KERTAS = {
+  A4: {
+    key: "A4",
+    label: "A4 (210 × 297 mm)",
+    shortLabel: "A4",
+    widthMm: 210,
+    heightMm: 297,
+    cssPageSize: "210mm 297mm",
+    jsPdfFormat: "a4",
+    previewWidthPx: 794,
+    previewMinHeightPx: 1123
+  },
+  F4: {
+    key: "F4",
+    label: "F4 / Folio (215 × 330 mm)",
+    shortLabel: "F4 (Folio)",
+    widthMm: 215,
+    heightMm: 330,
+    cssPageSize: "215mm 330mm",
+    jsPdfFormat: [215, 330],
+    previewWidthPx: 812,
+    previewMinHeightPx: 1247
+  }
+};
+
+export function resolvePaperConfig(paperSize = "A4") {
+  const key = String(paperSize || "A4").toUpperCase() === "F4" ? "F4" : "A4";
+  return UKURAN_KERTAS[key];
+}
+
+export async function unduhSuratTugasPdf(it, opts = {}) {
+  const paper = resolvePaperConfig(opts.paperSize || it?.paper_size || "A4");
   const html = bangunHtmlSPT(it);
   const container = document.createElement("div");
   container.innerHTML = html;
@@ -1063,10 +1092,10 @@ export async function unduhSuratTugasPdf(it) {
   const cleanNo = (it.nomor_spt || it.nomor_register || "SPT").replace(/[\/\\?%*:|"<>]/g, "_");
   const opt = {
     margin: [10, 12, 10, 12],
-    filename: `Surat_Tugas_${cleanNo}.pdf`,
+    filename: `Surat_Tugas_${cleanNo}_${paper.key}.pdf`,
     image: { type: "jpeg", quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true, logging: false },
-    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
+    jsPDF: { unit: "mm", format: paper.jsPdfFormat, orientation: "portrait" }
   };
 
   try {
@@ -1083,7 +1112,8 @@ export async function unduhSuratTugasPdf(it) {
   }
 }
 
-export async function unduhSppdPdf(it, person = null) {
+export async function unduhSppdPdf(it, person = null, opts = {}) {
+  const paper = resolvePaperConfig(opts.paperSize || it?.paper_size || "A4");
   const html = bangunHtmlSPPD(it, person);
   const container = document.createElement("div");
   container.innerHTML = html;
@@ -1100,10 +1130,10 @@ export async function unduhSppdPdf(it, person = null) {
   const opt = {
     margin: [8, 12, 8, 12],
     pagebreak: { mode: ["css"], avoid: "tr" },
-    filename: `SPPD_${cleanNo}_${targetNama}.pdf`,
+    filename: `SPPD_${cleanNo}_${targetNama}_${paper.key}.pdf`,
     image: { type: "jpeg", quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true, logging: false },
-    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
+    jsPDF: { unit: "mm", format: paper.jsPdfFormat, orientation: "portrait" }
   };
 
   try {
@@ -1120,18 +1150,19 @@ export async function unduhSppdPdf(it, person = null) {
   }
 }
 
-export function cetakSuratTugasWindow(it) {
+export function cetakSuratTugasWindow(it, opts = {}) {
   const html = bangunHtmlSPT(it);
-  cetakDokumenHtml(html, `Surat Tugas - ${it.nomor_spt || it.nomor_register}`);
+  cetakDokumenHtml(html, `Surat Tugas - ${it.nomor_spt || it.nomor_register}`, opts);
 }
 
-export function cetakSppdWindow(it, person = null) {
+export function cetakSppdWindow(it, person = null, opts = {}) {
   const html = bangunHtmlSPPD(it, person);
   const nama = person?.nama || it.pelaksana_nama || "Pelaksana";
-  cetakDokumenHtml(html, `SPPD - ${nama} (${it.nomor_sppd || it.nomor_register})`);
+  cetakDokumenHtml(html, `SPPD - ${nama} (${it.nomor_sppd || it.nomor_register})`, opts);
 }
 
-function cetakDokumenHtml(innerHtml, title = "Dokumen Dinas") {
+function cetakDokumenHtml(innerHtml, title = "Dokumen Dinas", opts = {}) {
+  const paper = resolvePaperConfig(opts.paperSize || "A4");
   const w = window.open("", "_blank");
   if (!w) {
     alert("Popup diblokir oleh browser. Mohon izinkan popup untuk mencetak naskah dinas.");
@@ -1143,12 +1174,14 @@ function cetakDokumenHtml(innerHtml, title = "Dokumen Dinas") {
     <html lang="id">
       <head>
         <meta charset="utf-8" />
-        <title>${title}</title>
-        <style>
+        <title>${title} (${paper.key})</title>
+        <style id="page-size-style">
           @page {
-            size: A4 portrait;
-            margin: 12mm 15mm;
+            size: ${paper.cssPageSize};
+            margin: 10mm 14mm;
           }
+        </style>
+        <style>
           * {
             box-sizing: border-box;
           }
@@ -1175,6 +1208,18 @@ function cetakDokumenHtml(innerHtml, title = "Dokumen Dinas") {
             font-size: 13px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             z-index: 9999;
+            gap: 12px;
+            flex-wrap: wrap;
+          }
+          .paper-select {
+            background: #1e293b;
+            color: #f8fafc;
+            border: 1px solid #475569;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            font-weight: 600;
+            cursor: pointer;
           }
           .btn-print {
             background: #2563eb;
@@ -1194,11 +1239,11 @@ function cetakDokumenHtml(innerHtml, title = "Dokumen Dinas") {
             border-radius: 6px;
             cursor: pointer;
             font-size: 13px;
-            margin-left: 8px;
           }
           .doc-canvas {
             background: #fff;
-            max-width: 780px;
+            max-width: ${paper.previewWidthPx}px;
+            min-height: ${paper.previewMinHeightPx}px;
             margin: 64px auto 30px;
             padding: 24px 30px;
             box-shadow: 0 4px 16px rgba(0,0,0,0.06);
@@ -1217,16 +1262,35 @@ function cetakDokumenHtml(innerHtml, title = "Dokumen Dinas") {
               border: none;
               box-shadow: none;
               max-width: 100%;
+              min-height: 0;
             }
           }
         </style>
+        <script>
+          function setPaperSize(mode) {
+            var styleEl = document.getElementById('page-size-style');
+            var canvasEl = document.querySelector('.doc-canvas');
+            if (mode === 'F4') {
+              styleEl.innerHTML = '@page { size: 215mm 330mm; margin: 10mm 14mm; }';
+              if (canvasEl) { canvasEl.style.maxWidth = '812px'; canvasEl.style.minHeight = '1247px'; }
+            } else {
+              styleEl.innerHTML = '@page { size: 210mm 297mm; margin: 10mm 14mm; }';
+              if (canvasEl) { canvasEl.style.maxWidth = '794px'; canvasEl.style.minHeight = '1123px'; }
+            }
+          }
+        </script>
       </head>
       <body>
         <div class="print-toolbar">
           <div style="font-weight: 700;">
             ${title}
           </div>
-          <div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <label style="font-size: 12px; color: #cbd5e1;">Ukuran Kertas:</label>
+            <select class="paper-select" onchange="setPaperSize(this.value)">
+              <option value="A4" ${paper.key === "A4" ? "selected" : ""}>A4 (210 × 297 mm)</option>
+              <option value="F4" ${paper.key === "F4" ? "selected" : ""}>F4 / Folio (215 × 330 mm)</option>
+            </select>
             <button class="btn-print" onclick="window.print()">
               Cetak / Simpan sebagai PDF
             </button>

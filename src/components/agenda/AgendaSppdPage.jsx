@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext, useMemo } from "react";
 import { ThemeContext } from "../../App.jsx";
-import { useIsDark, Icon, Modal, Select, Button, DatePicker } from "../ui.jsx";
+import { useIsDark, Icon, Modal, Select, CariPilih, Button, DatePicker } from "../ui.jsx";
 import useResponsive from "../../useResponsive.js";
 import {
   unduhSuratTugasDocx,
@@ -40,6 +40,115 @@ const PROVINSI_LIST = [
   "Lainnya"
 ];
 
+const GAS_URL =
+  "https://script.google.com/macros/s/AKfycbyjrDE_5NnsTsKSyRvEwLLMJH3lWeGsg7jpM44btardExAFX1Vxvp246pazjQdH4UL5/exec";
+
+function gasPostSppd(payload) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", GAS_URL);
+    xhr.timeout = 300000;
+    xhr.onload = () => {
+      try {
+        const json = JSON.parse(xhr.responseText);
+        if (json && json.error) reject(new Error(json.error));
+        else resolve(json);
+      } catch {
+        reject(new Error("Balasan server Drive bukan JSON"));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Jaringan ke Google Drive gagal"));
+    xhr.ontimeout = () => reject(new Error("Timeout saat mengunggah ke Google Drive"));
+    xhr.send(JSON.stringify(payload));
+  });
+}
+
+function fileToBase64(blob, onProgress) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    if (onProgress) {
+      reader.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 60));
+      };
+    }
+    reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+    reader.onerror = () => reject(new Error("Gagal membaca berkas"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function uploadFileToDriveFolder(file, { folderId, title, year, uploader, onProgress }) {
+  const DIRECT_THRESHOLD = 30 * 1024 * 1024;
+  const CHUNK_SIZE = 5 * 1024 * 1024;
+
+  if (file.size <= DIRECT_THRESHOLD) {
+    const b64 = await fileToBase64(file, onProgress);
+    if (onProgress) onProgress(75);
+    const res = await gasPostSppd({
+      action: "direct",
+      file: b64,
+      filename: file.name,
+      mimeType: file.type || "application/octet-stream",
+      title: title || file.name,
+      type: "SPJ & LHP SPPD",
+      sector: "Sekretariat",
+      year: String(year || new Date().getFullYear()),
+      uploader: uploader || "Staf BAPPERIDA",
+      folderId: folderId || undefined,
+      group: true
+    });
+    if (onProgress) onProgress(100);
+    return res.fileUrl;
+  }
+
+  // Resumable mode for files > 30MB
+  const initRes = await gasPostSppd({
+    action: "initiate",
+    filename: file.name,
+    mimeType: file.type || "application/octet-stream",
+    fileSize: file.size,
+    folderId: folderId || undefined
+  });
+  if (!initRes.uploadUrl) throw new Error(initRes.error || "Gagal memulai sesi upload Drive");
+
+  let start = 0;
+  let driveFileId = null;
+  while (start < file.size) {
+    const end = Math.min(start + CHUNK_SIZE, file.size);
+    const chunkB64 = await fileToBase64(file.slice(start, end));
+    const chunkRes = await gasPostSppd({
+      action: "chunk",
+      uploadUrl: initRes.uploadUrl,
+      chunkBase64: chunkB64,
+      start,
+      end,
+      totalSize: file.size,
+      filename: file.name,
+      mimeType: file.type || "application/octet-stream"
+    });
+    if (chunkRes.status === 200 || chunkRes.status === 201) {
+      driveFileId = chunkRes.fileId;
+      break;
+    }
+    if (onProgress) onProgress(Math.round((end / file.size) * 85));
+    start = end;
+  }
+  if (!driveFileId) throw new Error("Gagal mendapatkan ID berkas dari Google Drive");
+
+  const finRes = await gasPostSppd({
+    action: "finalize",
+    fileId: driveFileId,
+    title: title || file.name,
+    type: "SPJ & LHP SPPD",
+    sector: "Sekretariat",
+    year: String(year || new Date().getFullYear()),
+    uploader: uploader || "Staf BAPPERIDA",
+    group: true
+  });
+  if (onProgress) onProgress(100);
+  return finRes.fileUrl;
+}
+
 export default function AgendaSppdPage({ user, showToast }) {
   const { T } = useContext(ThemeContext);
   const isDark = useIsDark();
@@ -74,6 +183,16 @@ export default function AgendaSppdPage({ user, showToast }) {
   const [pegawaiList, setPegawaiList] = useState([]);
   const [wewenangConfig, setWewenangConfig] = useState(null);
   const [nomorCheck, setNomorCheck] = useState({ status: "idle", message: "", conflict: null });
+
+  const opsiPegawaiNama = useMemo(() => {
+    return (pegawaiList || []).map((p) => ({
+      value: p.nama,
+      label: p.nama,
+      sub: p.nip ? `NIP. ${p.nip}` : "",
+      hint: [p.jabatan, p.pangkat].filter(Boolean).join(" • "),
+      raw: p
+    }));
+  }, [pegawaiList]);
 
   useEffect(() => {
     fetch("/api/agenda/pegawai-list")
@@ -484,10 +603,18 @@ export default function AgendaSppdPage({ user, showToast }) {
   };
 
   // ── Kelola SPJ & Laporan Hasil Perjalanan (Staff & Admin) ─────────────────
+  const [spjUploadingField, setSpjUploadingField] = useState(null); // "lhp" | "spt" | "sppd" | "lampiran" | null
+  const [spjUploadProgress, setSpjUploadProgress] = useState(0);
+
   const bukaModalSpj = (it) => {
     let parsedSpj = [];
     try {
       parsedSpj = Array.isArray(it.berkas_spj) ? it.berkas_spj : JSON.parse(it.berkas_spj || "[]");
+    } catch (_) {}
+
+    let parsedWewenang = {};
+    try {
+      parsedWewenang = typeof it.wewenang === "object" && it.wewenang ? it.wewenang : JSON.parse(it.wewenang || "{}");
     } catch (_) {}
 
     setModalSpj({
@@ -497,17 +624,116 @@ export default function AgendaSppdPage({ user, showToast }) {
       file_sppd_url: it.file_sppd_url || "",
       berkas_spj: parsedSpj,
       status: it.status || "Pengajuan",
+      drive_folder_id: parsedWewenang.spj_drive_folder_id || "",
+      drive_folder_url: parsedWewenang.spj_drive_folder_url || "",
       baruNama: "",
       baruUrl: ""
     });
   };
 
+  const pastikanFolderDriveSpj = async (currentModalSpj) => {
+    if (currentModalSpj.drive_folder_id) {
+      return {
+        folderId: currentModalSpj.drive_folder_id,
+        folderUrl: currentModalSpj.drive_folder_url
+      };
+    }
+    const sppd = currentModalSpj.sppd;
+    const cleanReg = String(sppd.nomor_register || "SPPD").replace(/\//g, "-");
+    const folderName = `SPJ - ${cleanReg} - ${sppd.pelaksana_nama || "Pelaksana"}`;
+    const folderRes = await gasPostSppd({
+      action: "createFolder",
+      folderName
+    });
+    if (!folderRes || !folderRes.folderId) {
+      throw new Error(folderRes?.error || "Gagal membuat folder khusus SPPD di Google Drive");
+    }
+    return {
+      folderId: folderRes.folderId,
+      folderUrl: folderRes.folderUrl || `https://drive.google.com/drive/folders/${folderRes.folderId}`
+    };
+  };
+
+  const handleUploadBerkasSpjKeDrive = async (targetKey, fileObj, customLabel = "") => {
+    if (!fileObj || !modalSpj) return;
+    setSpjUploadingField(targetKey);
+    setSpjUploadProgress(5);
+    try {
+      const { folderId, folderUrl } = await pastikanFolderDriveSpj(modalSpj);
+      const sppd = modalSpj.sppd;
+      const prefixLabel =
+        targetKey === "lhp"
+          ? `LHP - ${sppd.nomor_register}`
+          : targetKey === "spt"
+          ? `SPT Resmi - ${sppd.nomor_spt || sppd.nomor_register}`
+          : targetKey === "sppd"
+          ? `SPPD Cap - ${sppd.nomor_sppd || sppd.nomor_register}`
+          : `${customLabel || fileObj.name} - ${sppd.nomor_register}`;
+
+      const uploadedUrl = await uploadFileToDriveFolder(fileObj, {
+        folderId,
+        title: prefixLabel,
+        year: sppd.tahun || tahun,
+        uploader: user?.name || sppd.pelaksana_nama || "Staf BAPPERIDA",
+        onProgress: (pct) => setSpjUploadProgress(pct)
+      });
+
+      if (!uploadedUrl) throw new Error("Tautan berkas Google Drive kosong");
+
+      setModalSpj((prev) => {
+        if (!prev) return prev;
+        const base = {
+          ...prev,
+          drive_folder_id: folderId,
+          drive_folder_url: folderUrl
+        };
+        if (targetKey === "lhp") {
+          return {
+            ...base,
+            file_lhp_url: uploadedUrl,
+            status: prev.status === "Pengajuan" ? "Laporan Masuk" : prev.status
+          };
+        }
+        if (targetKey === "spt") return { ...base, file_spt_url: uploadedUrl };
+        if (targetKey === "sppd") return { ...base, file_sppd_url: uploadedUrl };
+        if (targetKey === "lampiran") {
+          const namaBukti = (prev.baruNama || customLabel || fileObj.name.replace(/\.[^.]+$/, "")).trim();
+          return {
+            ...base,
+            berkas_spj: [...prev.berkas_spj, { nama: namaBukti, url: uploadedUrl }],
+            baruNama: "",
+            baruUrl: ""
+          };
+        }
+        return base;
+      });
+
+      notif(`Berkas "${fileObj.name}" berhasil diunggah ke folder Google Drive SPPD.`);
+    } catch (err) {
+      notif("Gagal unggah ke Google Drive: " + (err?.message || err));
+    } finally {
+      setSpjUploadingField(null);
+      setSpjUploadProgress(0);
+    }
+  };
+
   const simpanBerkasSpj = async (e) => {
     e.preventDefault();
-    const { sppd, file_lhp_url, file_spt_url, file_sppd_url, berkas_spj, status } = modalSpj;
+    const { sppd, file_lhp_url, file_spt_url, file_sppd_url, berkas_spj, status, drive_folder_id, drive_folder_url } = modalSpj;
     setSubmitting(true);
     try {
-      // Update LHP & berkas utama
+      let existingWewenang = {};
+      try {
+        existingWewenang = typeof sppd.wewenang === "object" && sppd.wewenang ? sppd.wewenang : JSON.parse(sppd.wewenang || "{}");
+      } catch (_) {}
+
+      const updatedWewenang = {
+        ...existingWewenang,
+        ...(drive_folder_id ? { spj_drive_folder_id: drive_folder_id } : {}),
+        ...(drive_folder_url ? { spj_drive_folder_url: drive_folder_url } : {})
+      };
+
+      // Update LHP & berkas utama + simpan metadata folder Drive
       const res1 = await fetch(`/api/agenda/sppd/${sppd.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -515,6 +741,7 @@ export default function AgendaSppdPage({ user, showToast }) {
           file_lhp_url,
           file_spt_url,
           file_sppd_url,
+          wewenang: updatedWewenang,
           status: status || (file_lhp_url ? "Laporan Masuk" : sppd.status)
         })
       });
@@ -1440,51 +1667,38 @@ export default function AgendaSppdPage({ user, showToast }) {
 
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {/* Personil 1 (Pelaksana Utama) */}
-                <div style={{ border: `1px solid ${T.border}`, borderRadius: 6, padding: 10, background: T.card, display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+                <div style={{ border: `1px solid ${T.border}`, borderRadius: 8, padding: 12, background: T.card, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: 11.5, fontWeight: 800, color: T.primary }}>Personil 1 (Pelaksana Utama)</span>
-                    <select
-                      aria-label="Pilih pegawai untuk Personil 1"
-                      value={pegawaiList.find((x) => x.nip && x.nip === modalSppd.data.pelaksana_nip)?.nip || ""}
-                      onChange={(e) => {
-                        const p = pegawaiList.find((x) => x.nip === e.target.value);
-                        if (!p) return;
-                        setModalSppd({
-                          ...modalSppd,
-                          data: {
-                            ...modalSppd.data,
-                            pelaksana_nama: p.nama || "",
-                            pelaksana_nip: p.nip || "",
-                            pelaksana_pangkat: p.pangkat || "",
-                            pelaksana_jabatan: p.jabatan || ""
-                          }
-                        });
-                      }}
-                      style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5, maxWidth: 280 }}
-                    >
-                      <option value="">-- Pilih dari Data User / Pegawai --</option>
-                      {pegawaiList.map((p) => (
-                        <option key={p.id || p.nip} value={p.nip}>{p.nama} ({p.nip})</option>
-                      ))}
-                    </select>
+                    <span style={{ fontSize: 11, color: T.textMuted }}>Pilih dari daftar pegawai atau ketik langsung</span>
                   </div>
 
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
                     <div>
                       <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Nama Lengkap *</label>
-                      <input
-                        type="text"
-                        required
-                        autoComplete="off"
-                        placeholder="Nama lengkap pegawai..."
-                        value={modalSppd.data.pelaksana_nama}
-                        onChange={(e) => {
+                      <CariPilih
+                        value={modalSppd.data.pelaksana_nama || ""}
+                        opsi={opsiPegawaiNama}
+                        placeholder="Cari nama / NIP pegawai atau ketik manual..."
+                        kosongDaftar="Belum ada data pegawai."
+                        kosongCari="Pegawai tidak ditemukan. Tekan Enter untuk memakai nama ini."
+                        onChange={(val) => {
+                          const p = pegawaiList.find((x) => x.nama === val);
                           setModalSppd({
                             ...modalSppd,
-                            data: { ...modalSppd.data, pelaksana_nama: e.target.value }
+                            data: {
+                              ...modalSppd.data,
+                              pelaksana_nama: val,
+                              ...(p
+                                ? {
+                                    pelaksana_nip: p.nip || "",
+                                    pelaksana_pangkat: p.pangkat || "",
+                                    pelaksana_jabatan: p.jabatan || ""
+                                  }
+                                : {})
+                            }
                           });
                         }}
-                        style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 12.5 }}
                       />
                     </div>
 
@@ -1497,7 +1711,7 @@ export default function AgendaSppdPage({ user, showToast }) {
                         placeholder="19800101 200501 1 001"
                         value={modalSppd.data.pelaksana_nip}
                         onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_nip: e.target.value } })}
-                        style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 12.5 }}
+                        style={{ width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${T.inputBorder || T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 12.5 }}
                       />
                     </div>
 
@@ -1508,7 +1722,7 @@ export default function AgendaSppdPage({ user, showToast }) {
                         placeholder="Pembina, IV/a"
                         value={modalSppd.data.pelaksana_pangkat}
                         onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_pangkat: e.target.value } })}
-                        style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 12.5 }}
+                        style={{ width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${T.inputBorder || T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 12.5 }}
                       />
                     </div>
 
@@ -1519,171 +1733,199 @@ export default function AgendaSppdPage({ user, showToast }) {
                         placeholder="Perencana Ahli Muda / Staf"
                         value={modalSppd.data.pelaksana_jabatan}
                         onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_jabatan: e.target.value } })}
-                        style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 12.5 }}
+                        style={{ width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${T.inputBorder || T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 12.5 }}
                       />
                     </div>
                   </div>
 
-                  {/* Pengesahan Keberangkatan (Romawi I) untuk Personil 1 */}
+                  {/* Pengesahan Keberangkatan (Romawi I) untuk Personil 1 — Terpadu dengan CariPilih */}
                   <div style={{ marginTop: 4, paddingTop: 8, borderTop: `1px dashed ${T.border}` }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary }}>
-                        Pejabat Pengesah Berangkat (Romawi I - Personil 1):
-                      </span>
-                      <select
-                        aria-label="Pilih pejabat pengesah Romawi I untuk Personil 1 dari data user"
-                        value={pegawaiList.find((x) => x.nip && x.nip === modalSppd.data.pelaksana_pptk_nip)?.nip || ""}
-                        onChange={(e) => {
-                          const p = pegawaiList.find((x) => x.nip === e.target.value);
-                          if (!p) return;
-                          setModalSppd({
-                            ...modalSppd,
-                            data: {
-                              ...modalSppd.data,
-                              pelaksana_pptk_nama: p.nama || "",
-                              pelaksana_pptk_nip: p.nip || "",
-                              pelaksana_pptk_jabatan: p.jabatan || modalSppd.data.pelaksana_pptk_jabatan || "Kepala Bidang PPE"
-                            }
-                          });
-                        }}
-                        style={{ padding: "3px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11, maxWidth: 260 }}
-                      >
-                        <option value="">-- Ambil Pejabat dari Data User --</option>
-                        {pegawaiList.map((p) => (
-                          <option key={p.id || p.nip} value={p.nip}>{p.nama} ({p.jabatan || p.nip})</option>
-                        ))}
-                      </select>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 6 }}>
+                      Pejabat Pengesah Berangkat (Romawi I - Personil 1):
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 6 }}>
-                      <input
-                        type="text"
-                        placeholder="Jabatan (mis. KEPALA BIDANG PPE)"
-                        value={modalSppd.data.pelaksana_pptk_jabatan || ""}
-                        onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_pptk_jabatan: e.target.value } })}
-                        style={{ padding: "6px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5 }}
-                      />
-                      <input
-                        type="text"
-                        placeholder="Nama Pejabat Pengesah"
-                        value={modalSppd.data.pelaksana_pptk_nama || ""}
-                        onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_pptk_nama: e.target.value } })}
-                        style={{ padding: "6px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5 }}
-                      />
-                      <input
-                        type="text"
-                        placeholder="NIP Pejabat Pengesah"
-                        value={modalSppd.data.pelaksana_pptk_nip || ""}
-                        onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_pptk_nip: e.target.value } })}
-                        style={{ padding: "6px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5 }}
-                      />
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.2fr 1fr 0.9fr", gap: 8 }}>
+                      <div>
+                        <label style={{ fontSize: 10.5, fontWeight: 600, color: T.textMuted, display: "block", marginBottom: 3 }}>Nama Pejabat (Cari / Ketik)</label>
+                        <CariPilih
+                          value={modalSppd.data.pelaksana_pptk_nama || ""}
+                          opsi={opsiPegawaiNama}
+                          placeholder="Cari nama pejabat pengesah..."
+                          kosongDaftar="Belum ada data pegawai."
+                          kosongCari="Tidak ditemukan. Tekan Enter untuk memakai nama ini."
+                          onChange={(val) => {
+                            const p = pegawaiList.find((x) => x.nama === val);
+                            setModalSppd({
+                              ...modalSppd,
+                              data: {
+                                ...modalSppd.data,
+                                pelaksana_pptk_nama: val,
+                                ...(p
+                                  ? {
+                                      pelaksana_pptk_nip: p.nip || "",
+                                      pelaksana_pptk_jabatan: p.jabatan || modalSppd.data.pelaksana_pptk_jabatan || "Kepala Bidang PPE"
+                                    }
+                                  : {})
+                              }
+                            });
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 10.5, fontWeight: 600, color: T.textMuted, display: "block", marginBottom: 3 }}>Jabatan Pengesah (Romawi I)</label>
+                        <input
+                          type="text"
+                          placeholder="Mis. KEPALA BIDANG PPE"
+                          value={modalSppd.data.pelaksana_pptk_jabatan || ""}
+                          onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_pptk_jabatan: e.target.value } })}
+                          style={{ width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${T.inputBorder || T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 12 }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 10.5, fontWeight: 600, color: T.textMuted, display: "block", marginBottom: 3 }}>NIP Pejabat</label>
+                        <input
+                          type="text"
+                          placeholder="NIP Pejabat Pengesah"
+                          value={modalSppd.data.pelaksana_pptk_nip || ""}
+                          onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_pptk_nip: e.target.value } })}
+                          style={{ width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${T.inputBorder || T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 12 }}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Personil 2, 3, ... (Anggota Tim / Pengikut) */}
                 {(modalSppd.data.pengikut || []).map((p, idx) => (
-                  <div key={idx} style={{ border: `1px solid ${T.border}`, borderRadius: 6, padding: 10, background: T.card, display: "flex", flexDirection: "column", gap: 8 }}>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary }}>Personil {idx + 2}</span>
-                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        <select
-                          aria-label={`Pilih pegawai untuk Personil ${idx + 2}`}
-                          value={pegawaiList.find((x) => x.nip && x.nip === p.nip)?.nip || ""}
-                          onChange={(e) => {
-                            const pg = pegawaiList.find((x) => x.nip === e.target.value);
-                            if (!pg) return;
-                            const cur = [...modalSppd.data.pengikut];
-                            cur[idx] = {
-                              ...cur[idx],
-                              nama: pg.nama || "",
-                              nip: pg.nip || "",
-                              pangkat: pg.pangkat || "",
-                              jabatan: pg.jabatan || ""
-                            };
-                            setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pengikut: cur } });
-                          }}
-                          style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5, maxWidth: 250 }}
-                        >
-                          <option value="">-- Pilih dari Data User / Pegawai --</option>
-                          {pegawaiList.map((pg) => (
-                            <option key={pg.id || pg.nip} value={pg.nip}>{pg.nama} ({pg.nip})</option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          aria-label={`Hapus personil ${idx + 2}`}
-                          onClick={() => hapusPengikut(idx)}
-                          style={{ padding: "6px 8px", borderRadius: 6, border: "none", background: T.dangerBg || "#FEF2F2", color: T.danger, cursor: "pointer" }}
-                        >
-                          <Icon name="x" size={13} />
-                        </button>
-                      </div>
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
-                      {[["nama", "Nama lengkap"], ["nip", "NIP"], ["pangkat", "Pangkat / Golongan"], ["jabatan", "Jabatan"]].map(([f, ph]) => (
-                        <input
-                          key={f}
-                          type="text"
-                          autoComplete="off"
-                          placeholder={ph}
-                          value={p[f] || ""}
-                          onChange={(e) => updatePengikut(idx, f, e.target.value)}
-                          style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 12.5 }}
-                        />
-                      ))}
+                  <div key={idx} style={{ border: `1px solid ${T.border}`, borderRadius: 8, padding: 12, background: T.card, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 11.5, fontWeight: 800, color: T.text }}>Personil {idx + 2}</span>
+                      <button
+                        type="button"
+                        aria-label={`Hapus personil ${idx + 2}`}
+                        onClick={() => hapusPengikut(idx)}
+                        style={{ padding: "5px 8px", borderRadius: 6, border: "none", background: T.dangerBg || "#FEF2F2", color: T.danger, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600 }}
+                      >
+                        <Icon name="x" size={12} />
+                        <span>Hapus</span>
+                      </button>
                     </div>
 
-                    {/* Pengesahan Keberangkatan (Romawi I) untuk Personil ke-(idx+2) */}
-                    <div style={{ marginTop: 4, paddingTop: 8, borderTop: `1px dashed ${T.border}` }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary }}>
-                          Pejabat Pengesah Berangkat (Romawi I - Personil {idx + 2}):
-                        </span>
-                        <select
-                          aria-label={`Pilih pejabat pengesah Romawi I untuk Personil ${idx + 2} dari data user`}
-                          value={pegawaiList.find((x) => x.nip && x.nip === p.pptk_nip)?.nip || ""}
-                          onChange={(e) => {
-                            const pg = pegawaiList.find((x) => x.nip === e.target.value);
-                            if (!pg) return;
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
+                      <div>
+                        <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Nama Lengkap *</label>
+                        <CariPilih
+                          value={p.nama || ""}
+                          opsi={opsiPegawaiNama}
+                          placeholder="Cari nama / NIP pegawai atau ketik manual..."
+                          kosongDaftar="Belum ada data pegawai."
+                          kosongCari="Pegawai tidak ditemukan. Tekan Enter untuk memakai nama ini."
+                          onChange={(val) => {
+                            const pg = pegawaiList.find((x) => x.nama === val);
                             const cur = [...modalSppd.data.pengikut];
                             cur[idx] = {
                               ...cur[idx],
-                              pptk_nama: pg.nama || "",
-                              pptk_nip: pg.nip || "",
-                              pptk_jabatan: pg.jabatan || cur[idx].pptk_jabatan || "Kepala Bidang PPE"
+                              nama: val,
+                              ...(pg
+                                ? {
+                                    nip: pg.nip || "",
+                                    pangkat: pg.pangkat || "",
+                                    jabatan: pg.jabatan || ""
+                                  }
+                                : {})
                             };
                             setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pengikut: cur } });
                           }}
-                          style={{ padding: "3px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11, maxWidth: 260 }}
-                        >
-                          <option value="">-- Ambil Pejabat dari Data User --</option>
-                          {pegawaiList.map((pg) => (
-                            <option key={pg.id || pg.nip} value={pg.nip}>{pg.nama} ({pg.jabatan || pg.nip})</option>
-                          ))}
-                        </select>
+                        />
                       </div>
-                      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 6 }}>
+
+                      <div>
+                        <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>NIP Pegawai</label>
                         <input
                           type="text"
-                          placeholder="Jabatan (mis. KEPALA BIDANG PPE)"
-                          value={p.pptk_jabatan || ""}
-                          onChange={(e) => updatePengikut(idx, "pptk_jabatan", e.target.value)}
-                          style={{ padding: "6px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5 }}
+                          autoComplete="off"
+                          placeholder="NIP"
+                          value={p.nip || ""}
+                          onChange={(e) => updatePengikut(idx, "nip", e.target.value)}
+                          style={{ width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${T.inputBorder || T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 12.5 }}
                         />
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Pangkat / Golongan</label>
                         <input
                           type="text"
-                          placeholder="Nama Pejabat Pengesah"
-                          value={p.pptk_nama || ""}
-                          onChange={(e) => updatePengikut(idx, "pptk_nama", e.target.value)}
-                          style={{ padding: "6px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5 }}
+                          autoComplete="off"
+                          placeholder="Pangkat / Golongan"
+                          value={p.pangkat || ""}
+                          onChange={(e) => updatePengikut(idx, "pangkat", e.target.value)}
+                          style={{ width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${T.inputBorder || T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 12.5 }}
                         />
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Jabatan</label>
                         <input
                           type="text"
-                          placeholder="NIP Pejabat Pengesah"
-                          value={p.pptk_nip || ""}
-                          onChange={(e) => updatePengikut(idx, "pptk_nip", e.target.value)}
-                          style={{ padding: "6px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5 }}
+                          autoComplete="off"
+                          placeholder="Jabatan"
+                          value={p.jabatan || ""}
+                          onChange={(e) => updatePengikut(idx, "jabatan", e.target.value)}
+                          style={{ width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${T.inputBorder || T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 12.5 }}
                         />
+                      </div>
+                    </div>
+
+                    {/* Pengesahan Keberangkatan (Romawi I) untuk Personil ke-(idx+2) — Terpadu dengan CariPilih */}
+                    <div style={{ marginTop: 4, paddingTop: 8, borderTop: `1px dashed ${T.border}` }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 6 }}>
+                        Pejabat Pengesah Berangkat (Romawi I - Personil {idx + 2}):
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.2fr 1fr 0.9fr", gap: 8 }}>
+                        <div>
+                          <label style={{ fontSize: 10.5, fontWeight: 600, color: T.textMuted, display: "block", marginBottom: 3 }}>Nama Pejabat (Cari / Ketik)</label>
+                          <CariPilih
+                            value={p.pptk_nama || ""}
+                            opsi={opsiPegawaiNama}
+                            placeholder="Cari nama pejabat pengesah..."
+                            kosongDaftar="Belum ada data pegawai."
+                            kosongCari="Tidak ditemukan. Tekan Enter untuk memakai nama ini."
+                            onChange={(val) => {
+                              const pg = pegawaiList.find((x) => x.nama === val);
+                              const cur = [...modalSppd.data.pengikut];
+                              cur[idx] = {
+                                ...cur[idx],
+                                pptk_nama: val,
+                                ...(pg
+                                  ? {
+                                      pptk_nip: pg.nip || "",
+                                      pptk_jabatan: pg.jabatan || cur[idx].pptk_jabatan || "Kepala Bidang PPE"
+                                    }
+                                  : {})
+                              };
+                              setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pengikut: cur } });
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 10.5, fontWeight: 600, color: T.textMuted, display: "block", marginBottom: 3 }}>Jabatan Pengesah (Romawi I)</label>
+                          <input
+                            type="text"
+                            placeholder="Mis. KEPALA BIDANG PPE"
+                            value={p.pptk_jabatan || ""}
+                            onChange={(e) => updatePengikut(idx, "pptk_jabatan", e.target.value)}
+                            style={{ width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${T.inputBorder || T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 12 }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 10.5, fontWeight: 600, color: T.textMuted, display: "block", marginBottom: 3 }}>NIP Pejabat</label>
+                          <input
+                            type="text"
+                            placeholder="NIP Pejabat Pengesah"
+                            value={p.pptk_nip || ""}
+                            onChange={(e) => updatePengikut(idx, "pptk_nip", e.target.value)}
+                            style={{ width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${T.inputBorder || T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 12 }}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1719,14 +1961,14 @@ export default function AgendaSppdPage({ user, showToast }) {
                 />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : (modalSppd.data.jenis_sppd === "LUAR_DAERAH" ? "1fr 1fr 1fr 1.2fr" : "1fr 1fr 1.2fr"), gap: 10, marginTop: 10 }}>
                 <div>
                   <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Tempat Berangkat</label>
                   <input
                     type="text"
                     value={modalSppd.data.tempat_berangkat}
                     onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, tempat_berangkat: e.target.value } })}
-                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12.5 }}
+                    style={{ width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12.5 }}
                   />
                 </div>
 
@@ -1738,11 +1980,11 @@ export default function AgendaSppdPage({ user, showToast }) {
                     placeholder="Mis. Kupang / Wanokaka"
                     value={modalSppd.data.tempat_tujuan}
                     onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, tempat_tujuan: e.target.value } })}
-                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12.5 }}
+                    style={{ width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12.5 }}
                   />
                 </div>
 
-                {modalSppd.data.jenis_sppd === "LUAR_DAERAH" ? (
+                {modalSppd.data.jenis_sppd === "LUAR_DAERAH" && (
                   <div>
                     <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Provinsi Tujuan</label>
                     <Select
@@ -1754,18 +1996,19 @@ export default function AgendaSppdPage({ user, showToast }) {
                       options={PROVINSI_LIST.map((p) => ({ value: p, label: p }))}
                     />
                   </div>
-                ) : (
-                  <div>
-                    <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Alat Angkutan</label>
-                    <Select
-                      fullWidth
-                      size="sm"
-                      value={modalSppd.data.alat_angkutan}
-                      onChange={(v) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, alat_angkutan: v } })}
-                      options={ANGKUTAN_LIST.map((a) => ({ value: a, label: a }))}
-                    />
-                  </div>
                 )}
+
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>5. Alat Angkut yang Digunakan</label>
+                  <CariPilih
+                    value={modalSppd.data.alat_angkutan || ""}
+                    opsi={ANGKUTAN_LIST.map((a) => ({ value: a, label: a }))}
+                    placeholder="Pilih atau ketik alat angkut..."
+                    kosongDaftar="Belum ada opsi alat angkut."
+                    kosongCari="Tekan Enter untuk memakai alat angkut ini."
+                    onChange={(v) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, alat_angkutan: v } })}
+                  />
+                </div>
               </div>
             </div>
 
@@ -1922,60 +2165,224 @@ export default function AgendaSppdPage({ user, showToast }) {
           title="Kelola Berkas Pertanggungjawaban (SPJ & LHP)"
           subtitle={`Register: ${modalSpj.sppd.nomor_register} - ${modalSpj.sppd.pelaksana_nama}`}
           icon="upload"
-          onClose={() => setModalSpj(null)}
-          maxWidth={620}
+          onClose={() => !spjUploadingField && setModalSpj(null)}
+          maxWidth={680}
         >
           <form onSubmit={simpanBerkasSpj} style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ background: isDark ? "#172337" : "#F1F5F9", padding: "10px 14px", borderRadius: 8, borderLeft: `4px solid ${T.success}` }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary }}>PERJALANAN DINAS</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginTop: 2 }}>{modalSpj.sppd.maksud_perjalanan}</div>
-              <div style={{ fontSize: 11, color: T.textMuted, marginTop: 4 }}>
-                Tujuan: {modalSpj.sppd.tempat_tujuan} • Durasi: {modalSpj.sppd.lama_hari || 1} Hari Dinas
+            <div style={{ background: isDark ? "#172337" : "#F1F5F9", padding: "10px 14px", borderRadius: 8, borderLeft: `4px solid ${T.success}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary }}>PERJALANAN DINAS</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginTop: 2 }}>{modalSpj.sppd.maksud_perjalanan}</div>
+                <div style={{ fontSize: 11, color: T.textMuted, marginTop: 4 }}>
+                  Tujuan: {modalSpj.sppd.tempat_tujuan} • Durasi: {modalSpj.sppd.lama_hari || 1} Hari Dinas
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: T.primary, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  <Icon name="folder" size={13} />
+                  <span>Folder Google Drive Otomatis per Register</span>
+                </div>
+                {modalSpj.drive_folder_url ? (
+                  <a
+                    href={modalSpj.drive_folder_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      background: T.primary,
+                      color: "#fff",
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      textDecoration: "none"
+                    }}
+                  >
+                    <Icon name="externalLink" size={12} />
+                    <span>Buka Folder Drive SPPD</span>
+                  </a>
+                ) : (
+                  <span style={{ fontSize: 11, color: T.textMuted }}>
+                    Folder <b>SPJ - {String(modalSpj.sppd.nomor_register || "").replace(/\//g, "-")}</b> dibuat otomatis saat upload pertama
+                  </span>
+                )}
               </div>
             </div>
 
+            {spjUploadingField && (
+              <div style={{ padding: "8px 12px", borderRadius: 8, background: isDark ? "rgba(37,99,235,0.16)" : "#EFF6FF", border: `1px solid ${T.primary}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: T.primary }}>
+                  Mengunggah berkas ke Folder Google Drive SPPD... ({spjUploadProgress}%)
+                </span>
+                <div style={{ width: 120, height: 6, borderRadius: 99, background: isDark ? "#1e293b" : "#DBEAFE", overflow: "hidden" }}>
+                  <div style={{ width: `${spjUploadProgress}%`, height: "100%", background: T.primary, transition: "width 0.2s ease" }} />
+                </div>
+              </div>
+            )}
+
+            {/* 1. Berkas LHP */}
             <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
-                Tautan Berkas LHP (Laporan Hasil Perjalanan Dinas - PDF) *
-              </label>
-              <input
-                type="url"
-                placeholder="https://drive.google.com/.../lhp.pdf"
-                value={modalSpj.file_lhp_url}
-                onChange={(e) => setModalSpj({ ...modalSpj, file_lhp_url: e.target.value })}
-                style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
-              />
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
-                  Tautan File SPT Resmi Bertandatangan
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, gap: 8, flexWrap: "wrap" }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary }}>
+                  Berkas LHP (Laporan Hasil Perjalanan Dinas - PDF/Word) *
                 </label>
+                {modalSpj.file_lhp_url && (
+                  <a href={modalSpj.file_lhp_url} target="_blank" rel="noreferrer" style={{ fontSize: 11.5, fontWeight: 700, color: T.primary, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <Icon name="externalLink" size={12} /> Lihat Berkas LHP
+                  </a>
+                )}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center" }}>
                 <input
                   type="url"
-                  placeholder="https://drive.google.com/.../spt.pdf"
-                  value={modalSpj.file_spt_url}
-                  onChange={(e) => setModalSpj({ ...modalSpj, file_spt_url: e.target.value })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
+                  placeholder="Upload file di samping atau tempel link https://drive.google.com/..."
+                  value={modalSpj.file_lhp_url}
+                  onChange={(e) => setModalSpj({ ...modalSpj, file_lhp_url: e.target.value })}
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 12.5 }}
                 />
+                <label
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 8,
+                    background: T.primary,
+                    color: "#fff",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: spjUploadingField ? "not-allowed" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    whiteSpace: "nowrap",
+                    opacity: spjUploadingField ? 0.65 : 1
+                  }}
+                >
+                  <Icon name="upload" size={13} />
+                  <span>{spjUploadingField === "lhp" ? `Mengunggah ${spjUploadProgress}%` : "Upload ke Drive"}</span>
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                    disabled={!!spjUploadingField}
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleUploadBerkasSpjKeDrive("lhp", f);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* 2. File SPT & SPPD Bertandatangan */}
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary }}>
+                    File SPT Resmi Bertandatangan
+                  </label>
+                  {modalSpj.file_spt_url && (
+                    <a href={modalSpj.file_spt_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, fontWeight: 700, color: T.primary, textDecoration: "none" }}>
+                      Buka
+                    </a>
+                  )}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 6 }}>
+                  <input
+                    type="url"
+                    placeholder="https://drive.google.com/.../spt.pdf"
+                    value={modalSpj.file_spt_url}
+                    onChange={(e) => setModalSpj({ ...modalSpj, file_spt_url: e.target.value })}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 12 }}
+                  />
+                  <label
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      border: `1px solid ${T.primary}`,
+                      background: isDark ? "rgba(37,99,235,0.15)" : "#EFF6FF",
+                      color: T.primary,
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      cursor: spjUploadingField ? "not-allowed" : "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      whiteSpace: "nowrap"
+                    }}
+                  >
+                    <Icon name="upload" size={12} />
+                    <span>{spjUploadingField === "spt" ? `${spjUploadProgress}%` : "Upload"}</span>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                      disabled={!!spjUploadingField}
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleUploadBerkasSpjKeDrive("spt", f);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
-                  Tautan File SPPD Bertandatangan & Cap
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://drive.google.com/.../sppd.pdf"
-                  value={modalSpj.file_sppd_url}
-                  onChange={(e) => setModalSpj({ ...modalSpj, file_sppd_url: e.target.value })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
-                />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary }}>
+                    File SPPD Bertandatangan & Cap
+                  </label>
+                  {modalSpj.file_sppd_url && (
+                    <a href={modalSpj.file_sppd_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, fontWeight: 700, color: T.primary, textDecoration: "none" }}>
+                      Buka
+                    </a>
+                  )}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 6 }}>
+                  <input
+                    type="url"
+                    placeholder="https://drive.google.com/.../sppd.pdf"
+                    value={modalSpj.file_sppd_url}
+                    onChange={(e) => setModalSpj({ ...modalSpj, file_sppd_url: e.target.value })}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 12 }}
+                  />
+                  <label
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      border: `1px solid ${T.primary}`,
+                      background: isDark ? "rgba(37,99,235,0.15)" : "#EFF6FF",
+                      color: T.primary,
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      cursor: spjUploadingField ? "not-allowed" : "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      whiteSpace: "nowrap"
+                    }}
+                  >
+                    <Icon name="upload" size={12} />
+                    <span>{spjUploadingField === "sppd" ? `${spjUploadProgress}%` : "Upload"}</span>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                      disabled={!!spjUploadingField}
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleUploadBerkasSpjKeDrive("sppd", f);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
               </div>
             </div>
 
-            {/* Lampiran Bukti Kwitansi / Tiket / Hotel */}
+            {/* 3. Lampiran Bukti Kwitansi / Tiket / Hotel */}
             <div style={{ border: `1px solid ${T.border}`, borderRadius: 8, padding: "12px 14px", background: T.bg }}>
               <div style={{ fontSize: 12, fontWeight: 800, color: T.text, marginBottom: 8 }}>
                 Daftar Lampiran Bukti SPJ (Tiket, Hotel, Boarding Pass, Dokumentasi):
@@ -1985,9 +2392,9 @@ export default function AgendaSppdPage({ user, showToast }) {
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
                   {modalSpj.berkas_spj.map((b, idx) => (
                     <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: T.card, padding: "6px 10px", borderRadius: 6, border: `1px solid ${T.border}` }}>
-                      <div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{b.nama || "Bukti SPJ"}</div>
-                        <a href={b.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: T.primary, textDecoration: "none" }}>
+                        <a href={b.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: T.primary, textDecoration: "none", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {b.url}
                         </a>
                       </div>
@@ -2006,35 +2413,64 @@ export default function AgendaSppdPage({ user, showToast }) {
                 </div>
               )}
 
-              {/* Form Tambah Bukti */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, alignItems: "center" }}>
+              {/* Form Tambah / Upload Bukti */}
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr auto auto", gap: 8, alignItems: "center" }}>
                 <input
                   type="text"
-                  placeholder="Mis. Tiket Pesawat Kupang-Tambolaka"
+                  placeholder="Nama Bukti (mis. Tiket Pesawat Kupang-Tambolaka)"
                   value={modalSpj.baruNama}
                   onChange={(e) => setModalSpj({ ...modalSpj, baruNama: e.target.value })}
-                  style={{ padding: "6px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12 }}
+                  style={{ padding: "7px 9px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12 }}
                 />
                 <input
                   type="url"
-                  placeholder="https://drive.google.com/.../tiket.pdf"
+                  placeholder="Link Drive (opsional jika klik Upload File)"
                   value={modalSpj.baruUrl}
                   onChange={(e) => setModalSpj({ ...modalSpj, baruUrl: e.target.value })}
-                  style={{ padding: "6px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12 }}
+                  style={{ padding: "7px 9px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12 }}
                 />
+                <label
+                  style={{
+                    padding: "7px 11px",
+                    borderRadius: 6,
+                    background: "#059669",
+                    color: "#fff",
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: spjUploadingField ? "not-allowed" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    whiteSpace: "nowrap"
+                  }}
+                >
+                  <Icon name="upload" size={12} />
+                  <span>{spjUploadingField === "lampiran" ? `Upload ${spjUploadProgress}%` : "Upload File"}</span>
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"
+                    disabled={!!spjUploadingField}
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleUploadBerkasSpjKeDrive("lampiran", f, modalSpj.baruNama);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
                 <button
                   type="button"
                   onClick={() => {
                     if (!modalSpj.baruNama || !modalSpj.baruUrl) {
-                      notif("Isi nama dan URL bukti dokumen!");
+                      notif("Isi nama bukti dan URL, atau gunakan tombol Upload File untuk mengunggah langsung ke Drive!");
                       return;
                     }
                     const next = [...modalSpj.berkas_spj, { nama: modalSpj.baruNama, url: modalSpj.baruUrl }];
                     setModalSpj({ ...modalSpj, berkas_spj: next, baruNama: "", baruUrl: "" });
                   }}
-                  style={{ padding: "6px 12px", borderRadius: 6, border: "none", background: T.primary, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
+                  style={{ padding: "7px 12px", borderRadius: 6, border: "none", background: T.primary, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}
                 >
-                  + Tambah
+                  + Tambah Link
                 </button>
               </div>
             </div>
@@ -2059,6 +2495,7 @@ export default function AgendaSppdPage({ user, showToast }) {
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 10 }}>
               <button
                 type="button"
+                disabled={!!spjUploadingField}
                 onClick={() => setModalSpj(null)}
                 style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.bg, color: T.text, cursor: "pointer", fontSize: 13 }}
               >
@@ -2066,8 +2503,8 @@ export default function AgendaSppdPage({ user, showToast }) {
               </button>
               <button
                 type="submit"
-                disabled={submitting}
-                style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: T.success, color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, opacity: submitting ? 0.7 : 1 }}
+                disabled={submitting || !!spjUploadingField}
+                style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: T.success, color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, opacity: submitting || spjUploadingField ? 0.7 : 1 }}
               >
                 {submitting ? "Menyimpan..." : "Simpan Berkas SPJ & LHP"}
               </button>

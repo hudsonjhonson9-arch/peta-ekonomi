@@ -207,7 +207,7 @@ test('KOP Sekretariat Daerah & BAPPERIDA: mendukung tag dan HTML berlogo Lambang
   const htmlSppdSekda = bangunHtmlSPPD(itemSekda);
   assert.ok(htmlSppdSekda.includes('Lambang_Kabupaten_Sumba_Barat.png'), 'HTML SPPD Sekda wajib memuat logo');
   assert.ok(htmlSppdSekda.includes('SEKRETARIAT DAERAH'), 'HTML SPPD Sekda wajib memuat SEKRETARIAT DAERAH');
-  assert.ok(htmlSppdSekda.includes('IV.') && htmlSppdSekda.includes('Tiba kembali di'), 'HTML SPPD wajib memiliki bagian Romawi IV');
+  assert.ok(htmlSppdSekda.includes('IV.') && htmlSppdSekda.includes('Tiba<br/>pada<br/>Tanggal'), 'HTML SPPD wajib memiliki bagian Romawi IV sesuai format template');
 });
 
 test('Romawi I (Berangkat dari) per personil: setiap personil dapat memiliki Pejabat Pengesah (PPTK/Kabid/Kasubbag) masing-masing', () => {
