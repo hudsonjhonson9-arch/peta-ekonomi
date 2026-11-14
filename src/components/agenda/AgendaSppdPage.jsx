@@ -16,6 +16,7 @@ import ModalPratinjauDokumen from "./ModalPratinjauDokumen.jsx";
 
 const PEJABAT_PERINTAH_LIST = [
   "Kepala BAPPERIDA",
+  "Sekretaris Daerah",
   "Sekretaris BAPPERIDA",
   "Plt. Kepala BAPPERIDA"
 ];
@@ -72,6 +73,7 @@ export default function AgendaSppdPage({ user, showToast }) {
   const [submitting, setSubmitting] = useState(false);
   const [pegawaiList, setPegawaiList] = useState([]);
   const [wewenangConfig, setWewenangConfig] = useState(null);
+  const [nomorCheck, setNomorCheck] = useState({ status: "idle", message: "", conflict: null });
 
   useEffect(() => {
     fetch("/api/agenda/pegawai-list")
@@ -86,16 +88,26 @@ export default function AgendaSppdPage({ user, showToast }) {
 
   // Gabungkan pengaturan wewenang global ke item agar preview & unduh selalu sesuai pengaturan
   const enrichWithWewenang = (it) => {
-    if (!it || !wewenangConfig) return it;
+    if (!it) return it;
+    let parsedWewenang = {};
+    try {
+      parsedWewenang = typeof it.wewenang === "object" && it.wewenang ? it.wewenang : JSON.parse(it.wewenang || "{}");
+    } catch (_) {
+      parsedWewenang = {};
+    }
+    const mergedWewenang = {
+      kop_surat: it.kop_surat || parsedWewenang.kop_surat || wewenangConfig?.kop_surat || "BAPPERIDA",
+      sekretaris: parsedWewenang.sekretaris || wewenangConfig?.sekretaris || undefined,
+      bidang: parsedWewenang.bidang || wewenangConfig?.bidang || undefined,
+      ktu: parsedWewenang.ktu || wewenangConfig?.ktu || undefined,
+      pelaksana_pptk: parsedWewenang.pelaksana_pptk || undefined
+    };
     return {
       ...it,
-      penandatangan: it.penandatangan || wewenangConfig.kepala || null,
-      paraf: it.paraf || wewenangConfig.paraf || null,
-      wewenang: it.wewenang || {
-        sekretaris: wewenangConfig.sekretaris,
-        bidang: wewenangConfig.bidang,
-        ktu: wewenangConfig.ktu
-      }
+      kop_surat: mergedWewenang.kop_surat,
+      penandatangan: it.penandatangan || wewenangConfig?.kepala || null,
+      paraf: it.paraf || wewenangConfig?.paraf || null,
+      wewenang: mergedWewenang
     };
   };
 
@@ -113,7 +125,7 @@ export default function AgendaSppdPage({ user, showToast }) {
     setIsGeneratingDocx(true);
     try {
       notif("Menyiapkan dokumen Surat Perintah Tugas (SPT .docx)...");
-      await unduhSuratTugasDocx(it);
+      await unduhSuratTugasDocx(enrichWithWewenang(it));
       notif("Surat Perintah Tugas (SPT) berhasil diunduh (.docx)!");
     } catch (err) {
       notif("Gagal membuat SPT: " + (err?.message || err));
@@ -125,9 +137,10 @@ export default function AgendaSppdPage({ user, showToast }) {
   const unduhSPPD = async (it, person = null) => {
     setIsGeneratingDocx(true);
     try {
-      const namaTarget = person?.nama || it.pelaksana_nama || "Pelaksana";
+      const enriched = enrichWithWewenang(it);
+      const namaTarget = person?.nama || enriched.pelaksana_nama || "Pelaksana";
       notif(`Menyiapkan lembar SPPD untuk ${namaTarget} (.docx)...`);
-      await unduhSppdDocx(it, person);
+      await unduhSppdDocx(enriched, person);
       notif(`SPPD untuk ${namaTarget} berhasil diunduh (.docx)!`);
     } catch (err) {
       notif("Gagal membuat SPPD: " + (err?.message || err));
@@ -140,7 +153,7 @@ export default function AgendaSppdPage({ user, showToast }) {
     setIsGeneratingDocx(true);
     try {
       notif("Menyiapkan dokumen Surat Perintah Tugas (SPT .pdf)...");
-      await unduhSuratTugasPdf(it);
+      await unduhSuratTugasPdf(enrichWithWewenang(it));
       notif("Surat Perintah Tugas (SPT) berhasil diunduh (.pdf)!");
     } catch (err) {
       notif("Gagal membuat PDF SPT: " + (err?.message || err));
@@ -152,9 +165,10 @@ export default function AgendaSppdPage({ user, showToast }) {
   const unduhSPPDPdf = async (it, person = null) => {
     setIsGeneratingDocx(true);
     try {
-      const namaTarget = person?.nama || it.pelaksana_nama || "Pelaksana";
+      const enriched = enrichWithWewenang(it);
+      const namaTarget = person?.nama || enriched.pelaksana_nama || "Pelaksana";
       notif(`Menyiapkan lembar SPPD untuk ${namaTarget} (.pdf)...`);
-      await unduhSppdPdf(it, person);
+      await unduhSppdPdf(enriched, person);
       notif(`SPPD untuk ${namaTarget} berhasil diunduh (.pdf)!`);
     } catch (err) {
       notif("Gagal membuat PDF SPPD: " + (err?.message || err));
@@ -164,18 +178,18 @@ export default function AgendaSppdPage({ user, showToast }) {
   };
 
   const cetakSPT = (it) => {
-    cetakSuratTugasWindow(it);
+    cetakSuratTugasWindow(enrichWithWewenang(it));
   };
 
   const cetakSPPD = (it, person = null) => {
-    cetakSppdWindow(it, person);
+    cetakSppdWindow(enrichWithWewenang(it), person);
   };
 
   const unduhZipBundle = async (it) => {
     setIsGeneratingDocx(true);
     try {
       notif("Menyiapkan paket ZIP (SPT + semua SPPD)…");
-      await unduhBundleSppdZip(it);
+      await unduhBundleSppdZip(enrichWithWewenang(it));
       notif("Paket ZIP berhasil diunduh!");
     } catch (err) {
       notif("Gagal membuat ZIP: " + (err?.message || err));
@@ -221,38 +235,93 @@ export default function AgendaSppdPage({ user, showToast }) {
   const statLuar = allSppd.filter(x => x.jenis_sppd === "LUAR_DAERAH").length;
   const statSelesai = allSppd.filter(x => x.status === "Selesai" || x.status === "Laporan Masuk").length;
 
-  // ── Pratinjau Nomor Register SPPD ─────────────────────────────────────────
+  // ── Pratinjau Nomor Register SPPD & Cek Ketersediaan Nomor Custom ──────────
   const fetchPreviewRegister = async (targetJenis) => {
     try {
       const res = await fetch(`/api/agenda/sppd/preview-nomor?tahun=${tahun}&jenis=${targetJenis || jenis}`);
       const data = await res.json();
       if (data.ok) return data.nomor_register;
     } catch (_) {}
-    return targetJenis === "LUAR_DAERAH" ? "001/SPPD-LD/2026" : "001/SPPD-DD/2026";
+    return targetJenis === "LUAR_DAERAH" ? `001/SPPD-LD/${tahun}` : `001/SPPD-DD/${tahun}`;
   };
+
+  const cekKetersediaanNomor = async (nomorVal, excludeId = null) => {
+    const trimmed = String(nomorVal || "").trim();
+    if (!trimmed) {
+      setNomorCheck({ status: "idle", message: "", conflict: null });
+      return false;
+    }
+    setNomorCheck({ status: "checking", message: "Memeriksa ketersediaan nomor...", conflict: null });
+    try {
+      const exParam = excludeId ? `&exclude_id=${encodeURIComponent(excludeId)}` : "";
+      const res = await fetch(`/api/agenda/sppd/cek-nomor?nomor=${encodeURIComponent(trimmed)}${exParam}`);
+      const data = await res.json();
+      if (data.ok) {
+        if (data.exists) {
+          setNomorCheck({
+            status: "taken",
+            message: `Nomor "${trimmed}" sudah digunakan oleh ${data.conflict?.pelaksana_nama || "pegawai lain"} (${data.conflict?.nomor_register || ""}).`,
+            conflict: data.conflict
+          });
+          return false;
+        } else {
+          setNomorCheck({
+            status: "available",
+            message: `Nomor "${trimmed}" tersedia dan belum pernah digunakan.`,
+            conflict: null
+          });
+          return true;
+        }
+      }
+    } catch (_) {}
+    setNomorCheck({ status: "idle", message: "", conflict: null });
+    return true;
+  };
+
+  useEffect(() => {
+    if (!modalSppd?.data?.nomor_register) {
+      setNomorCheck({ status: "idle", message: "", conflict: null });
+      return;
+    }
+    const timer = setTimeout(() => {
+      cekKetersediaanNomor(modalSppd.data.nomor_register, modalSppd.mode === "edit" ? modalSppd.data.id : null);
+    }, 320);
+    return () => clearTimeout(timer);
+  }, [modalSppd?.data?.nomor_register, modalSppd?.mode, modalSppd?.data?.id]);
 
   // ── Tambah / Ambil Nomor SPPD (Staff & Admin) ────────────────────────────
   const bukaAmbilNomorSppd = async (presetJenis) => {
     const selectedJenis = presetJenis || jenis;
     const preview = await fetchPreviewRegister(selectedJenis);
     const me = pegawaiList.find((x) => (user?.nip && x.nip === user.nip) || (user?.name && x.nama === user.name));
+    const defBidang = wewenangConfig?.bidang || {
+      jabatan: "Kepala Bidang PPE",
+      nama: "BERLIAN MAGU WERU,S.Sos",
+      nip: "19690619 200903 1 001"
+    };
+    const defKop = wewenangConfig?.kop_surat || "BAPPERIDA";
 
     setModalSppd({
       mode: "tambah",
       previewNomor: preview,
       data: {
         jenis_sppd: selectedJenis,
+        kop_surat: defKop,
+        nomor_register: preview,
         nomor_spt: preview,
         nomor_sppd: preview,
         tanggal_spt: new Date().toISOString().split("T")[0],
         ditetapkan_di: "Waikabubak",
         dasar_hukum: `DPA Bapperida Kabupaten Sumba Barat TA ${tahun}`,
         tingkat_biaya: selectedJenis === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C",
-        pejabat_perintah: "Kepala BAPPERIDA",
+        pejabat_perintah: defKop === "SEKDA" ? "Sekretaris Daerah" : "Kepala BAPPERIDA",
         pelaksana_nip: me?.nip || user?.nip || "",
         pelaksana_nama: me?.nama || user?.name || "",
         pelaksana_pangkat: me?.pangkat || "",
         pelaksana_jabatan: me?.jabatan || "",
+        pelaksana_pptk_jabatan: defBidang.jabatan || "Kepala Bidang PPE",
+        pelaksana_pptk_nama: defBidang.nama || "BERLIAN MAGU WERU,S.Sos",
+        pelaksana_pptk_nip: defBidang.nip || "19690619 200903 1 001",
         pengikut: [],
         maksud_perjalanan: "",
         tempat_berangkat: "Waikabubak",
@@ -267,10 +336,11 @@ export default function AgendaSppdPage({ user, showToast }) {
         penandatangan: wewenangConfig?.kepala || null,
         paraf: wewenangConfig?.paraf || null,
         wewenang: wewenangConfig ? {
+          kop_surat: defKop,
           sekretaris: wewenangConfig.sekretaris,
           bidang: wewenangConfig.bidang,
           ktu: wewenangConfig.ktu
-        } : null,
+        } : { kop_surat: defKop },
         file_spt_url: "",
         file_sppd_url: ""
       }
@@ -284,12 +354,26 @@ export default function AgendaSppdPage({ user, showToast }) {
       parsedPengikut = Array.isArray(it.pengikut) ? it.pengikut : JSON.parse(it.pengikut || "[]");
     } catch (_) {}
 
+    let parsedWewenang = {};
+    try {
+      parsedWewenang = typeof it.wewenang === "object" && it.wewenang ? it.wewenang : JSON.parse(it.wewenang || "{}");
+    } catch (_) {}
+
+    const defBidang = parsedWewenang.bidang || wewenangConfig?.bidang || {
+      jabatan: "Kepala Bidang PPE",
+      nama: "BERLIAN MAGU WERU,S.Sos",
+      nip: "19690619 200903 1 001"
+    };
+    const p1Pptk = parsedWewenang.pelaksana_pptk || defBidang;
+    const kopSurat = it.kop_surat || parsedWewenang.kop_surat || wewenangConfig?.kop_surat || "BAPPERIDA";
+
     setModalSppd({
       mode: "edit",
       previewNomor: it.nomor_register,
       data: {
         id: it.id,
         jenis_sppd: it.jenis_sppd,
+        kop_surat: kopSurat,
         nomor_register: it.nomor_register,
         nomor_spt: it.nomor_spt || it.nomor_register,
         nomor_sppd: it.nomor_sppd || it.nomor_register,
@@ -302,7 +386,15 @@ export default function AgendaSppdPage({ user, showToast }) {
         pelaksana_nama: it.pelaksana_nama || "",
         pelaksana_pangkat: it.pelaksana_pangkat || "",
         pelaksana_jabatan: it.pelaksana_jabatan || "",
-        pengikut: parsedPengikut,
+        pelaksana_pptk_jabatan: p1Pptk.jabatan || defBidang.jabatan || "Kepala Bidang PPE",
+        pelaksana_pptk_nama: p1Pptk.nama || defBidang.nama || "BERLIAN MAGU WERU,S.Sos",
+        pelaksana_pptk_nip: p1Pptk.nip || defBidang.nip || "19690619 200903 1 001",
+        pengikut: parsedPengikut.map((p) => ({
+          ...p,
+          pptk_jabatan: p.pptk_jabatan || defBidang.jabatan || "Kepala Bidang PPE",
+          pptk_nama: p.pptk_nama || defBidang.nama || "BERLIAN MAGU WERU,S.Sos",
+          pptk_nip: p.pptk_nip || defBidang.nip || "19690619 200903 1 001"
+        })),
         maksud_perjalanan: it.maksud_perjalanan || "",
         tempat_berangkat: it.tempat_berangkat || "Waikabubak",
         tempat_tujuan: it.tempat_tujuan || "",
@@ -313,6 +405,15 @@ export default function AgendaSppdPage({ user, showToast }) {
         tanggal_kembali: it.tanggal_kembali ? it.tanggal_kembali.split("T")[0] : "",
         subkegiatan_nama: it.subkegiatan_nama || "",
         status: it.status || "Pengajuan",
+        penandatangan: it.penandatangan || wewenangConfig?.kepala || null,
+        paraf: it.paraf || wewenangConfig?.paraf || null,
+        wewenang: {
+          ...parsedWewenang,
+          kop_surat: kopSurat,
+          sekretaris: parsedWewenang.sekretaris || wewenangConfig?.sekretaris,
+          bidang: parsedWewenang.bidang || wewenangConfig?.bidang,
+          ktu: parsedWewenang.ktu || wewenangConfig?.ktu
+        },
         file_spt_url: it.file_spt_url || "",
         file_sppd_url: it.file_sppd_url || "",
         file_lhp_url: it.file_lhp_url || ""
@@ -331,12 +432,37 @@ export default function AgendaSppdPage({ user, showToast }) {
       notif("Tanggal berangkat dan tanggal kembali perjalanan dinas wajib diisi!");
       return;
     }
+    if (nomorCheck.status === "taken") {
+      notif(nomorCheck.message || "Nomor register sudah digunakan! Silakan ganti nomor terlebih dahulu.");
+      return;
+    }
 
     setSubmitting(true);
     try {
       const url = mode === "tambah" ? "/api/agenda/sppd" : `/api/agenda/sppd/${data.id}`;
       const method = mode === "tambah" ? "POST" : "PUT";
-      const payload = { ...data, tahun };
+      const customNomorReg = (data.nomor_register || modalSppd.previewNomor || "").trim();
+      const wewenangPayload = {
+        ...(data.wewenang || {}),
+        kop_surat: data.kop_surat || "BAPPERIDA",
+        sekretaris: data.wewenang?.sekretaris || wewenangConfig?.sekretaris,
+        bidang: data.wewenang?.bidang || wewenangConfig?.bidang,
+        ktu: data.wewenang?.ktu || wewenangConfig?.ktu,
+        pelaksana_pptk: {
+          jabatan: data.pelaksana_pptk_jabatan || wewenangConfig?.bidang?.jabatan || "Kepala Bidang PPE",
+          nama: data.pelaksana_pptk_nama || wewenangConfig?.bidang?.nama || "BERLIAN MAGU WERU,S.Sos",
+          nip: data.pelaksana_pptk_nip || wewenangConfig?.bidang?.nip || "19690619 200903 1 001"
+        }
+      };
+
+      const payload = {
+        ...data,
+        nomor_register: customNomorReg,
+        nomor_spt: (data.nomor_spt || customNomorReg).trim(),
+        nomor_sppd: (data.nomor_sppd || customNomorReg).trim(),
+        wewenang: wewenangPayload,
+        tahun
+      };
 
       const res = await fetch(url, {
         method,
@@ -346,7 +472,7 @@ export default function AgendaSppdPage({ user, showToast }) {
       const resJson = await res.json();
       if (!resJson.ok) throw new Error(resJson.message || "Gagal menyimpan register SPPD");
 
-      notif(mode === "tambah" ? `Nomor Register SPPD berhasil diambil: ${resJson.item?.nomor_register || ""}` : "Data SPPD berhasil diperbarui!");
+      notif(mode === "tambah" ? `Nomor Register SPPD berhasil diterbitkan: ${resJson.item?.nomor_register || ""}` : "Data SPPD berhasil diperbarui!");
       setModalSppd(null);
       fetchData();
       fetchAllMetrics();
@@ -443,11 +569,27 @@ export default function AgendaSppdPage({ user, showToast }) {
   const tambahPengikut = () => {
     if (!modalSppd) return;
     const cur = modalSppd.data.pengikut || [];
+    const defBidang = wewenangConfig?.bidang || {
+      jabatan: modalSppd.data.pelaksana_pptk_jabatan || "Kepala Bidang PPE",
+      nama: modalSppd.data.pelaksana_pptk_nama || "BERLIAN MAGU WERU,S.Sos",
+      nip: modalSppd.data.pelaksana_pptk_nip || "19690619 200903 1 001"
+    };
     setModalSppd({
       ...modalSppd,
       data: {
         ...modalSppd.data,
-        pengikut: [...cur, { nama: "", nip: "", pangkat: "", jabatan: "" }]
+        pengikut: [
+          ...cur,
+          {
+            nama: "",
+            nip: "",
+            pangkat: "",
+            jabatan: "",
+            pptk_jabatan: defBidang.jabatan || "Kepala Bidang PPE",
+            pptk_nama: defBidang.nama || "BERLIAN MAGU WERU,S.Sos",
+            pptk_nip: defBidang.nip || "19690619 200903 1 001"
+          }
+        ]
       }
     });
   };
@@ -1015,87 +1157,264 @@ export default function AgendaSppdPage({ user, showToast }) {
           subtitle="Form penetapan surat perintah tugas (SPT) dan registrasi perjalanan dinas (SPPD)"
           icon="file"
           onClose={() => setModalSppd(null)}
-          maxWidth={680}
+          maxWidth={740}
         >
           <form onSubmit={simpanSppd} style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-            {/* Live Register Number Banner */}
-            <div style={{ background: isDark ? "#172337" : "#EFF6FF", border: `1px solid ${isDark ? "#2563EB" : "#BFDBFE"}`, padding: "12px 16px", borderRadius: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: T.primary }}>NOMOR REGISTER RESMI</div>
-                  <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "monospace", color: T.text, marginTop: 2 }}>
-                    {modalSppd.previewNomor}
+            {/* Live Register Number Banner (Editable / Custom + Cek Ketersediaan + Pilihan KOP) */}
+            <div style={{ background: isDark ? "#172337" : "#EFF6FF", border: `1px solid ${isDark ? "#2563EB" : "#BFDBFE"}`, padding: "12px 16px", borderRadius: 8, display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 280px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+                    <label style={{ fontSize: 11, fontWeight: 800, color: T.primary, letterSpacing: "0.03em" }}>
+                      NOMOR REGISTER / SURAT (DAPAT DICUSTOM) *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const autoNo = await fetchPreviewRegister(modalSppd.data.jenis_sppd);
+                        setModalSppd({
+                          ...modalSppd,
+                          previewNomor: autoNo,
+                          data: {
+                            ...modalSppd.data,
+                            nomor_register: autoNo,
+                            nomor_spt: autoNo,
+                            nomor_sppd: autoNo
+                          }
+                        });
+                      }}
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        color: T.primary,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        padding: 0,
+                        textDecoration: "underline"
+                      }}
+                    >
+                      Reset ke Nomor Otomatis
+                    </button>
                   </div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Contoh: 001/SPPD-DD/2026 atau BAPPERIDA.090/015/2026"
+                      value={modalSppd.data.nomor_register ?? modalSppd.previewNomor ?? ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const prevReg = modalSppd.data.nomor_register || modalSppd.previewNomor || "";
+                        const syncSpt = !modalSppd.data.nomor_spt || modalSppd.data.nomor_spt === prevReg;
+                        const syncSppd = !modalSppd.data.nomor_sppd || modalSppd.data.nomor_sppd === prevReg;
+                        setModalSppd({
+                          ...modalSppd,
+                          previewNomor: val,
+                          data: {
+                            ...modalSppd.data,
+                            nomor_register: val,
+                            ...(syncSpt ? { nomor_spt: val } : {}),
+                            ...(syncSppd ? { nomor_sppd: val } : {})
+                          }
+                        });
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: "7px 10px",
+                        borderRadius: 6,
+                        border: `1.5px solid ${
+                          nomorCheck.status === "taken"
+                            ? T.danger
+                            : nomorCheck.status === "available"
+                            ? T.success
+                            : T.border
+                        }`,
+                        background: T.card,
+                        color: T.text,
+                        fontSize: 13.5,
+                        fontWeight: 800,
+                        fontFamily: "monospace",
+                        fontVariantNumeric: "tabular-nums"
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => cekKetersediaanNomor(modalSppd.data.nomor_register, modalSppd.mode === "edit" ? modalSppd.data.id : null)}
+                      style={{
+                        padding: "7px 12px",
+                        borderRadius: 6,
+                        border: `1px solid ${T.border}`,
+                        background: T.card,
+                        color: T.text,
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        whiteSpace: "nowrap"
+                      }}
+                    >
+                      Cek Nomor
+                    </button>
+                  </div>
+
+                  {/* Indikator Status Cek Nomor */}
+                  {nomorCheck.status !== "idle" && (
+                    <div
+                      style={{
+                        marginTop: 5,
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                        color:
+                          nomorCheck.status === "taken"
+                            ? T.danger
+                            : nomorCheck.status === "available"
+                            ? T.success
+                            : T.textSecondary,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6
+                      }}
+                    >
+                      <Icon
+                        name={
+                          nomorCheck.status === "taken"
+                            ? "alert"
+                            : nomorCheck.status === "available"
+                            ? "checkCircle"
+                            : "clock"
+                        }
+                        size={13}
+                      />
+                      <span>{nomorCheck.message}</span>
+                    </div>
+                  )}
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const nextJ = "DALAM_DAERAH";
-                      const p = await fetchPreviewRegister(nextJ);
-                      setModalSppd({
-                        ...modalSppd,
-                        previewNomor: modalSppd.mode === "tambah" ? p : modalSppd.previewNomor,
-                        data: {
-                          ...modalSppd.data,
-                          jenis_sppd: nextJ,
-                          tempat_tujuan: "",
-                          provinsi_tujuan: "",
-                          alat_angkutan: "Kendaraan Dinas Roda 4"
-                        }
-                      });
-                    }}
-                    style={{
-                      padding: "5px 10px",
-                      borderRadius: 6,
-                      border: "none",
-                      background: modalSppd.data.jenis_sppd === "DALAM_DAERAH" ? T.primary : T.card,
-                      color: modalSppd.data.jenis_sppd === "DALAM_DAERAH" ? "#fff" : T.text,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: "pointer"
-                    }}
-                  >
-                    Dalam Daerah
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const nextJ = "LUAR_DAERAH";
-                      const p = await fetchPreviewRegister(nextJ);
-                      setModalSppd({
-                        ...modalSppd,
-                        previewNomor: modalSppd.mode === "tambah" ? p : modalSppd.previewNomor,
-                        data: {
-                          ...modalSppd.data,
-                          jenis_sppd: nextJ,
-                          tempat_tujuan: "Kupang",
-                          provinsi_tujuan: "Nusa Tenggara Timur",
-                          alat_angkutan: "Pesawat Udara (Ekonomi)"
-                        }
-                      });
-                    }}
-                    style={{
-                      padding: "5px 10px",
-                      borderRadius: 6,
-                      border: "none",
-                      background: modalSppd.data.jenis_sppd === "LUAR_DAERAH" ? T.primary : T.card,
-                      color: modalSppd.data.jenis_sppd === "LUAR_DAERAH" ? "#fff" : T.text,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: "pointer"
-                    }}
-                  >
-                    Luar Daerah
-                  </button>
+
+                {/* Pilihan Jenis SPPD & KOP Surat */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const nextJ = "DALAM_DAERAH";
+                        const p = await fetchPreviewRegister(nextJ);
+                        const isDefaultNum = !modalSppd.data.nomor_register || modalSppd.data.nomor_register === modalSppd.previewNomor;
+                        const nextNum = modalSppd.mode === "tambah" && isDefaultNum ? p : (modalSppd.data.nomor_register || modalSppd.previewNomor);
+                        setModalSppd({
+                          ...modalSppd,
+                          previewNomor: nextNum,
+                          data: {
+                            ...modalSppd.data,
+                            jenis_sppd: nextJ,
+                            nomor_register: nextNum,
+                            nomor_spt: isDefaultNum ? nextNum : modalSppd.data.nomor_spt,
+                            nomor_sppd: isDefaultNum ? nextNum : modalSppd.data.nomor_sppd,
+                            tempat_tujuan: "",
+                            provinsi_tujuan: "",
+                            alat_angkutan: "Kendaraan Dinas Roda 4",
+                            tingkat_biaya: "Tingkat C"
+                          }
+                        });
+                      }}
+                      style={{
+                        padding: "5px 10px",
+                        borderRadius: 6,
+                        border: "none",
+                        background: modalSppd.data.jenis_sppd === "DALAM_DAERAH" ? T.primary : T.card,
+                        color: modalSppd.data.jenis_sppd === "DALAM_DAERAH" ? "#fff" : T.text,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: "pointer"
+                      }}
+                    >
+                      Dalam Daerah
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const nextJ = "LUAR_DAERAH";
+                        const p = await fetchPreviewRegister(nextJ);
+                        const isDefaultNum = !modalSppd.data.nomor_register || modalSppd.data.nomor_register === modalSppd.previewNomor;
+                        const nextNum = modalSppd.mode === "tambah" && isDefaultNum ? p : (modalSppd.data.nomor_register || modalSppd.previewNomor);
+                        setModalSppd({
+                          ...modalSppd,
+                          previewNomor: nextNum,
+                          data: {
+                            ...modalSppd.data,
+                            jenis_sppd: nextJ,
+                            nomor_register: nextNum,
+                            nomor_spt: isDefaultNum ? nextNum : modalSppd.data.nomor_spt,
+                            nomor_sppd: isDefaultNum ? nextNum : modalSppd.data.nomor_sppd,
+                            tempat_tujuan: "Kupang",
+                            provinsi_tujuan: "Nusa Tenggara Timur",
+                            alat_angkutan: "Pesawat Udara (Ekonomi)",
+                            tingkat_biaya: "Tingkat B"
+                          }
+                        });
+                      }}
+                      style={{
+                        padding: "5px 10px",
+                        borderRadius: 6,
+                        border: "none",
+                        background: modalSppd.data.jenis_sppd === "LUAR_DAERAH" ? T.primary : T.card,
+                        color: modalSppd.data.jenis_sppd === "LUAR_DAERAH" ? "#fff" : T.text,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: "pointer"
+                      }}
+                    >
+                      Luar Daerah
+                    </button>
+                  </div>
+
+                  {/* Pilihan KOP Surat: BAPPERIDA vs Sekretariat Daerah */}
+                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: T.textSecondary, marginRight: 2 }}>KOP SURAT:</span>
+                    {[
+                      { key: "BAPPERIDA", label: "KOP BAPPERIDA" },
+                      { key: "SEKDA", label: "KOP Sekretariat Daerah" }
+                    ].map((k) => {
+                      const active = (modalSppd.data.kop_surat || "BAPPERIDA") === k.key;
+                      return (
+                        <button
+                          key={k.key}
+                          type="button"
+                          onClick={() =>
+                            setModalSppd({
+                              ...modalSppd,
+                              data: {
+                                ...modalSppd.data,
+                                kop_surat: k.key,
+                                pejabat_perintah:
+                                  k.key === "SEKDA" && modalSppd.data.pejabat_perintah === "Kepala BAPPERIDA"
+                                    ? "Sekretaris Daerah"
+                                    : k.key === "BAPPERIDA" && modalSppd.data.pejabat_perintah === "Sekretaris Daerah"
+                                    ? "Kepala BAPPERIDA"
+                                    : modalSppd.data.pejabat_perintah
+                              }
+                            })
+                          }
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: 5,
+                            border: `1px solid ${active ? T.primary : T.border}`,
+                            background: active ? T.primary : T.card,
+                            color: active ? "#fff" : T.textSecondary,
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            cursor: "pointer"
+                          }}
+                        >
+                          {k.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Personil / Tim Pelaksana (Disatukan: Personil 1 + Personil Tambahan) */}
-            <datalist id="daftar-pegawai">
-              {pegawaiList.map((p) => <option key={p.id} value={p.nama}>{p.nip} · {p.jabatan}</option>)}
-            </datalist>
+            {/* Personil / Tim Pelaksana (Disatukan: Personil 1 + Personil Tambahan, Tanpa Datalist Ganda + Pengaturan Romawi I Per Personil) */}
             <div style={{ border: `1px solid ${T.border}`, borderRadius: 8, padding: "12px 14px", background: T.bg }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <div style={{ fontSize: 12, fontWeight: 800, color: T.text }}>
@@ -1141,9 +1460,9 @@ export default function AgendaSppdPage({ user, showToast }) {
                           }
                         });
                       }}
-                      style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5, maxWidth: 240 }}
+                      style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5, maxWidth: 280 }}
                     >
-                      <option value="">-- Pilih dari Master Pegawai --</option>
+                      <option value="">-- Pilih dari Data User / Pegawai --</option>
                       {pegawaiList.map((p) => (
                         <option key={p.id || p.nip} value={p.nip}>{p.nama} ({p.nip})</option>
                       ))}
@@ -1156,13 +1475,14 @@ export default function AgendaSppdPage({ user, showToast }) {
                       <input
                         type="text"
                         required
-                        placeholder="Ketik nama — pilih dari saran pegawai atau isi manual"
-                        list="daftar-pegawai"
+                        autoComplete="off"
+                        placeholder="Nama lengkap pegawai..."
                         value={modalSppd.data.pelaksana_nama}
                         onChange={(e) => {
-                          const v = e.target.value;
-                          const p = pegawaiList.find((x) => x.nama === v);
-                          setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_nama: v, ...(p ? { pelaksana_nip: p.nip || "", pelaksana_pangkat: p.pangkat || "", pelaksana_jabatan: p.jabatan || "" } : {}) } });
+                          setModalSppd({
+                            ...modalSppd,
+                            data: { ...modalSppd.data, pelaksana_nama: e.target.value }
+                          });
                         }}
                         style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 12.5 }}
                       />
@@ -1173,6 +1493,7 @@ export default function AgendaSppdPage({ user, showToast }) {
                       <input
                         type="text"
                         required
+                        autoComplete="off"
                         placeholder="19800101 200501 1 001"
                         value={modalSppd.data.pelaksana_nip}
                         onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_nip: e.target.value } })}
@@ -1202,6 +1523,61 @@ export default function AgendaSppdPage({ user, showToast }) {
                       />
                     </div>
                   </div>
+
+                  {/* Pengesahan Keberangkatan (Romawi I) untuk Personil 1 */}
+                  <div style={{ marginTop: 4, paddingTop: 8, borderTop: `1px dashed ${T.border}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary }}>
+                        Pejabat Pengesah Berangkat (Romawi I - Personil 1):
+                      </span>
+                      <select
+                        aria-label="Pilih pejabat pengesah Romawi I untuk Personil 1 dari data user"
+                        value={pegawaiList.find((x) => x.nip && x.nip === modalSppd.data.pelaksana_pptk_nip)?.nip || ""}
+                        onChange={(e) => {
+                          const p = pegawaiList.find((x) => x.nip === e.target.value);
+                          if (!p) return;
+                          setModalSppd({
+                            ...modalSppd,
+                            data: {
+                              ...modalSppd.data,
+                              pelaksana_pptk_nama: p.nama || "",
+                              pelaksana_pptk_nip: p.nip || "",
+                              pelaksana_pptk_jabatan: p.jabatan || modalSppd.data.pelaksana_pptk_jabatan || "Kepala Bidang PPE"
+                            }
+                          });
+                        }}
+                        style={{ padding: "3px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11, maxWidth: 260 }}
+                      >
+                        <option value="">-- Ambil Pejabat dari Data User --</option>
+                        {pegawaiList.map((p) => (
+                          <option key={p.id || p.nip} value={p.nip}>{p.nama} ({p.jabatan || p.nip})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 6 }}>
+                      <input
+                        type="text"
+                        placeholder="Jabatan (mis. KEPALA BIDANG PPE)"
+                        value={modalSppd.data.pelaksana_pptk_jabatan || ""}
+                        onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_pptk_jabatan: e.target.value } })}
+                        style={{ padding: "6px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5 }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Nama Pejabat Pengesah"
+                        value={modalSppd.data.pelaksana_pptk_nama || ""}
+                        onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_pptk_nama: e.target.value } })}
+                        style={{ padding: "6px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5 }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="NIP Pejabat Pengesah"
+                        value={modalSppd.data.pelaksana_pptk_nip || ""}
+                        onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_pptk_nip: e.target.value } })}
+                        style={{ padding: "6px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5 }}
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 {/* Personil 2, 3, ... (Anggota Tim / Pengikut) */}
@@ -1217,12 +1593,18 @@ export default function AgendaSppdPage({ user, showToast }) {
                             const pg = pegawaiList.find((x) => x.nip === e.target.value);
                             if (!pg) return;
                             const cur = [...modalSppd.data.pengikut];
-                            cur[idx] = { nama: pg.nama || "", nip: pg.nip || "", pangkat: pg.pangkat || "", jabatan: pg.jabatan || "" };
+                            cur[idx] = {
+                              ...cur[idx],
+                              nama: pg.nama || "",
+                              nip: pg.nip || "",
+                              pangkat: pg.pangkat || "",
+                              jabatan: pg.jabatan || ""
+                            };
                             setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pengikut: cur } });
                           }}
-                          style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5, maxWidth: 220 }}
+                          style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5, maxWidth: 250 }}
                         >
-                          <option value="">-- Pilih dari Master Pegawai --</option>
+                          <option value="">-- Pilih dari Data User / Pegawai --</option>
                           {pegawaiList.map((pg) => (
                             <option key={pg.id || pg.nip} value={pg.nip}>{pg.nama} ({pg.nip})</option>
                           ))}
@@ -1242,21 +1624,67 @@ export default function AgendaSppdPage({ user, showToast }) {
                         <input
                           key={f}
                           type="text"
-                          placeholder={f === "nama" ? "Ketik nama — saran pegawai / manual" : ph}
-                          list={f === "nama" ? "daftar-pegawai" : undefined}
+                          autoComplete="off"
+                          placeholder={ph}
                           value={p[f] || ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            const pg = f === "nama" && pegawaiList.find((x) => x.nama === v);
-                            if (pg) {
-                              const cur = [...modalSppd.data.pengikut];
-                              cur[idx] = { nama: pg.nama, nip: pg.nip || "", pangkat: pg.pangkat || "", jabatan: pg.jabatan || "" };
-                              setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pengikut: cur } });
-                            } else updatePengikut(idx, f, v);
-                          }}
+                          onChange={(e) => updatePengikut(idx, f, e.target.value)}
                           style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 12.5 }}
                         />
                       ))}
+                    </div>
+
+                    {/* Pengesahan Keberangkatan (Romawi I) untuk Personil ke-(idx+2) */}
+                    <div style={{ marginTop: 4, paddingTop: 8, borderTop: `1px dashed ${T.border}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary }}>
+                          Pejabat Pengesah Berangkat (Romawi I - Personil {idx + 2}):
+                        </span>
+                        <select
+                          aria-label={`Pilih pejabat pengesah Romawi I untuk Personil ${idx + 2} dari data user`}
+                          value={pegawaiList.find((x) => x.nip && x.nip === p.pptk_nip)?.nip || ""}
+                          onChange={(e) => {
+                            const pg = pegawaiList.find((x) => x.nip === e.target.value);
+                            if (!pg) return;
+                            const cur = [...modalSppd.data.pengikut];
+                            cur[idx] = {
+                              ...cur[idx],
+                              pptk_nama: pg.nama || "",
+                              pptk_nip: pg.nip || "",
+                              pptk_jabatan: pg.jabatan || cur[idx].pptk_jabatan || "Kepala Bidang PPE"
+                            };
+                            setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pengikut: cur } });
+                          }}
+                          style={{ padding: "3px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11, maxWidth: 260 }}
+                        >
+                          <option value="">-- Ambil Pejabat dari Data User --</option>
+                          {pegawaiList.map((pg) => (
+                            <option key={pg.id || pg.nip} value={pg.nip}>{pg.nama} ({pg.jabatan || pg.nip})</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 6 }}>
+                        <input
+                          type="text"
+                          placeholder="Jabatan (mis. KEPALA BIDANG PPE)"
+                          value={p.pptk_jabatan || ""}
+                          onChange={(e) => updatePengikut(idx, "pptk_jabatan", e.target.value)}
+                          style={{ padding: "6px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5 }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Nama Pejabat Pengesah"
+                          value={p.pptk_nama || ""}
+                          onChange={(e) => updatePengikut(idx, "pptk_nama", e.target.value)}
+                          style={{ padding: "6px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5 }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="NIP Pejabat Pengesah"
+                          value={p.pptk_nip || ""}
+                          onChange={(e) => updatePengikut(idx, "pptk_nip", e.target.value)}
+                          style={{ padding: "6px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5 }}
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1666,7 +2094,7 @@ export default function AgendaSppdPage({ user, showToast }) {
 
               <div style={{ color: T.textSecondary, fontWeight: 600 }}>Jenis SPPD:</div>
               <div style={{ fontWeight: 700, color: T.text }}>
-                {modalDetail.data.jenis_sppd === "LUAR_DAERAH" ? "✈️ Perjalanan Dinas Luar Daerah" : "📍 Perjalanan Dinas Dalam Daerah"}
+                {modalDetail.data.jenis_sppd === "LUAR_DAERAH" ? "Perjalanan Dinas Luar Daerah" : "Perjalanan Dinas Dalam Daerah"}
               </div>
 
               <div style={{ color: T.textSecondary, fontWeight: 600 }}>Nomor SPT:</div>
@@ -1717,7 +2145,7 @@ export default function AgendaSppdPage({ user, showToast }) {
 
               <div style={{ color: T.textSecondary, fontWeight: 600 }}>Rute & Destinasi:</div>
               <div style={{ color: T.text, fontWeight: 600 }}>
-                {modalDetail.data.tempat_berangkat || "Waikabubak"} ➔ {modalDetail.data.tempat_tujuan}
+                {modalDetail.data.tempat_berangkat || "Waikabubak"} ke {modalDetail.data.tempat_tujuan}
                 {modalDetail.data.provinsi_tujuan && ` (Prov. ${modalDetail.data.provinsi_tujuan})`}
               </div>
 

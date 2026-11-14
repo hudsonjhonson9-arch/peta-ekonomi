@@ -7,6 +7,8 @@ import Docxtemplater from 'docxtemplater';
 import {
   bangunTagsSPT,
   bangunTagsSPPD,
+  bangunHtmlSPT,
+  bangunHtmlSPPD,
   splitDasar,
   TTD_DEFAULT,
   PARAF_DEFAULT
@@ -166,4 +168,115 @@ test('Docxtemplater: template SPT dan SPPD sukses dirender tanpa tag tak terdefi
   sppdDoc.render(bangunTagsSPPD(mockSpt, mockSpt.pengikut[0]));
   const sppdOut = sppdDoc.getZip().generate({ type: 'nodebuffer' });
   assert.ok(sppdOut.length > 50000, 'SPPD docx rendered binary size > 50KB');
+});
+
+test('KOP Sekretariat Daerah & BAPPERIDA: mendukung tag dan HTML berlogo Lambang Kabupaten Sumba Barat', () => {
+  const itemBapperida = {
+    nomor_spt: '001/SPT/2026',
+    nomor_sppd: '001/SPPD/2026',
+    kop_surat: 'BAPPERIDA',
+    pelaksana_nama: 'Achmad Aqil Susanto, S.Kom',
+    pelaksana_nip: '200206302025061002',
+    maksud_perjalanan: 'Koordinasi Sistem',
+    tempat_berangkat: 'Waikabubak',
+    tempat_tujuan: 'Kupang'
+  };
+
+  const tagsBap = bangunTagsSPT(itemBapperida);
+  assert.match(tagsBap.KopInstansi1, /BADAN PERENCANAAN PEMBANGUNAN/i);
+  assert.match(tagsBap.KopInstansi2, /RISET DAN INOVASI DAERAH/i);
+
+  const htmlSptBap = bangunHtmlSPT(itemBapperida);
+  assert.ok(htmlSptBap.includes('Lambang_Kabupaten_Sumba_Barat.png'), 'HTML SPT wajib memuat logo Lambang Kabupaten Sumba Barat');
+  assert.ok(htmlSptBap.includes('BADAN PERENCANAAN PEMBANGUNAN, RISET DAN INOVASI DAERAH'));
+
+  const itemSekda = {
+    ...itemBapperida,
+    kop_surat: 'SEKDA',
+    wewenang: { kop_surat: 'SEKDA' }
+  };
+
+  const tagsSekda = bangunTagsSPT(itemSekda);
+  assert.equal(tagsSekda.KopInstansi1, 'SEKRETARIAT DAERAH');
+  assert.equal(tagsSekda.KopInstansi2, '');
+
+  const htmlSptSekda = bangunHtmlSPT(itemSekda);
+  assert.ok(htmlSptSekda.includes('Lambang_Kabupaten_Sumba_Barat.png'), 'HTML SPT Sekda wajib memuat logo');
+  assert.ok(htmlSptSekda.includes('SEKRETARIAT DAERAH'), 'HTML SPT Sekda wajib memuat SEKRETARIAT DAERAH');
+
+  const htmlSppdSekda = bangunHtmlSPPD(itemSekda);
+  assert.ok(htmlSppdSekda.includes('Lambang_Kabupaten_Sumba_Barat.png'), 'HTML SPPD Sekda wajib memuat logo');
+  assert.ok(htmlSppdSekda.includes('SEKRETARIAT DAERAH'), 'HTML SPPD Sekda wajib memuat SEKRETARIAT DAERAH');
+  assert.ok(htmlSppdSekda.includes('IV.') && htmlSppdSekda.includes('Tiba kembali di'), 'HTML SPPD wajib memiliki bagian Romawi IV');
+});
+
+test('Romawi I (Berangkat dari) per personil: setiap personil dapat memiliki Pejabat Pengesah (PPTK/Kabid/Kasubbag) masing-masing', () => {
+  const mockItem = {
+    nomor_sppd: '001/SPPD-DD/2026',
+    tempat_berangkat: 'Waikabubak',
+    tempat_tujuan: 'Kupang',
+    tanggal_berangkat: '2026-11-14',
+    tanggal_kembali: '2026-11-16',
+    pelaksana_nama: 'Achmad Aqil Susanto, S.Kom',
+    pelaksana_nip: '200206302025061002',
+    pelaksana_pangkat: 'Penata Muda (III/a)',
+    pelaksana_jabatan: 'Pranata Komputer Ahli Pertama',
+    wewenang: {
+      bidang: {
+        jabatan: 'Kepala Bidang PPE',
+        nama: 'BERLIAN MAGU WERU,S.Sos',
+        nip: '19690619 200903 1 001'
+      },
+      pelaksana_pptk: {
+        jabatan: 'KASUBBAG UMUM DAN KEPEGAWAIAN',
+        nama: 'Yohanes Bergmans Pati Makin, SE',
+        nip: '19701126 200904 1 001'
+      }
+    },
+    pengikut: [
+      {
+        nama: 'Agustinus Mada Leko',
+        nip: '19810817 201001 1 005',
+        pangkat: 'Pengatur (II/c)',
+        jabatan: 'Pengadministrasi Umum',
+        pptk_jabatan: 'KEPALA BIDANG RISET DAN INOVASI DAERAH',
+        pptk_nama: 'Yahya Antosari Story, S.Ip',
+        pptk_nip: '19790707 200312 1 006'
+      },
+      {
+        nama: 'Binoni Saubaki, ST',
+        nip: '19880412 201503 1 002',
+        pangkat: 'Penata (III/c)',
+        jabatan: 'Perencana Ahli Muda',
+        pptk_jabatan: 'KEPALA BIDANG PPE',
+        pptk_nama: 'BERLIAN MAGU WERU,S.Sos',
+        pptk_nip: '19690619 200903 1 001',
+        tempat_berangkat: 'Waikabubak',
+        tempat_tujuan: 'Tambolaka',
+        tanggal_berangkat: '2026-11-15'
+      }
+    ]
+  };
+
+  // Personil 1 memakai wewenang.pelaksana_pptk (atau person override)
+  const tagsP1 = bangunTagsSPPD(mockItem, null);
+  assert.equal(tagsP1.Nama, 'Achmad Aqil Susanto, S.Kom');
+  assert.equal(tagsP1.PPTKJabatan, 'KASUBBAG UMUM DAN KEPEGAWAIAN');
+  assert.equal(tagsP1.BidangNama, 'Yohanes Bergmans Pati Makin, SE');
+  assert.equal(tagsP1.BidangNIP, '19701126 200904 1 001');
+
+  // Personil 2 memakai pptk_* miliknya sendiri
+  const tagsP2 = bangunTagsSPPD(mockItem, mockItem.pengikut[0]);
+  assert.equal(tagsP2.Nama, 'Agustinus Mada Leko');
+  assert.equal(tagsP2.PPTKJabatan, 'KEPALA BIDANG RISET DAN INOVASI DAERAH');
+  assert.equal(tagsP2.BidangNama, 'Yahya Antosari Story, S.Ip');
+  assert.equal(tagsP2.BidangNIP, '19790707 200312 1 006');
+
+  // Personil 3 memakai pptk_* dan rute/tanggal berangkat spesifik jika diisi
+  const tagsP3 = bangunTagsSPPD(mockItem, mockItem.pengikut[1]);
+  assert.equal(tagsP3.Nama, 'Binoni Saubaki, ST');
+  assert.equal(tagsP3.PPTKJabatan, 'KEPALA BIDANG PPE');
+  assert.equal(tagsP3.BidangNama, 'BERLIAN MAGU WERU,S.Sos');
+  assert.equal(tagsP3.TempatTujuanBerangkat, 'Tambolaka');
+  assert.equal(tagsP3.TanggalBerangkatRomawiI, '15 November 2026');
 });

@@ -31,6 +31,7 @@ export function formatNomorSuratKeluar(kode, noUrut, bulan, tahun) {
 }
 
 export const DEFAULT_WEWENANG = {
+  kop_surat: 'BAPPERIDA',
   kepala: {
     status: 'Definitif',
     jabatan: 'Kepala BAPPERIDA',
@@ -642,13 +643,61 @@ export function daftarkanRuteAgenda(app, pool, queryDB, opts = {}) {
         `SELECT COUNT(*)::int as n FROM agenda_sppd WHERE tahun = $1 AND jenis_sppd = $2`,
         [tahun, jenis_sppd]
       );
-      const nextNo = (lastReg[0]?.n || 0) + 1;
       const kodeSuffix = jenis_sppd === 'DALAM_DAERAH' ? 'SPPD-DD' : 'SPPD-LD';
-      const nomor_register = `${String(nextNo).padStart(3, '0')}/${kodeSuffix}/${tahun}`;
+      let nextNo = (lastReg[0]?.n || 0) + 1;
+      let nomor_register = `${String(nextNo).padStart(3, '0')}/${kodeSuffix}/${tahun}`;
+      for (let guard = 0; guard < 200; guard++) {
+        const dup = await queryDB(
+          `SELECT id FROM agenda_sppd WHERE LOWER(TRIM(nomor_register)) = LOWER(TRIM($1)) LIMIT 1`,
+          [nomor_register]
+        );
+        if (!dup || dup.length === 0) break;
+        nextNo++;
+        nomor_register = `${String(nextNo).padStart(3, '0')}/${kodeSuffix}/${tahun}`;
+      }
       res.json({ ok: true, nomor_register, next_no: nextNo, tahun, jenis_sppd });
     } catch (e) {
       console.error('[Agenda] Preview SPPD Nomor Error:', e);
       res.status(500).json({ ok: false, message: 'Gagal mempratinjau nomor register SPPD' });
+    }
+  });
+
+  // Cek Ketersediaan Nomor Custom SPPD / SPT (Apakah sudah ada atau belum)
+  app.get('/api/agenda/sppd/cek-nomor', async (req, res) => {
+    try {
+      const rawNomor = String(req.query.nomor || '').trim();
+      const excludeId = req.query.exclude_id ? parseInt(req.query.exclude_id, 10) : null;
+      if (!rawNomor) {
+        return res.json({ ok: true, exists: false, nomor: '' });
+      }
+
+      const params = [rawNomor];
+      let sql = `
+        SELECT id, nomor_register, nomor_spt, nomor_sppd, pelaksana_nama, tanggal_berangkat, jenis_sppd
+        FROM agenda_sppd
+        WHERE (
+          LOWER(TRIM(nomor_register)) = LOWER(TRIM($1))
+          OR LOWER(TRIM(nomor_spt)) = LOWER(TRIM($1))
+          OR LOWER(TRIM(nomor_sppd)) = LOWER(TRIM($1))
+        )
+      `;
+      if (excludeId && !isNaN(excludeId)) {
+        sql += ` AND id <> $2`;
+        params.push(excludeId);
+      }
+      sql += ` LIMIT 1`;
+
+      const rows = await queryDB(sql, params);
+      const conflict = rows && rows[0] ? rows[0] : null;
+      res.json({
+        ok: true,
+        exists: Boolean(conflict),
+        nomor: rawNomor,
+        conflict
+      });
+    } catch (e) {
+      console.error('[Agenda] Cek Nomor SPPD Error:', e);
+      res.status(500).json({ ok: false, message: 'Gagal memeriksa ketersediaan nomor SPPD' });
     }
   });
   
@@ -702,6 +751,7 @@ export function daftarkanRuteAgenda(app, pool, queryDB, opts = {}) {
       const {
         jenis_sppd = 'DALAM_DAERAH',
         tahun = new Date().getFullYear(),
+        nomor_register: custom_nomor_register,
         nomor_spt,
         nomor_sppd,
         tanggal_spt = new Date().toISOString().split('T')[0],
@@ -745,14 +795,55 @@ export function daftarkanRuteAgenda(app, pool, queryDB, opts = {}) {
       const diffTime = Math.abs(t2 - t1);
       const lama_hari = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
 
-      // Nomor Register
-      const lastReg = await queryDB(
-        `SELECT COUNT(*)::int as n FROM agenda_sppd WHERE tahun = $1 AND jenis_sppd = $2`,
-        [tahun, jenis_sppd]
-      );
-      const nextNo = (lastReg[0]?.n || 0) + 1;
-      const kodeSuffix = jenis_sppd === 'DALAM_DAERAH' ? 'SPPD-DD' : 'SPPD-LD';
-      const nomor_register = `${String(nextNo).padStart(3, '0')}/${kodeSuffix}/${tahun}`;
+      // Nomor Register (Mendukung Nomor Custom maupun Otomatis)
+      const trimmedCustomReg = String(custom_nomor_register || '').trim();
+      const trimmedSpt = String(nomor_spt || '').trim();
+      const trimmedSppd = String(nomor_sppd || '').trim();
+
+      let nomor_register = trimmedCustomReg;
+      if (!nomor_register) {
+        const lastReg = await queryDB(
+          `SELECT COUNT(*)::int as n FROM agenda_sppd WHERE tahun = $1 AND jenis_sppd = $2`,
+          [tahun, jenis_sppd]
+        );
+        const kodeSuffix = jenis_sppd === 'DALAM_DAERAH' ? 'SPPD-DD' : 'SPPD-LD';
+        let nextNo = (lastReg[0]?.n || 0) + 1;
+        nomor_register = `${String(nextNo).padStart(3, '0')}/${kodeSuffix}/${tahun}`;
+        for (let guard = 0; guard < 200; guard++) {
+          const dup = await queryDB(
+            `SELECT id FROM agenda_sppd WHERE LOWER(TRIM(nomor_register)) = LOWER(TRIM($1)) LIMIT 1`,
+            [nomor_register]
+          );
+          if (!dup || dup.length === 0) break;
+          nextNo++;
+          nomor_register = `${String(nextNo).padStart(3, '0')}/${kodeSuffix}/${tahun}`;
+        }
+      }
+
+      const finalNomorSpt = trimmedSpt || nomor_register;
+      const finalNomorSppd = trimmedSppd || nomor_register;
+
+      // Cek apakah nomor_register / nomor_spt / nomor_sppd sudah digunakan
+      const candidatesToCheck = Array.from(new Set([nomor_register, finalNomorSpt, finalNomorSppd].filter(Boolean)));
+      for (const candidate of candidatesToCheck) {
+        const dupRows = await queryDB(
+          `SELECT id, nomor_register, nomor_spt, nomor_sppd, pelaksana_nama
+           FROM agenda_sppd
+           WHERE LOWER(TRIM(nomor_register)) = LOWER(TRIM($1))
+              OR LOWER(TRIM(nomor_spt)) = LOWER(TRIM($1))
+              OR LOWER(TRIM(nomor_sppd)) = LOWER(TRIM($1))
+           LIMIT 1`,
+          [candidate]
+        );
+        if (dupRows && dupRows.length > 0) {
+          const c = dupRows[0];
+          return res.status(409).json({
+            ok: false,
+            message: `Nomor "${candidate}" sudah digunakan pada register ${c.nomor_register} (${c.pelaksana_nama}). Silakan gunakan nomor lain.`,
+            conflict: c
+          });
+        }
+      }
 
       const userCreator = req.session?.user?.nama || req.session?.user?.nip || 'Staf';
 
@@ -768,7 +859,7 @@ export function daftarkanRuteAgenda(app, pool, queryDB, opts = {}) {
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25::jsonb, $26, $27, $28, $29, $30, $31::jsonb, $32::jsonb, $33, $34, $35, $36::jsonb)
          RETURNING *`,
         [
-          jenis_sppd, tahun, nomor_register, nomor_spt || nomor_register, nomor_sppd || nomor_register, tanggal_spt, pejabat_perintah,
+          jenis_sppd, tahun, nomor_register, finalNomorSpt, finalNomorSppd, tanggal_spt, pejabat_perintah,
           pelaksana_nip, pelaksana_nama, pelaksana_pangkat, pelaksana_jabatan, JSON.stringify(pengikut),
           maksud_perjalanan, tempat_berangkat, tempat_tujuan, provinsi_tujuan, rute_perjalanan,
           alat_angkutan, tanggal_berangkat, tanggal_kembali, lama_hari,
@@ -791,6 +882,7 @@ export function daftarkanRuteAgenda(app, pool, queryDB, opts = {}) {
     try {
       const id = parseInt(req.params.id, 10);
       const {
+        nomor_register,
         nomor_spt,
         nomor_sppd,
         tanggal_spt,
@@ -823,6 +915,36 @@ export function daftarkanRuteAgenda(app, pool, queryDB, opts = {}) {
         wewenang
       } = req.body;
 
+      // Cek duplikasi bila nomor_register / nomor_spt / nomor_sppd diubah
+      const candidatesToCheck = Array.from(
+        new Set(
+          [nomor_register, nomor_spt, nomor_sppd]
+            .map((x) => (x ? String(x).trim() : ''))
+            .filter(Boolean)
+        )
+      );
+      for (const candidate of candidatesToCheck) {
+        const dupRows = await queryDB(
+          `SELECT id, nomor_register, nomor_spt, nomor_sppd, pelaksana_nama
+           FROM agenda_sppd
+           WHERE (
+             LOWER(TRIM(nomor_register)) = LOWER(TRIM($1))
+             OR LOWER(TRIM(nomor_spt)) = LOWER(TRIM($1))
+             OR LOWER(TRIM(nomor_sppd)) = LOWER(TRIM($1))
+           ) AND id <> $2
+           LIMIT 1`,
+          [candidate, id]
+        );
+        if (dupRows && dupRows.length > 0) {
+          const c = dupRows[0];
+          return res.status(409).json({
+            ok: false,
+            message: `Nomor "${candidate}" sudah digunakan pada register ${c.nomor_register} (${c.pelaksana_nama}). Silakan gunakan nomor lain.`,
+            conflict: c
+          });
+        }
+      }
+
       // Hitung lama hari perjalanan jika tanggal berubah
       let lama_hari = undefined;
       if (tanggal_berangkat && tanggal_kembali) {
@@ -834,7 +956,8 @@ export function daftarkanRuteAgenda(app, pool, queryDB, opts = {}) {
 
       const upRes = await queryDB(
         `UPDATE agenda_sppd
-         SET nomor_spt = COALESCE($1, nomor_spt),
+         SET nomor_register = COALESCE($35, nomor_register),
+             nomor_spt = COALESCE($1, nomor_spt),
              nomor_sppd = COALESCE($2, nomor_sppd),
              tanggal_spt = COALESCE($3, tanggal_spt),
              pejabat_perintah = COALESCE($4, pejabat_perintah),
@@ -885,7 +1008,8 @@ export function daftarkanRuteAgenda(app, pool, queryDB, opts = {}) {
           dasar_hukum,
           tingkat_biaya,
           ditetapkan_di,
-          wewenang ? JSON.stringify(wewenang) : null
+          wewenang ? JSON.stringify(wewenang) : null,
+          nomor_register ? String(nomor_register).trim() : null
         ]
       );
 

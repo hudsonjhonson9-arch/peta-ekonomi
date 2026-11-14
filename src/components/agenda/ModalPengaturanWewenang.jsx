@@ -130,9 +130,40 @@ export default function ModalPengaturanWewenang({ onClose, pegawaiList = [], onS
       title="Pengaturan Wewenang Penandatangan & Paraf"
       subtitle="Kepala Badan, Sekretaris, PPTK/Kabid, KTU, dan 3 Paraf Hierarki"
       onClose={onClose}
-      width={560}
+      maxWidth={580}
     >
-      <div style={{ padding: "16px 0", maxHeight: "72vh", overflowY: "auto" }}>
+      <div style={{ padding: "16px 20px", maxHeight: "72vh", overflowY: "auto" }}>
+        {/* ── STANDAR KOP SURAT DEFAULT ── */}
+        <SectionTitle>Standar KOP Surat Default</SectionTitle>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          {[
+            { key: "BAPPERIDA", label: "KOP BAPPERIDA" },
+            { key: "SEKDA", label: "KOP Sekretariat Daerah" }
+          ].map((k) => {
+            const active = (form.kop_surat || "BAPPERIDA") === k.key;
+            return (
+              <button
+                key={k.key}
+                type="button"
+                onClick={() => set("kop_surat", k.key)}
+                style={{
+                  flex: 1,
+                  padding: "8px 12px",
+                  borderRadius: 7,
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  border: `1.5px solid ${active ? T.primary : T.border}`,
+                  background: active ? T.primary : T.bg,
+                  color: active ? "#fff" : T.text
+                }}
+              >
+                {k.label}
+              </button>
+            );
+          })}
+        </div>
+
         {/* ── KEPALA BADAN ── */}
         <SectionTitle>Kepala Badan (Penandatangan Utama)</SectionTitle>
 
@@ -258,7 +289,7 @@ export default function ModalPengaturanWewenang({ onClose, pegawaiList = [], onS
       </div>
 
       {/* Footer */}
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16, paddingTop: 14, borderTop: `1px solid ${T.border}` }}>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", padding: "14px 20px", borderTop: `1px solid ${T.border}` }}>
         <Button variant="secondary" onClick={onClose} disabled={saving}>Batal</Button>
         <Button variant="primary" onClick={handleSave} loading={saving} icon="save">
           Simpan Wewenang
