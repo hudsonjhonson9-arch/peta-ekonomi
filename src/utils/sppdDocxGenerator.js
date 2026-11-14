@@ -322,7 +322,11 @@ export function bangunTagsSPPD(it, person = null) {
     NIP: nip,
     PangkatGolongan: pangkat,
     JabatanInstansi: jabatan,
-    TingkatBiaya: person?.tingkat_biaya || it.tingkat_biaya || (it.jenis_sppd === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C"),
+    TingkatBiaya:
+      person?.tingkat_biaya ||
+      (isMainPerson ? (it.pelaksana_tingkat_biaya || pelaksanaPptk.tingkat_biaya) : "") ||
+      it.tingkat_biaya ||
+      (it.jenis_sppd === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C"),
     Maksud: it.maksud_perjalanan || "-",
     AlatAngkut: person?.alat_angkutan || it.alat_angkutan || "Kendaraan Dinas / Darat",
     TempatBerangkat: tempatBerangkatUtama,
@@ -426,6 +430,7 @@ export async function unduhBundleSppdZip(it) {
     nip: it.pelaksana_nip,
     pangkat: it.pelaksana_pangkat,
     jabatan: it.pelaksana_jabatan,
+    tingkat_biaya: it.pelaksana_tingkat_biaya || p1Pptk.tingkat_biaya || it.tingkat_biaya,
     pptk_nama: it.pelaksana_pptk_nama || p1Pptk.nama,
     pptk_nip: it.pelaksana_pptk_nip || p1Pptk.nip,
     pptk_jabatan: it.pelaksana_pptk_jabatan || p1Pptk.jabatan,
@@ -675,7 +680,7 @@ export function bangunHtmlSPPD(it, person = null) {
           <div style="font-size: 11.5pt; font-weight: bold; text-decoration: underline; letter-spacing: 0.5px;">SURAT PERJALANAN DINAS (SPD)</div>
         </div>
 
-        <!-- Tabel Isian 10 Poin -->
+        <!-- Tabel Isian 10 Poin (Sesuai Format Resmi Template SPPD — Tiap Sub-poin di Baris Masing-masing) -->
         <table style="width: 100%; border: 1px solid #000; border-collapse: collapse; font-size: 9.5pt;">
           <tr>
             <td style="border: 1px solid #000; width: 28px; text-align: center; vertical-align: top; padding: 4px 5px;">1.</td>
@@ -692,16 +697,18 @@ export function bangunHtmlSPPD(it, person = null) {
           </tr>
           <tr>
             <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;">3.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">
-              a. Pangkat dan Golongan<br/>
-              b. Jabatan / Instansi<br/>
-              c. Tingkat Biaya Perjalanan Dinas
-            </td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">
-              a. ${t.PangkatGolongan}<br/>
-              b. ${t.JabatanInstansi}<br/>
-              c. ${t.TingkatBiaya}
-            </td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">a. Pangkat dan Golongan</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">a. ${t.PangkatGolongan}</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;"></td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">b. Jabatan / Instansi</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">b. ${t.JabatanInstansi}</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;"></td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">c. Tingkat Biaya Perjalanan Dinas</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">c. ${t.TingkatBiaya}</td>
           </tr>
           <tr>
             <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;">4.</td>
@@ -715,27 +722,28 @@ export function bangunHtmlSPPD(it, person = null) {
           </tr>
           <tr>
             <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;">6.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">
-              a. Tempat berangkat<br/>
-              b. Tempat tujuan
-            </td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">
-              a. ${t.TempatBerangkat}<br/>
-              b. ${t.TempatTujuan}
-            </td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">a. Tempat berangkat</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">a. ${t.TempatBerangkat}</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;"></td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">b. Tempat tujuan</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">b. ${t.TempatTujuan}</td>
           </tr>
           <tr>
             <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;">7.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">
-              a. Lamanya perjalanan dinas<br/>
-              b. Tanggal berangkat<br/>
-              c. Tanggal harus kembali
-            </td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">
-              a. ${t.LamaHari}<br/>
-              b. ${t.TanggalBerangkat}<br/>
-              c. ${t.TanggalKembali}
-            </td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">a. Lamanya perjalanan dinas</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">a. ${t.LamaHari}</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;"></td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">b. Tanggal berangkat</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">b. ${t.TanggalBerangkat}</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;"></td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">c. Tanggal harus kembali</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">c. ${t.TanggalKembali}</td>
           </tr>
           <tr>
             <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;">8.</td>
@@ -759,16 +767,18 @@ export function bangunHtmlSPPD(it, person = null) {
           </tr>
           <tr>
             <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;">9.</td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">
-              Pembebanan anggaran<br/>
-              a. Instansi<br/>
-              b. Mata anggaran
-            </td>
-            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">
-              <br/>
-              a. ${t.Instansi}<br/>
-              b. ${t.MataAnggaran}
-            </td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">Pembebanan anggaran</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;"></td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;"></td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">a. Instansi</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">a. ${t.Instansi}</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;"></td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">b. Mata anggaran</td>
+            <td style="border: 1px solid #000; vertical-align: top; padding: 4px 6px;">b. ${t.MataAnggaran}</td>
           </tr>
           <tr>
             <td style="border: 1px solid #000; text-align: center; vertical-align: top; padding: 4px 5px;">10.</td>
@@ -1078,27 +1088,64 @@ export function resolvePaperConfig(paperSize = "A4") {
   return UKURAN_KERTAS[key];
 }
 
+async function tungguGambarSelesaiMuat(rootEl) {
+  const imgs = Array.from(rootEl.querySelectorAll("img"));
+  await Promise.all(
+    imgs.map((img) => {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      return new Promise((resolve) => {
+        img.onload = () => resolve();
+        img.onerror = () => resolve();
+      });
+    })
+  );
+}
+
+function buatWadahRenderPdf(html) {
+  const wrapper = document.createElement("div");
+  wrapper.style.position = "fixed";
+  wrapper.style.top = "0";
+  wrapper.style.left = "0";
+  wrapper.style.width = "794px";
+  wrapper.style.background = "#ffffff";
+  wrapper.style.zIndex = "-9999";
+  wrapper.style.pointerEvents = "none";
+  wrapper.style.overflow = "visible";
+
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  container.style.width = "780px";
+  container.style.background = "#ffffff";
+  container.style.color = "#000000";
+  wrapper.appendChild(container);
+  document.body.appendChild(wrapper);
+  return { wrapper, container };
+}
+
 export async function unduhSuratTugasPdf(it, opts = {}) {
   const paper = resolvePaperConfig(opts.paperSize || it?.paper_size || "A4");
   const html = bangunHtmlSPT(it);
-  const container = document.createElement("div");
-  container.innerHTML = html;
-  container.style.position = "absolute";
-  container.style.left = "-9999px";
-  container.style.top = "0";
-  container.style.width = "780px";
-  document.body.appendChild(container);
+  const { wrapper, container } = buatWadahRenderPdf(html);
 
   const cleanNo = (it.nomor_spt || it.nomor_register || "SPT").replace(/[\/\\?%*:|"<>]/g, "_");
   const opt = {
     margin: [10, 12, 10, 12],
     filename: `Surat_Tugas_${cleanNo}_${paper.key}.pdf`,
     image: { type: "jpeg", quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, logging: false },
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: "#ffffff",
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: 794
+    },
     jsPDF: { unit: "mm", format: paper.jsPdfFormat, orientation: "portrait" }
   };
 
   try {
+    await tungguGambarSelesaiMuat(container);
     const html2pdf = await getHtml2Pdf();
     await html2pdf().set(opt).from(container).save();
     return true;
@@ -1106,8 +1153,8 @@ export async function unduhSuratTugasPdf(it, opts = {}) {
     console.error("[sppdDocxGenerator] Gagal unduh PDF SPT:", err);
     throw err;
   } finally {
-    if (document.body.contains(container)) {
-      document.body.removeChild(container);
+    if (document.body.contains(wrapper)) {
+      document.body.removeChild(wrapper);
     }
   }
 }
@@ -1115,15 +1162,9 @@ export async function unduhSuratTugasPdf(it, opts = {}) {
 export async function unduhSppdPdf(it, person = null, opts = {}) {
   const paper = resolvePaperConfig(opts.paperSize || it?.paper_size || "A4");
   const html = bangunHtmlSPPD(it, person);
-  const container = document.createElement("div");
-  container.innerHTML = html;
+  const { wrapper, container } = buatWadahRenderPdf(html);
   const divider = container.querySelector(".screen-page-divider");
   if (divider) divider.remove();
-  container.style.position = "absolute";
-  container.style.left = "-9999px";
-  container.style.top = "0";
-  container.style.width = "780px";
-  document.body.appendChild(container);
 
   const targetNama = (person?.nama || it.pelaksana_nama || "Pelaksana").replace(/[\/\\?%*:|"<>]/g, "_");
   const cleanNo = (it.nomor_sppd || it.nomor_register || "SPPD").replace(/[\/\\?%*:|"<>]/g, "_");
@@ -1132,11 +1173,20 @@ export async function unduhSppdPdf(it, person = null, opts = {}) {
     pagebreak: { mode: ["css"], avoid: "tr" },
     filename: `SPPD_${cleanNo}_${targetNama}_${paper.key}.pdf`,
     image: { type: "jpeg", quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, logging: false },
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: "#ffffff",
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: 794
+    },
     jsPDF: { unit: "mm", format: paper.jsPdfFormat, orientation: "portrait" }
   };
 
   try {
+    await tungguGambarSelesaiMuat(container);
     const html2pdf = await getHtml2Pdf();
     await html2pdf().set(opt).from(container).save();
     return true;
@@ -1144,8 +1194,8 @@ export async function unduhSppdPdf(it, person = null, opts = {}) {
     console.error("[sppdDocxGenerator] Gagal unduh PDF SPPD:", err);
     throw err;
   } finally {
-    if (document.body.contains(container)) {
-      document.body.removeChild(container);
+    if (document.body.contains(wrapper)) {
+      document.body.removeChild(wrapper);
     }
   }
 }

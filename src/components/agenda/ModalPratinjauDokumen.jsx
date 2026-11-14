@@ -16,14 +16,6 @@ import {
   cetakSppdWindow
 } from "../../utils/sppdDocxGenerator.js";
 
-const OPSI_ALAT_ANGKUT = [
-  "Pesawat Udara (Ekonomi)",
-  "Kendaraan Dinas Roda 4",
-  "Kendaraan Dinas Roda 2",
-  "Angkutan Darat / Travel",
-  "Kapal Laut / Feri"
-];
-
 /**
  * ModalPratinjauDokumen — Live A4 / F4 preview SPT & SPPD per personil
  * Props:
@@ -42,7 +34,6 @@ export default function ModalPratinjauDokumen({ item, defaultTab = "spt", defaul
   const [personIdx, setPersonIdx] = useState(defaultPersonIdx);
   const [kopSurat, setKopSurat] = useState(initialKop); // "BAPPERIDA" | "SEKDA"
   const [paperSize, setPaperSize] = useState("A4"); // "A4" | "F4"
-  const [alatAngkut, setAlatAngkut] = useState(item?.alat_angkutan || (item?.jenis_sppd === "LUAR_DAERAH" ? "Pesawat Udara (Ekonomi)" : "Kendaraan Dinas Roda 4"));
   const [busy, setBusy] = useState(false);
 
   const paperConfig = useMemo(() => resolvePaperConfig(paperSize), [paperSize]);
@@ -59,15 +50,17 @@ export default function ModalPratinjauDokumen({ item, defaultTab = "spt", defaul
     try { return JSON.parse(item.wewenang || "{}"); } catch (_) { return {}; }
   }, [item]);
 
-  // All people: main person (with their own pptk_*) + pengikut
+  // All people: main person (with their own pptk_* & tingkat_biaya) + pengikut
   const allPersonnel = useMemo(() => {
     const p1Pptk = wewenangObj.pelaksana_pptk || wewenangObj.bidang || {};
+    const defTingkat = item.tingkat_biaya || (item.jenis_sppd === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C");
     return [
       {
         nama: item.pelaksana_nama,
         nip: item.pelaksana_nip,
         pangkat: item.pelaksana_pangkat,
         jabatan: item.pelaksana_jabatan,
+        tingkat_biaya: item.pelaksana_tingkat_biaya || p1Pptk.tingkat_biaya || defTingkat,
         pptk_nama: item.pelaksana_pptk_nama || p1Pptk.nama || "",
         pptk_nip: item.pelaksana_pptk_nip || p1Pptk.nip || "",
         pptk_jabatan: item.pelaksana_pptk_jabatan || p1Pptk.jabatan || "",
@@ -75,7 +68,10 @@ export default function ModalPratinjauDokumen({ item, defaultTab = "spt", defaul
         tempat_tujuan: item.pelaksana_tempat_tujuan || p1Pptk.tempat_tujuan || item.tempat_tujuan || "",
         tanggal_berangkat: item.pelaksana_tanggal_berangkat || p1Pptk.tanggal_berangkat || item.tanggal_berangkat || ""
       },
-      ...pengikutList
+      ...pengikutList.map((p) => ({
+        ...p,
+        tingkat_biaya: p.tingkat_biaya || defTingkat
+      }))
     ];
   }, [item, pengikutList, wewenangObj]);
 
@@ -84,13 +80,12 @@ export default function ModalPratinjauDokumen({ item, defaultTab = "spt", defaul
   const effectiveItem = useMemo(() => ({
     ...item,
     kop_surat: kopSurat,
-    alat_angkutan: alatAngkut,
     paper_size: paperSize,
     wewenang: {
       ...wewenangObj,
       kop_surat: kopSurat
     }
-  }), [item, kopSurat, alatAngkut, paperSize, wewenangObj]);
+  }), [item, kopSurat, paperSize, wewenangObj]);
 
   const htmlContent = useMemo(() => {
     if (tab === "spt") return bangunHtmlSPT(effectiveItem);
@@ -266,96 +261,45 @@ export default function ModalPratinjauDokumen({ item, defaultTab = "spt", defaul
           </div>
         </div>
 
-        {/* Personnel selector & Poin 5 Alat Angkut (for SPPD tab) */}
+        {/* Personnel selector (for SPPD tab) */}
         {tab === "sppd" && (
           <div style={{
             display: "flex",
-            flexDirection: "column",
+            justifyContent: "space-between",
+            alignItems: "center",
             gap: 8,
             marginBottom: 12,
-            padding: "10px 12px",
+            padding: "8px 12px",
             borderRadius: 8,
             background: T.bg,
-            border: `1px solid ${T.border}`
+            border: `1px solid ${T.border}`,
+            flexWrap: "wrap"
           }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary }}>Pilih Personil:</span>
-                {allPersonnel.map((p, i) => (
-                  <button
-                    type="button"
-                    key={i}
-                    onClick={() => setPersonIdx(i)}
-                    style={{
-                      padding: "5px 12px",
-                      borderRadius: 6,
-                      fontSize: 12,
-                      cursor: "pointer",
-                      fontWeight: personIdx === i ? 700 : 500,
-                      background: personIdx === i ? T.primary : T.card,
-                      color: personIdx === i ? "#fff" : T.text,
-                      border: `1px solid ${personIdx === i ? T.primary : T.border}`,
-                      transition: "all 0.15s ease"
-                    }}
-                  >
-                    {i + 1}. {p.nama}
-                  </button>
-                ))}
-              </div>
-              <div style={{ fontSize: 11.5, color: T.textSecondary }}>
-                Pengesah Romawi I: <strong style={{ color: T.text }}>{currentPerson?.pptk_jabatan || wewenangObj?.bidang?.jabatan || "Kepala Bidang PPE"}</strong> ({currentPerson?.pptk_nama || wewenangObj?.bidang?.nama || "BERLIAN MAGU WERU,S.Sos"})
-              </div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary }}>Pilih Personil:</span>
+              {allPersonnel.map((p, i) => (
+                <button
+                  type="button"
+                  key={i}
+                  onClick={() => setPersonIdx(i)}
+                  style={{
+                    padding: "5px 12px",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    cursor: "pointer",
+                    fontWeight: personIdx === i ? 700 : 500,
+                    background: personIdx === i ? T.primary : T.card,
+                    color: personIdx === i ? "#fff" : T.text,
+                    border: `1px solid ${personIdx === i ? T.primary : T.border}`,
+                    transition: "all 0.15s ease"
+                  }}
+                >
+                  {i + 1}. {p.nama}
+                </button>
+              ))}
             </div>
-
-            {/* Poin 5. Alat angkut yang digunakan */}
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              paddingTop: 8,
-              borderTop: `1px dashed ${T.border}`,
-              flexWrap: "wrap"
-            }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary }}>
-                5. Alat angkut yang digunakan:
-              </span>
-              <input
-                type="text"
-                value={alatAngkut}
-                onChange={(e) => setAlatAngkut(e.target.value)}
-                placeholder="Mis. Pesawat Udara (Ekonomi) / Kendaraan Dinas Roda 4"
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: 6,
-                  border: `1px solid ${T.border}`,
-                  background: T.card,
-                  color: T.text,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  minWidth: 230
-                }}
-              />
-              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                {OPSI_ALAT_ANGKUT.map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => setAlatAngkut(opt)}
-                    style={{
-                      padding: "3px 8px",
-                      borderRadius: 5,
-                      fontSize: 11,
-                      fontWeight: alatAngkut === opt ? 700 : 500,
-                      cursor: "pointer",
-                      border: `1px solid ${alatAngkut === opt ? T.primary : T.border}`,
-                      background: alatAngkut === opt ? (isDark ? "rgba(37,99,235,0.22)" : "#EFF6FF") : T.card,
-                      color: alatAngkut === opt ? T.primary : T.textSecondary
-                    }}
-                  >
-                    {opt}
-                  </button>
-                ))}
-              </div>
+            <div style={{ fontSize: 11.5, color: T.textSecondary }}>
+              Pengesah Romawi I: <strong style={{ color: T.text }}>{currentPerson?.pptk_jabatan || wewenangObj?.bidang?.jabatan || "Kepala Bidang PPE"}</strong> ({currentPerson?.pptk_nama || wewenangObj?.bidang?.nama || "BERLIAN MAGU WERU,S.Sos"})
             </div>
           </div>
         )}

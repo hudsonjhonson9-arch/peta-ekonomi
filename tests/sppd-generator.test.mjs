@@ -280,3 +280,40 @@ test('Romawi I (Berangkat dari) per personil: setiap personil dapat memiliki Pej
   assert.equal(tagsP3.TempatTujuanBerangkat, 'Tambolaka');
   assert.equal(tagsP3.TanggalBerangkatRomawiI, '15 November 2026');
 });
+
+test('Tingkat Biaya per personil & Struktur Baris Tabel Lembar I (Sesuai Template)', () => {
+  const mockItem = {
+    nomor_sppd: '001/SPPD-LD/2026',
+    jenis_sppd: 'LUAR_DAERAH',
+    tingkat_biaya: 'Tingkat B',
+    pelaksana_nama: 'Achmad Aqil Susanto, S.Kom',
+    pelaksana_nip: '200206302025061002',
+    pelaksana_pangkat: 'Penata Muda (III/a)',
+    pelaksana_jabatan: 'Pranata Komputer Ahli Pertama',
+    pelaksana_tingkat_biaya: 'Tingkat B',
+    pengikut: [
+      {
+        nama: 'Elia Safari Kondi',
+        nip: '199501012020121001',
+        pangkat: 'Pengatur (II/c)',
+        jabatan: 'Staf Administrasi',
+        tingkat_biaya: 'Tingkat D'
+      }
+    ]
+  };
+
+  const tagsP1 = bangunTagsSPPD(mockItem, null);
+  assert.equal(tagsP1.TingkatBiaya, 'Tingkat B');
+
+  const tagsP2 = bangunTagsSPPD(mockItem, mockItem.pengikut[0]);
+  assert.equal(tagsP2.TingkatBiaya, 'Tingkat D');
+
+  const htmlP1 = bangunHtmlSPPD(mockItem, null);
+  assert.ok(htmlP1.includes('a. Pangkat dan Golongan'), 'HTML harus memuat poin 3.a');
+  assert.ok(htmlP1.includes('b. Jabatan / Instansi'), 'HTML harus memuat poin 3.b');
+  assert.ok(htmlP1.includes('c. Tingkat Biaya Perjalanan Dinas'), 'HTML harus memuat poin 3.c');
+  assert.ok(htmlP1.includes('c. Tingkat B'), 'HTML Personil 1 harus menampilkan Tingkat B');
+
+  const htmlP2 = bangunHtmlSPPD(mockItem, mockItem.pengikut[0]);
+  assert.ok(htmlP2.includes('c. Tingkat D'), 'HTML Personil 2 harus menampilkan Tingkat D');
+});

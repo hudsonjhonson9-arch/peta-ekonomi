@@ -433,6 +433,7 @@ export default function AgendaSppdPage({ user, showToast }) {
         ditetapkan_di: "Waikabubak",
         dasar_hukum: `DPA Bapperida Kabupaten Sumba Barat TA ${tahun}`,
         tingkat_biaya: selectedJenis === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C",
+        pelaksana_tingkat_biaya: selectedJenis === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C",
         pejabat_perintah: defKop === "SEKDA" ? "Sekretaris Daerah" : "Kepala BAPPERIDA",
         pelaksana_nip: me?.nip || user?.nip || "",
         pelaksana_nama: me?.nama || user?.name || "",
@@ -500,6 +501,7 @@ export default function AgendaSppdPage({ user, showToast }) {
         ditetapkan_di: it.ditetapkan_di || it.tempat_berangkat || "Waikabubak",
         dasar_hukum: it.dasar_hukum || `DPA Bapperida Kabupaten Sumba Barat TA ${it.tahun || tahun}`,
         tingkat_biaya: it.tingkat_biaya || (it.jenis_sppd === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C"),
+        pelaksana_tingkat_biaya: p1Pptk.tingkat_biaya || it.pelaksana_tingkat_biaya || it.tingkat_biaya || (it.jenis_sppd === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C"),
         pejabat_perintah: it.pejabat_perintah || "Kepala BAPPERIDA",
         pelaksana_nip: it.pelaksana_nip || "",
         pelaksana_nama: it.pelaksana_nama || "",
@@ -510,6 +512,7 @@ export default function AgendaSppdPage({ user, showToast }) {
         pelaksana_pptk_nip: p1Pptk.nip || defBidang.nip || "19690619 200903 1 001",
         pengikut: parsedPengikut.map((p) => ({
           ...p,
+          tingkat_biaya: p.tingkat_biaya || it.tingkat_biaya || (it.jenis_sppd === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C"),
           pptk_jabatan: p.pptk_jabatan || defBidang.jabatan || "Kepala Bidang PPE",
           pptk_nama: p.pptk_nama || defBidang.nama || "BERLIAN MAGU WERU,S.Sos",
           pptk_nip: p.pptk_nip || defBidang.nip || "19690619 200903 1 001"
@@ -570,7 +573,8 @@ export default function AgendaSppdPage({ user, showToast }) {
         pelaksana_pptk: {
           jabatan: data.pelaksana_pptk_jabatan || wewenangConfig?.bidang?.jabatan || "Kepala Bidang PPE",
           nama: data.pelaksana_pptk_nama || wewenangConfig?.bidang?.nama || "BERLIAN MAGU WERU,S.Sos",
-          nip: data.pelaksana_pptk_nip || wewenangConfig?.bidang?.nip || "19690619 200903 1 001"
+          nip: data.pelaksana_pptk_nip || wewenangConfig?.bidang?.nip || "19690619 200903 1 001",
+          tingkat_biaya: data.pelaksana_tingkat_biaya || data.tingkat_biaya || "Tingkat C"
         }
       };
 
@@ -579,6 +583,7 @@ export default function AgendaSppdPage({ user, showToast }) {
         nomor_register: customNomorReg,
         nomor_spt: (data.nomor_spt || customNomorReg).trim(),
         nomor_sppd: (data.nomor_sppd || customNomorReg).trim(),
+        pelaksana_tingkat_biaya: data.pelaksana_tingkat_biaya || data.tingkat_biaya,
         wewenang: wewenangPayload,
         tahun
       };
@@ -812,6 +817,7 @@ export default function AgendaSppdPage({ user, showToast }) {
             nip: "",
             pangkat: "",
             jabatan: "",
+            tingkat_biaya: modalSppd.data.tingkat_biaya || (modalSppd.data.jenis_sppd === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C"),
             pptk_jabatan: defBidang.jabatan || "Kepala Bidang PPE",
             pptk_nama: defBidang.nama || "BERLIAN MAGU WERU,S.Sos",
             pptk_nip: defBidang.nip || "19690619 200903 1 001"
@@ -1387,7 +1393,7 @@ export default function AgendaSppdPage({ user, showToast }) {
           maxWidth={740}
         >
           <form onSubmit={simpanSppd} style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-            {/* Live Register Number Banner (Editable / Custom + Cek Ketersediaan + Pilihan KOP) */}
+              {/* Live Register Number Banner (Editable / Custom + Cek Ketersediaan Otomatis + Pilihan KOP) */}
             <div style={{ background: isDark ? "#172337" : "#EFF6FF", border: `1px solid ${isDark ? "#2563EB" : "#BFDBFE"}`, padding: "12px 16px", borderRadius: 8, display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
                 <div style={{ flex: "1 1 280px" }}>
@@ -1465,26 +1471,9 @@ export default function AgendaSppdPage({ user, showToast }) {
                         fontVariantNumeric: "tabular-nums"
                       }}
                     />
-                    <button
-                      type="button"
-                      onClick={() => cekKetersediaanNomor(modalSppd.data.nomor_register, modalSppd.mode === "edit" ? modalSppd.data.id : null)}
-                      style={{
-                        padding: "7px 12px",
-                        borderRadius: 6,
-                        border: `1px solid ${T.border}`,
-                        background: T.card,
-                        color: T.text,
-                        fontSize: 11.5,
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        whiteSpace: "nowrap"
-                      }}
-                    >
-                      Cek Nomor
-                    </button>
                   </div>
 
-                  {/* Indikator Status Cek Nomor */}
+                  {/* Indikator Status Cek Nomor Otomatis */}
                   {nomorCheck.status !== "idle" && (
                     <div
                       style={{
@@ -1714,7 +1703,9 @@ export default function AgendaSppdPage({ user, showToast }) {
                         style={{ width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${T.inputBorder || T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 12.5 }}
                       />
                     </div>
+                  </div>
 
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1.2fr 0.9fr", gap: 8 }}>
                     <div>
                       <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Pangkat / Golongan</label>
                       <input
@@ -1734,6 +1725,22 @@ export default function AgendaSppdPage({ user, showToast }) {
                         value={modalSppd.data.pelaksana_jabatan}
                         onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_jabatan: e.target.value } })}
                         style={{ width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${T.inputBorder || T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 12.5 }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Tingkat Biaya</label>
+                      <Select
+                        fullWidth
+                        size="sm"
+                        value={modalSppd.data.pelaksana_tingkat_biaya || modalSppd.data.tingkat_biaya || (modalSppd.data.jenis_sppd === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C")}
+                        onChange={(v) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_tingkat_biaya: v } })}
+                        options={[
+                          { value: "Tingkat A", label: "Tingkat A" },
+                          { value: "Tingkat B", label: "Tingkat B" },
+                          { value: "Tingkat C", label: "Tingkat C" },
+                          { value: "Tingkat D", label: "Tingkat D" }
+                        ]}
                       />
                     </div>
                   </div>
@@ -1849,7 +1856,9 @@ export default function AgendaSppdPage({ user, showToast }) {
                           style={{ width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${T.inputBorder || T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 12.5 }}
                         />
                       </div>
+                    </div>
 
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1.2fr 0.9fr", gap: 8 }}>
                       <div>
                         <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Pangkat / Golongan</label>
                         <input
@@ -1871,6 +1880,22 @@ export default function AgendaSppdPage({ user, showToast }) {
                           value={p.jabatan || ""}
                           onChange={(e) => updatePengikut(idx, "jabatan", e.target.value)}
                           style={{ width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${T.inputBorder || T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 12.5 }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Tingkat Biaya</label>
+                        <Select
+                          fullWidth
+                          size="sm"
+                          value={p.tingkat_biaya || modalSppd.data.tingkat_biaya || (modalSppd.data.jenis_sppd === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C")}
+                          onChange={(v) => updatePengikut(idx, "tingkat_biaya", v)}
+                          options={[
+                            { value: "Tingkat A", label: "Tingkat A" },
+                            { value: "Tingkat B", label: "Tingkat B" },
+                            { value: "Tingkat C", label: "Tingkat C" },
+                            { value: "Tingkat D", label: "Tingkat D" }
+                          ]}
                         />
                       </div>
                     </div>
@@ -1961,7 +1986,7 @@ export default function AgendaSppdPage({ user, showToast }) {
                 />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : (modalSppd.data.jenis_sppd === "LUAR_DAERAH" ? "1fr 1fr 1fr 1.2fr" : "1fr 1fr 1.2fr"), gap: 10, marginTop: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : (modalSppd.data.jenis_sppd === "LUAR_DAERAH" ? "1fr 1fr" : "1fr 1fr 1.2fr"), gap: 10, marginTop: 10, alignItems: "end" }}>
                 <div>
                   <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Tempat Berangkat</label>
                   <input
