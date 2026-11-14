@@ -37,6 +37,7 @@ import { buatCaptcha, verifikasiCaptcha, inisialisasiPembersihCaptcha } from './
 import { daftarkanRuteAdminLanjutan } from './admin-lanjutan-routes.js';
 import { daftarkanRutePengaturanSitus } from './pengaturan-situs-routes.js';
 import { daftarkanRuteAgenda } from './agenda-routes.js';
+import { daftarkanRutePerencanaan } from './perencanaan-routes.js';
 
 dotenv.config();
 
@@ -5127,6 +5128,7 @@ daftarkanRuteAdminLanjutan(app, pool, queryDB);
 daftarkanRutePengaturanSitus(app, pool, queryDB);
 daftarkanRuteSdpdn(app, pool, queryDB);
 daftarkanRuteAgenda(app, pool, queryDB);
+daftarkanRutePerencanaan(app, pool, queryDB);
 inisialisasiScheduler(app, pool, queryDB);
 if (isProd) {
   app.get(['/umadata', '/umadata/{*path}', '/arsip', '/arsip/{*path}', '/{*path}'], (_, res) => {

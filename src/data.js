@@ -156,6 +156,7 @@ export const NAV_GROUPS = [
       { key: "agenda-surat", label: "Agenda Surat", icon: "mail" },
       { key: "register-sppd", label: "Register SPPD", icon: "mapPin" },
       { key: "kertas-kerja", label: "Kertas Kerja", icon: "checkCircle", children: KERTAS_KERJA_CHILDREN },
+      { key: "progres-perencanaan", label: "Progres Perencanaan", icon: "layers" },
       { key: "screening", label: "Screening RKA", icon: "filter" },
       { key: "standar-harga", label: "Standar Harga", icon: "dollar", adminOnly: true },
       { key: "kategori-dokumen", label: "Jenis Dokumen", icon: "tag", adminOnly: true },

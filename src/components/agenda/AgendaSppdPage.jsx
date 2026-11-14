@@ -235,6 +235,7 @@ export default function AgendaSppdPage({ user, showToast }) {
   const bukaAmbilNomorSppd = async (presetJenis) => {
     const selectedJenis = presetJenis || jenis;
     const preview = await fetchPreviewRegister(selectedJenis);
+    const me = pegawaiList.find((x) => (user?.nip && x.nip === user.nip) || (user?.name && x.nama === user.name));
 
     setModalSppd({
       mode: "tambah",
@@ -248,10 +249,10 @@ export default function AgendaSppdPage({ user, showToast }) {
         dasar_hukum: `DPA Bapperida Kabupaten Sumba Barat TA ${tahun}`,
         tingkat_biaya: selectedJenis === "LUAR_DAERAH" ? "Tingkat B" : "Tingkat C",
         pejabat_perintah: "Kepala BAPPERIDA",
-        pelaksana_nip: user?.nip || "",
-        pelaksana_nama: user?.name || "",
-        pelaksana_pangkat: "",
-        pelaksana_jabatan: "",
+        pelaksana_nip: me?.nip || user?.nip || "",
+        pelaksana_nama: me?.nama || user?.name || "",
+        pelaksana_pangkat: me?.pangkat || "",
+        pelaksana_jabatan: me?.jabatan || "",
         pengikut: [],
         maksud_perjalanan: "",
         tempat_berangkat: "Waikabubak",
@@ -1091,63 +1092,174 @@ export default function AgendaSppdPage({ user, showToast }) {
               </div>
             </div>
 
-            {/* Pelaksana Utama */}
+            {/* Personil / Tim Pelaksana (Disatukan: Personil 1 + Personil Tambahan) */}
             <datalist id="daftar-pegawai">
               {pegawaiList.map((p) => <option key={p.id} value={p.nama}>{p.nip} · {p.jabatan}</option>)}
             </datalist>
             <div style={{ border: `1px solid ${T.border}`, borderRadius: 8, padding: "12px 14px", background: T.bg }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: T.text, marginBottom: 10 }}>1. Personil 1 (Pelaksana Utama)</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Nama Lengkap *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ketik nama — pilih dari saran pegawai atau isi manual"
-                    list="daftar-pegawai"
-                    value={modalSppd.data.pelaksana_nama}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      const p = pegawaiList.find((x) => x.nama === v);
-                      setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_nama: v, ...(p ? { pelaksana_nip: p.nip || "", pelaksana_pangkat: p.pangkat || "", pelaksana_jabatan: p.jabatan || "" } : {}) } });
-                    }}
-                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12.5 }}
-                  />
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: T.text }}>
+                  1. Personil / Tim Pelaksana ({1 + (modalSppd.data.pengikut?.length || 0)})
+                </div>
+                <button
+                  type="button"
+                  onClick={tambahPengikut}
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: `1px solid ${T.border}`,
+                    background: T.card,
+                    color: T.primary,
+                    fontWeight: 700,
+                    fontSize: 11,
+                    cursor: "pointer"
+                  }}
+                >
+                  + Tambah Personil
+                </button>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {/* Personil 1 (Pelaksana Utama) */}
+                <div style={{ border: `1px solid ${T.border}`, borderRadius: 6, padding: 10, background: T.card, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 800, color: T.primary }}>Personil 1 (Pelaksana Utama)</span>
+                    <select
+                      aria-label="Pilih pegawai untuk Personil 1"
+                      value={pegawaiList.find((x) => x.nip && x.nip === modalSppd.data.pelaksana_nip)?.nip || ""}
+                      onChange={(e) => {
+                        const p = pegawaiList.find((x) => x.nip === e.target.value);
+                        if (!p) return;
+                        setModalSppd({
+                          ...modalSppd,
+                          data: {
+                            ...modalSppd.data,
+                            pelaksana_nama: p.nama || "",
+                            pelaksana_nip: p.nip || "",
+                            pelaksana_pangkat: p.pangkat || "",
+                            pelaksana_jabatan: p.jabatan || ""
+                          }
+                        });
+                      }}
+                      style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5, maxWidth: 240 }}
+                    >
+                      <option value="">-- Pilih dari Master Pegawai --</option>
+                      {pegawaiList.map((p) => (
+                        <option key={p.id || p.nip} value={p.nip}>{p.nama} ({p.nip})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
+                    <div>
+                      <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Nama Lengkap *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ketik nama — pilih dari saran pegawai atau isi manual"
+                        list="daftar-pegawai"
+                        value={modalSppd.data.pelaksana_nama}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          const p = pegawaiList.find((x) => x.nama === v);
+                          setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_nama: v, ...(p ? { pelaksana_nip: p.nip || "", pelaksana_pangkat: p.pangkat || "", pelaksana_jabatan: p.jabatan || "" } : {}) } });
+                        }}
+                        style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 12.5 }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>NIP Pegawai *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="19800101 200501 1 001"
+                        value={modalSppd.data.pelaksana_nip}
+                        onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_nip: e.target.value } })}
+                        style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 12.5 }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Pangkat / Golongan</label>
+                      <input
+                        type="text"
+                        placeholder="Pembina, IV/a"
+                        value={modalSppd.data.pelaksana_pangkat}
+                        onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_pangkat: e.target.value } })}
+                        style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 12.5 }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Jabatan</label>
+                      <input
+                        type="text"
+                        placeholder="Perencana Ahli Muda / Staf"
+                        value={modalSppd.data.pelaksana_jabatan}
+                        onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_jabatan: e.target.value } })}
+                        style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 12.5 }}
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>NIP Pegawai *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="19800101 200501 1 001"
-                    value={modalSppd.data.pelaksana_nip}
-                    onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_nip: e.target.value } })}
-                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12.5 }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Pangkat / Golongan</label>
-                  <input
-                    type="text"
-                    placeholder="Pembina, IV/a"
-                    value={modalSppd.data.pelaksana_pangkat}
-                    onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_pangkat: e.target.value } })}
-                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12.5 }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Jabatan</label>
-                  <input
-                    type="text"
-                    placeholder="Perencana Ahli Muda / Staf"
-                    value={modalSppd.data.pelaksana_jabatan}
-                    onChange={(e) => setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pelaksana_jabatan: e.target.value } })}
-                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12.5 }}
-                  />
-                </div>
+                {/* Personil 2, 3, ... (Anggota Tim / Pengikut) */}
+                {(modalSppd.data.pengikut || []).map((p, idx) => (
+                  <div key={idx} style={{ border: `1px solid ${T.border}`, borderRadius: 6, padding: 10, background: T.card, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary }}>Personil {idx + 2}</span>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <select
+                          aria-label={`Pilih pegawai untuk Personil ${idx + 2}`}
+                          value={pegawaiList.find((x) => x.nip && x.nip === p.nip)?.nip || ""}
+                          onChange={(e) => {
+                            const pg = pegawaiList.find((x) => x.nip === e.target.value);
+                            if (!pg) return;
+                            const cur = [...modalSppd.data.pengikut];
+                            cur[idx] = { nama: pg.nama || "", nip: pg.nip || "", pangkat: pg.pangkat || "", jabatan: pg.jabatan || "" };
+                            setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pengikut: cur } });
+                          }}
+                          style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11.5, maxWidth: 220 }}
+                        >
+                          <option value="">-- Pilih dari Master Pegawai --</option>
+                          {pegawaiList.map((pg) => (
+                            <option key={pg.id || pg.nip} value={pg.nip}>{pg.nama} ({pg.nip})</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          aria-label={`Hapus personil ${idx + 2}`}
+                          onClick={() => hapusPengikut(idx)}
+                          style={{ padding: "6px 8px", borderRadius: 6, border: "none", background: T.dangerBg || "#FEF2F2", color: T.danger, cursor: "pointer" }}
+                        >
+                          <Icon name="x" size={13} />
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
+                      {[["nama", "Nama lengkap"], ["nip", "NIP"], ["pangkat", "Pangkat / Golongan"], ["jabatan", "Jabatan"]].map(([f, ph]) => (
+                        <input
+                          key={f}
+                          type="text"
+                          placeholder={f === "nama" ? "Ketik nama — saran pegawai / manual" : ph}
+                          list={f === "nama" ? "daftar-pegawai" : undefined}
+                          value={p[f] || ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            const pg = f === "nama" && pegawaiList.find((x) => x.nama === v);
+                            if (pg) {
+                              const cur = [...modalSppd.data.pengikut];
+                              cur[idx] = { nama: pg.nama, nip: pg.nip || "", pangkat: pg.pangkat || "", jabatan: pg.jabatan || "" };
+                              setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pengikut: cur } });
+                            } else updatePengikut(idx, f, v);
+                          }}
+                          style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 12.5 }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -1331,74 +1443,6 @@ export default function AgendaSppdPage({ user, showToast }) {
                   />
                 </div>
               </div>
-            </div>
-
-            {/* Pengikut (Dinas Bersama) */}
-            <div style={{ border: `1px solid ${T.border}`, borderRadius: 8, padding: "12px 14px", background: T.bg }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: T.text }}>4. Personil Tambahan / Anggota Tim ({modalSppd.data.pengikut?.length || 0})</div>
-                <button
-                  type="button"
-                  onClick={tambahPengikut}
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: `1px solid ${T.border}`,
-                    background: T.card,
-                    color: T.primary,
-                    fontWeight: 700,
-                    fontSize: 11,
-                    cursor: "pointer"
-                  }}
-                >
-                  + Tambah Personil
-                </button>
-              </div>
-
-              {(!modalSppd.data.pengikut || modalSppd.data.pengikut.length === 0) ? (
-                <div style={{ fontSize: 12, color: T.textMuted, fontStyle: "italic" }}>
-                  Belum ada personil tambahan. Surat Tugas hanya untuk Personil 1.
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {modalSppd.data.pengikut.map((p, idx) => (
-                    <div key={idx} style={{ border: `1px solid ${T.border}`, borderRadius: 6, padding: 8, background: T.card, display: "flex", flexDirection: "column", gap: 6 }}>
-                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, whiteSpace: "nowrap", flex: 1 }}>Personil {idx + 2}</span>
-                        <button
-                          type="button"
-                          aria-label={`Hapus personil ${idx + 2}`}
-                          onClick={() => hapusPengikut(idx)}
-                          style={{ padding: "6px 8px", borderRadius: 6, border: "none", background: T.dangerBg || "#FEF2F2", color: T.danger, cursor: "pointer" }}
-                        >
-                          <Icon name="x" size={13} />
-                        </button>
-                      </div>
-                      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 6 }}>
-                        {[["nama", "Nama lengkap"], ["nip", "NIP"], ["pangkat", "Pangkat / Golongan"], ["jabatan", "Jabatan"]].map(([f, ph]) => (
-                          <input
-                            key={f}
-                            type="text"
-                            placeholder={f === "nama" ? "Ketik nama — saran pegawai / manual" : ph}
-                            list={f === "nama" ? "daftar-pegawai" : undefined}
-                            value={p[f] || ""}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              const pg = f === "nama" && pegawaiList.find((x) => x.nama === v);
-                              if (pg) {
-                                const cur = [...modalSppd.data.pengikut];
-                                cur[idx] = { nama: pg.nama, nip: pg.nip || "", pangkat: pg.pangkat || "", jabatan: pg.jabatan || "" };
-                                setModalSppd({ ...modalSppd, data: { ...modalSppd.data, pengikut: cur } });
-                              } else updatePengikut(idx, f, v);
-                            }}
-                            style={{ padding: "6px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 12 }}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
 
             {modalSppd.mode === "edit" && (

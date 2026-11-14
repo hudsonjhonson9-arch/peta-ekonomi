@@ -1,4 +1,11 @@
 import { tambahAturan, aturan, aturanSemua, PUBLIK, LOGIN, BANKDATA, REVIEW, ADMIN } from './kebijakan.js';
+import {
+  buildDisposisiText,
+  buildSuratKeluarText,
+  buildSuratMasukText,
+  createOpenwaFromEnv,
+  parseMediaFromUrl,
+} from './openwa.js';
 
 // Hak akses rute agenda: semua rute agenda dapat diakses oleh pengguna yang sudah login (LOGIN)
 // Aksi penghapusan fisik dibatasi untuk ADMIN
@@ -54,7 +61,14 @@ export const DEFAULT_WEWENANG = {
   ]
 };
 
-export function daftarkanRuteAgenda(app, pool, queryDB) {
+export function daftarkanRuteAgenda(app, pool, queryDB, opts = {}) {
+  const sendWA = opts.sendWA || createOpenwaFromEnv();
+  const kirimWA = (text, urlOrData, filename) => {
+    if (!sendWA) return;
+    const parsed = parseMediaFromUrl(urlOrData, filename);
+    const media = parsed?.base64 ? parsed : undefined;
+    Promise.resolve(sendWA({ text, ...(media ? { media } : {}) })).catch(e => console.error('[Agenda/WA]', e.message));
+  };
   // DDL idempoten: tabel pengaturan wewenang & penandatangan agenda/sppd
   queryDB(`
     CREATE TABLE IF NOT EXISTS agenda_pengaturan_wewenang (
@@ -218,7 +232,9 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
         [tahun, nomor_agenda, tanggal_terima, nomor_surat_asli, tanggal_surat, asal_surat, perihal, sifat, kode_klasifikasi, jumlah_lampiran, file_url, file_name, drive_url, userCreator]
       );
 
-      res.json({ ok: true, item: insertRes[0] });
+      const item = insertRes[0];
+      kirimWA(buildSuratMasukText(item), item.file_url, item.file_name || `surat-masuk-${item.id}`);
+      res.json({ ok: true, item });
     } catch (e) {
       console.error('[Agenda] Post Surat Masuk Error:', e);
       res.status(500).json({ ok: false, message: 'Gagal mencatat surat masuk' });
@@ -351,6 +367,15 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
         `SELECT * FROM agenda_disposisi WHERE surat_masuk_id = $1 ORDER BY id ASC`,
         [surat_masuk_id]
       );
+
+      if (mode !== 'edit' && sendWA && dRes[0]) {
+        const suratRows = await queryDB(
+          `SELECT nomor_agenda, nomor_surat_asli, asal_surat, perihal, sifat, file_url, file_name, drive_url FROM agenda_surat_masuk WHERE id = $1 LIMIT 1`,
+          [surat_masuk_id]
+        ).catch(() => []);
+        const surat = suratRows[0] || {};
+        kirimWA(buildDisposisiText({ surat, disposisi: dRes[0] }), surat.file_url, surat.file_name || `disposisi-${surat_masuk_id}`);
+      }
 
       res.json({ ok: true, disposisi: dRes[0], riwayat: allRows });
     } catch (e) {
@@ -499,7 +524,9 @@ export function daftarkanRuteAgenda(app, pool, queryDB) {
       );
 
       await client.query('COMMIT');
-      res.json({ ok: true, item: insRes.rows[0] });
+      const item = insRes.rows[0];
+      kirimWA(buildSuratKeluarText(item), item.file_final_url || item.file_draft_url, `surat-keluar-${item.id}`);
+      res.json({ ok: true, item });
     } catch (e) {
       await client.query('ROLLBACK');
       console.error('[Agenda] Booking Surat Keluar Error:', e);

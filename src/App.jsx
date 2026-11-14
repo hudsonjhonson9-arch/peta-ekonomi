@@ -12,6 +12,7 @@ import { DocList, DocDetail } from "./components/DocPages.jsx";
 import { pesanError } from "./components/PksAdmin.jsx";
 import { idDokumenValid } from "../server/tautan-periode.js";
 import UploadForm from "./components/UploadForm.jsx";
+import PerencanaanProgresPage from "./components/PerencanaanProgresPage.jsx";
 import NotificationDropdown from "./components/NotificationDropdown.jsx";
 import PublicShare from "./components/PublicShare.jsx";
 import * as pdfjsLib from "pdfjs-dist";
@@ -1301,6 +1302,7 @@ export default function App() {
                   {page === "panduan" && "Panduan Pengguna"}
                   {page === "bankdata" && "Bank Data"}
                   {page === "kertas-kerja" && "Kertas Kerja"}
+                  {page === "progres-perencanaan" && "Progres Perencanaan"}
                   {page === "agenda-surat" && "Agenda Surat"}
                   {page === "register-sppd" && "Register SPPD"}
                   {page === "screening" && "Screening RKA"}
@@ -1351,7 +1353,7 @@ export default function App() {
               "bankdata", "kertas-kerja", "screening", "standar-harga", "pengguna",
               "kategori-dokumen", "sektor", "audit", "spm", "master-satudata",
               "kelola-konten", "monitoring", "kelola-role", "akun", "pengaturan-website",
-              "dokumentasi-api", "agenda-surat", "register-sppd"
+              "dokumentasi-api", "agenda-surat", "register-sppd", "progres-perencanaan"
             ].includes(page) || page === "dashboard" || page === "dashboard-arsip" || page === "dashboard-satudata") && !viewDoc && (
                 <Dashboard user={user} docs={docs} onNav={goPage} onView={openDoc} sectors={sectors} categories={categories} activePage={page} />
               )}
@@ -1434,6 +1436,9 @@ export default function App() {
             )}
             {page === "register-sppd" && (
               <AgendaSppdPage user={user} showToast={showToast} />
+            )}
+            {page === "progres-perencanaan" && (
+              <PerencanaanProgresPage user={user} />
             )}
             {page === "screening" && (
               <ScreeningRKA user={user} showToast={showToast} />
