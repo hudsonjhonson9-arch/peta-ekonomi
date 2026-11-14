@@ -861,6 +861,266 @@ function TimeStepper({ value, max, step = 1, onChange, T }) {
   );
 }
 
+// ── Custom DateRangePicker (1 trigger + 1 custom calendar popover) ─────────────
+export function DateRangePicker({
+  start = "",
+  end = "",
+  onChange,
+  onReset,
+  isCustom = false,
+  size = "md",
+  placeholder = "Pilih rentang tanggal...",
+  style,
+}) {
+  const { T } = useContext(ThemeContext);
+  const pStart = useMemo(() => parseTanggal(start), [start]);
+  const pEnd = useMemo(() => parseTanggal(end), [end]);
+  const now = useMemo(() => new Date(), []);
+
+  const [buka, setBuka] = useState(false);
+  const [viewYear, setViewYear] = useState(() => pStart?.year ?? now.getFullYear());
+  const [viewMonth, setViewMonth] = useState(() => pStart?.month ?? now.getMonth());
+  const [draftStart, setDraftStart] = useState(start);
+  const [draftEnd, setDraftEnd] = useState(end);
+  const [hoverIso, setHoverIso] = useState("");
+  const [rect, setRect] = useState(null);
+
+  const boxRef = useRef(null);
+  const btnRef = useRef(null);
+  const panelRef = useRef(null);
+
+  useEffect(() => {
+    if (!buka) {
+      setRect(null);
+      setHoverIso("");
+      return;
+    }
+    setDraftStart(start || "");
+    setDraftEnd(end || "");
+    if (pStart) {
+      setViewYear(pStart.year);
+      setViewMonth(pStart.month);
+    }
+    const hitung = () => {
+      if (!btnRef.current) return;
+      const r = btnRef.current.getBoundingClientRect();
+      setRect({ top: r.bottom, bottom: r.top, left: r.left, right: r.right, width: r.width });
+    };
+    hitung();
+    const tutupKlik = e => {
+      if (boxRef.current?.contains(e.target) || panelRef.current?.contains(e.target)) return;
+      setBuka(false);
+    };
+    const tutupEsc = e => { if (e.key === "Escape") setBuka(false); };
+    document.addEventListener("mousedown", tutupKlik);
+    document.addEventListener("keydown", tutupEsc);
+    window.addEventListener("scroll", hitung, true);
+    window.addEventListener("resize", hitung);
+    return () => {
+      document.removeEventListener("mousedown", tutupKlik);
+      document.removeEventListener("keydown", tutupEsc);
+      window.removeEventListener("scroll", hitung, true);
+      window.removeEventListener("resize", hitung);
+    };
+  }, [buka]);
+
+  const cells = useMemo(() => {
+    const first = new Date(viewYear, viewMonth, 1);
+    const startOffset = (first.getDay() + 6) % 7;
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const daysInPrev = new Date(viewYear, viewMonth, 0).getDate();
+    const arr = [];
+    for (let i = startOffset - 1; i >= 0; i--) {
+      const m = viewMonth === 0 ? 11 : viewMonth - 1;
+      const y = viewMonth === 0 ? viewYear - 1 : viewYear;
+      arr.push({ y, m, d: daysInPrev - i, luar: true });
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      arr.push({ y: viewYear, m: viewMonth, d, luar: false });
+    }
+    while (arr.length < 42) {
+      const idx = arr.length - (startOffset + daysInMonth) + 1;
+      const m = viewMonth === 11 ? 0 : viewMonth + 1;
+      const y = viewMonth === 11 ? viewYear + 1 : viewYear;
+      arr.push({ y, m, d: idx, luar: true });
+    }
+    return arr;
+  }, [viewYear, viewMonth]);
+
+  const geserBulan = (delta) => {
+    const d = new Date(viewYear, viewMonth + delta, 1);
+    setViewYear(d.getFullYear());
+    setViewMonth(d.getMonth());
+  };
+
+  const klikHari = (c) => {
+    const iso = formatIsoDate(c.y, c.m, c.d);
+    if (!draftStart || (draftStart && draftEnd)) {
+      setDraftStart(iso);
+      setDraftEnd("");
+    } else {
+      const [s, e] = iso < draftStart ? [iso, draftStart] : [draftStart, iso];
+      setDraftStart(s);
+      setDraftEnd(e);
+      onChange?.({ start: s, end: e });
+      setBuka(false);
+    }
+  };
+
+  const fmtLabel = (p) => (p ? `${p.day} ${BULAN_PENDEK[p.month]} ${p.year}` : "");
+  const displayText = pStart && pEnd
+    ? `${fmtLabel(pStart)} – ${fmtLabel(pEnd)}`
+    : pStart
+      ? `${fmtLabel(pStart)} – ...`
+      : placeholder;
+
+  const activeMin = draftStart && (draftEnd || hoverIso)
+    ? (draftEnd ? (draftStart <= draftEnd ? draftStart : draftEnd) : (draftStart <= hoverIso ? draftStart : hoverIso))
+    : draftStart;
+  const activeMax = draftStart && (draftEnd || hoverIso)
+    ? (draftEnd ? (draftStart <= draftEnd ? draftEnd : draftStart) : (draftStart <= hoverIso ? hoverIso : draftStart))
+    : draftStart;
+
+  const h = size === "sm" ? 32 : 36;
+  const panelW = 296;
+  const panelStyle = rect ? (() => {
+    const spaceBelow = window.innerHeight - rect.top;
+    const estH = 350;
+    const openUp = spaceBelow < estH && rect.bottom > estH;
+    const left = Math.min(Math.max(8, rect.left), window.innerWidth - panelW - 8);
+    return {
+      position: "fixed",
+      left,
+      width: panelW,
+      ...(openUp ? { bottom: window.innerHeight - rect.bottom + 4 } : { top: rect.top + 4 }),
+      zIndex: 9999,
+      background: T.surface,
+      border: `1px solid ${T.border}`,
+      borderRadius: 12,
+      boxShadow: T.shadowLg || "0 12px 32px rgba(15,23,42,0.16)",
+      padding: 12,
+    };
+  })() : null;
+
+  return (
+    <div ref={boxRef} style={{ position: "relative", display: "inline-flex", ...style }}>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setBuka((v) => !v)}
+        style={{
+          height: h,
+          padding: "0 10px",
+          borderRadius: 8,
+          border: `1px solid ${buka ? T.primary : T.border}`,
+          background: T.surface,
+          color: T.text,
+          fontSize: 12.5,
+          fontWeight: 600,
+          fontVariantNumeric: "tabular-nums",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 7,
+          cursor: "pointer",
+          fontFamily: "inherit",
+          whiteSpace: "nowrap",
+        }}
+      >
+        <Icon name="calendar" size={14} style={{ color: isCustom ? T.primary : T.textSecondary }} />
+        <span>{displayText}</span>
+        <Icon name="chevronDown" size={13} style={{ color: T.textMuted, transform: buka ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+      </button>
+
+      {buka && panelStyle && createPortal(
+        <div ref={panelRef} style={panelStyle}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <button
+              type="button"
+              onClick={() => geserBulan(-1)}
+              style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${T.border}`, background: T.surface, color: T.text, cursor: "pointer", display: "grid", placeItems: "center" }}
+            >
+              <Icon name="chevronLeft" size={14} />
+            </button>
+            <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>
+              {BULAN_ID[viewMonth]} {viewYear}
+            </span>
+            <button
+              type="button"
+              onClick={() => geserBulan(1)}
+              style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${T.border}`, background: T.surface, color: T.text, cursor: "pointer", display: "grid", placeItems: "center" }}
+            >
+              <Icon name="chevronRight" size={14} />
+            </button>
+          </div>
+
+          <div style={{ fontSize: 11, color: T.textMuted, textAlign: "center", marginBottom: 6 }}>
+            {!draftStart || draftEnd ? "Klik tanggal awal rentang" : "Klik tanggal akhir rentang"}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>
+            {HARI_PENDEK.map(hr => (
+              <div key={hr} style={{ textAlign: "center", fontSize: 10.5, fontWeight: 700, color: T.textMuted, padding: "3px 0" }}>
+                {hr}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+            {cells.map((c, idx) => {
+              const iso = formatIsoDate(c.y, c.m, c.d);
+              const isEdge = iso === draftStart || iso === draftEnd;
+              const inRange = Boolean(activeMin && activeMax && iso > activeMin && iso < activeMax);
+              return (
+                <button
+                  key={`${iso}-${idx}`}
+                  type="button"
+                  onClick={() => klikHari(c)}
+                  onMouseEnter={() => { if (draftStart && !draftEnd) setHoverIso(iso); }}
+                  style={{
+                    height: 30,
+                    borderRadius: isEdge ? 7 : (inRange ? 4 : 7),
+                    border: "none",
+                    background: isEdge ? T.primary : (inRange ? T.primaryLight : "transparent"),
+                    color: isEdge ? "#fff" : (inRange ? T.primary : (c.luar ? T.textMuted : T.text)),
+                    opacity: c.luar && !isEdge && !inRange ? 0.45 : 1,
+                    fontSize: 12,
+                    fontWeight: isEdge ? 700 : 500,
+                    fontVariantNumeric: "tabular-nums",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {c.d}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>
+              {draftStart ? `${draftStart}${draftEnd ? ` → ${draftEnd}` : " → ..."}` : "Default tahapan"}
+            </span>
+            {onReset && (
+              <button
+                type="button"
+                onClick={() => { onReset(); setBuka(false); }}
+                style={{
+                  background: T.surfaceHover, color: T.textSecondary, border: "none",
+                  borderRadius: 6, padding: "4px 9px", fontSize: 11, fontWeight: 600,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                Reset Default
+              </button>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 // ── Custom Button Component ──────────────────────────────────────────────────
 export function Button({
   variant = "primary",

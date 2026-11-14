@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { ThemeContext } from "../App.jsx";
-import { Icon, Select } from "./ui.jsx";
+import { Icon, Select, DateRangePicker } from "./ui.jsx";
 import UploadForm from "./UploadForm.jsx";
 
 const DOKUMEN_OPTIONS = [
@@ -391,31 +391,20 @@ export default function PerencanaanProgresPage({
           />
           {viewMode === "gantt" ? (
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: cardBg, border: `1px solid ${T.border}`, borderRadius: 8, padding: "4px 8px" }}>
-                <span style={{ fontSize: 11.5, color: T.textSecondary, fontWeight: 600 }}>Rentang</span>
-                <input
-                  type="date"
-                  value={activeStart}
-                  onChange={(e) => setCustomStart(e.target.value)}
-                  style={{ border: "none", background: "transparent", color: T.text, fontSize: 12, fontVariantNumeric: "tabular-nums", outline: "none" }}
-                />
-                <span style={{ fontSize: 11.5, color: T.textMuted }}>s.d.</span>
-                <input
-                  type="date"
-                  value={activeEnd}
-                  onChange={(e) => setCustomEnd(e.target.value)}
-                  style={{ border: "none", background: "transparent", color: T.text, fontSize: 12, fontVariantNumeric: "tabular-nums", outline: "none" }}
-                />
-                {(customStart || customEnd) && (
-                  <button
-                    type="button"
-                    onClick={() => { setCustomStart(""); setCustomEnd(""); }}
-                    style={{ border: "none", background: isDark ? "rgba(255,255,255,0.08)" : "#F1F5F9", color: T.textSecondary, borderRadius: 5, padding: "2px 7px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
-                  >
-                    Reset
-                  </button>
-                )}
-              </div>
+              <DateRangePicker
+                size="sm"
+                start={activeStart}
+                end={activeEnd}
+                isCustom={Boolean(customStart || customEnd)}
+                onChange={({ start, end }) => {
+                  setCustomStart(start);
+                  setCustomEnd(end);
+                }}
+                onReset={() => {
+                  setCustomStart("");
+                  setCustomEnd("");
+                }}
+              />
 
               <div style={{ display: "inline-flex", alignItems: "center", border: `1px solid ${T.border}`, borderRadius: 8, background: cardBg, overflow: "hidden" }}>
                 <button
