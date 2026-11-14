@@ -207,3 +207,135 @@ test('Custom Nomor SPPD/SPT: cek ketersediaan nomor dan tolak duplikat saat peng
   assert.equal(postRes.item.nomor_register, '099/SPPD-CUSTOM/2026');
   assert.equal(postRes.item.nomor_spt, '099/SPT-CUSTOM/2026');
 });
+
+test('Custom Nomor Surat Keluar: cek ketersediaan nomor dan tolak duplikat saat booking/edit', async () => {
+  const routes = {};
+  const mockApp = {
+    get: (p, h) => { routes[`GET ${p}`] = h; },
+    post: (p, h) => { routes[`POST ${p}`] = h; },
+    put: (p, h) => { routes[`PUT ${p}`] = h; },
+    delete: () => {}
+  };
+
+  const dbRows = [
+    {
+      id: 1,
+      tahun: 2026,
+      nomor_agenda: '0001/SK/2026',
+      nomor_surat: 'BAPPERIDA.011.7/53.12/0001/XI/2026',
+      perihal: 'Undangan Rapat Koordinasi',
+      tujuan_surat: 'Dinas Pertanian',
+      bidang_pengonsep: 'Sekretariat'
+    }
+  ];
+
+  const mockQueryDB = async (sql, params) => {
+    if (sql.includes('SELECT id, nomor_agenda, nomor_surat')) {
+      const nom = params[0];
+      const match = dbRows.find(
+        (r) =>
+          r.nomor_surat.toLowerCase() === nom.toLowerCase() ||
+          r.nomor_agenda.toLowerCase() === nom.toLowerCase()
+      );
+      if (params[1] && match && match.id === params[1]) return [];
+      return match ? [match] : [];
+    }
+    if (sql.includes('UPDATE agenda_surat_keluar')) {
+      return [{ id: params[11], nomor_surat: params[7] }];
+    }
+    return [];
+  };
+
+  const mockPool = {
+    connect: async () => ({
+      query: async (sql, params) => {
+        if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return {};
+        if (sql.includes('SELECT id, nomor_surat FROM agenda_surat_keluar WHERE LOWER')) {
+          const nom = params[0];
+          const match = dbRows.find((r) => r.nomor_surat.toLowerCase() === nom.toLowerCase());
+          return { rows: match ? [match] : [] };
+        }
+        if (sql.includes('SELECT COALESCE(MAX(nomor_urut)')) {
+          return { rows: [{ next_urut: 2 }] };
+        }
+        if (sql.includes('INSERT INTO agenda_surat_keluar')) {
+          const item = {
+            id: 2,
+            nomor_agenda: params[1],
+            nomor_surat: params[2],
+            tujuan_surat: params[6],
+            perihal: params[7]
+          };
+          dbRows.push(item);
+          return { rows: [item] };
+        }
+        return { rows: [] };
+      },
+      release: () => {}
+    })
+  };
+
+  daftarkanRuteAgenda(mockApp, mockPool, mockQueryDB);
+
+  assert.ok(routes['GET /api/agenda/surat-keluar/cek-nomor'], 'Rute GET /api/agenda/surat-keluar/cek-nomor harus terdaftar');
+
+  // 1. Cek nomor yang sudah ada
+  let resCheck1 = {};
+  await routes['GET /api/agenda/surat-keluar/cek-nomor'](
+    { query: { nomor: 'BAPPERIDA.011.7/53.12/0001/XI/2026' } },
+    { json: (d) => { resCheck1 = d; } }
+  );
+  assert.equal(resCheck1.ok, true);
+  assert.equal(resCheck1.exists, true);
+  assert.equal(resCheck1.conflict.bidang_pengonsep, 'Sekretariat');
+
+  // 2. Cek nomor yang tersedia
+  let resCheck2 = {};
+  await routes['GET /api/agenda/surat-keluar/cek-nomor'](
+    { query: { nomor: '050/999/BAPPERIDA/2026' } },
+    { json: (d) => { resCheck2 = d; } }
+  );
+  assert.equal(resCheck2.ok, true);
+  assert.equal(resCheck2.exists, false);
+
+  // 3. POST nomor duplikat ditolak
+  let postStatus = 200;
+  let postRes = null;
+  await routes['POST /api/agenda/surat-keluar'](
+    {
+      body: {
+        tujuan_surat: 'Dinas Lain',
+        perihal: 'Pengantar',
+        bidang_pengonsep: 'Sekretariat',
+        nomor_surat: 'BAPPERIDA.011.7/53.12/0001/XI/2026'
+      }
+    },
+    {
+      status: function (s) { postStatus = s; return this; },
+      json: (d) => { postRes = d; }
+    }
+  );
+  assert.equal(postStatus, 400);
+  assert.equal(postRes.ok, false);
+
+  // 4. POST nomor custom yang valid
+  postStatus = 200;
+  postRes = null;
+  await routes['POST /api/agenda/surat-keluar'](
+    {
+      body: {
+        tujuan_surat: 'Bupati',
+        perihal: 'Laporan Triwulan',
+        bidang_pengonsep: 'Sekretariat',
+        nomor_surat: '050/999/BAPPERIDA/2026'
+      }
+    },
+    {
+      status: function (s) { postStatus = s; return this; },
+      json: (d) => { postRes = d; }
+    }
+  );
+  assert.equal(postStatus, 200);
+  assert.equal(postRes.ok, true);
+  assert.equal(postRes.item.nomor_surat, '050/999/BAPPERIDA/2026');
+});

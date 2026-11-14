@@ -477,6 +477,44 @@ export function daftarkanRuteAgenda(app, pool, queryDB, opts = {}) {
     }
   });
 
+  // Cek Ketersediaan Nomor Custom Surat Keluar (Apakah sudah ada atau belum)
+  app.get('/api/agenda/surat-keluar/cek-nomor', async (req, res) => {
+    try {
+      const rawNomor = String(req.query.nomor || '').trim();
+      const excludeId = req.query.exclude_id ? parseInt(req.query.exclude_id, 10) : null;
+      if (!rawNomor) {
+        return res.json({ ok: true, exists: false, nomor: '' });
+      }
+
+      const params = [rawNomor];
+      let sql = `
+        SELECT id, nomor_agenda, nomor_surat, tanggal_surat, perihal, tujuan_surat, bidang_pengonsep
+        FROM agenda_surat_keluar
+        WHERE (
+          LOWER(TRIM(nomor_surat)) = LOWER(TRIM($1))
+          OR LOWER(TRIM(nomor_agenda)) = LOWER(TRIM($1))
+        )
+      `;
+      if (excludeId && !isNaN(excludeId)) {
+        sql += ` AND id <> $2`;
+        params.push(excludeId);
+      }
+      sql += ` LIMIT 1`;
+
+      const rows = await queryDB(sql, params);
+      const conflict = rows && rows[0] ? rows[0] : null;
+      res.json({
+        ok: true,
+        exists: Boolean(conflict),
+        nomor: rawNomor,
+        conflict
+      });
+    } catch (e) {
+      console.error('[Agenda] Cek Nomor Surat Keluar Error:', e);
+      res.status(500).json({ ok: false, message: 'Gagal memeriksa ketersediaan nomor surat keluar' });
+    }
+  });
+
   // Booking Nomor Surat Keluar Baru (Atomik via Transaksi)
   app.post('/api/agenda/surat-keluar', async (req, res) => {
     const client = await pool.connect();
@@ -493,14 +531,32 @@ export function daftarkanRuteAgenda(app, pool, queryDB, opts = {}) {
         surat_masuk_ref_id = null,
         file_draft_url = null,
         file_final_url = null,
-        status = 'Draf'
+        status = 'Draf',
+        nomor_surat: customNomorSurat
       } = req.body;
 
       if (!tujuan_surat || !perihal || !bidang_pengonsep) {
         return res.status(400).json({ ok: false, message: 'Tujuan surat, perihal, dan bidang pengonsep wajib diisi.' });
       }
 
+      const rawCustom = customNomorSurat ? String(customNomorSurat).trim() : '';
+
       await client.query('BEGIN');
+
+      // Validasi duplikasi jika custom nomor diinput
+      if (rawCustom) {
+        const dupCheck = await client.query(
+          `SELECT id, nomor_surat FROM agenda_surat_keluar WHERE LOWER(TRIM(nomor_surat)) = LOWER(TRIM($1)) LIMIT 1`,
+          [rawCustom]
+        );
+        if (dupCheck.rows.length > 0) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({
+            ok: false,
+            message: `Nomor surat "${rawCustom}" sudah digunakan oleh surat keluar lain.`
+          });
+        }
+      }
 
       // Kunci urutan tahun menggunakan lock tabel agar tidak ada nomor ganda saat paralel
       const urutRes = await client.query(
@@ -512,7 +568,7 @@ export function daftarkanRuteAgenda(app, pool, queryDB, opts = {}) {
       const nextUrut = urutRes.rows[0]?.next_urut || 1;
 
       const bulan = new Date(tanggal_surat).getMonth() + 1;
-      const nomor_surat = formatNomorSuratKeluar(kode_klasifikasi, nextUrut, bulan, tahun);
+      const nomor_surat = rawCustom || formatNomorSuratKeluar(kode_klasifikasi, nextUrut, bulan, tahun);
       const nomor_agenda = `${String(nextUrut).padStart(4, '0')}/SK/${tahun}`;
       const userCreator = req.session?.user?.nama || req.session?.user?.nip || 'Staf Bidang';
 
@@ -555,6 +611,20 @@ export function daftarkanRuteAgenda(app, pool, queryDB, opts = {}) {
         status
       } = req.body;
 
+      const rawCustom = nomor_surat ? String(nomor_surat).trim() : null;
+      if (rawCustom) {
+        const dupCheck = await queryDB(
+          `SELECT id, nomor_surat FROM agenda_surat_keluar WHERE LOWER(TRIM(nomor_surat)) = LOWER(TRIM($1)) AND id <> $2 LIMIT 1`,
+          [rawCustom, id]
+        );
+        if (dupCheck && dupCheck.length > 0) {
+          return res.status(400).json({
+            ok: false,
+            message: `Nomor surat "${rawCustom}" sudah digunakan oleh surat keluar lain.`
+          });
+        }
+      }
+
       const upRes = await queryDB(
         `UPDATE agenda_surat_keluar
          SET tujuan_surat = COALESCE($1, tujuan_surat),
@@ -571,7 +641,7 @@ export function daftarkanRuteAgenda(app, pool, queryDB, opts = {}) {
              updated_at = NOW()
          WHERE id = $12
          RETURNING *`,
-        [tujuan_surat, perihal, sifat, bidang_pengonsep, penandatangan, kode_klasifikasi, tanggal_surat, nomor_surat, file_draft_url, file_final_url, status, id]
+        [tujuan_surat, perihal, sifat, bidang_pengonsep, penandatangan, kode_klasifikasi, tanggal_surat, rawCustom, file_draft_url, file_final_url, status, id]
       );
 
       if (!upRes.length) return res.status(404).json({ ok: false, message: 'Surat keluar tidak ditemukan' });

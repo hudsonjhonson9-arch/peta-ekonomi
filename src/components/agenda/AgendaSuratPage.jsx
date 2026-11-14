@@ -531,6 +531,11 @@ export default function AgendaSuratPage({ user, showToast }) {
   // Modals
   const [modalMasuk, setModalMasuk] = useState(null); // { mode: 'tambah'|'edit', data }
   const [modalKeluar, setModalKeluar] = useState(null); // { mode: 'tambah'|'edit', data, previewNomor }
+  const [nomorKeluarCheck, setNomorKeluarCheck] = useState({ status: "idle", message: "", conflict: null });
+  const [uploadingDraft, setUploadingDraft] = useState(false);
+  const [uploadingFinal, setUploadingFinal] = useState(false);
+  const draftFileInputRef = useRef(null);
+  const finalFileInputRef = useRef(null);
   const [modalDisposisi, setModalDisposisi] = useState(null); // { surat, form, riwayat, mode, loading }
   const [modalDetail, setModalDetail] = useState(null); // { jenis: 'masuk'|'keluar', data }
   const [modalHapus, setModalHapus] = useState(null); // { jenis: 'masuk'|'keluar', data }
@@ -1068,14 +1073,105 @@ export default function AgendaSuratPage({ user, showToast }) {
     return `BAPPERIDA.011.7/53.12/..../${romawi}/${tahun}`;
   };
 
+  const cekKetersediaanNomorKeluar = async (nomorVal, excludeId = null) => {
+    const trimmed = String(nomorVal || "").trim();
+    if (!trimmed) {
+      setNomorKeluarCheck({ status: "idle", message: "", conflict: null });
+      return false;
+    }
+    setNomorKeluarCheck({ status: "checking", message: "Memeriksa ketersediaan nomor...", conflict: null });
+    try {
+      const exParam = excludeId ? `&exclude_id=${encodeURIComponent(excludeId)}` : "";
+      const res = await fetch(`/api/agenda/surat-keluar/cek-nomor?nomor=${encodeURIComponent(trimmed)}${exParam}`);
+      const data = await res.json();
+      if (data.ok) {
+        if (data.exists) {
+          setNomorKeluarCheck({
+            status: "taken",
+            message: `Nomor "${trimmed}" sudah digunakan (${data.conflict?.bidang_pengonsep || "Bidang lain"}: ${data.conflict?.perihal || data.conflict?.nomor_agenda || ""}).`,
+            conflict: data.conflict
+          });
+          return false;
+        } else {
+          setNomorKeluarCheck({
+            status: "available",
+            message: `Nomor "${trimmed}" tersedia dan belum pernah digunakan.`,
+            conflict: null
+          });
+          return true;
+        }
+      }
+    } catch (_) {}
+    setNomorKeluarCheck({ status: "idle", message: "", conflict: null });
+    return true;
+  };
+
+  useEffect(() => {
+    const no = modalKeluar?.data?.nomor_surat ?? modalKeluar?.previewNomor;
+    if (!no) {
+      setNomorKeluarCheck({ status: "idle", message: "", conflict: null });
+      return;
+    }
+    const timer = setTimeout(() => {
+      cekKetersediaanNomorKeluar(no, modalKeluar.mode === "edit" ? modalKeluar.data.id : null);
+    }, 320);
+    return () => clearTimeout(timer);
+  }, [modalKeluar?.data?.nomor_surat, modalKeluar?.previewNomor, modalKeluar?.mode, modalKeluar?.data?.id]);
+
+  const handleUploadBerkasKeluar = async (e, jenis) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (jenis === "draft") setUploadingDraft(true);
+    else setUploadingFinal(true);
+
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+
+      const res = await gasUpload({
+        action: "direct",
+        group: true,
+        file: dataUrl.split(",")[1],
+        filename: file.name,
+        mimeType: file.type || "application/pdf",
+        title: file.name.replace(/\.[^.]+$/i, "")
+      });
+
+      if (res && res.fileUrl) {
+        setModalKeluar((prev) => ({
+          ...prev,
+          data: {
+            ...prev.data,
+            [jenis === "draft" ? "file_draft_url" : "file_final_url"]: res.fileUrl
+          }
+        }));
+        notif(`Berkas "${file.name}" berhasil diunggah ke Google Drive!`);
+      } else {
+        throw new Error("Respon Google Drive tidak memiliki URL berkas.");
+      }
+    } catch (err) {
+      notif(`Gagal mengunggah berkas: ${err.message}`);
+    } finally {
+      if (jenis === "draft") setUploadingDraft(false);
+      else setUploadingFinal(false);
+      e.target.value = "";
+    }
+  };
+
   const bukaTambahSuratKeluar = async () => {
     const preview = await fetchPreviewNomorKeluar("050");
+    setNomorKeluarCheck({ status: "idle", message: "", conflict: null });
     setModalKeluar({
       mode: "tambah",
       previewNomor: preview,
       data: {
         kode_klasifikasi: "050",
         tanggal_surat: new Date().toISOString().split("T")[0],
+        nomor_surat: preview,
         tujuan_surat: "",
         perihal: "",
         sifat: "Biasa",
@@ -1089,6 +1185,7 @@ export default function AgendaSuratPage({ user, showToast }) {
   };
 
   const bukaEditSuratKeluar = (it) => {
+    setNomorKeluarCheck({ status: "idle", message: "", conflict: null });
     setModalKeluar({
       mode: "edit",
       previewNomor: it.nomor_surat,
@@ -1116,11 +1213,19 @@ export default function AgendaSuratPage({ user, showToast }) {
       notif("Tujuan surat, perihal, dan bidang pengonsep wajib diisi!");
       return;
     }
+    if (nomorKeluarCheck.status === "taken") {
+      notif(nomorKeluarCheck.message || "Nomor surat keluar sudah digunakan! Silakan ganti nomor terlebih dahulu.");
+      return;
+    }
     setSubmitting(true);
     try {
       const url = mode === "tambah" ? "/api/agenda/surat-keluar" : `/api/agenda/surat-keluar/${data.id}`;
       const method = mode === "tambah" ? "POST" : "PUT";
-      const payload = { ...data, tahun };
+      const payload = {
+        ...data,
+        nomor_surat: (data.nomor_surat || modalKeluar.previewNomor || "").trim(),
+        tahun
+      };
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -1826,9 +1931,55 @@ export default function AgendaSuratPage({ user, showToast }) {
                       </td>
                       <td style={{ padding: "11px 14px" }}>
                         <div style={{ color: T.text, lineHeight: 1.4, marginBottom: 4 }}>{it.perihal}</div>
-                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                           <span style={{ fontSize: 11, color: T.textSecondary, fontWeight: 600 }}>{it.bidang_pengonsep}</span>
                           <span style={{ fontSize: 11, color: T.textMuted }}>• TTD: {it.penandatangan || "Kepala Badan"}</span>
+                          {it.file_final_url && (
+                            <button
+                              type="button"
+                              onClick={() => lihatBerkas(it.file_final_url, `Surat Final: ${it.nomor_surat}`)}
+                              style={{
+                                padding: "2px 7px",
+                                borderRadius: 4,
+                                background: isDark ? "rgba(16,185,129,0.18)" : "#ECFDF5",
+                                border: `1px solid ${isDark ? "#059669" : "#A7F3D0"}`,
+                                color: T.success,
+                                fontSize: 10.5,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4
+                              }}
+                              title="Buka Berkas Surat Final (Signed PDF)"
+                            >
+                              <Icon name="fileText" size={11} />
+                              <span>Berkas Final</span>
+                            </button>
+                          )}
+                          {it.file_draft_url && !it.file_final_url && (
+                            <button
+                              type="button"
+                              onClick={() => lihatBerkas(it.file_draft_url, `Draf Surat: ${it.nomor_surat}`)}
+                              style={{
+                                padding: "2px 7px",
+                                borderRadius: 4,
+                                background: isDark ? "rgba(245,158,11,0.18)" : "#FFFBEB",
+                                border: `1px solid ${isDark ? "#D97706" : "#FDE68A"}`,
+                                color: T.warning,
+                                fontSize: 10.5,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4
+                              }}
+                              title="Buka Berkas Draf Surat"
+                            >
+                              <Icon name="file" size={11} />
+                              <span>Draf</span>
+                            </button>
+                          )}
                         </div>
                       </td>
                       <td style={{ padding: "11px 14px" }}>
@@ -2745,17 +2896,143 @@ export default function AgendaSuratPage({ user, showToast }) {
           maxWidth={620}
         >
           <form onSubmit={simpanSuratKeluar} style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-            {/* Live Number Preview */}
-            <div style={{ background: isDark ? "#172337" : "#EFF6FF", border: `1px solid ${isDark ? "#2563EB" : "#BFDBFE"}`, padding: "12px 16px", borderRadius: 8 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: T.primary }}>
-                {modalKeluar.mode === "tambah" ? "PRATINJAU NOMOR SURAT BERIKUTNYA" : "NOMOR SURAT DINAS"}
+            {/* Box Nomor Surat Keluar Custom & Cek Otomatis */}
+            <div
+              style={{
+                background: isDark ? "#172337" : "#EFF6FF",
+                border: `1.5px solid ${
+                  nomorKeluarCheck.status === "taken"
+                    ? T.danger
+                    : nomorKeluarCheck.status === "available"
+                    ? T.success
+                    : isDark ? "#2563EB" : "#BFDBFE"
+                }`,
+                padding: "12px 16px",
+                borderRadius: 8
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: T.primary, letterSpacing: "0.03em" }}>
+                  NOMOR REGISTER / SURAT (DAPAT DICUSTOM) *
+                </label>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const d = new Date(modalKeluar.data.tanggal_surat || Date.now());
+                    const bln = !isNaN(d.getTime()) ? d.getMonth() + 1 : (new Date().getMonth() + 1);
+                    const autoNo = await fetchPreviewNomorKeluar(modalKeluar.data.kode_klasifikasi, bln);
+                    setModalKeluar((prev) => ({
+                      ...prev,
+                      previewNomor: autoNo,
+                      data: {
+                        ...prev.data,
+                        nomor_surat: autoNo
+                      }
+                    }));
+                  }}
+                  style={{
+                    border: "none",
+                    background: "transparent",
+                    color: T.primary,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    padding: 0,
+                    textDecoration: "underline"
+                  }}
+                >
+                  Reset ke Nomor Otomatis
+                </button>
               </div>
-              <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "monospace", color: T.text, marginTop: 4, letterSpacing: "0.02em" }}>
-                {modalKeluar.previewNomor}
+
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input
+                  type="text"
+                  required
+                  placeholder="Mis. BAPPERIDA.011.7/53.12/0001/XI/2026 atau nomor custom..."
+                  value={modalKeluar.data.nomor_surat ?? modalKeluar.previewNomor ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setModalKeluar((prev) => ({
+                      ...prev,
+                      previewNomor: val,
+                      data: { ...prev.data, nomor_surat: val }
+                    }));
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "7px 10px",
+                    borderRadius: 6,
+                    border: `1.5px solid ${
+                      nomorKeluarCheck.status === "taken"
+                        ? T.danger
+                        : nomorKeluarCheck.status === "available"
+                        ? T.success
+                        : T.border
+                    }`,
+                    background: isDark ? "#1E293B" : "#FFFFFF",
+                    color: T.text,
+                    fontSize: 13.5,
+                    fontWeight: 800,
+                    fontFamily: "monospace",
+                    fontVariantNumeric: "tabular-nums"
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    cekKetersediaanNomorKeluar(
+                      modalKeluar.data.nomor_surat ?? modalKeluar.previewNomor,
+                      modalKeluar.mode === "edit" ? modalKeluar.data.id : null
+                    )
+                  }
+                  style={{
+                    padding: "7px 14px",
+                    borderRadius: 6,
+                    border: `1px solid ${T.border}`,
+                    background: isDark ? "#1E293B" : "#FFFFFF",
+                    color: T.text,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap"
+                  }}
+                >
+                  Cek Nomor
+                </button>
               </div>
-              <div style={{ fontSize: 11, color: T.textSecondary, marginTop: 4 }}>
-                Sistem mengunci urutan secara atomik di database untuk mencegah nomor ganda antar bidang.
-              </div>
+
+              {/* Indikator Status Cek Nomor Otomatis */}
+              {nomorKeluarCheck.status !== "idle" && (
+                <div
+                  style={{
+                    marginTop: 6,
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    color:
+                      nomorKeluarCheck.status === "taken"
+                        ? T.danger
+                        : nomorKeluarCheck.status === "available"
+                        ? T.success
+                        : T.textSecondary,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6
+                  }}
+                >
+                  <Icon
+                    name={
+                      nomorKeluarCheck.status === "taken"
+                        ? "alert"
+                        : nomorKeluarCheck.status === "available"
+                        ? "checkCircle"
+                        : "clock"
+                    }
+                    size={13}
+                  />
+                  <span>{nomorKeluarCheck.message}</span>
+                </div>
+              )}
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
@@ -2770,12 +3047,19 @@ export default function AgendaSuratPage({ user, showToast }) {
                   value={modalKeluar.data.kode_klasifikasi}
                   onChange={async (v) => {
                     const newKode = v;
-                    const prev = await fetchPreviewNomorKeluar(newKode);
-                    setModalKeluar({
-                      ...modalKeluar,
-                      previewNomor: modalKeluar.mode === "tambah" ? prev : modalKeluar.previewNomor,
-                      data: { ...modalKeluar.data, kode_klasifikasi: newKode }
-                    });
+                    const d = new Date(modalKeluar.data.tanggal_surat || Date.now());
+                    const bln = !isNaN(d.getTime()) ? d.getMonth() + 1 : (new Date().getMonth() + 1);
+                    const prev = await fetchPreviewNomorKeluar(newKode, bln);
+                    const isDefault = !modalKeluar.data.nomor_surat || modalKeluar.data.nomor_surat === modalKeluar.previewNomor;
+                    setModalKeluar((current) => ({
+                      ...current,
+                      previewNomor: modalKeluar.mode === "tambah" ? prev : current.previewNomor,
+                      data: {
+                        ...current.data,
+                        kode_klasifikasi: newKode,
+                        nomor_surat: (modalKeluar.mode === "tambah" && isDefault) ? prev : current.data.nomor_surat
+                      }
+                    }));
                   }}
                   options={KODE_KLASIFIKASI_LIST.map((k) => ({
                     value: k.kode,
@@ -2794,11 +3078,16 @@ export default function AgendaSuratPage({ user, showToast }) {
                     const d = new Date(newTgl);
                     const bln = !isNaN(d.getTime()) ? d.getMonth() + 1 : (new Date().getMonth() + 1);
                     const prev = await fetchPreviewNomorKeluar(modalKeluar.data.kode_klasifikasi, bln);
-                    setModalKeluar({
-                      ...modalKeluar,
-                      previewNomor: modalKeluar.mode === "tambah" ? prev : modalKeluar.previewNomor,
-                      data: { ...modalKeluar.data, tanggal_surat: newTgl }
-                    });
+                    const isDefault = !modalKeluar.data.nomor_surat || modalKeluar.data.nomor_surat === modalKeluar.previewNomor;
+                    setModalKeluar((current) => ({
+                      ...current,
+                      previewNomor: modalKeluar.mode === "tambah" ? prev : current.previewNomor,
+                      data: {
+                        ...current.data,
+                        tanggal_surat: newTgl,
+                        nomor_surat: (modalKeluar.mode === "tambah" && isDefault) ? prev : current.data.nomor_surat
+                      }
+                    }));
                   }}
                   placeholder="Pilih tanggal surat..."
                 />
@@ -2901,29 +3190,115 @@ export default function AgendaSuratPage({ user, showToast }) {
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
-                  Tautan Draf Surat (Docs/Drive)
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://docs.google.com/..."
-                  value={modalKeluar.data.file_draft_url}
-                  onChange={(e) => setModalKeluar({ ...modalKeluar, data: { ...modalKeluar.data, file_draft_url: e.target.value } })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
-                />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary }}>
+                    Tautan Draf Surat (Docs/Drive)
+                  </label>
+                  {modalKeluar.data.file_draft_url && (
+                    <button
+                      type="button"
+                      onClick={() => lihatBerkas(modalKeluar.data.file_draft_url, "Draf Surat")}
+                      style={{ border: "none", background: "transparent", color: T.primary, fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0, textDecoration: "underline" }}
+                    >
+                      Buka Tautan
+                    </button>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input
+                    type="url"
+                    placeholder="https://docs.google.com/... atau unggah"
+                    value={modalKeluar.data.file_draft_url}
+                    onChange={(e) => setModalKeluar({ ...modalKeluar, data: { ...modalKeluar.data, file_draft_url: e.target.value } })}
+                    style={{ flex: 1, minWidth: 0, padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
+                  />
+                  <input
+                    type="file"
+                    ref={draftFileInputRef}
+                    style={{ display: "none" }}
+                    accept=".pdf,.doc,.docx,.odt,.rtf"
+                    onChange={(e) => handleUploadBerkasKeluar(e, "draft")}
+                  />
+                  <button
+                    type="button"
+                    disabled={uploadingDraft}
+                    onClick={() => draftFileInputRef.current?.click()}
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      border: `1px solid ${T.border}`,
+                      background: isDark ? "#1E293B" : "#F8FAFC",
+                      color: T.text,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: uploadingDraft ? "not-allowed" : "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      whiteSpace: "nowrap"
+                    }}
+                    title="Unggah berkas draf dari komputer"
+                  >
+                    <Icon name="upload" size={13} />
+                    <span>{uploadingDraft ? "Mengunggah..." : "Unggah"}</span>
+                  </button>
+                </div>
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>
-                  Tautan Surat Final (Signed PDF)
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://drive.google.com/.../pdf"
-                  value={modalKeluar.data.file_final_url}
-                  onChange={(e) => setModalKeluar({ ...modalKeluar, data: { ...modalKeluar.data, file_final_url: e.target.value } })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
-                />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary }}>
+                    Tautan Surat Final (Signed PDF)
+                  </label>
+                  {modalKeluar.data.file_final_url && (
+                    <button
+                      type="button"
+                      onClick={() => lihatBerkas(modalKeluar.data.file_final_url, "Surat Final")}
+                      style={{ border: "none", background: "transparent", color: T.primary, fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0, textDecoration: "underline" }}
+                    >
+                      Buka Tautan
+                    </button>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input
+                    type="url"
+                    placeholder="https://drive.google.com/.../pdf atau unggah"
+                    value={modalKeluar.data.file_final_url}
+                    onChange={(e) => setModalKeluar({ ...modalKeluar, data: { ...modalKeluar.data, file_final_url: e.target.value } })}
+                    style={{ flex: 1, minWidth: 0, padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.inputBg || T.bg, color: T.text, fontSize: 13 }}
+                  />
+                  <input
+                    type="file"
+                    ref={finalFileInputRef}
+                    style={{ display: "none" }}
+                    accept=".pdf,.doc,.docx"
+                    onChange={(e) => handleUploadBerkasKeluar(e, "final")}
+                  />
+                  <button
+                    type="button"
+                    disabled={uploadingFinal}
+                    onClick={() => finalFileInputRef.current?.click()}
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      border: `1px solid ${T.border}`,
+                      background: isDark ? "#1E293B" : "#F8FAFC",
+                      color: T.text,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: uploadingFinal ? "not-allowed" : "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      whiteSpace: "nowrap"
+                    }}
+                    title="Unggah berkas final bertanda tangan dari komputer"
+                  >
+                    <Icon name="upload" size={13} />
+                    <span>{uploadingFinal ? "Mengunggah..." : "Unggah"}</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -2937,8 +3312,8 @@ export default function AgendaSuratPage({ user, showToast }) {
               </button>
               <button
                 type="submit"
-                disabled={submitting}
-                style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: T.primary, color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, opacity: submitting ? 0.7 : 1 }}
+                disabled={submitting || uploadingDraft || uploadingFinal}
+                style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: T.primary, color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, opacity: (submitting || uploadingDraft || uploadingFinal) ? 0.7 : 1 }}
               >
                 {submitting ? "Memproses..." : (modalKeluar.mode === "tambah" ? "Booking Nomor Resmi" : "Simpan Perubahan")}
               </button>
