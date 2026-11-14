@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { ThemeContext } from "../App.jsx";
-import { Icon, Select, DateRangePicker } from "./ui.jsx";
+import { Icon, Select, MultiSelect, DateRangePicker } from "./ui.jsx";
 import UploadForm from "./UploadForm.jsx";
 
 const DOKUMEN_OPTIONS = [
@@ -106,26 +106,39 @@ export default function PerencanaanProgresPage({
         bidang: u.bidang || "",
       }))
       .filter((o) => o.value);
-    const cur = modal?.data?.pic_nama;
-    if (cur && !list.some((o) => o.value === cur)) {
-      list.unshift({ value: cur, label: cur, bidang: "" });
+    const curPICS = (modal?.data?.pic_nama || "").split(/,\s*/).map((s) => s.trim()).filter(Boolean);
+    for (const cur of curPICS) {
+      if (cur && !list.some((o) => o.value.toLowerCase() === cur.toLowerCase())) {
+        list.unshift({ value: cur, label: cur, bidang: "" });
+      }
     }
     return list;
   }, [users, modal?.data?.pic_nama]);
 
   const bidangOptions = useMemo(() => {
-    const seen = new Set(["Semua Bidang"]);
-    const list = [{ value: "Semua Bidang", label: "Semua Bidang" }];
-    for (const b of Array.isArray(bidangs) ? bidangs : []) {
+    const defaultBidang = [
+      "Bidang Perencanaan, Pengendalian dan Evaluasi Pembangunan Daerah",
+      "Bidang Perekonomian, Sumber Daya Alam, Infrastruktur dan Kewilayahan",
+      "Bidang Pemerintahan dan Pembangunan Manusia",
+      "Bidang Riset dan Inovasi Daerah",
+      "Sekretariat",
+    ];
+    const seen = new Set(["semua bidang"]);
+    const list = [];
+    const sourceList = Array.isArray(bidangs) && bidangs.length > 0 ? bidangs : defaultBidang;
+    for (const b of sourceList) {
       const val = typeof b === "string" ? b : (b?.nama || b?.name || b?.label || "");
-      if (val && !seen.has(val)) {
-        seen.add(val);
+      if (val && !seen.has(val.toLowerCase())) {
+        seen.add(val.toLowerCase());
         list.push({ value: val, label: val });
       }
     }
-    const cur = modal?.data?.pic_bidang;
-    if (cur && !seen.has(cur)) {
-      list.push({ value: cur, label: cur });
+    const curBidangs = (modal?.data?.pic_bidang || "").split(/,\s*/).map((s) => s.trim()).filter(Boolean);
+    for (const cur of curBidangs) {
+      if (cur && !seen.has(cur.toLowerCase())) {
+        seen.add(cur.toLowerCase());
+        list.push({ value: cur, label: cur });
+      }
     }
     return list;
   }, [bidangs, modal?.data?.pic_bidang]);
@@ -525,15 +538,48 @@ export default function PerencanaanProgresPage({
                         {it.dasar_pasal} • <span style={{ fontVariantNumeric: "tabular-nums" }}>{toYMD(it.tgl_mulai)} s.d. {toYMD(it.tgl_selesai)}</span>
                       </div>
                     </td>
-                    <td style={{ position: "sticky", left: 290, zIndex: 2, background: stickyBg, padding: "10px 8px", color: T.textSecondary, verticalAlign: "middle", borderRight: `1px solid ${T.border}` }}>
-                      {it.pic_nama ? (
-                        <>
-                          <div style={{ fontWeight: 500, color: T.text }}>{it.pic_nama}</div>
-                          {it.pic_bidang && <div style={{ fontSize: 11, color: T.textMuted }}>{it.pic_bidang}</div>}
-                        </>
-                      ) : (
-                        <div style={{ fontWeight: 500, color: T.text }}>{it.pic_bidang || "—"}</div>
-                      )}
+                    <td style={{ position: "sticky", left: 290, zIndex: 2, background: stickyBg, padding: "8px", verticalAlign: "middle", borderRight: `1px solid ${T.border}`, width: 130 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        {it.pic_nama ? (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
+                            {it.pic_nama.split(/,\s*/).filter(Boolean).map((p, idx) => (
+                              <span key={idx} style={{
+                                fontSize: 11,
+                                fontWeight: 600,
+                                color: isDark ? "#93C5FD" : "#1D4ED8",
+                                background: isDark ? "rgba(37,99,235,0.18)" : "#EFF6FF",
+                                border: `1px solid ${isDark ? "rgba(59,130,246,0.3)" : "#BFDBFE"}`,
+                                padding: "1px 5px",
+                                borderRadius: 4,
+                                lineHeight: 1.25,
+                                maxWidth: "100%",
+                                wordBreak: "break-word",
+                              }}>
+                                {p}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                        {it.pic_bidang ? (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
+                            {it.pic_bidang.split(/,\s*/).filter(Boolean).map((b, idx) => (
+                              <span key={idx} style={{
+                                fontSize: 10,
+                                color: isDark ? "#CBD5E1" : "#475569",
+                                background: isDark ? "rgba(255,255,255,0.06)" : "#F1F5F9",
+                                border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "#E2E8F0"}`,
+                                padding: "1px 4px",
+                                borderRadius: 3,
+                                lineHeight: 1.2,
+                                maxWidth: "100%",
+                                wordBreak: "break-word",
+                              }}>
+                                {b}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (!it.pic_nama ? <span style={{ color: T.textMuted, fontSize: 11 }}>—</span> : null)}
+                      </div>
                     </td>
                     <td style={{ position: "sticky", left: 420, zIndex: 2, background: stickyBg, padding: "10px 8px", verticalAlign: "middle", borderRight: `1px solid ${T.border}` }}>
                       <span style={{ display: "inline-block", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, color: meta.color, background: meta.bg, whiteSpace: "nowrap" }}>
@@ -648,9 +694,30 @@ export default function PerencanaanProgresPage({
                           <div style={{ width: `${pct}%`, height: "100%", background: col.color }} />
                         </div>
 
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 2, fontSize: 11, color: T.textSecondary }}>
-                          <span>{it.pic_bidang || it.pic_nama || "—"}</span>
-                          <span style={{ fontVariantNumeric: "tabular-nums" }}>{toYMD(it.tgl_selesai)}</span>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 4 }}>
+                          {it.pic_nama && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                              {it.pic_nama.split(/,\s*/).filter(Boolean).map((p, idx) => (
+                                <span key={idx} style={{
+                                  fontSize: 10.5,
+                                  fontWeight: 600,
+                                  color: isDark ? "#93C5FD" : "#1D4ED8",
+                                  background: isDark ? "rgba(37,99,235,0.16)" : "#EFF6FF",
+                                  border: `1px solid ${isDark ? "rgba(59,130,246,0.3)" : "#BFDBFE"}`,
+                                  padding: "1px 5px",
+                                  borderRadius: 4,
+                                }}>
+                                  {p}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: T.textSecondary }}>
+                            <span style={{ fontSize: 10.5, color: T.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160 }} title={it.pic_bidang}>
+                              {it.pic_bidang || "—"}
+                            </span>
+                            <span style={{ fontVariantNumeric: "tabular-nums" }}>{toYMD(it.tgl_selesai)}</span>
+                          </div>
                         </div>
 
                         <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, marginTop: 2 }} onClick={(e) => e.stopPropagation()}>
@@ -685,99 +752,182 @@ export default function PerencanaanProgresPage({
         </div>
       )}
 
-      {/* Modal Tambah / Edit Tahapan */}
+      {/* Modal Tambah / Edit Tahapan (UI/UX Pro Max Anti-Slop) */}
       {modal && (
         <div
           onClick={() => setModal(null)}
-          style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 900, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.6)",
+            backdropFilter: "blur(4px)",
+            zIndex: 900,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
         >
           <form
             onClick={(e) => e.stopPropagation()}
             onSubmit={saveModal}
-            style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 12, width: "100%", maxWidth: 620, maxHeight: "90vh", overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 12 }}
+            style={{
+              background: cardBg,
+              border: `1px solid ${T.border}`,
+              borderRadius: 14,
+              width: "100%",
+              maxWidth: 640,
+              maxHeight: "92vh",
+              overflowY: "auto",
+              padding: 22,
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.08)",
+            }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: T.text }}>
-                {modal.mode === "edit" ? "Perbarui Progres Tahapan" : "Tambah Tahapan Perencanaan"}
-              </h2>
-              <button type="button" onClick={() => setModal(null)} style={{ background: "none", border: "none", color: T.textSecondary, cursor: "pointer" }}>
-                <Icon name="x" size={18} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 10, borderBottom: `1px solid ${T.border}` }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: T.text, letterSpacing: "-0.01em" }}>
+                  {modal.mode === "edit" ? "Perbarui Progres Tahapan" : "Tambah Tahapan Perencanaan"}
+                </h2>
+                <p style={{ margin: "2px 0 0", fontSize: 12, color: T.textSecondary }}>
+                  {modal.data.dokumen_jenis} Tahun {modal.data.tahun}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModal(null)}
+                style={{
+                  background: "transparent",
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 8,
+                  width: 32,
+                  height: 32,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: T.textSecondary,
+                  cursor: "pointer",
+                }}
+              >
+                <Icon name="x" size={16} />
               </button>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "130px 1fr", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "130px 1fr", gap: 12 }}>
               <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Kode Tahap</label>
-                <input type="text" value={modal.data.tahap_kode || ""} onChange={(e) => setModal({ ...modal, data: { ...modal.data, tahap_kode: e.target.value } })} style={inputStyle} />
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 5 }}>Kode Tahap</label>
+                <input
+                  type="text"
+                  value={modal.data.tahap_kode || ""}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, tahap_kode: e.target.value } })}
+                  style={{ ...inputStyle, fontFamily: "monospace", fontWeight: 600 }}
+                />
               </div>
               <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Nama Tahapan *</label>
-                <input type="text" required value={modal.data.nama_tahapan || ""} onChange={(e) => setModal({ ...modal, data: { ...modal.data, nama_tahapan: e.target.value } })} style={inputStyle} />
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Dasar Pasal (Permendagri 86/2017)</label>
-                <input type="text" value={modal.data.dasar_pasal || ""} onChange={(e) => setModal({ ...modal, data: { ...modal.data, dasar_pasal: e.target.value } })} style={inputStyle} />
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Target Keluaran / Output</label>
-                <input type="text" value={modal.data.target_keluaran || ""} onChange={(e) => setModal({ ...modal, data: { ...modal.data, target_keluaran: e.target.value } })} style={inputStyle} />
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Tanggal Mulai *</label>
-                <input type="date" required value={modal.data.tgl_mulai || ""} onChange={(e) => setModal({ ...modal, data: { ...modal.data, tgl_mulai: e.target.value } })} style={inputStyle} />
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Tanggal Selesai *</label>
-                <input type="date" required value={modal.data.tgl_selesai || ""} onChange={(e) => setModal({ ...modal, data: { ...modal.data, tgl_selesai: e.target.value } })} style={inputStyle} />
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 5 }}>Nama Tahapan *</label>
+                <input
+                  type="text"
+                  required
+                  value={modal.data.nama_tahapan || ""}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, nama_tahapan: e.target.value } })}
+                  style={inputStyle}
+                  placeholder="Nama tahapan perencanaan..."
+                />
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Penanggung Jawab (PIC)</label>
-                <Select
-                  fullWidth
-                  searchable
-                  size="md"
-                  placeholder="— Pilih Pegawai / PIC —"
-                  value={modal.data.pic_nama || ""}
-                  onChange={(val) => {
-                    const matched = userOptions.find((u) => u.value === val);
-                    setModal({
-                      ...modal,
-                      data: {
-                        ...modal.data,
-                        pic_nama: val,
-                        ...(matched?.bidang ? { pic_bidang: matched.bidang } : {}),
-                      },
-                    });
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 5 }}>Dasar Pasal (Permendagri 86/2017)</label>
+                <input
+                  type="text"
+                  value={modal.data.dasar_pasal || ""}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, dasar_pasal: e.target.value } })}
+                  style={inputStyle}
+                  placeholder="Mis. Permendagri 86/2017 Pasal 73-76"
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 5 }}>Target Keluaran / Output</label>
+                <input
+                  type="text"
+                  value={modal.data.target_keluaran || ""}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, target_keluaran: e.target.value } })}
+                  style={inputStyle}
+                  placeholder="Mis. SK Tim Penyusun RKPD"
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 5 }}>Tanggal Mulai *</label>
+                <input
+                  type="date"
+                  required
+                  value={modal.data.tgl_mulai || ""}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, tgl_mulai: e.target.value } })}
+                  style={{ ...inputStyle, fontVariantNumeric: "tabular-nums" }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 5 }}>Tanggal Selesai *</label>
+                <input
+                  type="date"
+                  required
+                  value={modal.data.tgl_selesai || ""}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, tgl_selesai: e.target.value } })}
+                  style={{ ...inputStyle, fontVariantNumeric: "tabular-nums" }}
+                />
+              </div>
+            </div>
+
+            {/* Penanggung Jawab (PIC) & Bidang - MultiSelect (Bisa Lebih dari 1) */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 5 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: T.textSecondary }}>Penanggung Jawab (PIC)</label>
+                  <span style={{ fontSize: 11, color: T.textMuted }}>Bisa &gt; 1</span>
+                </div>
+                <MultiSelect
+                  values={modal.data.pic_nama}
+                  onChange={(nextArr) => setModal({ ...modal, data: { ...modal.data, pic_nama: nextArr.join(", ") } })}
+                  onItemAdd={(val, opt) => {
+                    if (opt?.bidang) {
+                      const curBid = (modal.data.pic_bidang || "").split(/,\s*/).map((s) => s.trim()).filter(Boolean);
+                      if (!curBid.some((b) => b.toLowerCase() === opt.bidang.toLowerCase())) {
+                        setModal((prev) => ({
+                          ...prev,
+                          data: { ...prev.data, pic_bidang: [...curBid, opt.bidang].join(", ") },
+                        }));
+                      }
+                    }
                   }}
                   options={userOptions}
+                  placeholder="Pilih atau ketik nama PIC..."
+                  badgeVariant="primary"
                 />
               </div>
               <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Bidang</label>
-                <Select
-                  fullWidth
-                  searchable
-                  size="md"
-                  placeholder="— Pilih Bidang —"
-                  value={modal.data.pic_bidang || ""}
-                  onChange={(val) => setModal({ ...modal, data: { ...modal.data, pic_bidang: val } })}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 5 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: T.textSecondary }}>Bidang Penanggung Jawab</label>
+                  <span style={{ fontSize: 11, color: T.textMuted }}>Bisa &gt; 1</span>
+                </div>
+                <MultiSelect
+                  values={modal.data.pic_bidang}
+                  onChange={(nextArr) => setModal({ ...modal, data: { ...modal.data, pic_bidang: nextArr.join(", ") } })}
                   options={bidangOptions}
+                  placeholder="Pilih atau ketik bidang..."
+                  badgeVariant="neutral"
                 />
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Status</label>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 5 }}>Status</label>
                 <Select
                   fullWidth
                   searchable={false}
@@ -791,7 +941,7 @@ export default function PerencanaanProgresPage({
                 />
               </div>
               <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 5 }}>
                   Progres (%)
                 </label>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -807,8 +957,8 @@ export default function PerencanaanProgresPage({
                             setModal({ ...modal, data: { ...modal.data, progres_persen: v, status: nextStatus } });
                           }}
                           style={{
-                            height: 34,
-                            padding: "0 8px",
+                            height: 36,
+                            padding: "0 9px",
                             border: "none",
                             borderRight: v !== 100 ? `1px solid ${T.border}` : "none",
                             background: active ? T.primary : "transparent",
@@ -843,14 +993,14 @@ export default function PerencanaanProgresPage({
             </div>
 
             <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Dokumen Bukti (Upload ke Arsip / Google Drive)</label>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 5 }}>Dokumen Bukti (Upload ke Arsip / Google Drive)</label>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <button
                   type="button"
                   onClick={() => setShowUpload(true)}
                   style={{
                     height: 36,
-                    padding: "0 12px",
+                    padding: "0 14px",
                     borderRadius: 8,
                     border: `1px solid ${T.border}`,
                     background: isDark ? "rgba(255,255,255,0.04)" : "#F8FAFC",
@@ -866,7 +1016,7 @@ export default function PerencanaanProgresPage({
                   <Icon name="upload" size={14} /> {modal.data.dokumen_url ? "Ganti Dokumen" : "Unggah Dokumen"}
                 </button>
                 {modal.data.dokumen_url ? (
-                  <div style={{ flex: 1, minWidth: 180, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: isDark ? "rgba(16,185,129,0.08)" : "#ECFDF5" }}>
+                  <div style={{ flex: 1, minWidth: 180, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: isDark ? "rgba(16,185,129,0.08)" : "#ECFDF5" }}>
                     <a
                       href={modal.data.dokumen_url}
                       target="_blank"
@@ -891,40 +1041,72 @@ export default function PerencanaanProgresPage({
             </div>
 
             <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Catatan / Kendala</label>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 5 }}>Catatan / Kendala</label>
               <textarea
                 rows={2}
                 value={modal.data.catatan || ""}
                 onChange={(e) => setModal({ ...modal, data: { ...modal.data, catatan: e.target.value } })}
                 style={{ ...inputStyle, height: "auto", padding: "8px 10px" }}
+                placeholder="Catatan pelaksanaan atau kendala..."
               />
             </div>
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
               {modal.mode === "edit" ? (
                 <button
                   type="button"
                   onClick={() => deleteItem(modal.data.id)}
-                  style={{ height: 34, padding: "0 12px", borderRadius: 8, border: "none", background: "rgba(239,68,68,0.12)", color: "#DC2626", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
+                  style={{
+                    height: 36,
+                    padding: "0 14px",
+                    borderRadius: 8,
+                    border: "1px solid rgba(239,68,68,0.25)",
+                    background: isDark ? "rgba(239,68,68,0.15)" : "rgba(239,68,68,0.08)",
+                    color: "#DC2626",
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
                 >
-                  Hapus
+                  Hapus Tahapan
                 </button>
               ) : <div />}
 
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 10 }}>
                 <button
                   type="button"
                   onClick={() => setModal(null)}
-                  style={{ height: 34, padding: "0 14px", borderRadius: 8, border: `1px solid ${T.border}`, background: cardBg, color: T.text, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                  style={{
+                    height: 36,
+                    padding: "0 16px",
+                    borderRadius: 8,
+                    border: `1px solid ${T.border}`,
+                    background: cardBg,
+                    color: T.text,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  style={{ height: 34, padding: "0 16px", borderRadius: 8, border: "none", background: T.primary, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                  style={{
+                    height: 36,
+                    padding: "0 20px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: T.primary,
+                    color: "#fff",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: saving ? "not-allowed" : "pointer",
+                    opacity: saving ? 0.7 : 1,
+                  }}
                 >
-                  {saving ? "Menyimpan..." : "Simpan"}
+                  {saving ? "Menyimpan..." : "Simpan Perubahan"}
                 </button>
               </div>
             </div>

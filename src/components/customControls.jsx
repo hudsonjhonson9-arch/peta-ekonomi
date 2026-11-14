@@ -386,6 +386,411 @@ function OptionRow({ o, on, isHover, onSelect, onHover, T, fSize }) {
   );
 }
 
+// ── Custom MultiSelect (UI/UX Pro Max Anti-Slop) ────────────────────────────
+// Dropdown multi-pilih dengan chip/badge interaktif:
+// - Mendukung memilih lebih dari 1 opsi (mis. Penanggung Jawab / PIC, Bidang)
+// - Chip interaktif dengan tombol hapus (×)
+// - Input inline untuk pencarian real-time dan penambahan teks bebas (custom value)
+// - Dropdown panel dengan createPortal (position: fixed) agar tidak terpotong modal
+// - Navigasi keyboard (ArrowDown, ArrowUp, Enter, Backspace untuk hapus chip terakhir)
+// - Otomatis menyembunyikan opsi yang sudah dipilih dari dropdown
+export function MultiSelect({
+  values = [],
+  onChange,
+  options = [],
+  placeholder = "+ Tambah...",
+  disabled = false,
+  error = false,
+  fullWidth = true,
+  allowCustom = true,
+  onItemAdd,
+  badgeVariant = "primary", // "primary" | "secondary" | "neutral"
+  style,
+}) {
+  const { T, isDark } = useContext(ThemeContext);
+  const [buka, setBuka] = useState(false);
+  const [cari, setCari] = useState("");
+  const [sorot, setSorot] = useState(0);
+  const [rect, setRect] = useState(null);
+  const boxRef = useRef(null);
+  const inputRef = useRef(null);
+  const panelRef = useRef(null);
+
+  // Normalisasi values: bisa berupa array string atau string berkoma ("A, B")
+  const currentValues = useMemo(() => {
+    if (Array.isArray(values)) return values.map(v => String(v || "").trim()).filter(Boolean);
+    if (typeof values === "string" && values.trim()) {
+      return values.split(/,\s*/).map(v => v.trim()).filter(Boolean);
+    }
+    return [];
+  }, [values]);
+
+  // Normalisasi opsi
+  const flatOptions = useMemo(() => {
+    const list = [];
+    for (const item of options) {
+      if (!item) continue;
+      if (typeof item === "object") {
+        const val = item.value ?? item.nama ?? item.name ?? "";
+        const lbl = item.label ?? item.nama ?? item.name ?? val;
+        list.push({ value: String(val), label: String(lbl), sub: item.sub || item.bidang || "", raw: item });
+      } else {
+        list.push({ value: String(item), label: String(item), sub: "", raw: item });
+      }
+    }
+    return list;
+  }, [options]);
+
+  // Saring opsi yang BELUM terpilih dan cocok dengan ketikan pencarian
+  const tersaring = useMemo(() => {
+    const selectedSet = new Set(currentValues.map(v => v.toLowerCase()));
+    const unselected = flatOptions.filter(o => !selectedSet.has(o.value.toLowerCase()));
+    const q = cari.trim().toLowerCase();
+    if (!q) return unselected;
+    return unselected.filter(o =>
+      o.label.toLowerCase().includes(q) ||
+      o.value.toLowerCase().includes(q) ||
+      (o.sub && o.sub.toLowerCase().includes(q))
+    );
+  }, [flatOptions, currentValues, cari]);
+
+  const queryAdaDiOpsi = useMemo(() => {
+    const q = cari.trim().toLowerCase();
+    if (!q) return true;
+    return flatOptions.some(o => o.value.toLowerCase() === q || o.label.toLowerCase() === q);
+  }, [flatOptions, cari]);
+
+  const canAddCustom = allowCustom && cari.trim() && !currentValues.some(v => v.toLowerCase() === cari.trim().toLowerCase());
+
+  useEffect(() => {
+    if (!buka) {
+      setRect(null);
+      return;
+    }
+    const hitung = () => {
+      if (!boxRef.current) return;
+      const r = boxRef.current.getBoundingClientRect();
+      setRect({ top: r.bottom, bottom: r.top, left: r.left, width: Math.max(r.width, 240) });
+    };
+    hitung();
+
+    const tutupKlik = (e) => {
+      if (boxRef.current?.contains(e.target) || panelRef.current?.contains(e.target)) return;
+      setBuka(false);
+    };
+    window.addEventListener("scroll", hitung, true);
+    window.addEventListener("resize", hitung);
+    document.addEventListener("mousedown", tutupKlik);
+    return () => {
+      window.removeEventListener("scroll", hitung, true);
+      window.removeEventListener("resize", hitung);
+      document.removeEventListener("mousedown", tutupKlik);
+    };
+  }, [buka]);
+
+  const tambahItem = (val, optObj) => {
+    const clean = String(val || "").trim();
+    if (!clean) return;
+    if (currentValues.some(v => v.toLowerCase() === clean.toLowerCase())) {
+      setCari("");
+      return;
+    }
+    const next = [...currentValues, clean];
+    onChange?.(next);
+    onItemAdd?.(clean, optObj);
+    setCari("");
+    setSorot(0);
+    inputRef.current?.focus();
+  };
+
+  const hapusItem = (valToRemove) => {
+    const next = currentValues.filter(v => v !== valToRemove);
+    onChange?.(next);
+    inputRef.current?.focus();
+  };
+
+  const onKeyDown = (e) => {
+    if (disabled) return;
+    if (e.key === "Backspace" && !cari && currentValues.length > 0) {
+      hapusItem(currentValues[currentValues.length - 1]);
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (!buka) setBuka(true);
+      else {
+        const total = tersaring.length + (canAddCustom && !queryAdaDiOpsi ? 1 : 0);
+        setSorot(s => Math.min(s + 1, Math.max(total - 1, 0)));
+      }
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!buka) setBuka(true);
+      else setSorot(s => Math.max(s - 1, 0));
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (!buka) {
+        if (canAddCustom) tambahItem(cari.trim());
+        else setBuka(true);
+        return;
+      }
+      if (tersaring.length > 0 && sorot < tersaring.length) {
+        const opt = tersaring[sorot];
+        tambahItem(opt.value, opt.raw);
+      } else if (canAddCustom) {
+        tambahItem(cari.trim());
+      }
+      return;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setBuka(false);
+    }
+  };
+
+  const getBadgeStyle = () => {
+    if (badgeVariant === "primary") {
+      return {
+        bg: isDark ? "rgba(37,99,235,0.2)" : "#EFF6FF",
+        border: isDark ? "rgba(59,130,246,0.4)" : "#BFDBFE",
+        color: isDark ? "#93C5FD" : "#1D4ED8",
+      };
+    }
+    if (badgeVariant === "secondary") {
+      return {
+        bg: isDark ? "rgba(16,185,129,0.2)" : "#ECFDF5",
+        border: isDark ? "rgba(16,185,129,0.4)" : "#A7F3D0",
+        color: isDark ? "#6EE7B7" : "#047857",
+      };
+    }
+    return {
+      bg: isDark ? "rgba(255,255,255,0.06)" : "#F1F5F9",
+      border: isDark ? "rgba(255,255,255,0.15)" : "#CBD5E1",
+      color: isDark ? "#E2E8F0" : "#334155",
+    };
+  };
+
+  const badgeTheme = getBadgeStyle();
+  const keAtas = rect ? window.innerHeight - rect.top < 240 && rect.bottom > 240 : false;
+
+  return (
+    <div
+      ref={boxRef}
+      onClick={() => {
+        if (!disabled) {
+          setBuka(true);
+          inputRef.current?.focus();
+        }
+      }}
+      style={{
+        position: "relative",
+        width: fullWidth ? "100%" : "auto",
+        minHeight: 38,
+        padding: "4px 8px",
+        borderRadius: 8,
+        border: `1.5px solid ${error ? T.danger : buka ? T.primary : (T.inputBorder || T.border)}`,
+        background: disabled ? T.surfaceHover : T.inputBg,
+        boxShadow: buka ? T.focusRing : "none",
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        gap: 5,
+        cursor: disabled ? "not-allowed" : "text",
+        transition: "border-color 0.15s ease, box-shadow 0.15s ease",
+        boxSizing: "border-box",
+        ...style,
+      }}
+    >
+      {currentValues.map((val) => (
+        <span
+          key={val}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            padding: "2.5px 7px",
+            borderRadius: 6,
+            background: badgeTheme.bg,
+            border: `1px solid ${badgeTheme.border}`,
+            color: badgeTheme.color,
+            fontSize: 12,
+            fontWeight: 500,
+            lineHeight: 1.25,
+            maxWidth: "100%",
+            wordBreak: "break-word",
+          }}
+        >
+          <span>{val}</span>
+          {!disabled && (
+            <button
+              type="button"
+              aria-label={`Hapus ${val}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                hapusItem(val);
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                padding: 1,
+                color: "inherit",
+                opacity: 0.7,
+                borderRadius: 4,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.7")}
+            >
+              <Icon name="x" size={11} />
+            </button>
+          )}
+        </span>
+      ))}
+
+      {!disabled && (
+        <input
+          ref={inputRef}
+          type="text"
+          value={cari}
+          onChange={(e) => {
+            setCari(e.target.value);
+            setSorot(0);
+            if (!buka) setBuka(true);
+          }}
+          onFocus={() => setBuka(true)}
+          onKeyDown={onKeyDown}
+          placeholder={currentValues.length === 0 ? placeholder : "+ Tambah lagi..."}
+          style={{
+            flex: 1,
+            minWidth: 120,
+            height: 26,
+            border: "none",
+            outline: "none",
+            background: "transparent",
+            color: T.text,
+            fontSize: 12.5,
+            padding: "0 2px",
+            fontFamily: "inherit",
+          }}
+        />
+      )}
+
+      {buka && rect && typeof document !== "undefined" && createPortal(
+        <div
+          ref={panelRef}
+          role="listbox"
+          style={{
+            position: "fixed",
+            top: keAtas ? undefined : rect.top + 5,
+            bottom: keAtas ? window.innerHeight - rect.bottom + 5 : undefined,
+            left: Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 12)),
+            width: rect.width,
+            zIndex: 99999,
+            background: T.card,
+            border: `1px solid ${T.border}`,
+            borderRadius: 10,
+            boxShadow: T.shadowLg || "0 12px 32px rgba(15,23,42,0.18)",
+            padding: 4,
+            maxHeight: 250,
+            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+            animation: "fadeIn 0.12s ease",
+          }}
+        >
+          {tersaring.map((o, idx) => {
+            const isHover = idx === sorot;
+            return (
+              <button
+                key={`${o.value}-${idx}`}
+                type="button"
+                role="option"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  tambahItem(o.value, o.raw);
+                }}
+                onMouseEnter={() => setSorot(idx)}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  fontFamily: T.font || "inherit",
+                  fontSize: 12.5,
+                  padding: "7px 10px",
+                  border: "none",
+                  borderRadius: 6,
+                  background: isHover ? (T.primaryLight || "rgba(37,99,235,0.08)") : "transparent",
+                  color: isHover ? T.primary : T.text,
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0, flex: 1 }}>
+                  <span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {o.label}
+                  </span>
+                  {o.sub && (
+                    <span style={{ fontSize: 11, color: T.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {o.sub}
+                    </span>
+                  )}
+                </div>
+                <Icon name="plus" size={12} style={{ color: T.textMuted, flexShrink: 0 }} />
+              </button>
+            );
+          })}
+
+          {canAddCustom && !queryAdaDiOpsi && (
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                tambahItem(cari.trim());
+              }}
+              onMouseEnter={() => setSorot(tersaring.length)}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 10px",
+                border: "none",
+                borderRadius: 6,
+                background: sorot === tersaring.length ? (T.primaryLight || "rgba(37,99,235,0.08)") : "transparent",
+                color: T.primary,
+                fontSize: 12.5,
+                fontWeight: 600,
+                cursor: "pointer",
+                textAlign: "left",
+                borderTop: tersaring.length > 0 ? `1px solid ${T.border}` : "none",
+                marginTop: tersaring.length > 0 ? 3 : 0,
+              }}
+            >
+              <Icon name="plus" size={13} />
+              <span>Gunakan: <strong>"{cari.trim()}"</strong></span>
+            </button>
+          )}
+
+          {tersaring.length === 0 && (!canAddCustom || queryAdaDiOpsi) && (
+            <div style={{ padding: "10px 12px", fontSize: 12, color: T.textMuted, textAlign: "center" }}>
+              Tidak ada opsi tersisa
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 // ── Custom DatePicker & DateTimePicker ───────────────────────────────────────
 const BULAN_ID = [
   "Januari", "Februari", "Maret", "April", "Mei", "Juni",

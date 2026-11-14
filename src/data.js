@@ -152,7 +152,7 @@ export const NAV_GROUPS = [
     icon: "archive",
     items: [
       { key: "dashboard-arsip", label: "Dashboard Arsip", icon: "home" },
-      { key: "dokumen", label: "Dokumen", icon: "archive" },
+      { key: "dokumen", label: "Dokumen", icon: "fileText" },
       { key: "agenda-surat", label: "Agenda Surat", icon: "mail" },
       { key: "register-sppd", label: "Register SPPD", icon: "mapPin" },
       { key: "kertas-kerja", label: "Matriks Kertas Kerja", icon: "checkCircle" },
@@ -313,7 +313,7 @@ export const NAV_BOTTOM_LABEL = {
 
 export const NAV_BOTTOM_ICON = {
   dashboard: "home",
-  dokumen: "archive",
+  dokumen: "fileText",
   upload: "upload",
   pencarian: "search",
   bankdata: "chart",

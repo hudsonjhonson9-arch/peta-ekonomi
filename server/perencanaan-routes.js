@@ -164,6 +164,8 @@ export function daftarkanRutePerencanaan(app, pool, queryDB) {
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
     );
+    ALTER TABLE perencanaan_progres ALTER COLUMN pic_nama TYPE TEXT;
+    ALTER TABLE perencanaan_progres ALTER COLUMN pic_bidang TYPE TEXT;
   `).catch(e => console.error('[Perencanaan] DDL Error:', e.message));
 
   app.get('/api/perencanaan/progres', async (req, res) => {
