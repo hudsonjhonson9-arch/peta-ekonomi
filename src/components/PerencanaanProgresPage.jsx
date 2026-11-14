@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { ThemeContext } from "../App.jsx";
-import { Icon, useIsDark } from "./ui.jsx";
+import { Icon } from "./ui.jsx";
 
 const DOKUMEN_OPTIONS = [
   { value: "RKPD", label: "RKPD (Tahunan)" },
@@ -37,8 +37,7 @@ function ganttSpan(tglMulai, tglSelesai, year) {
 }
 
 export default function PerencanaanProgresPage({ user }) {
-  const T = useContext(ThemeContext);
-  const isDark = useIsDark();
+  const { T, isDark } = useContext(ThemeContext);
   const curYear = new Date().getFullYear();
   const [tahun, setTahun] = useState(curYear);
   const [dokumenJenis, setDokumenJenis] = useState("RKPD");
@@ -183,7 +182,7 @@ export default function PerencanaanProgresPage({ user }) {
   };
 
   const colMeta = (k) => KANBAN_COLS.find((c) => c.key === k) || KANBAN_COLS[0];
-  const cardBg = T.cardBg || T.card;
+  const cardBg = T.card;
   const inputStyle = {
     width: "100%",
     height: 36,
@@ -197,7 +196,7 @@ export default function PerencanaanProgresPage({ user }) {
   };
 
   return (
-    <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Header & Toolbar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
         <div>
