@@ -994,7 +994,8 @@ export function DateRangePicker({
       width: panelW,
       ...(openUp ? { bottom: window.innerHeight - rect.bottom + 4 } : { top: rect.top + 4 }),
       zIndex: 9999,
-      background: T.surface,
+      isolation: "isolate",
+      background: T.card,
       border: `1px solid ${T.border}`,
       borderRadius: 12,
       boxShadow: T.shadowLg || "0 12px 32px rgba(15,23,42,0.16)",
@@ -1013,7 +1014,8 @@ export function DateRangePicker({
           padding: "0 10px",
           borderRadius: 8,
           border: `1px solid ${buka ? T.primary : T.border}`,
-          background: T.surface,
+          boxShadow: buka ? T.focusRing : "none",
+          background: T.card,
           color: T.text,
           fontSize: 12.5,
           fontWeight: 600,
@@ -1037,7 +1039,7 @@ export function DateRangePicker({
             <button
               type="button"
               onClick={() => geserBulan(-1)}
-              style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${T.border}`, background: T.surface, color: T.text, cursor: "pointer", display: "grid", placeItems: "center" }}
+              style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${T.border}`, background: T.card, color: T.text, cursor: "pointer", display: "grid", placeItems: "center" }}
             >
               <Icon name="chevronLeft" size={14} />
             </button>
@@ -1047,7 +1049,7 @@ export function DateRangePicker({
             <button
               type="button"
               onClick={() => geserBulan(1)}
-              style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${T.border}`, background: T.surface, color: T.text, cursor: "pointer", display: "grid", placeItems: "center" }}
+              style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${T.border}`, background: T.card, color: T.text, cursor: "pointer", display: "grid", placeItems: "center" }}
             >
               <Icon name="chevronRight" size={14} />
             </button>
