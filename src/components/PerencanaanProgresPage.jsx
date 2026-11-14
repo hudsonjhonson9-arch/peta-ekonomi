@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { ThemeContext } from "../App.jsx";
 import { Icon, Select } from "./ui.jsx";
+import UploadForm from "./UploadForm.jsx";
 
 const DOKUMEN_OPTIONS = [
   { value: "RKPD", label: "RKPD (Tahunan)" },
@@ -18,24 +19,62 @@ const KANBAN_COLS = [
 ];
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+const DAY_W = 20;
 
 const toYMD = (d) => (d ? String(d).slice(0, 10) : "");
 
-function ganttSpan(tglMulai, tglSelesai, startStr, endStr) {
-  const yStart = new Date(`${startStr}T00:00:00`).getTime();
-  const yEnd = new Date(`${endStr}T23:59:59`).getTime();
-  const total = yEnd - yStart;
-  const s = new Date(`${toYMD(tglMulai)}T00:00:00`).getTime();
-  const e = new Date(`${toYMD(tglSelesai)}T23:59:59`).getTime();
-  if (Number.isNaN(s) || Number.isNaN(e) || total <= 0) return { left: 0, width: 8 };
-  const cs = Math.max(yStart, Math.min(yEnd, s));
-  const ce = Math.max(cs + 86400000, Math.min(yEnd, e));
-  const left = ((cs - yStart) / total) * 100;
-  const width = Math.max(2, ((ce - cs) / total) * 100);
-  return { left, width };
+function buildDayTimeline(hasPreYear, tahun) {
+  const startYear = hasPreYear ? tahun - 1 : tahun;
+  const startMonth = hasPreYear ? 10 : 0; // 0-based: 10 = Nov
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const months = [];
+  const days = [];
+  let y = startYear;
+  let m = startMonth;
+  while (y < tahun || (y === tahun && m <= 11)) {
+    const numDays = new Date(y, m + 1, 0).getDate();
+    const mDays = [];
+    for (let d = 1; d <= numDays; d++) {
+      const mm = String(m + 1).padStart(2, "0");
+      const dd = String(d).padStart(2, "0");
+      const dateStr = `${y}-${mm}-${dd}`;
+      const dow = new Date(y, m, d).getDay();
+      const obj = { dateStr, day: d, isWeekend: dow === 0 || dow === 6, isToday: dateStr === todayStr };
+      mDays.push(obj);
+      days.push(obj);
+    }
+    months.push({ key: `${y}-${m}`, label: `${MONTHS[m]} ${y}`, days: mDays });
+    m++;
+    if (m > 11) {
+      m = 0;
+      y++;
+    }
+  }
+  return { months, days, startStr: days[0]?.dateStr, endStr: days[days.length - 1]?.dateStr };
 }
 
-export default function PerencanaanProgresPage({ user }) {
+function ganttDayRect(tglMulai, tglSelesai, startStr, totalDays) {
+  const s0 = new Date(`${startStr}T00:00:00`).getTime();
+  const s = new Date(`${toYMD(tglMulai)}T00:00:00`).getTime();
+  const e = new Date(`${toYMD(tglSelesai)}T00:00:00`).getTime();
+  if (Number.isNaN(s) || Number.isNaN(e) || Number.isNaN(s0)) return { leftPx: 0, widthPx: DAY_W * 5 };
+  const startIdx = Math.max(0, Math.min(totalDays - 1, Math.round((s - s0) / 86400000)));
+  const endIdx = Math.max(startIdx, Math.min(totalDays - 1, Math.round((e - s0) / 86400000)));
+  return {
+    leftPx: startIdx * DAY_W,
+    widthPx: Math.max(DAY_W, (endIdx - startIdx + 1) * DAY_W),
+  };
+}
+
+export default function PerencanaanProgresPage({
+  user,
+  users = [],
+  bidangs = [],
+  categories = [],
+  sectors = [],
+  showToast,
+  onUnggahDokumen,
+}) {
   const { T, isDark } = useContext(ThemeContext);
   const curYear = new Date().getFullYear();
   const [tahun, setTahun] = useState(curYear);
@@ -44,10 +83,42 @@ export default function PerencanaanProgresPage({ user }) {
   const [search, setSearch] = useState("");
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [seeding, setSeeding] = useState(false);
   const [modal, setModal] = useState(null); // { mode: "add" | "edit", data: {...} }
+  const [showUpload, setShowUpload] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dragId, setDragId] = useState(null);
+
+  const userOptions = useMemo(() => {
+    const list = (Array.isArray(users) ? users : [])
+      .map((u) => ({
+        value: u.nama || u.name || u.username || "",
+        label: `${u.nama || u.name || u.username || ""}${u.bidang ? ` · ${u.bidang}` : ""}`,
+        bidang: u.bidang || "",
+      }))
+      .filter((o) => o.value);
+    const cur = modal?.data?.pic_nama;
+    if (cur && !list.some((o) => o.value === cur)) {
+      list.unshift({ value: cur, label: cur, bidang: "" });
+    }
+    return list;
+  }, [users, modal?.data?.pic_nama]);
+
+  const bidangOptions = useMemo(() => {
+    const seen = new Set();
+    const list = [];
+    for (const b of Array.isArray(bidangs) ? bidangs : []) {
+      const val = typeof b === "string" ? b : (b?.nama || b?.name || b?.label || "");
+      if (val && !seen.has(val)) {
+        seen.add(val);
+        list.push({ value: val, label: val });
+      }
+    }
+    const cur = modal?.data?.pic_bidang;
+    if (cur && !seen.has(cur)) {
+      list.unshift({ value: cur, label: cur });
+    }
+    return list;
+  }, [bidangs, modal?.data?.pic_bidang]);
 
   const loadData = async () => {
     setLoading(true);
@@ -85,31 +156,8 @@ export default function PerencanaanProgresPage({ user }) {
 
   const timeline = useMemo(() => {
     const hasPreYear = filtered.some((i) => toYMD(i.tgl_mulai) < `${tahun}-01-01`);
-    if (hasPreYear) {
-      const yy = String(tahun - 1).slice(2);
-      return {
-        months: [`Nov '${yy}`, `Des '${yy}`, ...MONTHS],
-        start: `${tahun - 1}-11-01`,
-        end: `${tahun}-12-31`,
-      };
-    }
-    return { months: MONTHS, start: `${tahun}-01-01`, end: `${tahun}-12-31` };
+    return buildDayTimeline(hasPreYear, tahun);
   }, [filtered, tahun]);
-
-  const seedTemplate = async () => {
-    setSeeding(true);
-    try {
-      const r = await fetch("/api/perencanaan/progres/seed-template", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tahun, dokumen_jenis: dokumenJenis }),
-      });
-      const d = await r.json();
-      if (d?.ok) await loadData();
-    } finally {
-      setSeeding(false);
-    }
-  };
 
   const openAdd = () => {
     setModal({
@@ -321,88 +369,82 @@ export default function PerencanaanProgresPage({ user }) {
         </div>
       )}
 
-      {/* Loading / Empty State */}
+      {/* Loading / Content */}
       {loading ? (
         <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 10, padding: 32, textAlign: "center", color: T.textSecondary, fontSize: 13 }}>
           Memuat tahapan perencanaan {dokumenJenis} {tahun}...
         </div>
-      ) : items.length === 0 ? (
-        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 10, padding: "36px 24px", textAlign: "center" }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>
-            Belum ada tahapan {dokumenJenis} Tahun {tahun}
-          </div>
-          <p style={{ fontSize: 13, color: T.textSecondary, maxWidth: 520, margin: "6px auto 18px", lineHeight: 1.55 }}>
-            Anda dapat memuat tahapan resmi sesuai <b>Permendagri No. 86 Tahun 2017</b> secara otomatis atau menambahkan tahapan secara manual.
-          </p>
-          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              disabled={seeding}
-              onClick={seedTemplate}
-              style={{
-                height: 38,
-                padding: "0 16px",
-                borderRadius: 8,
-                border: "none",
-                background: T.primary,
-                color: "#fff",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              {seeding ? "Memuat Template..." : `Muat Template ${dokumenJenis} (Permendagri 86/2017)`}
-            </button>
-            <button
-              type="button"
-              onClick={openAdd}
-              style={{
-                height: 38,
-                padding: "0 16px",
-                borderRadius: 8,
-                border: `1px solid ${T.border}`,
-                background: cardBg,
-                color: T.text,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              + Tambah Manual
-            </button>
-          </div>
-        </div>
       ) : viewMode === "gantt" ? (
-        /* ── TABEL GANTT ── */
-        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 10, overflowX: "auto" }}>
-          <table style={{ width: "100%", minWidth: 1060, borderCollapse: "collapse", fontSize: 12.5 }}>
+        /* ── TABEL GANTT (Detail Per Tanggal & Bulan, Horizontal Scroll + Sticky Kolom Kiri) ── */
+        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 10, overflowX: "auto", boxShadow: T.shadowSm }}>
+          <table style={{ width: 590 + timeline.days.length * DAY_W, borderCollapse: "collapse", fontSize: 12.5, tableLayout: "fixed" }}>
             <thead>
-              <tr style={{ background: isDark ? "rgba(255,255,255,0.03)" : "#F8FAFC", borderBottom: `1px solid ${T.border}` }}>
-                <th style={{ textAlign: "left", padding: "10px 12px", width: 290, fontWeight: 700, color: T.textSecondary }}>Tahapan &amp; Dasar Pasal</th>
-                <th style={{ textAlign: "left", padding: "10px 8px", width: 130, fontWeight: 700, color: T.textSecondary }}>PIC / Bidang</th>
-                <th style={{ textAlign: "left", padding: "10px 8px", width: 115, fontWeight: 700, color: T.textSecondary }}>Status</th>
-                <th style={{ textAlign: "right", padding: "10px 10px", width: 64, fontWeight: 700, color: T.textSecondary }}>Progres</th>
-                <th style={{ padding: 0, borderLeft: `1px solid ${T.border}` }}>
-                  <div style={{ display: "grid", gridTemplateColumns: `repeat(${timeline.months.length}, 1fr)`, textAlign: "center", fontSize: 11, fontWeight: 700, color: T.textSecondary }}>
-                    {timeline.months.map((m) => (
-                      <div key={m} style={{ padding: "10px 2px", borderRight: `1px solid ${T.border}`, whiteSpace: "nowrap" }}>{m}</div>
-                    ))}
-                  </div>
+              <tr style={{ background: isDark ? "#1E293B" : "#F8FAFC", borderBottom: `1px solid ${T.border}` }}>
+                <th rowSpan={2} style={{ position: "sticky", left: 0, zIndex: 3, background: isDark ? "#1E293B" : "#F8FAFC", textAlign: "left", padding: "10px 12px", width: 290, fontWeight: 700, color: T.textSecondary, borderRight: `1px solid ${T.border}` }}>
+                  Tahapan &amp; Dasar Pasal
                 </th>
+                <th rowSpan={2} style={{ position: "sticky", left: 290, zIndex: 3, background: isDark ? "#1E293B" : "#F8FAFC", textAlign: "left", padding: "10px 8px", width: 130, fontWeight: 700, color: T.textSecondary, borderRight: `1px solid ${T.border}` }}>
+                  PIC / Bidang
+                </th>
+                <th rowSpan={2} style={{ position: "sticky", left: 420, zIndex: 3, background: isDark ? "#1E293B" : "#F8FAFC", textAlign: "left", padding: "10px 8px", width: 110, fontWeight: 700, color: T.textSecondary, borderRight: `1px solid ${T.border}` }}>
+                  Status
+                </th>
+                <th rowSpan={2} style={{ position: "sticky", left: 530, zIndex: 3, background: isDark ? "#1E293B" : "#F8FAFC", textAlign: "right", padding: "10px 10px", width: 60, fontWeight: 700, color: T.textSecondary, borderRight: `2px solid ${T.border}` }}>
+                  Progres
+                </th>
+                {timeline.months.map((m) => (
+                  <th
+                    key={m.key}
+                    colSpan={m.days.length}
+                    style={{
+                      textAlign: "center",
+                      padding: "6px 4px",
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      color: T.text,
+                      borderRight: `1px solid ${T.border}`,
+                      borderBottom: `1px solid ${T.border}`,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {m.label}
+                  </th>
+                ))}
+              </tr>
+              <tr style={{ background: isDark ? "#1E293B" : "#F8FAFC", borderBottom: `1px solid ${T.border}` }}>
+                {timeline.days.map((d) => (
+                  <th
+                    key={d.dateStr}
+                    style={{
+                      width: DAY_W,
+                      padding: "4px 0",
+                      textAlign: "center",
+                      fontSize: 10,
+                      fontWeight: d.isToday ? 800 : 600,
+                      fontVariantNumeric: "tabular-nums",
+                      color: d.isToday ? "#fff" : (d.isWeekend ? T.textMuted : T.textSecondary),
+                      background: d.isToday ? T.primary : (d.isWeekend ? (isDark ? "rgba(255,255,255,0.03)" : "#F1F5F9") : "transparent"),
+                      borderRight: `1px solid ${isDark ? "rgba(255,255,255,0.05)" : "#E2E8F0"}`,
+                    }}
+                  >
+                    {d.day}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map((it) => {
                 const meta = colMeta(it.status);
-                const span = ganttSpan(it.tgl_mulai, it.tgl_selesai, timeline.start, timeline.end);
+                const rect = ganttDayRect(it.tgl_mulai, it.tgl_selesai, timeline.startStr, timeline.days.length);
                 const pct = Number(it.progres_persen) || 0;
+                const stickyBg = cardBg;
                 return (
                   <tr
                     key={it.id}
                     onClick={() => openEdit(it)}
                     style={{ borderBottom: `1px solid ${T.border}`, cursor: "pointer" }}
                   >
-                    <td style={{ padding: "10px 12px", verticalAlign: "top" }}>
+                    <td style={{ position: "sticky", left: 0, zIndex: 2, background: stickyBg, padding: "10px 12px", verticalAlign: "top", borderRight: `1px solid ${T.border}` }}>
                       <div style={{ fontWeight: 600, color: T.text, lineHeight: 1.35 }}>
                         <span style={{ fontFamily: "monospace", fontSize: 11, color: T.textMuted, marginRight: 6 }}>{it.tahap_kode}</span>
                         {it.nama_tahapan}
@@ -411,7 +453,7 @@ export default function PerencanaanProgresPage({ user }) {
                         {it.dasar_pasal} • <span style={{ fontVariantNumeric: "tabular-nums" }}>{toYMD(it.tgl_mulai)} s.d. {toYMD(it.tgl_selesai)}</span>
                       </div>
                     </td>
-                    <td style={{ padding: "10px 8px", color: T.textSecondary, verticalAlign: "middle" }}>
+                    <td style={{ position: "sticky", left: 290, zIndex: 2, background: stickyBg, padding: "10px 8px", color: T.textSecondary, verticalAlign: "middle", borderRight: `1px solid ${T.border}` }}>
                       {it.pic_nama ? (
                         <>
                           <div style={{ fontWeight: 500, color: T.text }}>{it.pic_nama}</div>
@@ -421,38 +463,49 @@ export default function PerencanaanProgresPage({ user }) {
                         <div style={{ fontWeight: 500, color: T.text }}>{it.pic_bidang || "—"}</div>
                       )}
                     </td>
-                    <td style={{ padding: "10px 8px", verticalAlign: "middle" }}>
+                    <td style={{ position: "sticky", left: 420, zIndex: 2, background: stickyBg, padding: "10px 8px", verticalAlign: "middle", borderRight: `1px solid ${T.border}` }}>
                       <span style={{ display: "inline-block", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, color: meta.color, background: meta.bg, whiteSpace: "nowrap" }}>
                         {meta.label}
                       </span>
                     </td>
-                    <td style={{ padding: "10px 10px", textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: meta.color, verticalAlign: "middle" }}>
+                    <td style={{ position: "sticky", left: 530, zIndex: 2, background: stickyBg, padding: "10px 10px", textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: meta.color, verticalAlign: "middle", borderRight: `2px solid ${T.border}` }}>
                       {pct}%
                     </td>
-                    <td style={{ padding: "8px 0", borderLeft: `1px solid ${T.border}`, position: "relative", verticalAlign: "middle" }}>
-                      {/* Month grid background */}
-                      <div style={{ position: "absolute", inset: 0, display: "grid", gridTemplateColumns: `repeat(${timeline.months.length}, 1fr)`, pointerEvents: "none" }}>
-                        {timeline.months.map((m) => (
-                          <div key={m} style={{ borderRight: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "#F1F5F9"}` }} />
+                    <td
+                      colSpan={timeline.days.length}
+                      style={{ padding: 0, position: "relative", verticalAlign: "middle", height: 52 }}
+                    >
+                      {/* Daily grid background */}
+                      <div style={{ position: "absolute", inset: 0, display: "flex", pointerEvents: "none" }}>
+                        {timeline.days.map((d) => (
+                          <div
+                            key={d.dateStr}
+                            style={{
+                              width: DAY_W,
+                              flexShrink: 0,
+                              background: d.isToday ? "rgba(37,99,235,0.08)" : (d.isWeekend ? (isDark ? "rgba(255,255,255,0.02)" : "#F8FAFC") : "transparent"),
+                              borderRight: `1px solid ${isDark ? "rgba(255,255,255,0.03)" : "#F1F5F9"}`,
+                            }}
+                          />
                         ))}
                       </div>
                       {/* Gantt bar */}
-                      <div style={{ position: "relative", height: 22, width: "100%" }} title={`${toYMD(it.tgl_mulai)} s.d. ${toYMD(it.tgl_selesai)} (${pct}%)`}>
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: `${span.left}%`,
-                            width: `${span.width}%`,
-                            top: 3,
-                            height: 16,
-                            borderRadius: 5,
-                            background: isDark ? "rgba(255,255,255,0.12)" : "#E2E8F0",
-                            border: `1px solid ${meta.color}`,
-                            overflow: "hidden",
-                          }}
-                        >
-                          <div style={{ width: `${pct}%`, height: "100%", background: meta.color, opacity: 0.85 }} />
-                        </div>
+                      <div
+                        title={`${it.nama_tahapan}: ${toYMD(it.tgl_mulai)} s.d. ${toYMD(it.tgl_selesai)} (${pct}%)`}
+                        style={{
+                          position: "absolute",
+                          left: rect.leftPx,
+                          width: rect.widthPx,
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          height: 20,
+                          borderRadius: 5,
+                          background: isDark ? "rgba(255,255,255,0.12)" : "#E2E8F0",
+                          border: `1px solid ${meta.color}`,
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div style={{ width: `${pct}%`, height: "100%", background: meta.color, opacity: 0.85 }} />
                       </div>
                     </td>
                   </tr>
@@ -616,11 +669,37 @@ export default function PerencanaanProgresPage({ user }) {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Penanggung Jawab (PIC)</label>
-                <input type="text" value={modal.data.pic_nama || ""} onChange={(e) => setModal({ ...modal, data: { ...modal.data, pic_nama: e.target.value } })} style={inputStyle} />
+                <Select
+                  fullWidth
+                  searchable
+                  size="md"
+                  placeholder="— Pilih Pegawai / PIC —"
+                  value={modal.data.pic_nama || ""}
+                  onChange={(val) => {
+                    const matched = userOptions.find((u) => u.value === val);
+                    setModal({
+                      ...modal,
+                      data: {
+                        ...modal.data,
+                        pic_nama: val,
+                        ...(matched?.bidang ? { pic_bidang: matched.bidang } : {}),
+                      },
+                    });
+                  }}
+                  options={userOptions}
+                />
               </div>
               <div>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Bidang</label>
-                <input type="text" value={modal.data.pic_bidang || ""} onChange={(e) => setModal({ ...modal, data: { ...modal.data, pic_bidang: e.target.value } })} style={inputStyle} />
+                <Select
+                  fullWidth
+                  searchable
+                  size="md"
+                  placeholder="— Pilih Bidang —"
+                  value={modal.data.pic_bidang || ""}
+                  onChange={(val) => setModal({ ...modal, data: { ...modal.data, pic_bidang: val } })}
+                  options={bidangOptions}
+                />
               </div>
             </div>
 
@@ -641,23 +720,102 @@ export default function PerencanaanProgresPage({ user }) {
               </div>
               <div>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>
-                  Progres ({modal.data.progres_persen || 0}%)
+                  Progres (%)
                 </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="5"
-                  value={modal.data.progres_persen || 0}
-                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, progres_persen: Number(e.target.value) } })}
-                  style={{ width: "100%", marginTop: 8 }}
-                />
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <div style={{ display: "inline-flex", border: `1px solid ${T.border}`, borderRadius: 8, overflow: "hidden", background: cardBg, flexShrink: 0 }}>
+                    {[0, 25, 50, 75, 100].map((v) => {
+                      const active = Number(modal.data.progres_persen || 0) === v;
+                      return (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => {
+                            const nextStatus = v === 100 ? "done" : (v === 0 ? "todo" : (modal.data.status === "todo" || modal.data.status === "done" ? "in_progress" : modal.data.status));
+                            setModal({ ...modal, data: { ...modal.data, progres_persen: v, status: nextStatus } });
+                          }}
+                          style={{
+                            height: 34,
+                            padding: "0 8px",
+                            border: "none",
+                            borderRight: v !== 100 ? `1px solid ${T.border}` : "none",
+                            background: active ? T.primary : "transparent",
+                            color: active ? "#fff" : T.textSecondary,
+                            fontSize: 11.5,
+                            fontWeight: 700,
+                            fontVariantNumeric: "tabular-nums",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {v}%
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ position: "relative", flex: 1, minWidth: 64 }}>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={modal.data.progres_persen ?? 0}
+                      onChange={(e) => {
+                        const v = Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0));
+                        setModal({ ...modal, data: { ...modal.data, progres_persen: v } });
+                      }}
+                      style={{ ...inputStyle, paddingRight: 22, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}
+                    />
+                    <span style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: T.textMuted, pointerEvents: "none" }}>%</span>
+                  </div>
+                </div>
               </div>
             </div>
 
             <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Tautan Bukti / Dokumen (Opsional)</label>
-              <input type="url" placeholder="https://..." value={modal.data.dokumen_url || ""} onChange={(e) => setModal({ ...modal, data: { ...modal.data, dokumen_url: e.target.value } })} style={inputStyle} />
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Dokumen Bukti (Upload ke Arsip / Google Drive)</label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowUpload(true)}
+                  style={{
+                    height: 36,
+                    padding: "0 12px",
+                    borderRadius: 8,
+                    border: `1px solid ${T.border}`,
+                    background: isDark ? "rgba(255,255,255,0.04)" : "#F8FAFC",
+                    color: T.primary,
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <Icon name="upload" size={14} /> {modal.data.dokumen_url ? "Ganti Dokumen" : "Unggah Dokumen"}
+                </button>
+                {modal.data.dokumen_url ? (
+                  <div style={{ flex: 1, minWidth: 180, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: isDark ? "rgba(16,185,129,0.08)" : "#ECFDF5" }}>
+                    <a
+                      href={modal.data.dokumen_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: 12, fontWeight: 600, color: "#059669", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                    >
+                      Dokumen terlampir (Buka)
+                    </a>
+                    <button
+                      type="button"
+                      title="Hapus lampiran"
+                      onClick={() => setModal({ ...modal, data: { ...modal.data, dokumen_url: "" } })}
+                      style={{ background: "none", border: "none", color: T.textMuted, cursor: "pointer", padding: 2 }}
+                    >
+                      <Icon name="x" size={13} />
+                    </button>
+                  </div>
+                ) : (
+                  <span style={{ fontSize: 12, color: T.textMuted }}>Belum ada dokumen diunggah</span>
+                )}
+              </div>
             </div>
 
             <div>
@@ -700,6 +858,37 @@ export default function PerencanaanProgresPage({ user }) {
             </div>
           </form>
         </div>
+      )}
+
+      {showUpload && modal && onUnggahDokumen && (
+        <UploadForm
+          dalamModal
+          satuFile
+          onTutup={() => setShowUpload(false)}
+          onSubmit={async (payload, onProgress) => {
+            let uploadedUrl = "";
+            const sukses = await onUnggahDokumen(payload, onProgress, {
+              onUploaded: (docsBaru) => {
+                const first = Array.isArray(docsBaru) ? docsBaru[0] : null;
+                if (first) uploadedUrl = first.url || first.fileUrl || "";
+              },
+            });
+            if (sukses) {
+              if (uploadedUrl) {
+                setModal((prev) => (prev ? { ...prev, data: { ...prev.data, dokumen_url: uploadedUrl } } : prev));
+              }
+              setShowUpload(false);
+            }
+            return sukses;
+          }}
+          user={user}
+          categories={categories}
+          sectors={sectors}
+          bidangs={bidangs}
+          initialTitle={`${modal.data.tahap_kode || ""} ${modal.data.nama_tahapan || ""}`.trim()}
+          initialYear={tahun}
+          judul="Unggah Dokumen Bukti Tahapan"
+        />
       )}
     </div>
   );

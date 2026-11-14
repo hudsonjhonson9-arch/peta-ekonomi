@@ -177,7 +177,20 @@ export function daftarkanRutePerencanaan(app, pool, queryDB) {
         sql += ` AND dokumen_jenis = $2`;
       }
       sql += ` ORDER BY urutan ASC, tgl_mulai ASC, id ASC`;
-      const items = await queryDB(sql, params);
+      let items = await queryDB(sql, params);
+      if (items.length === 0 && jenis && VALID_DOKUMEN_JENIS.includes(jenis)) {
+        const rows = buildPermendagri86Template(jenis, tahun);
+        const creator = req.session?.user?.nama || req.session?.user?.nip || 'Sistem';
+        for (const r of rows) {
+          const out = await queryDB(
+            `INSERT INTO perencanaan_progres
+             (tahun, dokumen_jenis, tahap_kode, urutan, nama_tahapan, dasar_pasal, pic_bidang, tgl_mulai, tgl_selesai, status, progres_persen, target_keluaran, created_by)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+            [tahun, jenis, r.tahap_kode, r.urutan, r.nama_tahapan, r.dasar_pasal, r.pic_bidang, r.tgl_mulai, r.tgl_selesai, r.status, r.progres_persen, r.target_keluaran, creator]
+          );
+          if (out[0]) items.push(out[0]);
+        }
+      }
       res.json({ ok: true, items, tahun, dokumen_jenis: jenis || 'ALL' });
     } catch (e) {
       console.error('[Perencanaan] GET Error:', e);

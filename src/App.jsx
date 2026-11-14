@@ -603,6 +603,9 @@ export default function App() {
         }
       }
     } else {
+      if (typeof opts.onUploaded === "function") {
+        try { opts.onUploaded(docsBaru); } catch (_) {}
+      }
       showToast(pesan);
     }
 
@@ -1438,7 +1441,17 @@ export default function App() {
               <AgendaSppdPage user={user} showToast={showToast} />
             )}
             {page === "progres-perencanaan" && (
-              <PerencanaanProgresPage user={user} />
+              <PerencanaanProgresPage
+                user={user}
+                users={users}
+                bidangs={bidangs}
+                categories={categories}
+                sectors={sectors}
+                showToast={showToast}
+                onUnggahDokumen={(payload, onProgress, uploadOpts = {}) =>
+                  handleUpload(payload, onProgress, { returnPage: "progres-perencanaan", noLink: true, ...uploadOpts })
+                }
+              />
             )}
             {page === "screening" && (
               <ScreeningRKA user={user} showToast={showToast} />
