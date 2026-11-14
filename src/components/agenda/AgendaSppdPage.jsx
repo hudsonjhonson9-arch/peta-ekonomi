@@ -1991,7 +1991,7 @@ export default function AgendaSppdPage({ user, showToast }) {
                 )}
 
                 <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>5. Alat Angkut yang Digunakan</label>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, display: "block", marginBottom: 4 }}>Alat Angkut yang Digunakan</label>
                   <CariPilih
                     value={modalSppd.data.alat_angkutan || ""}
                     opsi={ANGKUTAN_LIST.map((a) => ({ value: a, label: a }))}

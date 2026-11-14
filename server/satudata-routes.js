@@ -1818,6 +1818,8 @@ export function daftarkanRuteSatuData(app, pool, queryDB) {
         permissions: [
           { key: 'kertas_kerja.read', label: 'Buka Kertas Kerja PKS', desc: 'Melihat matriks target dan capaian indikator' },
           { key: 'kertas_kerja.update', label: 'Edit Kertas Kerja', desc: 'Mengisi capaian periode dan menautkan arsip' },
+          { key: 'perencanaan_progres.read', label: 'Lihat Progres Perencanaan', desc: 'Melihat timeline Gantt/Kanban tahapan RKPD/RPJMD' },
+          { key: 'perencanaan_progres.manage', label: 'Kelola Progres Perencanaan', desc: 'Menambah, mengedit status, dan tanggal tahapan perencanaan' },
           { key: 'screening.read', label: 'Buka Screening RKA', desc: 'Melihat hasil pemeriksaan kepatuhan SSH/SBU' },
           { key: 'screening.verify', label: 'Verifikasi Kepatuhan RKA', desc: 'Mengesahkan telaah standar harga RKA' },
           { key: 'standar_harga.manage', label: 'Kelola Standar Harga SIPD', desc: 'Impor dan atur referensi SSH/SBU' },
@@ -1843,7 +1845,8 @@ export function daftarkanRuteSatuData(app, pool, queryDB) {
       { key: 'upload', label: 'Upload Dokumen', group: 'Arsip Digital' },
       { key: 'pencarian', label: 'Pencarian', group: 'Arsip Digital' },
       { key: 'agenda-surat', label: 'Agenda Surat', group: 'Arsip Digital' },
-      { key: 'agenda-sppd', label: 'SPT & SPPD', group: 'Arsip Digital' },
+      { key: 'register-sppd', label: 'Register SPPD & SPT', group: 'Arsip Digital' },
+      { key: 'progres-perencanaan', label: 'Progres Perencanaan', group: 'Arsip Digital' },
       { key: 'publik', label: 'Portal Publik', group: 'Arsip Digital' },
       { key: 'kertas-kerja', label: 'Kertas Kerja', group: 'Perencanaan' },
       { key: 'screening', label: 'Screening RKA', group: 'Perencanaan' },

@@ -208,5 +208,7 @@ export function jalurKhususBapperida(path) {
   if (p === '/api/draft-rincian' || p.startsWith('/api/draft-rincian/')) return true;
   if (p === '/api/kertas-kerja' || p.startsWith('/api/kertas-kerja/')) return true;
   if (p === '/api/pks' || p.startsWith('/api/pks/')) return true;
+  if (p === '/api/agenda' || p.startsWith('/api/agenda/')) return true;
+  if (p === '/api/perencanaan' || p.startsWith('/api/perencanaan/')) return true;
   return false;
 }

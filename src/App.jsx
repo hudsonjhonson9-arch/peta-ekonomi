@@ -1361,7 +1361,7 @@ export default function App() {
                 <Dashboard user={user} docs={docs} onNav={goPage} onView={openDoc} sectors={sectors} categories={categories} activePage={page} />
               )}
             {/* Proteksi Akses: Modul Perencanaan & Dokumen Khusus Internal BAPPERIDA */}
-            {!isBapperida && ["dokumen", "upload", "kertas-kerja", "screening", "standar-harga"].includes(page) && (
+            {!isBapperida && ["dokumen", "upload", "kertas-kerja", "screening", "standar-harga", "progres-perencanaan", "agenda-surat", "register-sppd"].includes(page) && (
               <div style={{ padding: "40px 24px", maxWidth: 640, margin: "40px auto", textAlign: "center", background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, boxShadow: T.shadowMd }}>
                 <div style={{ width: 48, height: 48, borderRadius: 24, background: "rgba(239, 68, 68, 0.15)", color: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px auto" }}>
                   <Icon name="shield" size={24} />

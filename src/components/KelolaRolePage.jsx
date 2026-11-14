@@ -229,8 +229,8 @@ export default function KelolaRolePage({ showToast }) {
         },
       }));
     } else if (jenis === "staf") {
-      const stafPerms = ["dashboard.read", "dokumen.read", "dokumen.create", "kertas_kerja.read", "kertas_kerja.create", "bankdata.read", "spm.read"];
-      const stafMenus = ["dashboard", "dokumen", "upload", "pencarian", "kertas-kerja", "screening", "bankdata", "spm", "panduan"];
+      const stafPerms = ["dashboard.read", "dokumen.read", "dokumen.create", "kertas_kerja.read", "kertas_kerja.create", "bankdata.read", "spm.read", "agenda.read", "agenda.create", "perencanaan_progres.read"];
+      const stafMenus = ["dashboard", "dokumen", "upload", "pencarian", "agenda-surat", "register-sppd", "kertas-kerja", "progres-perencanaan", "screening", "bankdata", "spm", "panduan"];
       setModalRole(m => ({
         ...m,
         data: {

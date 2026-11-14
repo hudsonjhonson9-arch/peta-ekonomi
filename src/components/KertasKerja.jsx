@@ -173,14 +173,52 @@ export default function KertasKerja({ user, showToast, categories = [], sectors 
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <Icon name="checkCircle" size={14} style={{ color: T.primary }} />
-              <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Kertas Kerja</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Matriks Kertas Kerja</span>
             </div>
             <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 3 }}>
               Program → Kegiatan → Sub Kegiatan → Output · {totalOutput} output, {belumUpload} periode wajib belum terisi
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            {admin && (
+              <div style={{ display: "flex", background: T.bgAlt, padding: 3, borderRadius: 8, border: `1px solid ${T.border}` }}>
+                <button
+                  type="button"
+                  onClick={() => setTab("kerja")}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    background: tab !== "pohon" ? T.card : "transparent",
+                    color: tab !== "pohon" ? T.primary : T.textSecondary,
+                    boxShadow: tab !== "pohon" ? T.shadowSm : "none"
+                  }}
+                >
+                  Matriks & Target
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTab("pohon")}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    background: tab === "pohon" ? T.card : "transparent",
+                    color: tab === "pohon" ? T.primary : T.textSecondary,
+                    boxShadow: tab === "pohon" ? T.shadowSm : "none"
+                  }}
+                >
+                  Pohon Cascading
+                </button>
+              </div>
+            )}
             <Select size="sm" minWidth={95} value={tahun ?? ""} onChange={val => { const v = parseInt(val, 10); setTahun(v); try { localStorage.setItem("kk-tahun", String(v)); } catch {} }} options={[...new Set([tahun, ...tahunList].filter(Boolean))].sort((a, b) => b - a).map(y => ({ value: y, label: String(y) }))} />
             {false && <select value={tahun ?? ""} onChange={e => {
               const v = parseInt(e.target.value, 10);

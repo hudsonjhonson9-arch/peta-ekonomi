@@ -67,6 +67,180 @@ function InfoKertasKerja({ T, onNav }) {
 }
 
 // ── 2. Leaderboard Cakupan Data & Ketercapaian SK per OPD ────────────────────
+// ── 1b. Widget Progres Perencanaan Daerah (Permendagri 86) ──────────────────
+function WidgetProgresPerencanaan({ T, onNav, isMobile }) {
+  const curYear = new Date().getFullYear();
+  const [tahun, setTahun] = useState(() => Number(localStorage.getItem("prog-tahun")) || curYear);
+  const [dokJenis, setDokJenis] = useState("RKPD");
+
+  const { data: resp, isLoading } = useQuery({
+    queryKey: ["dashboard-perencanaan-progres", tahun, dokJenis],
+    queryFn: async () => {
+      const res = await fetch(`/api/perencanaan/progres?tahun=${tahun}&dokumen_jenis=${dokJenis}`, {
+        credentials: "same-origin"
+      });
+      if (!res.ok) return { ok: false, items: [] };
+      return res.json();
+    }
+  });
+
+  const items = resp?.items || [];
+  const total = items.length;
+  const doneCount = items.filter((x) => x.status === "done").length;
+  const inProgressCount = items.filter((x) => x.status === "in_progress").length;
+  const reviewCount = items.filter((x) => x.status === "review").length;
+  const todoCount = items.filter((x) => x.status === "todo").length;
+  const avgPct = total > 0 ? Math.round(items.reduce((acc, cur) => acc + (Number(cur.progres_persen) || 0), 0) / total) : 0;
+
+  const activeTahap = items.find((x) => x.status === "in_progress" || x.status === "review") || items.find((x) => x.status === "todo");
+
+  return (
+    <div style={{ background: T.card, borderRadius: 14, padding: isMobile ? 16 : 20, border: `1px solid ${T.border}`, marginBottom: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 9, background: `${T.primary}18`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: T.primary }}>
+            <Icon name="layers" size={18} />
+          </div>
+          <div>
+            <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span>Progres Perencanaan Daerah ({dokJenis} {tahun})</span>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: avgPct >= 100 ? "#DCFCE7" : "#EFF6FF", color: avgPct >= 100 ? "#15803D" : "#1D4ED8" }}>
+                {avgPct}% Selesai
+              </span>
+            </div>
+            <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 2 }}>
+              Tahapan penyusunan dokumen regulasi perencanaan daerah berdasarkan Permendagri No. 86 Tahun 2017
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <Select
+            size="sm"
+            minWidth={110}
+            value={dokJenis}
+            onChange={(v) => setDokJenis(v)}
+            options={[
+              { value: "RKPD", label: "RKPD (Tahunan)" },
+              { value: "RPJMD", label: "RPJMD (5 Thn)" },
+              { value: "RPJPD", label: "RPJPD (20 Thn)" },
+              { value: "RENJA", label: "Renja PD" },
+              { value: "RENSTRA", label: "Renstra PD" },
+            ]}
+          />
+          <Select
+            size="sm"
+            minWidth={85}
+            value={tahun}
+            onChange={(v) => {
+              const val = parseInt(v, 10);
+              setTahun(val);
+              try { localStorage.setItem("prog-tahun", String(val)); } catch (_) {}
+            }}
+            options={[curYear + 1, curYear, curYear - 1, curYear - 2].map((y) => ({ value: y, label: String(y) }))}
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            icon="calendar"
+            onClick={() => onNav("progres-perencanaan")}
+          >
+            Buka Gantt / Kanban →
+          </Button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div style={{ padding: 20, textAlign: "center", color: T.textMuted, fontSize: 12.5 }}>
+          Memuat tahapan perencanaan...
+        </div>
+      ) : total === 0 ? (
+        <div style={{ padding: "20px 16px", textAlign: "center", background: T.bgAlt, borderRadius: 10, border: `1px dashed ${T.border}`, color: T.textMuted, fontSize: 12.5 }}>
+          Belum ada jadwal tahapan untuk {dokJenis} {tahun}. Buka halaman Progres Perencanaan untuk membuat atau mengisi jadwal otomatis.
+        </div>
+      ) : (
+        <>
+          {/* Progress Bar & Badges */}
+          <div style={{ background: T.bgAlt, padding: "12px 14px", borderRadius: 10, border: `1px solid ${T.border}`, marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 600, color: T.text }}>
+                <span>Tahapan Aktif:</span>
+                <span style={{ color: T.primary, fontWeight: 700 }}>
+                  {activeTahap ? `${activeTahap.urutan}. ${activeTahap.nama_tahapan}` : "Semua tahapan telah selesai"}
+                </span>
+                {activeTahap?.pic_bidang && (
+                  <span style={{ fontSize: 10.5, padding: "1px 6px", borderRadius: 4, background: T.card, color: T.textSecondary, border: `1px solid ${T.border}` }}>
+                    PIC: {activeTahap.pic_bidang}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 10, fontSize: 11, fontWeight: 600, flexWrap: "wrap" }}>
+                <span style={{ color: "#16A34A" }}>✓ Selesai: {doneCount}</span>
+                <span style={{ color: "#2563EB" }}>⏳ Berjalan: {inProgressCount}</span>
+                <span style={{ color: "#D97706" }}>📋 Review: {reviewCount}</span>
+                <span style={{ color: T.textMuted }}>⚪ Belum: {todoCount}</span>
+              </div>
+            </div>
+
+            <div style={{ height: 8, background: T.card, borderRadius: 99, overflow: "hidden", display: "flex", border: `1px solid ${T.border}` }}>
+              <div style={{ width: `${(doneCount / total) * 100}%`, background: "#16A34A", transition: "width 0.3s" }} title={`Selesai (${doneCount})`} />
+              <div style={{ width: `${(inProgressCount / total) * 100}%`, background: "#2563EB", transition: "width 0.3s" }} title={`Berjalan (${inProgressCount})`} />
+              <div style={{ width: `${(reviewCount / total) * 100}%`, background: "#D97706", transition: "width 0.3s" }} title={`Review (${reviewCount})`} />
+            </div>
+          </div>
+
+          {/* Quick Step Milestone List */}
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
+            {items.slice(0, 6).map((item) => {
+              const statusCfg = item.status === "done"
+                ? { label: "Selesai", bg: "#DCFCE7", text: "#15803D" }
+                : item.status === "in_progress"
+                ? { label: "Berjalan", bg: "#EFF6FF", text: "#1D4ED8" }
+                : item.status === "review"
+                ? { label: "Review", bg: "#FEF3C7", text: "#B45309" }
+                : { label: "Belum", bg: T.bgAlt, text: T.textMuted };
+
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => onNav("progres-perencanaan")}
+                  style={{
+                    background: item.status === "in_progress" ? (T.isDark ? "#172554" : "#F0F7FF") : T.card,
+                    border: `1px solid ${item.status === "in_progress" ? T.primary : T.border}`,
+                    borderRadius: 10,
+                    padding: "10px 12px",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    minHeight: 74
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: T.text, lineHeight: 1.35, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                      {item.urutan}. {item.nama_tahapan}
+                    </div>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4, background: statusCfg.bg, color: statusCfg.text, whiteSpace: "nowrap" }}>
+                      {statusCfg.label}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, fontSize: 10.5, color: T.textMuted }}>
+                    <span>{item.tgl_mulai ? `${item.tgl_mulai.slice(5)} s/d ${item.tgl_selesai ? item.tgl_selesai.slice(5) : '-'}` : '-'}</span>
+                    <span style={{ fontWeight: 700, color: item.progres_persen > 0 ? T.primary : T.textMuted }}>
+                      {item.progres_persen || 0}%
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function LeaderboardOpdWidget({ walidataData, masterData, user, T, isMobile, onNav }) {
   const [tab, setTab] = useState("target_sk"); // "target_sk" | "volume"
   const [search, setSearch] = useState("");
@@ -1027,11 +1201,17 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
                 <Button size="sm" variant="primary" icon="upload" onClick={() => onNav("upload")}>
                   Unggah Dokumen
                 </Button>
+                <Button size="sm" variant="secondary" icon="layers" onClick={() => onNav("progres-perencanaan")}>
+                  Progres Perencanaan
+                </Button>
                 <Button size="sm" variant="secondary" icon="checkCircle" onClick={() => onNav("kertas-kerja", "kerja")}>
                   Matriks Kertas Kerja
                 </Button>
-                <Button size="sm" variant="secondary" icon="layers" onClick={() => onNav("kertas-kerja", "pohon")}>
-                  Pohon Cascading
+                <Button size="sm" variant="secondary" icon="mail" onClick={() => onNav("agenda-surat")}>
+                  Agenda Surat
+                </Button>
+                <Button size="sm" variant="secondary" icon="mapPin" onClick={() => onNav("register-sppd")}>
+                  Register SPPD
                 </Button>
                 <Button size="sm" variant="secondary" icon="filter" onClick={() => onNav("screening")}>
                   Screening RKA
@@ -1146,6 +1326,9 @@ export default function Dashboard({ user = null, docs = [], onNav, onView, secto
               isMobile={isMobile}
             />
           )}
+
+          {/* Widget Progres Perencanaan Daerah (Permendagri 86) */}
+          <WidgetProgresPerencanaan T={T} onNav={onNav} isMobile={isMobile} />
 
           {/* Kertas Kerja Perencanaan (Hanya Internal Bapperida) */}
           <InfoKertasKerja T={T} onNav={onNav} />
