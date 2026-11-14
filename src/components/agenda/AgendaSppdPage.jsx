@@ -1397,38 +1397,10 @@ export default function AgendaSppdPage({ user, showToast }) {
             <div style={{ background: isDark ? "#172337" : "#EFF6FF", border: `1px solid ${isDark ? "#2563EB" : "#BFDBFE"}`, padding: "12px 16px", borderRadius: 8, display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
                 <div style={{ flex: "1 1 280px" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+                  <div style={{ marginBottom: 4 }}>
                     <label style={{ fontSize: 11, fontWeight: 800, color: T.primary, letterSpacing: "0.03em" }}>
                       NOMOR REGISTER / SURAT (DAPAT DICUSTOM) *
                     </label>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const autoNo = await fetchPreviewRegister(modalSppd.data.jenis_sppd);
-                        setModalSppd({
-                          ...modalSppd,
-                          previewNomor: autoNo,
-                          data: {
-                            ...modalSppd.data,
-                            nomor_register: autoNo,
-                            nomor_spt: autoNo,
-                            nomor_sppd: autoNo
-                          }
-                        });
-                      }}
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        color: T.primary,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        padding: 0,
-                        textDecoration: "underline"
-                      }}
-                    >
-                      Reset ke Nomor Otomatis
-                    </button>
                   </div>
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                     <input

@@ -338,4 +338,7 @@ test('Custom Nomor Surat Keluar: cek ketersediaan nomor dan tolak duplikat saat 
   assert.equal(postStatus, 200);
   assert.equal(postRes.ok, true);
   assert.equal(postRes.item.nomor_surat, '050/999/BAPPERIDA/2026');
+
+  // 5. GET /api/agenda/bidang-list
+  assert.ok(routes['GET /api/agenda/bidang-list'], 'Rute GET /api/agenda/bidang-list harus terdaftar');
 });

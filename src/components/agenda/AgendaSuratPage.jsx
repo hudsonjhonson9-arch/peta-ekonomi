@@ -54,34 +54,13 @@ const KODE_KLASIFIKASI_LIST = [
   { kode: "045", label: "045 - Hukum, Perjanjian & Regulasi" },
 ];
 
-const BIDANG_LIST = [
+const DEFAULT_BIDANG_LIST = [
   "Sekretariat",
-  "Bidang Perekonomian & SDA",
-  "Bidang Pembangunan Manusia & Masyarakat (PMM)",
-  "Bidang Infrastruktur & Kewilayahan (IPW)",
-  "Bidang Perencanaan, Pengendalian & Evaluasi (P2E)",
-  "Subbagian Umum & Kepegawaian",
-  "Subbagian Perencanaan & Keuangan"
-];
-
-const PENANDATANGAN_LIST = [
-  "Kepala BAPPERIDA",
-  "Sekretaris BAPPERIDA",
-  "Plt. Kepala BAPPERIDA",
-  "Kepala Bidang Perekonomian & SDA",
-  "Kepala Bidang PMM",
-  "Kepala Bidang IPW",
-  "Kepala Bidang P2E"
-];
-
-const PEMBERI_DISPOSISI_OPTIONS = [
-  "Kepala BAPPERIDA",
-  "Sekretaris BAPPERIDA",
-  "Plt. Kepala BAPPERIDA",
-  "Kepala Bidang Perekonomian & SDA",
-  "Kepala Bidang Pembangunan Manusia & Masyarakat (PMM)",
-  "Kepala Bidang Infrastruktur & Kewilayahan (IPW)",
-  "Kepala Bidang Perencanaan, Pengendalian & Evaluasi (P2E)"
+  "Bidang Perencanaan Pengendalian dan Evaluasi Pembangunan Daerah",
+  "Bidang Perekonomian dan Sumber Daya Alam",
+  "Bidang Pemerintahan dan Pembangunan Manusia",
+  "Bidang Infrastruktur dan Kewilayahan",
+  "Bidang Riset dan Inovasi Daerah"
 ];
 
 const ARAHAN_OPTIONS = [
@@ -106,10 +85,11 @@ const DITERUSKAN_GRUP = [
   {
     kategori: "Kepala Bidang Teknis",
     items: [
-      "Bidang Perekonomian & SDA",
-      "Bidang Pembangunan Manusia & Masyarakat (PMM)",
-      "Bidang Infrastruktur & Kewilayahan (IPW)",
-      "Bidang Perencanaan, Pengendalian & Evaluasi (P2E)"
+      "Bidang Perencanaan Pengendalian dan Evaluasi Pembangunan Daerah",
+      "Bidang Perekonomian dan Sumber Daya Alam",
+      "Bidang Pemerintahan dan Pembangunan Manusia",
+      "Bidang Infrastruktur dan Kewilayahan",
+      "Bidang Riset dan Inovasi Daerah"
     ]
   },
   {
@@ -545,6 +525,7 @@ export default function AgendaSuratPage({ user, showToast }) {
   const [modalWewenang, setModalWewenang] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [pegawaiList, setPegawaiList] = useState([]);
+  const [bidangList, setBidangList] = useState([]);
 
   // Foto dibuka di lightbox, PDF/tautan dibuka di tab baru
   const lihatBerkas = (url, title) => {
@@ -559,7 +540,121 @@ export default function AgendaSuratPage({ user, showToast }) {
       .then((r) => r.json())
       .then((j) => { if (j.ok) setPegawaiList(j.items || []); })
       .catch(() => {});
+
+    fetch("/api/agenda/bidang-list")
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.ok && Array.isArray(j.items) && j.items.length > 0) {
+          setBidangList(j.items.map((b) => b.nama || b.nama_bidang || b).filter(Boolean));
+        } else {
+          return fetch("/api/bidang")
+            .then((r) => r.json())
+            .then((data) => {
+              if (Array.isArray(data) && data.length > 0) {
+                setBidangList(data.map((b) => b.nama || b.nama_bidang || b).filter(Boolean));
+              }
+            });
+        }
+      })
+      .catch(() => {});
   }, []);
+
+  // Opsi Bidang Pengonsep Dinamis (dari Master Data Bidang BAPPERIDA)
+  const opsiBidangPengonsep = useMemo(() => {
+    const list = bidangList.length > 0 ? bidangList : DEFAULT_BIDANG_LIST;
+    const items = [];
+    const seen = new Set();
+    list.forEach((b) => {
+      const val = String(b || "").trim();
+      if (val && !seen.has(val)) {
+        seen.add(val);
+        items.push({ value: val, label: val });
+      }
+    });
+    if (modalKeluar?.data?.bidang_pengonsep && !seen.has(modalKeluar.data.bidang_pengonsep)) {
+      items.push({
+        value: modalKeluar.data.bidang_pengonsep,
+        label: modalKeluar.data.bidang_pengonsep
+      });
+    }
+    return items;
+  }, [bidangList, modalKeluar?.data?.bidang_pengonsep]);
+
+  // Opsi Pejabat Penandatangan Dinamis (dari Jabatan Struktural Pegawai)
+  const opsiPejabatPenandatangan = useMemo(() => {
+    const listPegawai = pegawaiList || [];
+    const items = [];
+    const seen = new Set();
+
+    // Saring pegawai dengan jabatan pimpinan/struktural
+    const pejabatStruktural = listPegawai.filter((p) => {
+      const j = (p.jabatan || "").toLowerCase().trim();
+      return (
+        j.includes("kepala") ||
+        j.includes("sekretaris") ||
+        j.includes("kasubag") ||
+        j.includes("kabid") ||
+        j.includes("plt") ||
+        j.includes("plh")
+      );
+    });
+
+    const urutanPrioritas = [
+      "kepala badan",
+      "kepala bapperida",
+      "plt. kepala",
+      "sekretaris",
+      "perencanaan, pengendalian",
+      "perekonomian",
+      "pemerintahan",
+      "infrastruktur",
+      "riset",
+      "kasubag"
+    ];
+
+    pejabatStruktural.sort((a, b) => {
+      const ja = (a.jabatan || "").toLowerCase();
+      const jb = (b.jabatan || "").toLowerCase();
+      const idxA = urutanPrioritas.findIndex((u) => ja.includes(u));
+      const idxB = urutanPrioritas.findIndex((u) => jb.includes(u));
+      return (idxA >= 0 ? idxA : 99) - (idxB >= 0 ? idxB : 99);
+    });
+
+    pejabatStruktural.forEach((p) => {
+      const val = (p.jabatan || "").trim();
+      if (val && !seen.has(val)) {
+        seen.add(val);
+        items.push({
+          value: val,
+          label: val,
+          sub: p.nama ? `${p.nama}${p.nip ? ` • NIP. ${p.nip}` : ""}` : "",
+          nama: p.nama
+        });
+      }
+    });
+
+    if (!seen.has("Kepala Badan") && !seen.has("Kepala BAPPERIDA")) {
+      items.unshift({ value: "Kepala Badan", label: "Kepala Badan", sub: "Kepala BAPPERIDA" });
+      seen.add("Kepala Badan");
+    }
+    if (!seen.has("Plt. Kepala BAPPERIDA")) {
+      items.splice(1, 0, { value: "Plt. Kepala BAPPERIDA", label: "Plt. Kepala BAPPERIDA" });
+      seen.add("Plt. Kepala BAPPERIDA");
+    }
+    if (!seen.has("Sekretaris") && !seen.has("Sekretaris BAPPERIDA")) {
+      items.push({ value: "Sekretaris", label: "Sekretaris", sub: "Sekretariat BAPPERIDA" });
+      seen.add("Sekretaris");
+    }
+
+    if (modalKeluar?.data?.penandatangan && !seen.has(modalKeluar.data.penandatangan)) {
+      items.push({
+        value: modalKeluar.data.penandatangan,
+        label: modalKeluar.data.penandatangan
+      });
+    }
+
+    return items;
+  }, [pegawaiList, modalKeluar?.data?.penandatangan]);
 
   const notif = (msg) => {
     if (showToast) showToast(msg);
@@ -1165,6 +1260,12 @@ export default function AgendaSuratPage({ user, showToast }) {
   const bukaTambahSuratKeluar = async () => {
     const preview = await fetchPreviewNomorKeluar("050");
     setNomorKeluarCheck({ status: "idle", message: "", conflict: null });
+    const bidangOpsiList = bidangList.length > 0 ? bidangList : DEFAULT_BIDANG_LIST;
+    const defBidang = (user?.bidang && bidangOpsiList.includes(user.bidang))
+      ? user.bidang
+      : (bidangOpsiList[0] || "Sekretariat");
+    const defTtd = opsiPejabatPenandatangan[0]?.value || "Kepala Badan";
+
     setModalKeluar({
       mode: "tambah",
       previewNomor: preview,
@@ -1175,8 +1276,8 @@ export default function AgendaSuratPage({ user, showToast }) {
         tujuan_surat: "",
         perihal: "",
         sifat: "Biasa",
-        bidang_pengonsep: BIDANG_LIST[0],
-        penandatangan: "Kepala BAPPERIDA",
+        bidang_pengonsep: defBidang,
+        penandatangan: defTtd,
         file_draft_url: "",
         file_final_url: "",
         status: "Draf"
@@ -1186,6 +1287,7 @@ export default function AgendaSuratPage({ user, showToast }) {
 
   const bukaEditSuratKeluar = (it) => {
     setNomorKeluarCheck({ status: "idle", message: "", conflict: null });
+    const bidangOpsiList = bidangList.length > 0 ? bidangList : DEFAULT_BIDANG_LIST;
     setModalKeluar({
       mode: "edit",
       previewNomor: it.nomor_surat,
@@ -1197,8 +1299,8 @@ export default function AgendaSuratPage({ user, showToast }) {
         tujuan_surat: it.tujuan_surat || "",
         perihal: it.perihal || "",
         sifat: it.sifat || "Biasa",
-        bidang_pengonsep: it.bidang_pengonsep || BIDANG_LIST[0],
-        penandatangan: it.penandatangan || "Kepala BAPPERIDA",
+        bidang_pengonsep: it.bidang_pengonsep || bidangOpsiList[0] || "Sekretariat",
+        penandatangan: it.penandatangan || "Kepala Badan",
         file_draft_url: it.file_draft_url || "",
         file_final_url: it.file_final_url || "",
         status: it.status || "Draf"
@@ -2685,6 +2787,7 @@ export default function AgendaSuratPage({ user, showToast }) {
                     <Select
                       fullWidth
                       size="md"
+                      searchable
                       value={modalDisposisi.form.pemberi_disposisi}
                       onChange={(v) =>
                         setModalDisposisi({
@@ -2692,7 +2795,7 @@ export default function AgendaSuratPage({ user, showToast }) {
                           form: { ...modalDisposisi.form, pemberi_disposisi: v }
                         })
                       }
-                      options={PEMBERI_DISPOSISI_OPTIONS.map((p) => ({ value: p, label: p }))}
+                      options={opsiPejabatPenandatangan}
                     />
                   </div>
 
@@ -2911,38 +3014,10 @@ export default function AgendaSuratPage({ user, showToast }) {
                 borderRadius: 8
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+              <div style={{ marginBottom: 6 }}>
                 <label style={{ fontSize: 11, fontWeight: 800, color: T.primary, letterSpacing: "0.03em" }}>
                   NOMOR REGISTER / SURAT (DAPAT DICUSTOM) *
                 </label>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const d = new Date(modalKeluar.data.tanggal_surat || Date.now());
-                    const bln = !isNaN(d.getTime()) ? d.getMonth() + 1 : (new Date().getMonth() + 1);
-                    const autoNo = await fetchPreviewNomorKeluar(modalKeluar.data.kode_klasifikasi, bln);
-                    setModalKeluar((prev) => ({
-                      ...prev,
-                      previewNomor: autoNo,
-                      data: {
-                        ...prev.data,
-                        nomor_surat: autoNo
-                      }
-                    }));
-                  }}
-                  style={{
-                    border: "none",
-                    background: "transparent",
-                    color: T.primary,
-                    fontSize: 11,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    padding: 0,
-                    textDecoration: "underline"
-                  }}
-                >
-                  Reset ke Nomor Otomatis
-                </button>
               </div>
 
               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -3130,9 +3205,10 @@ export default function AgendaSuratPage({ user, showToast }) {
                 <Select
                   fullWidth
                   size="md"
+                  searchable
                   value={modalKeluar.data.bidang_pengonsep}
                   onChange={(v) => setModalKeluar({ ...modalKeluar, data: { ...modalKeluar.data, bidang_pengonsep: v } })}
-                  options={BIDANG_LIST.map((b) => ({ value: b, label: b }))}
+                  options={opsiBidangPengonsep}
                 />
               </div>
 
@@ -3143,9 +3219,10 @@ export default function AgendaSuratPage({ user, showToast }) {
                 <Select
                   fullWidth
                   size="md"
+                  searchable
                   value={modalKeluar.data.penandatangan}
                   onChange={(v) => setModalKeluar({ ...modalKeluar, data: { ...modalKeluar.data, penandatangan: v } })}
-                  options={PENANDATANGAN_LIST.map((p) => ({ value: p, label: p }))}
+                  options={opsiPejabatPenandatangan}
                 />
               </div>
             </div>

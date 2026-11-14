@@ -704,6 +704,19 @@ export function daftarkanRuteAgenda(app, pool, queryDB, opts = {}) {
     }
   });
 
+  // Daftar Master Bidang BAPPERIDA untuk Agenda & Surat
+  app.get('/api/agenda/bidang-list', async (req, res) => {
+    try {
+      const rows = await queryDB(
+        `SELECT id, nama_bidang AS nama FROM bidang_list WHERE instansi_id = 'bapperida' ORDER BY id ASC`
+      );
+      res.json({ ok: true, items: rows || [] });
+    } catch (e) {
+      console.error('[Agenda] Get Bidang List Error:', e);
+      res.status(500).json({ ok: false, message: 'Gagal mengambil data bidang' });
+    }
+  });
+
   // Preview Nomor Register SPPD Berikutnya
   app.get('/api/agenda/sppd/preview-nomor', async (req, res) => {
     try {
