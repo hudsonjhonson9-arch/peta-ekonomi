@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { ThemeContext } from "../App.jsx";
-import { Icon } from "./ui.jsx";
+import { Icon, Select } from "./ui.jsx";
 
 const DOKUMEN_OPTIONS = [
   { value: "RKPD", label: "RKPD (Tahunan)" },
@@ -21,19 +21,18 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "
 
 const toYMD = (d) => (d ? String(d).slice(0, 10) : "");
 
-function ganttSpan(tglMulai, tglSelesai, year) {
-  const yStart = new Date(`${year}-01-01T00:00:00`).getTime();
-  const yEnd = new Date(`${year}-12-31T23:59:59`).getTime();
+function ganttSpan(tglMulai, tglSelesai, startStr, endStr) {
+  const yStart = new Date(`${startStr}T00:00:00`).getTime();
+  const yEnd = new Date(`${endStr}T23:59:59`).getTime();
   const total = yEnd - yStart;
   const s = new Date(`${toYMD(tglMulai)}T00:00:00`).getTime();
   const e = new Date(`${toYMD(tglSelesai)}T23:59:59`).getTime();
-  if (Number.isNaN(s) || Number.isNaN(e)) return { left: 0, width: 8, preYear: false };
-  const preYear = s < yStart;
+  if (Number.isNaN(s) || Number.isNaN(e) || total <= 0) return { left: 0, width: 8 };
   const cs = Math.max(yStart, Math.min(yEnd, s));
   const ce = Math.max(cs + 86400000, Math.min(yEnd, e));
   const left = ((cs - yStart) / total) * 100;
-  const width = Math.max(2.5, ((ce - cs) / total) * 100);
-  return { left, width, preYear };
+  const width = Math.max(2, ((ce - cs) / total) * 100);
+  return { left, width };
 }
 
 export default function PerencanaanProgresPage({ user }) {
@@ -83,6 +82,19 @@ export default function PerencanaanProgresPage({ user }) {
     const avg = total ? Math.round(items.reduce((a, b) => a + (Number(b.progres_persen) || 0), 0) / total) : 0;
     return { total, done, active, avg };
   }, [items]);
+
+  const timeline = useMemo(() => {
+    const hasPreYear = filtered.some((i) => toYMD(i.tgl_mulai) < `${tahun}-01-01`);
+    if (hasPreYear) {
+      const yy = String(tahun - 1).slice(2);
+      return {
+        months: [`Nov '${yy}`, `Des '${yy}`, ...MONTHS],
+        start: `${tahun - 1}-11-01`,
+        end: `${tahun}-12-31`,
+      };
+    }
+    return { months: MONTHS, start: `${tahun}-01-01`, end: `${tahun}-12-31` };
+  }, [filtered, tahun]);
 
   const seedTemplate = async () => {
     setSeeding(true);
@@ -209,27 +221,23 @@ export default function PerencanaanProgresPage({ user }) {
         </div>
 
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <select
-            aria-label="Jenis Dokumen Perencanaan"
+          <Select
             value={dokumenJenis}
-            onChange={(e) => setDokumenJenis(e.target.value)}
-            style={{ ...inputStyle, width: "auto", fontWeight: 600 }}
-          >
-            {DOKUMEN_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+            onChange={(v) => setDokumenJenis(v)}
+            options={DOKUMEN_OPTIONS}
+            searchable={false}
+            minWidth={190}
+            size="md"
+          />
 
-          <select
-            aria-label="Tahun Perencanaan"
-            value={tahun}
-            onChange={(e) => setTahun(Number(e.target.value))}
-            style={{ ...inputStyle, width: 92, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}
-          >
-            {[curYear - 1, curYear, curYear + 1, curYear + 2].map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+          <Select
+            value={String(tahun)}
+            onChange={(v) => setTahun(Number(v))}
+            options={[curYear - 1, curYear, curYear + 1, curYear + 2].map((y) => ({ value: String(y), label: String(y) }))}
+            searchable={false}
+            minWidth={96}
+            size="md"
+          />
 
           <div style={{ display: "inline-flex", border: `1px solid ${T.border}`, borderRadius: 8, overflow: "hidden", background: cardBg }}>
             {[
@@ -375,9 +383,9 @@ export default function PerencanaanProgresPage({ user }) {
                 <th style={{ textAlign: "left", padding: "10px 8px", width: 115, fontWeight: 700, color: T.textSecondary }}>Status</th>
                 <th style={{ textAlign: "right", padding: "10px 10px", width: 64, fontWeight: 700, color: T.textSecondary }}>Progres</th>
                 <th style={{ padding: 0, borderLeft: `1px solid ${T.border}` }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", textAlign: "center", fontSize: 11, fontWeight: 700, color: T.textSecondary }}>
-                    {MONTHS.map((m) => (
-                      <div key={m} style={{ padding: "10px 2px", borderRight: `1px solid ${T.border}` }}>{m}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: `repeat(${timeline.months.length}, 1fr)`, textAlign: "center", fontSize: 11, fontWeight: 700, color: T.textSecondary }}>
+                    {timeline.months.map((m) => (
+                      <div key={m} style={{ padding: "10px 2px", borderRight: `1px solid ${T.border}`, whiteSpace: "nowrap" }}>{m}</div>
                     ))}
                   </div>
                 </th>
@@ -386,7 +394,7 @@ export default function PerencanaanProgresPage({ user }) {
             <tbody>
               {filtered.map((it) => {
                 const meta = colMeta(it.status);
-                const span = ganttSpan(it.tgl_mulai, it.tgl_selesai, tahun);
+                const span = ganttSpan(it.tgl_mulai, it.tgl_selesai, timeline.start, timeline.end);
                 const pct = Number(it.progres_persen) || 0;
                 return (
                   <tr
@@ -404,11 +412,17 @@ export default function PerencanaanProgresPage({ user }) {
                       </div>
                     </td>
                     <td style={{ padding: "10px 8px", color: T.textSecondary, verticalAlign: "middle" }}>
-                      <div style={{ fontWeight: 500, color: T.text }}>{it.pic_nama || "—"}</div>
-                      <div style={{ fontSize: 11, color: T.textMuted }}>{it.pic_bidang || "—"}</div>
+                      {it.pic_nama ? (
+                        <>
+                          <div style={{ fontWeight: 500, color: T.text }}>{it.pic_nama}</div>
+                          {it.pic_bidang && <div style={{ fontSize: 11, color: T.textMuted }}>{it.pic_bidang}</div>}
+                        </>
+                      ) : (
+                        <div style={{ fontWeight: 500, color: T.text }}>{it.pic_bidang || "—"}</div>
+                      )}
                     </td>
                     <td style={{ padding: "10px 8px", verticalAlign: "middle" }}>
-                      <span style={{ display: "inline-block", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, color: meta.color, background: meta.bg }}>
+                      <span style={{ display: "inline-block", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, color: meta.color, background: meta.bg, whiteSpace: "nowrap" }}>
                         {meta.label}
                       </span>
                     </td>
@@ -417,8 +431,8 @@ export default function PerencanaanProgresPage({ user }) {
                     </td>
                     <td style={{ padding: "8px 0", borderLeft: `1px solid ${T.border}`, position: "relative", verticalAlign: "middle" }}>
                       {/* Month grid background */}
-                      <div style={{ position: "absolute", inset: 0, display: "grid", gridTemplateColumns: "repeat(12, 1fr)", pointerEvents: "none" }}>
-                        {MONTHS.map((m) => (
+                      <div style={{ position: "absolute", inset: 0, display: "grid", gridTemplateColumns: `repeat(${timeline.months.length}, 1fr)`, pointerEvents: "none" }}>
+                        {timeline.months.map((m) => (
                           <div key={m} style={{ borderRight: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "#F1F5F9"}` }} />
                         ))}
                       </div>
@@ -429,22 +443,15 @@ export default function PerencanaanProgresPage({ user }) {
                             position: "absolute",
                             left: `${span.left}%`,
                             width: `${span.width}%`,
-                            top: 2,
-                            height: 18,
+                            top: 3,
+                            height: 16,
                             borderRadius: 5,
                             background: isDark ? "rgba(255,255,255,0.12)" : "#E2E8F0",
                             border: `1px solid ${meta.color}`,
                             overflow: "hidden",
-                            display: "flex",
-                            alignItems: "center",
                           }}
                         >
                           <div style={{ width: `${pct}%`, height: "100%", background: meta.color, opacity: 0.85 }} />
-                          {span.preYear && (
-                            <span style={{ position: "relative", zIndex: 1, fontSize: 9.5, fontWeight: 700, paddingLeft: 4, color: T.text }}>
-                              ← {tahun - 1}
-                            </span>
-                          )}
                         </div>
                       </div>
                     </td>
@@ -620,17 +627,17 @@ export default function PerencanaanProgresPage({ user }) {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Status</label>
-                <select
+                <Select
+                  fullWidth
+                  searchable={false}
+                  size="md"
                   value={modal.data.status || "todo"}
-                  onChange={(e) => {
-                    const st = e.target.value;
+                  onChange={(st) => {
                     const pct = st === "done" ? 100 : (st === "todo" ? 0 : modal.data.progres_persen);
                     setModal({ ...modal, data: { ...modal.data, status: st, progres_persen: pct } });
                   }}
-                  style={inputStyle}
-                >
-                  {KANBAN_COLS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
-                </select>
+                  options={KANBAN_COLS.map((c) => ({ value: c.key, label: c.label }))}
+                />
               </div>
               <div>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>
